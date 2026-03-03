@@ -1,135 +1,152 @@
-require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const cors = require('cors');
-const { Pool } = require('pg');
+const path = require('path');
+require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
-  }
+    origin: true,
+    credentials: true,
+    methods: ["GET", "POST"]
+  },
+  transports: ["polling", "websocket"],
+  pingTimeout: 60000,
+  allowEIO3: true
 });
 
 // Middleware
-app.use(cors());
 app.use(express.json());
+app.use('/garcom', express.static(path.join(__dirname, 'frontend', 'garcom')));
+app.use('/admin', express.static(path.join(__dirname, 'frontend', 'admin')));
 app.get('/garcom/style.css', (req, res) => res.sendFile(__dirname + '/frontend/garcom/style.css'));
 app.get('/garcom/app.js', (req, res) => res.sendFile(__dirname + '/frontend/garcom/app.js'));
 app.get('/admin/style.css', (req, res) => res.sendFile(__dirname + '/frontend/admin/style.css'));
 app.get('/admin/app.js', (req, res) => res.sendFile(__dirname + '/frontend/admin/app.js'));
-
-// Conexão com Neon (PostgreSQL)
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
-
-// Rotas para Frontend
 app.get('/garcom', (req, res) => res.sendFile(__dirname + '/frontend/garcom/index.html'));
 app.get('/admin', (req, res) => res.sendFile(__dirname + '/frontend/admin/index.html'));
 app.get('/', (req, res) => res.sendFile(__dirname + '/frontend/garcom/index.html'));
 
-// Rotas de Mesas
-app.get('/api/mesas', async (req, res) => {
-  try {
-    const { rows } = await pool.query('SELECT * FROM mesas');
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+// Rotas API
+app.get('/api/mesas', (req, res) => {
+  res.json([
+    { id: 1, numero: 1, status: "livre" },
+    { id: 2, numero: 2, status: "livre" },
+    { id: 3, numero: 3, status: "livre" },
+    { id: 4, numero: 4, status: "livre" },
+    { id: 5, numero: 5, status: "livre" }
+  ]);
 });
 
-// Rotas de Menu
-app.get('/api/menu', async (req, res) => {
-  try {
-    const { rows } = await pool.query('SELECT * FROM menu');
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+app.get('/api/menu', (req, res) => {
+  res.json([
+    { id: 1, nome: "Cerveja Heineken", categoria: "bebidas", preco: 8.5, imagem: "https://placehold.co/100" },
+    { id: 2, nome: "Caipirinha de Limão", categoria: "bebidas", preco: 12, imagem: "https://placehold.co/100" },
+    { id: 3, nome: "Hambúrguer Clássico", categoria: "comidas", preco: 15, imagem: "https://placehold.co/100" },
+    { id: 4, nome: "Batata Frita", categoria: "comidas", preco: 7.5, imagem: "https://placehold.co/100" }
+  ]);
 });
 
-// Rotas de Pedidos
-app.post('/api/pedidos', async (req, res) => {
+app.post('/api/pedidos', (req, res) => {
   const { mesa_id, garcom_id, itens } = req.body;
   const total = itens.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
-
-  try {
-    const pedidoResult = await pool.query(
-      'INSERT INTO pedidos (mesa_id, garcom_id, total) VALUES ($1, $2, $3) RETURNING id',
-      [mesa_id, garcom_id, total]
-    );
-    const pedido_id = pedidoResult.rows[0].id;
-
-    const itemQueries = itens.map(item => 
-      pool.query(
-        'INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao) VALUES ($1, $2, $3, $4)',
-        [pedido_id, item.menu_id, item.quantidade, item.observacao]
-      )
-    );
-    await Promise.all(itemQueries);
-
-    await pool.query('UPDATE mesas SET status = $1 WHERE id = $2', ['ocupada', mesa_id]);
-
-    io.emit('novo_pedido', { pedido_id, mesa_id, garcom_id, itens, total });
-    res.json({ id: pedido_id });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  
+  const pedido = {
+    id: Date.now(),
+    mesa_id,
+    garcom_id,
+    status: "recebido",
+    total,
+    created_at: new Date(),
+    mesa_numero: mesas.find(m => m.id === mesa_id)?.numero || mesa_id
+  };
+  
+  pedidos.push(pedido);
+  
+  for (const item of itens) {
+    pedido_itens.push({
+      id: Date.now() + Math.random(),
+      pedido_id: pedido.id,
+      menu_id: item.menu_id,
+      quantidade: item.quantidade,
+      observacao: item.observacao
+    });
   }
+  
+  io.emit('novo_pedido', {
+    pedido_id: pedido.id,
+    mesa_id: pedido.mesa_id,
+    garcom_id: pedido.garcom_id,
+    total: pedido.total,
+    status: pedido.status,
+    mesa_numero: pedido.mesa_numero
+  });
+  
+  res.json({ id: pedido.id });
 });
 
-app.get('/api/pedidos', async (req, res) => {
-  try {
-    const { rows } = await pool.query(`
-      SELECT p.*, m.numero as mesa_numero 
-      FROM pedidos p 
-      JOIN mesas m ON p.mesa_id = m.id 
-      ORDER BY created_at DESC
-    `);
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+app.get('/api/pedidos', (req, res) => {
+  const result = pedidos.map(p => ({
+    id: p.id,
+    mesa_id: p.mesa_id,
+    garcom_id: p.garcom_id,
+    status: p.status,
+    total: p.total,
+    created_at: p.created_at,
+    mesa_numero: p.mesa_numero
+  }));
+  res.json(result);
 });
 
-app.put('/api/pedidos/:id/status', async (req, res) => {
-  const { status } = req.body;
+app.put('/api/pedidos/:id/status', (req, res) => {
   const { id } = req.params;
-
-  try {
-    await pool.query('UPDATE pedidos SET status = $1 WHERE id = $2', [status, id]);
-    io.emit('atualizar_pedido', { id, status });
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  const { status } = req.body;
+  const pedido = pedidos.find(p => p.id == id);
+  
+  if (!pedido) {
+    return res.status(404).json({ error: 'Pedido not found' });
   }
+  
+  pedido.status = status;
+  io.emit('atualizar_pedido', { id, status });
+  res.json({ success: true });
 });
 
-app.get('/api/pedidos/:id/itens', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { rows } = await pool.query(`
-      SELECT pi.*, m.nome, m.preco 
-      FROM pedido_itens pi 
-      JOIN menu m ON pi.menu_id = m.id 
-      WHERE pi.pedido_id = $1
-    `, [id]);
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+app.get('/api/pedidos/:id/itens', (req, res) => {
+  const { id } = req.params;
+  const itens = pedido_itens
+    .filter(pi => pi.pedido_id == id)
+    .map(pi => {
+      const menuItem = menu.find(m => m.id === pi.menu_id);
+      return {
+        ...pi,
+        nome: menuItem?.nome,
+        preco: menuItem?.preco
+      };
+    });
+  res.json(itens);
 });
 
-// Socket.io
-io.on('connection', (socket) => {
-  console.log('Usuário conectado:', socket.id);
-  socket.on('disconnect', () => console.log('Usuário desconectado:', socket.id));
-});
+let mesas = [
+  { id: 1, numero: 1, status: "livre" },
+  { id: 2, numero: 2, status: "livre" },
+  { id: 3, numero: 3, status: "livre" },
+  { id: 4, numero: 4, status: "livre" },
+  { id: 5, numero: 5, status: "livre" }
+];
 
-// Inicia servidor
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Servidor rodando em http://localhost:${PORT}`));
+let menu = [
+  { id: 1, nome: "Cerveja Heineken", categoria: "bebidas", preco: 8.5, imagem: "https://placehold.co/100" },
+  { id: 2, nome: "Caipirinha de Limão", categoria: "bebidas", preco: 12, imagem: "https://placehold.co/100" },
+  { id: 3, nome: "Hambúrguer Clássico", categoria: "comidas", preco: 15, imagem: "https://placehold.co/100" },
+  { id: 4, nome: "Batata Frita", categoria: "comidas", preco: 7.5, imagem: "https://placehold.co/100" }
+];
+
+let pedidos = [];
+let pedido_itens = [];
+
+server.listen(process.env.PORT || 3001, () => {
+  console.log(`Servidor rodando na porta ${process.env.PORT || 3001}`);
+});

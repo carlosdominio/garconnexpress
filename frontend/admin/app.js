@@ -1,4 +1,7 @@
-const socket = io();
+const socket = io({
+  transports: ["polling"],
+  reconnection: true
+});
 let pedidos = [];
 
 document.addEventListener('DOMContentLoaded', () => {

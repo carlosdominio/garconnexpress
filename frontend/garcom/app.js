@@ -1,4 +1,7 @@
-const socket = io();
+const socket = io({
+  transports: ["polling"],
+  reconnection: true
+});
 let menu = [];
 let mesas = [];
 let mesaAtual = null;
