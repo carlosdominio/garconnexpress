@@ -4,9 +4,9 @@ let mesas = [];
 let mesaAtual = null;
 let pedidoAtual = [];
 
-document.addEventListener('DOMContentLoaded', () => {
-  carregarMenu();
-  carregarMesas();
+document.addEventListener('DOMContentLoaded', async () => {
+  await carregarMenu();
+  await carregarMesas();
   configurarEventos();
 });
 
