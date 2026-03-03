@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GarçonExpress - Garçom</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>GarçonExpress</h1>
+    <p id="garcom-nome">Garçom: João</p>
+  </header>
+
+  <main>
+    <section id="mesas">
+      <h2>Escolha uma Mesa</h2>
+      <div id="mesas-grid"></div>
+    </section>
+
+    <section id="pedido" class="hidden">
+      <h2>Pedido - Mesa <span id="mesa-atual"></span></h2>
+      <div id="categorias"></div>
+      <div id="menu-grid"></div>
+      <div id="resumo-pedido">
+        <h3>Resumo</h3>
+        <div id="itens-pedido"></div>
+        <p id="total-pedido">Total: R$ 0,00</p>
+        <button id="enviar-pedido">Enviar Pedido</button>
+        <button id="voltar-mesas">Voltar</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
