@@ -17,8 +17,7 @@ const io = socketIo(server, {
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use('/garcom', express.static('frontend/garcom'));
-app.use('/admin', express.static('frontend/admin'));
+app.use(express.static('frontend'));
 
 // Conexão com Neon (PostgreSQL)
 const pool = new Pool({
