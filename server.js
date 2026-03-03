@@ -15,29 +15,35 @@ app.get('/garcom', (req, res) => res.sendFile(__dirname + '/frontend/garcom/inde
 app.get('/admin', (req, res) => res.sendFile(__dirname + '/frontend/admin/index.html'));
 app.get('/', (req, res) => res.sendFile(__dirname + '/frontend/garcom/index.html'));
 
+// Dados em memória
+let mesas = [
+  { id: 1, numero: 1, status: "livre" },
+  { id: 2, numero: 2, status: "livre" },
+  { id: 3, numero: 3, status: "livre" },
+  { id: 4, numero: 4, status: "livre" },
+  { id: 5, numero: 5, status: "livre" }
+];
+
+let menu = [
+  { id: 1, nome: "Cerveja Heineken", categoria: "bebidas", preco: 8.5, imagem: "https://placehold.co/100" },
+  { id: 2, nome: "Caipirinha de Limão", categoria: "bebidas", preco: 12, imagem: "https://placehold.co/100" },
+  { id: 3, nome: "Hambúrguer Clássico", categoria: "comidas", preco: 15, imagem: "https://placehold.co/100" },
+  { id: 4, nome: "Batata Frita", categoria: "comidas", preco: 7.5, imagem: "https://placehold.co/100" }
+];
+
+let pedidos = [];
+let pedidoItens = [];
+
 app.get('/api/mesas', (req, res) => {
-  res.json([
-    { id: 1, numero: 1, status: "livre" },
-    { id: 2, numero: 2, status: "livre" },
-    { id: 3, numero: 3, status: "livre" },
-    { id: 4, numero: 4, status: "livre" },
-    { id: 5, numero: 5, status: "livre" }
-  ]);
+  res.json(mesas);
 });
 
 app.get('/api/menu', (req, res) => {
-  res.json([
-    { id: 1, nome: "Cerveja Heineken", categoria: "bebidas", preco: 8.5, imagem: "https://placehold.co/100" },
-    { id: 2, nome: "Caipirinha de Limão", categoria: "bebidas", preco: 12, imagem: "https://placehold.co/100" },
-    { id: 3, nome: "Hambúrguer Clássico", categoria: "comidas", preco: 15, imagem: "https://placehold.co/100" },
-    { id: 4, nome: "Batata Frita", categoria: "comidas", preco: 7.5, imagem: "https://placehold.co/100" }
-  ]);
+  res.json(menu);
 });
 
 app.get('/api/pedidos', (req, res) => {
-  res.json([
-    { id: Date.now(), mesa_id: 1, garcom_id: "garcom-1", status: "recebido", total: 8.5, created_at: new Date(), mesa_numero: 1 }
-  ]);
+  res.json(pedidos);
 });
 
 app.post('/api/pedidos', (req, res) => {
@@ -49,14 +55,29 @@ app.post('/api/pedidos', (req, res) => {
     }
     
     const total = itens.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
+    const mesa = mesas.find(m => m.id == mesa_id);
+    
     const pedido = {
       id: Date.now(),
       mesa_id: parseInt(mesa_id),
       garcom_id,
       status: "recebido",
       total,
-      created_at: new Date()
+      created_at: new Date(),
+      mesa_numero: mesa ? mesa.numero : mesa_id
     };
+    
+    pedidos.push(pedido);
+    
+    itens.forEach(item => {
+      pedidoItens.push({
+        id: Date.now() + Math.random(),
+        pedido_id: pedido.id,
+        menu_id: item.menu_id,
+        quantidade: item.quantidade,
+        observacao: item.observacao || ''
+      });
+    });
     
     res.json({ id: pedido.id, success: true });
   } catch (error) {
@@ -66,11 +87,31 @@ app.post('/api/pedidos', (req, res) => {
 });
 
 app.put('/api/pedidos/:id/status', (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  
+  const pedido = pedidos.find(p => p.id == id);
+  if (!pedido) {
+    return res.status(404).json({ error: 'Pedido não encontrado' });
+  }
+  
+  pedido.status = status;
   res.json({ success: true });
 });
 
 app.get('/api/pedidos/:id/itens', (req, res) => {
-  res.json([]);
+  const { id } = req.params;
+  const itens = pedidoItens
+    .filter(pi => pi.pedido_id == id)
+    .map(pi => {
+      const menuItem = menu.find(m => m.id === pi.menu_id);
+      return {
+        ...pi,
+        nome: menuItem ? menuItem.nome : 'Item não encontrado',
+        preco: menuItem ? menuItem.preco : 0
+      };
+    });
+  res.json(itens);
 });
 
 const PORT = process.env.PORT || 3001;

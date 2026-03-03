@@ -2,6 +2,8 @@ let pedidos = [];
 
 document.addEventListener('DOMContentLoaded', () => {
   carregarPedidos();
+  // Atualiza os pedidos a cada 3 segundos (opcional)
+  setInterval(carregarPedidos, 3000);
 });
 
 async function carregarPedidos() {
