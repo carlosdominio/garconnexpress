@@ -1,8 +1,17 @@
 const express = require('express');
 const path = require('path');
+const Pusher = require('pusher');
 require('dotenv').config();
 
 const app = express();
+
+const pusher = new Pusher({
+  appId: process.env.PUSHER_APP_ID || 'app-id',
+  key: process.env.PUSHER_APP_KEY || 'app-key',
+  secret: process.env.PUSHER_APP_SECRET || 'app-secret',
+  cluster: process.env.PUSHER_CLUSTER || 'us2',
+  useTLS: true
+});
 
 app.use(express.json());
 app.use('/garcom', express.static(path.join(__dirname, 'frontend', 'garcom')));
@@ -15,7 +24,6 @@ app.get('/garcom', (req, res) => res.sendFile(__dirname + '/frontend/garcom/inde
 app.get('/admin', (req, res) => res.sendFile(__dirname + '/frontend/admin/index.html'));
 app.get('/', (req, res) => res.sendFile(__dirname + '/frontend/garcom/index.html'));
 
-// Dados em memória
 let mesas = [
   { id: 1, numero: 1, status: "livre" },
   { id: 2, numero: 2, status: "livre" },
@@ -78,6 +86,9 @@ app.post('/api/pedidos', (req, res) => {
         observacao: item.observacao || ''
       });
     });
+    
+    // Envia evento para o Pusher
+    pusher.trigger('pedidos', 'novo-pedido', pedido);
     
     res.json({ id: pedido.id, success: true });
   } catch (error) {

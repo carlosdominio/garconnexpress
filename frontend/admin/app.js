@@ -1,7 +1,10 @@
 let pedidos = [];
+const PUSHER_APP_KEY = 'seu-app-key';
+const PUSHER_CLUSTER = 'us2';
 
 document.addEventListener('DOMContentLoaded', () => {
   carregarPedidos();
+  configurarPusher();
 });
 
 async function carregarPedidos() {
@@ -47,4 +50,16 @@ async function atualizarStatus(id, status) {
     body: JSON.stringify({ status })
   });
   carregarPedidos();
+}
+
+function configurarPusher() {
+  const pusher = new Pusher(PUSHER_APP_KEY, {
+    cluster: PUSHER_CLUSTER
+  });
+
+  const channel = pusher.subscribe('pedidos');
+  channel.bind('novo-pedido', (pedido) => {
+    carregarPedidos();
+    alert('Novo pedido recebido!');
+  });
 }
