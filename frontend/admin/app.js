@@ -1,6 +1,6 @@
 let pedidos = [];
-const PUSHER_APP_KEY = 'seu-app-key';
-const PUSHER_CLUSTER = 'us2';
+const PUSHER_APP_KEY = 'c4a9b50fe10859f2107a';
+const PUSHER_CLUSTER = 'sa1';
 
 document.addEventListener('DOMContentLoaded', () => {
   carregarPedidos();

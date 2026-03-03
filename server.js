@@ -6,10 +6,10 @@ require('dotenv').config();
 const app = express();
 
 const pusher = new Pusher({
-  appId: process.env.PUSHER_APP_ID || 'app-id',
-  key: process.env.PUSHER_APP_KEY || 'app-key',
-  secret: process.env.PUSHER_APP_SECRET || 'app-secret',
-  cluster: process.env.PUSHER_CLUSTER || 'us2',
+  appId: process.env.PUSHER_APP_ID || '2122978',
+  key: process.env.PUSHER_APP_KEY || 'c4a9b50fe10859f2107a',
+  secret: process.env.PUSHER_APP_SECRET || 'e1161ddeb0d86b88ba6f',
+  cluster: process.env.PUSHER_CLUSTER || 'sa1',
   useTLS: true
 });
 
@@ -87,7 +87,6 @@ app.post('/api/pedidos', (req, res) => {
       });
     });
     
-    // Envia evento para o Pusher
     pusher.trigger('pedidos', 'novo-pedido', pedido);
     
     res.json({ id: pedido.id, success: true });
@@ -101,7 +100,7 @@ app.put('/api/pedidos/:id/status', (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   
-  const pedido = pedidos.find(p => p.id == id);
+  const pedido = pedidos.find(p => p.id == parseInt(id));
   if (!pedido) {
     return res.status(404).json({ error: 'Pedido não encontrado' });
   }
@@ -113,7 +112,7 @@ app.put('/api/pedidos/:id/status', (req, res) => {
 app.get('/api/pedidos/:id/itens', (req, res) => {
   const { id } = req.params;
   const itens = pedidoItens
-    .filter(pi => pi.pedido_id == id)
+    .filter(pi => pi.pedido_id == parseInt(id))
     .map(pi => {
       const menuItem = menu.find(m => m.id === pi.menu_id);
       return {
