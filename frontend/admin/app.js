@@ -1,12 +1,7 @@
-const socket = io({
-  transports: ["polling"],
-  reconnection: true
-});
 let pedidos = [];
 
 document.addEventListener('DOMContentLoaded', () => {
   carregarPedidos();
-  configurarSocket();
 });
 
 async function carregarPedidos() {
@@ -52,15 +47,4 @@ async function atualizarStatus(id, status) {
     body: JSON.stringify({ status })
   });
   carregarPedidos();
-}
-
-function configurarSocket() {
-  socket.on('novo_pedido', () => {
-    carregarPedidos();
-    alert('Novo pedido recebido!');
-  });
-
-  socket.on('atualizar_pedido', () => {
-    carregarPedidos();
-  });
 }

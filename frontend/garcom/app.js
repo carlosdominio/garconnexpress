@@ -1,7 +1,3 @@
-const socket = io({
-  transports: ["polling"],
-  reconnection: true
-});
 let menu = [];
 let mesas = [];
 let mesaAtual = null;
@@ -108,25 +104,31 @@ function removerItemPedido(index) {
 async function enviarPedido() {
   if (pedidoAtual.length === 0) return alert('Adicione pelo menos um item');
 
-  const res = await fetch('/api/pedidos', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      mesa_id: mesaAtual.id,
-      garcom_id: 'garcom-1',
-      itens: pedidoAtual
-    })
-  });
+  try {
+    const res = await fetch('/api/pedidos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mesa_id: mesaAtual.id,
+        garcom_id: 'garcom-1',
+        itens: pedidoAtual
+      })
+    });
 
-  if (res.ok) {
-    alert('Pedido enviado!');
-    pedidoAtual = [];
-    exibirResumoPedido();
-    document.getElementById('pedido').classList.add('hidden');
-    document.getElementById('mesas').classList.remove('hidden');
-    carregarMesas();
-  } else {
-    alert('Erro ao enviar pedido');
+    if (res.ok) {
+      alert('Pedido enviado!');
+      pedidoAtual = [];
+      exibirResumoPedido();
+      document.getElementById('pedido').classList.add('hidden');
+      document.getElementById('mesas').classList.remove('hidden');
+      carregarMesas();
+    } else {
+      const error = await res.json();
+      alert('Erro: ' + (error.error || 'Erro desconhecido'));
+    }
+  } catch (error) {
+    console.error('Erro:', error);
+    alert('Erro de conexão com o servidor');
   }
 }
 
@@ -151,11 +153,5 @@ function configurarEventos() {
   document.getElementById('voltar-mesas').addEventListener('click', () => {
     document.getElementById('pedido').classList.add('hidden');
     document.getElementById('mesas').classList.remove('hidden');
-  });
-
-  socket.on('atualizar_pedido', (data) => {
-    if (data.status === 'pronto') {
-      alert('Pedido pronto!');
-    }
   });
 }
