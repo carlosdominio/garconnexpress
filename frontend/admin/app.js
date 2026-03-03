@@ -9,19 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function carregarPedidos() {
-  console.log('Carregando pedidos...');
-  try {
-    const res = await fetch('/api/pedidos');
-    if (!res.ok) {
-      console.error('Erro na API:', res.status, res.statusText);
-      return;
-    }
-    pedidos = await res.json();
-    console.log('Pedidos carregados:', pedidos);
-    exibirPedidos();
-  } catch (error) {
-    console.error('Erro ao carregar pedidos:', error);
-  }
+  const res = await fetch('/api/pedidos');
+  pedidos = await res.json();
+  exibirPedidos();
 }
 
 async function exibirPedidos() {
@@ -55,56 +45,24 @@ async function exibirPedidos() {
 }
 
 async function atualizarStatus(id, status) {
-  console.log('Atualizando status:', id, status);
-  try {
-    const res = await fetch(`/api/pedidos/${id}/status`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status })
-    });
-    if (!res.ok) {
-      console.error('Erro ao atualizar status:', res.status, res.statusText);
-      return;
-    }
-    carregarPedidos();
-  } catch (error) {
-    console.error('Erro ao atualizar status:', error);
-  }
+  await fetch(`/api/pedidos/${id}/status`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status })
+  });
+  carregarPedidos();
 }
 
 function configurarPusher() {
-  try {
-    console.log('Configurando Pusher...');
-    const pusher = new Pusher(PUSHER_APP_KEY, {
-      cluster: PUSHER_CLUSTER,
-      encrypted: true
-    });
+  const pusher = new Pusher(PUSHER_APP_KEY, {
+    cluster: PUSHER_CLUSTER,
+    encrypted: true
+  });
 
-    console.log('Pusher instanciado:', pusher);
+  const channel = pusher.subscribe('pedidos');
 
-    const channel = pusher.subscribe('pedidos');
-    console.log('Canal pedidos inscrito');
-
-    channel.bind('novo-pedido', (pedido) => {
-      console.log('Evento novo-pedido recebido:', pedido);
-      carregarPedidos();
-      alert('Novo pedido recebido!');
-    });
-
-    channel.bind('pusher:subscription_error', (error) => {
-      console.error('Erro de assinatura:', error);
-    });
-
-    channel.bind('pusher:subscription_succeeded', () => {
-      console.log('Assinatura bem-sucedida');
-    });
-
-    channel.bind('pusher:error', (error) => {
-      console.error('Erro do Pusher:', error);
-    });
-
-    console.log('Pusher configurado com sucesso');
-  } catch (error) {
-    console.error('Erro ao configurar Pusher:', error);
-  }
+  channel.bind('novo-pedido', (pedido) => {
+    console.log('Novo pedido recebido:', pedido);
+    carregarPedidos();
+  });
 }
