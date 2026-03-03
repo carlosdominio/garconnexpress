@@ -26,6 +26,11 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// Rotas para Frontend
+app.get('/garcom', (req, res) => res.sendFile(__dirname + '/frontend/garcom/index.html'));
+app.get('/admin', (req, res) => res.sendFile(__dirname + '/frontend/admin/index.html'));
+app.get('/', (req, res) => res.sendFile(__dirname + '/frontend/garcom/index.html'));
+
 // Rotas de Mesas
 app.get('/api/mesas', async (req, res) => {
   try {
