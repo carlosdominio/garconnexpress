@@ -56,7 +56,11 @@ async function atualizarStatus(id, status) {
 function configurarPusher() {
   const pusher = new Pusher(PUSHER_APP_KEY, {
     cluster: PUSHER_CLUSTER,
-    encrypted: true
+    encrypted: true,
+    activity_timeout: 60000,
+    pong_timeout: 30000,
+    reconnectionDelay: 5000,
+    reconnectionAttempts: Infinity
   });
 
   const channel = pusher.subscribe('pedidos');
@@ -64,5 +68,26 @@ function configurarPusher() {
   channel.bind('novo-pedido', (pedido) => {
     console.log('Novo pedido recebido:', pedido);
     carregarPedidos();
+    alert('Novo pedido recebido!');
+  });
+
+  pusher.connection.bind('connected', () => {
+    console.log('Pusher conectado');
+  });
+
+  pusher.connection.bind('disconnected', () => {
+    console.log('Pusher desconectado');
+  });
+
+  pusher.connection.bind('reconnecting', () => {
+    console.log('Pusher reconectando...');
+  });
+
+  pusher.connection.bind('reconnected', () => {
+    console.log('Pusher reconectado');
+  });
+
+  pusher.connection.bind('error', (error) => {
+    console.error('Erro do Pusher:', error);
   });
 }
