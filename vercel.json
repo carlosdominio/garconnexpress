@@ -2,13 +2,16 @@
   "version": 2,
   "builds": [
     { "src": "server.js", "use": "@vercel/node" },
-    { "src": "frontend/**/*", "use": "@vercel/static" }
+    { "src": "frontend/garcom/(.*)", "use": "@vercel/static" },
+    { "src": "frontend/admin/(.*)", "use": "@vercel/static" }
   ],
   "routes": [
     { "src": "/api/(.*)", "dest": "/server.js" },
     { "src": "/socket.io/(.*)", "dest": "/server.js" },
-    { "src": "/garcom/(.*)", "dest": "/frontend/garcom/$1" },
-    { "src": "/admin/(.*)", "dest": "/frontend/admin/$1" },
+    { "src": "/garcom/app.js", "dest": "/frontend/garcom/app.js" },
+    { "src": "/garcom/style.css", "dest": "/frontend/garcom/style.css" },
+    { "src": "/admin/app.js", "dest": "/frontend/admin/app.js" },
+    { "src": "/admin/style.css", "dest": "/frontend/admin/style.css" },
     { "src": "/garcom", "dest": "/frontend/garcom/index.html" },
     { "src": "/admin", "dest": "/frontend/admin/index.html" },
     { "src": "/", "dest": "/frontend/garcom/index.html" }
