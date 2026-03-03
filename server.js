@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const Pusher = require('pusher');
+const Database = require('better-sqlite3');
 require('dotenv').config();
 
 const app = express();
@@ -13,6 +14,64 @@ const pusher = new Pusher({
   useTLS: true
 });
 
+const db = new Database('garconnexpress.db');
+
+// Cria tabelas se não existirem
+db.exec(`
+  CREATE TABLE IF NOT EXISTS mesas (
+    id INTEGER PRIMARY KEY,
+    numero INTEGER,
+    status TEXT DEFAULT 'livre'
+  );
+
+  CREATE TABLE IF NOT EXISTS menu (
+    id INTEGER PRIMARY KEY,
+    nome TEXT,
+    categoria TEXT,
+    preco REAL,
+    imagem TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS pedidos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mesa_id INTEGER,
+    garcom_id TEXT,
+    status TEXT DEFAULT 'recebido',
+    total REAL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    mesa_numero INTEGER,
+    FOREIGN KEY (mesa_id) REFERENCES mesas(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS pedido_itens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pedido_id INTEGER,
+    menu_id INTEGER,
+    quantidade INTEGER,
+    observacao TEXT,
+    FOREIGN KEY (pedido_id) REFERENCES pedidos(id),
+    FOREIGN KEY (menu_id) REFERENCES menu(id)
+  );
+`);
+
+// Insere dados iniciais se não existirem
+const countMesas = db.prepare('SELECT COUNT(*) as count FROM mesas').get().count;
+if (countMesas === 0) {
+  const insertMesa = db.prepare('INSERT INTO mesas (id, numero, status) VALUES (?, ?, ?)');
+  [1, 2, 3, 4, 5].forEach(numero => {
+    insertMesa.run(numero, numero, 'livre');
+  });
+}
+
+const countMenu = db.prepare('SELECT COUNT(*) as count FROM menu').get().count;
+if (countMenu === 0) {
+  const insertMenu = db.prepare('INSERT INTO menu (id, nome, categoria, preco, imagem) VALUES (?, ?, ?, ?, ?)');
+  insertMenu.run(1, 'Cerveja Heineken', 'bebidas', 8.5, 'https://placehold.co/100');
+  insertMenu.run(2, 'Caipirinha de Limão', 'bebidas', 12, 'https://placehold.co/100');
+  insertMenu.run(3, 'Hambúrguer Clássico', 'comidas', 15, 'https://placehold.co/100');
+  insertMenu.run(4, 'Batata Frita', 'comidas', 7.5, 'https://placehold.co/100');
+}
+
 app.use(express.json());
 app.use('/garcom', express.static(path.join(__dirname, 'frontend', 'garcom')));
 app.use('/admin', express.static(path.join(__dirname, 'frontend', 'admin')));
@@ -24,33 +83,18 @@ app.get('/garcom', (req, res) => res.sendFile(__dirname + '/frontend/garcom/inde
 app.get('/admin', (req, res) => res.sendFile(__dirname + '/frontend/admin/index.html'));
 app.get('/', (req, res) => res.sendFile(__dirname + '/frontend/garcom/index.html'));
 
-let mesas = [
-  { id: 1, numero: 1, status: "livre" },
-  { id: 2, numero: 2, status: "livre" },
-  { id: 3, numero: 3, status: "livre" },
-  { id: 4, numero: 4, status: "livre" },
-  { id: 5, numero: 5, status: "livre" }
-];
-
-let menu = [
-  { id: 1, nome: "Cerveja Heineken", categoria: "bebidas", preco: 8.5, imagem: "https://placehold.co/100" },
-  { id: 2, nome: "Caipirinha de Limão", categoria: "bebidas", preco: 12, imagem: "https://placehold.co/100" },
-  { id: 3, nome: "Hambúrguer Clássico", categoria: "comidas", preco: 15, imagem: "https://placehold.co/100" },
-  { id: 4, nome: "Batata Frita", categoria: "comidas", preco: 7.5, imagem: "https://placehold.co/100" }
-];
-
-let pedidos = [];
-let pedidoItens = [];
-
 app.get('/api/mesas', (req, res) => {
+  const mesas = db.prepare('SELECT * FROM mesas').all();
   res.json(mesas);
 });
 
 app.get('/api/menu', (req, res) => {
+  const menu = db.prepare('SELECT * FROM menu').all();
   res.json(menu);
 });
 
 app.get('/api/pedidos', (req, res) => {
+  const pedidos = db.prepare('SELECT * FROM pedidos WHERE status != ?').all('entregue');
   res.json(pedidos);
 });
 
@@ -63,33 +107,21 @@ app.post('/api/pedidos', (req, res) => {
     }
     
     const total = itens.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
-    const mesa = mesas.find(m => m.id == mesa_id);
+    const mesa = db.prepare('SELECT * FROM mesas WHERE id = ?').get(mesa_id);
     
-    const pedido = {
-      id: Date.now(),
-      mesa_id: parseInt(mesa_id),
-      garcom_id,
-      status: "recebido",
-      total,
-      created_at: new Date(),
-      mesa_numero: mesa ? mesa.numero : mesa_id
-    };
+    const insertPedido = db.prepare('INSERT INTO pedidos (mesa_id, garcom_id, status, total, mesa_numero) VALUES (?, ?, ?, ?, ?)');
+    const result = insertPedido.run(mesa_id, garcom_id, 'recebido', total, mesa.numero);
+    const pedidoId = result.lastInsertRowid;
     
-    pedidos.push(pedido);
-    
+    const insertItem = db.prepare('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao) VALUES (?, ?, ?, ?)');
     itens.forEach(item => {
-      pedidoItens.push({
-        id: Date.now() + Math.random(),
-        pedido_id: pedido.id,
-        menu_id: item.menu_id,
-        quantidade: item.quantidade,
-        observacao: item.observacao || ''
-      });
+      insertItem.run(pedidoId, item.menu_id, item.quantidade, item.observacao || '');
     });
     
+    const pedido = db.prepare('SELECT * FROM pedidos WHERE id = ?').get(pedidoId);
     pusher.trigger('pedidos', 'novo-pedido', pedido);
     
-    res.json({ id: pedido.id, success: true });
+    res.json({ id: pedidoId, success: true });
   } catch (error) {
     console.error('Erro na API:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -100,27 +132,23 @@ app.put('/api/pedidos/:id/status', (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   
-  const pedido = pedidos.find(p => p.id == parseInt(id));
+  const pedido = db.prepare('SELECT * FROM pedidos WHERE id = ?').get(id);
   if (!pedido) {
     return res.status(404).json({ error: 'Pedido não encontrado' });
   }
   
-  pedido.status = status;
+  db.prepare('UPDATE pedidos SET status = ? WHERE id = ?').run(status, id);
   res.json({ success: true });
 });
 
 app.get('/api/pedidos/:id/itens', (req, res) => {
   const { id } = req.params;
-  const itens = pedidoItens
-    .filter(pi => pi.pedido_id == parseInt(id))
-    .map(pi => {
-      const menuItem = menu.find(m => m.id === pi.menu_id);
-      return {
-        ...pi,
-        nome: menuItem ? menuItem.nome : 'Item não encontrado',
-        preco: menuItem ? menuItem.preco : 0
-      };
-    });
+  const itens = db.prepare(`
+    SELECT pi.*, m.nome, m.preco 
+    FROM pedido_itens pi 
+    JOIN menu m ON pi.menu_id = m.id 
+    WHERE pi.pedido_id = ?
+  `).all(id);
   res.json(itens);
 });
 
