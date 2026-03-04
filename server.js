@@ -38,10 +38,14 @@ async function query(text, params) {
     let i = 1;
     const pgText = text.replace(/\?/g, () => `$${i++}`);
     const res = await db.query(pgText, params);
-    return { rows: res.rows, changes: res.rowCount, lastInsertRowid: res.rows[0]?.id };
+    return { 
+      rows: res.rows || [], 
+      changes: res.rowCount, 
+      lastInsertRowid: res.rows && res.rows[0] ? res.rows[0].id : null 
+    };
   } else {
     const stmt = db.prepare(text);
-    if (text.trim().toUpperCase().startsWith('SELECT')) {
+    if (text.trim().toUpperCase().startsWith('SELECT') || text.trim().toUpperCase().includes('RETURNING')) {
       return { rows: stmt.all(...(params || [])) };
     } else {
       const info = stmt.run(...(params || []));
@@ -400,20 +404,13 @@ app.post('/api/pedidos', async (req, res) => {
   try {
     const total = itens.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
     
-    // Inserir pedido com data local correta
-    const agora = new Date();
-    const dataAtual = agora.getFullYear() + '-' + 
-      String(agora.getMonth() + 1).padStart(2, '0') + '-' + 
-      String(agora.getDate()).padStart(2, '0') + ' ' + 
-      String(agora.getHours()).padStart(2, '0') + ':' + 
-      String(agora.getMinutes()).padStart(2, '0') + ':' + 
-      String(agora.getSeconds()).padStart(2, '0');
-
     const resPedido = await query(
-      'INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at) VALUES (?, ?, ?, ?, ?)',
-      [mesa_id, garcom_id, total, 'recebido', dataAtual]
+      'INSERT INTO pedidos (mesa_id, garcom_id, total, status) VALUES (?, ?, ?, ?) RETURNING id',
+      [mesa_id, garcom_id, total, 'recebido']
     );
-    const pedidoId = resPedido.lastInsertRowid || resPedido.rows[0].id;
+    const pedidoId = resPedido.lastInsertRowid || (resPedido.rows && resPedido.rows[0] ? resPedido.rows[0].id : null);
+
+    if (!pedidoId) throw new Error('Falha ao obter ID do pedido');
 
     // Atualizar status da mesa para ocupada
     await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [mesa_id]);
