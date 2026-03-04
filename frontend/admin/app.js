@@ -1,11 +1,9 @@
 let pedidos = [];
-const PUSHER_APP_KEY = 'c4a9b50fe10859f2107a';
-const PUSHER_CLUSTER = 'sa1';
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log('DOM carregado');
   carregarPedidos();
-  configurarPusher();
+  configurarSocket();
 });
 
 async function carregarPedidos() {
@@ -53,41 +51,37 @@ async function atualizarStatus(id, status) {
   carregarPedidos();
 }
 
-function configurarPusher() {
-  const pusher = new Pusher(PUSHER_APP_KEY, {
-    cluster: PUSHER_CLUSTER,
-    encrypted: true,
-    activity_timeout: 60000,
-    pong_timeout: 30000,
-    reconnectionDelay: 5000,
-    reconnectionAttempts: Infinity
+function configurarSocket() {
+  const socket = io({
+    transports: ['polling'],
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000
   });
 
-  const channel = pusher.subscribe('pedidos');
+  socket.on('connect', () => {
+    console.log('Socket conectado');
+  });
 
-  channel.bind('novo-pedido', (pedido) => {
+  socket.on('disconnect', () => {
+    console.log('Socket desconectado');
+  });
+
+  socket.on('reconnect', () => {
+    console.log('Socket reconectado');
+  });
+
+  socket.on('novo-pedido', (pedido) => {
     console.log('Novo pedido recebido:', pedido);
     carregarPedidos();
     alert('Novo pedido recebido!');
   });
 
-  pusher.connection.bind('connected', () => {
-    console.log('Pusher conectado');
+  socket.on('connect_error', (error) => {
+    console.error('Erro de conexão:', error);
   });
 
-  pusher.connection.bind('disconnected', () => {
-    console.log('Pusher desconectado');
-  });
-
-  pusher.connection.bind('reconnecting', () => {
-    console.log('Pusher reconectando...');
-  });
-
-  pusher.connection.bind('reconnected', () => {
-    console.log('Pusher reconectado');
-  });
-
-  pusher.connection.bind('error', (error) => {
-    console.error('Erro do Pusher:', error);
+  socket.on('error', (error) => {
+    console.error('Erro do socket:', error);
   });
 }

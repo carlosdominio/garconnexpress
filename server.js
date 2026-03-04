@@ -1,22 +1,23 @@
 const express = require('express');
+const http = require('http');
 const path = require('path');
-const Pusher = require('pusher');
+const { Server } = require('socket.io');
 const NodeCache = require('node-cache');
 require('dotenv').config();
 
 const app = express();
-
-const pusher = new Pusher({
-  appId: process.env.PUSHER_APP_ID || '2122978',
-  key: process.env.PUSHER_APP_KEY || 'c4a9b50fe10859f2107a',
-  secret: process.env.PUSHER_APP_SECRET || 'e1161ddeb0d86b88ba6f',
-  cluster: process.env.PUSHER_CLUSTER || 'sa1',
-  useTLS: true
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: true,
+    methods: ['GET', 'POST']
+  },
+  transports: ['polling'],
+  allowEIO3: true
 });
 
 const cache = new NodeCache({ stdTTL: 0, checkperiod: 0 });
 
-// Dados iniciais
 const initialMesas = [
   { id: 1, numero: 1, status: "livre" },
   { id: 2, numero: 2, status: "livre" },
@@ -32,7 +33,6 @@ const initialMenu = [
   { id: 4, nome: "Batata Frita", categoria: "comidas", preco: 7.5, imagem: "https://placehold.co/100" }
 ];
 
-// Inicializa o cache
 if (!cache.get('mesas')) cache.set('mesas', initialMesas);
 if (!cache.get('menu')) cache.set('menu', initialMenu);
 if (!cache.get('pedidos')) cache.set('pedidos', []);
@@ -102,7 +102,7 @@ app.post('/api/pedidos', (req, res) => {
     });
     cache.set('pedidoItens', pedidoItens);
     
-    pusher.trigger('pedidos', 'novo-pedido', pedido);
+    io.emit('novo-pedido', pedido);
     
     res.json({ id: pedido.id, success: true });
   } catch (error) {
@@ -144,7 +144,15 @@ app.get('/api/pedidos/:id/itens', (req, res) => {
   res.json(itens);
 });
 
+io.on('connection', (socket) => {
+  console.log('Cliente conectado:', socket.id);
+  
+  socket.on('disconnect', () => {
+    console.log('Cliente desconectado:', socket.id);
+  });
+});
+
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
