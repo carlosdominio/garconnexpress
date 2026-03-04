@@ -3,13 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GarçonExpress - Garçom</title>
+  <title>GarçomExpress - Garçom</title>
   <link rel="stylesheet" href="/garcom/style.css">
 </head>
 <body>
+  <!-- Tela de Login -->
+  <div id="tela-login" class="tela-login">
+    <div class="login-box">
+      <h1>GarçomExpress</h1>
+      <p>Área do Colaborador</p>
+      <input type="text" id="login-usuario" placeholder="Usuário">
+      <input type="password" id="login-senha" placeholder="Senha">
+      <button onclick="realizarLogin()">Entrar</button>
+    </div>
+  </div>
+
   <header>
-    <h1>GarçonExpress</h1>
-    <p id="garcom-nome">Garçom: João</p>
+    <div style="display:flex; justify-content: space-between; align-items: center; width: 100%;">
+      <div>
+        <h1>GarçomExpress</h1>
+        <p id="garcom-nome-exibicao">Aguardando Login...</p>
+      </div>
+      <button onclick="logout()" style="width: auto; background: transparent; color: #fff; font-size: 0.8rem; border: 1px solid rgba(255,255,255,0.3);">SAIR</button>
+    </div>
   </header>
 
   <main>
@@ -32,6 +48,15 @@
     </section>
   </main>
 
+  <!-- Modal de Opções da Mesa Ocupada -->
+  <div id="modal-opcoes" class="modal-opcoes">
+    <h2 id="modal-mesa-titulo">Mesa X</h2>
+    <button class="btn-opcoes btn-adicionar" onclick="abrirCardapioAdicionar()">➕ Adicionar mais itens</button>
+    <button class="btn-opcoes btn-fechar-conta" onclick="finalizarEDesocupar()">💰 Fechar Conta (Liberar)</button>
+    <button class="btn-opcoes btn-cancelar" onclick="fecharOpcoes()">Voltar</button>
+  </div>
+
+  <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="/garcom/app.js"></script>
 </body>
 </html>

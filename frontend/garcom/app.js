@@ -2,12 +2,63 @@ let menu = [];
 let mesas = [];
 let mesaAtual = null;
 let pedidoAtual = [];
+let pedidoAbertoNaMesa = null;
+let garcomLogado = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
+  verificarSessao();
+});
+
+function verificarSessao() {
+  const salvo = localStorage.getItem('garcom_logado');
+  if (salvo) {
+    garcomLogado = JSON.parse(salvo);
+    document.getElementById('tela-login').style.display = 'none';
+    document.getElementById('garcom-nome-exibicao').textContent = `Garçom: ${garcomLogado.nome}`;
+    iniciarApp();
+  }
+}
+
+async function realizarLogin() {
+  const usuario = document.getElementById('login-usuario').value;
+  const senha = document.getElementById('login-senha').value;
+  
+  if (!usuario || !senha) return alert("Preencha todos os campos");
+
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario, senha })
+  });
+
+  if (res.ok) {
+    const data = await res.json();
+    garcomLogado = data.garcom;
+    localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
+    location.reload(); // Recarregar para iniciar tudo limpo
+  } else {
+    alert("Usuário ou senha incorretos");
+  }
+}
+
+function logout() {
+  localStorage.removeItem('garcom_logado');
+  location.reload();
+}
+
+async function iniciarApp() {
   await carregarMenu();
   await carregarMesas();
   configurarEventos();
-});
+  configurarPusher();
+}
+
+function configurarPusher() {
+  const pusher = new Pusher('c4a9b50fe10859f2107a', { cluster: 'sa1' });
+  const channel = pusher.subscribe('garconnexpress');
+  channel.bind('novo-pedido', () => carregarMesas());
+  channel.bind('status-atualizado', () => carregarMesas());
+}
 
 async function carregarMenu() {
   const res = await fetch('/api/menu');
@@ -26,19 +77,69 @@ function exibirMesas() {
   grid.innerHTML = mesas.map(mesa => `
     <div class="mesa ${mesa.status}" data-id="${mesa.id}">
       <h3>Mesa ${mesa.numero}</h3>
-      <p>${mesa.status}</p>
+      <p>${mesa.status.toUpperCase()}</p>
     </div>
   `).join('');
 
   document.querySelectorAll('.mesa').forEach(mesa => {
-    mesa.addEventListener('click', () => {
-      mesaAtual = mesas.find(m => m.id == mesa.dataset.id);
-      document.getElementById('mesa-atual').textContent = mesaAtual.numero;
-      document.getElementById('mesas').classList.add('hidden');
-      document.getElementById('pedido').classList.remove('hidden');
-      exibirMenu('todas');
+    mesa.addEventListener('click', async () => {
+      const mesaSelecionada = mesas.find(m => m.id == mesa.dataset.id);
+      mesaAtual = mesaSelecionada;
+      
+      if (mesaSelecionada.status === 'ocupada') {
+        mostrarOpcoesMesa(mesaSelecionada);
+      } else {
+        pedidoAbertoNaMesa = null;
+        abrirCardapio();
+      }
     });
   });
+}
+
+async function mostrarOpcoesMesa(mesa) {
+  const res = await fetch(`/api/pedidos/mesa/${mesa.id}`);
+  pedidoAbertoNaMesa = await res.json();
+  
+  if (!pedidoAbertoNaMesa) {
+    alert("Erro: Mesa marcada como ocupada mas sem pedido ativo. Liberando...");
+    await fetch(`/api/mesas/${mesa.id}/liberar`, { method: 'PUT' });
+    return carregarMesas();
+  }
+
+  document.getElementById('modal-mesa-titulo').textContent = `Mesa ${mesa.numero}`;
+  document.getElementById('modal-opcoes').style.display = 'block';
+}
+
+function fecharOpcoes() {
+  document.getElementById('modal-opcoes').style.display = 'none';
+}
+
+function abrirCardapioAdicionar() {
+  fecharOpcoes();
+  abrirCardapio();
+}
+
+function abrirCardapio() {
+  document.getElementById('mesa-atual').textContent = pedidoAbertoNaMesa ? `${mesaAtual.numero} (+ itens)` : mesaAtual.numero;
+  document.getElementById('mesas').classList.add('hidden');
+  document.getElementById('pedido').classList.remove('hidden');
+  pedidoAtual = [];
+  exibirResumoPedido();
+  exibirMenu('todas');
+}
+
+async function finalizarEDesocupar() {
+  if (confirm(`Solicitar fechamento da Mesa ${mesaAtual.numero}?`)) {
+    await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/solicitar-fechamento`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mesa_id: mesaAtual.id })
+    });
+
+    alert("Solicitação enviada ao Admin. Aguarde a liberação da mesa.");
+    fecharOpcoes();
+    carregarMesas();
+  }
 }
 
 function exibirMenu(categoria) {
@@ -82,12 +183,12 @@ function exibirResumoPedido() {
     <div class="item-pedido">
       <div>
         <p>${item.nome} (x${item.quantidade})</p>
-        <input type="text" placeholder="Observação" value="${item.observacao}" 
+        <input type="text" placeholder="Obs" value="${item.observacao}" 
           onchange="pedidoAtual[${index}].observacao = this.value">
       </div>
       <div>
         <p>R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
-        <button onclick="removerItemPedido(${index})">Remover</button>
+        <button style="width:auto; padding:5px" onclick="removerItemPedido(${index})">X</button>
       </div>
     </div>
   `).join('');
@@ -105,34 +206,39 @@ async function enviarPedido() {
   if (pedidoAtual.length === 0) return alert('Adicione pelo menos um item');
 
   try {
-    const res = await fetch('/api/pedidos', {
-      method: 'POST',
+    const url = pedidoAbertoNaMesa ? `/api/pedidos/${pedidoAbertoNaMesa.id}/adicionar` : '/api/pedidos';
+    const method = pedidoAbertoNaMesa ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         mesa_id: mesaAtual.id,
-        garcom_id: 'garcom-1',
+        garcom_id: garcomLogado ? garcomLogado.nome : 'garcom-desconhecido',
         itens: pedidoAtual
       })
     });
 
     if (res.ok) {
-      alert('Pedido enviado!');
+      alert(pedidoAbertoNaMesa ? 'Itens adicionados ao pedido!' : 'Pedido enviado!');
       pedidoAtual = [];
-      exibirResumoPedido();
+      pedidoAbertoNaMesa = null;
       document.getElementById('pedido').classList.add('hidden');
       document.getElementById('mesas').classList.remove('hidden');
       carregarMesas();
-    } else {
-      const error = await res.json();
-      alert('Erro: ' + (error.error || 'Erro desconhecido'));
     }
   } catch (error) {
-    console.error('Erro:', error);
-    alert('Erro de conexão com o servidor');
+    alert('Erro ao enviar pedido');
   }
 }
 
 function configurarEventos() {
+  document.getElementById('enviar-pedido').addEventListener('click', enviarPedido);
+  document.getElementById('voltar-mesas').addEventListener('click', () => {
+    document.getElementById('pedido').classList.add('hidden');
+    document.getElementById('mesas').classList.remove('hidden');
+  });
+
   const categorias = ['todas', ...new Set(menu.map(item => item.categoria))];
   const container = document.getElementById('categorias');
   container.innerHTML = categorias.map(cat => `
@@ -147,11 +253,5 @@ function configurarEventos() {
       cat.classList.add('ativa');
       exibirMenu(cat.dataset.categoria);
     });
-  });
-
-  document.getElementById('enviar-pedido').addEventListener('click', enviarPedido);
-  document.getElementById('voltar-mesas').addEventListener('click', () => {
-    document.getElementById('pedido').classList.add('hidden');
-    document.getElementById('mesas').classList.remove('hidden');
   });
 }

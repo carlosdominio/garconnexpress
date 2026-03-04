@@ -7,17 +7,117 @@
   <link rel="stylesheet" href="/admin/style.css">
 </head>
 <body>
+  <!-- Tela de Login Admin -->
+  <div id="tela-login-admin" class="tela-login-admin">
+    <div class="login-box">
+      <h1>Painel Admin</h1>
+      <p>Acesso Restrito</p>
+      <input type="text" id="admin-usuario" placeholder="Usuário Admin">
+      <input type="password" id="admin-senha" placeholder="Senha">
+      <button onclick="realizarLoginAdmin()" style="background-color: #2c3e50;">Entrar no Sistema</button>
+    </div>
+  </div>
+
   <header>
     <h1>Painel Administrativo</h1>
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <div id="faturamento-resumo">Faturamento: R$ 0,00</div>
+      <button onclick="logoutAdmin()" style="background: transparent; border: 1px solid #fff; font-size: 0.7rem; width: auto; padding: 5px 10px;">SAIR</button>
+    </div>
   </header>
 
   <main>
-    <section id="pedidos">
+    <nav class="tabs">
+      <button class="tab-btn active" onclick="switchTab('ativos')">Pedidos Ativos</button>
+      <button class="tab-btn" onclick="switchTab('historico')">Histórico</button>
+      <button class="tab-btn" onclick="switchTab('configuracoes')">⚙️ Configurações</button>
+    </nav>
+
+    <section id="ativos-section">
       <h2>Pedidos em Andamento</h2>
       <div id="pedidos-list"></div>
     </section>
+
+    <section id="historico-section" class="hidden">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h2>Histórico de Hoje <span id="data-historico" style="color: #666; font-size: 1rem;"></span></h2>
+        <div style="text-align: right;">
+          <div id="faturamento-total-dia" style="font-weight: bold; font-size: 1.2rem; color: #27ae60;">Faturamento Concluído: R$ 0,00</div>
+          <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.5rem;">
+            <button onclick="window.print()" style="background-color: #3498db; font-size: 0.8rem;">🖨️ Imprimir Resumo</button>
+            <button onclick="limparHistoricoTotal()" style="background-color: #e74c3c; font-size: 0.8rem;">🗑️ Limpar Tudo</button>
+          </div>
+        </div>
+      </div>
+      <div id="historico-list"></div>
+    </section>
+
+    <section id="configuracoes-section" class="hidden">
+      <div class="config-grid">
+        <!-- Gerenciamento de Mesas -->
+        <div class="config-card">
+          <h3>Mesas do Bar</h3>
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+            <input type="number" id="nova-mesa-num" placeholder="Nº da Mesa">
+            <button onclick="adicionarMesa()">Adicionar</button>
+          </div>
+          <div id="lista-mesas-config"></div>
+        </div>
+
+        <!-- Gerenciamento de Garçons -->
+        <div class="config-card">
+          <h3>Gerenciar Garçons</h3>
+          <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;">
+            <input type="text" id="garcom-nome" placeholder="Nome do Garçom">
+            <input type="text" id="garcom-usuario" placeholder="Usuário (ex: joao123)">
+            <input type="password" id="garcom-senha" placeholder="Senha">
+            <button onclick="adicionarGarcom()">Cadastrar</button>
+          </div>
+          <div id="lista-garcons-config"></div>
+        </div>
+
+        <!-- Gerenciamento de Cardápio -->
+        <div class="config-card config-card-full">
+          <h3>Gerenciar Cardápio</h3>
+          <div class="form-config-menu">
+            <input type="text" id="menu-nome" placeholder="Nome">
+            <input type="text" id="menu-cat" placeholder="Categoria">
+            <input type="number" id="menu-preco" placeholder="Preço">
+            <input type="text" id="menu-img" placeholder="Link da Foto">
+            <button id="btn-acao-menu" onclick="processarAcaoMenu()">Adicionar Item</button>
+            <button id="btn-cancelar-menu" class="hidden" onclick="cancelarEdicaoMenu()" style="background-color: #95a5a6;">Cancelar</button>
+          </div>
+          <div id="lista-menu-config" class="menu-config-grid"></div>
+        </div>
+      </div>
+    </section>
   </main>
 
+  <!-- Modal de Edição -->
+  <div id="modal-edicao" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modal-titulo">Editar Pedido</h2>
+        <span class="close" onclick="fecharModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div id="itens-atuais"></div>
+        <hr>
+        <h4>Adicionar Novo Item</h4>
+        <select id="menu-select"></select>
+        <button onclick="adicionarAoPedidoEdicao()">Adicionar</button>
+      </div>
+      <div class="modal-footer">
+        <div id="modal-total" style="font-weight: bold; margin-bottom: 1rem;">Total: R$ 0,00</div>
+        <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+          <button class="btn-cancelar-pedido" onclick="confirmarCancelamento()">❌ Cancelar Pedido</button>
+          <button class="btn-salvar-edicao" onclick="salvarAlteracoes()">💾 Salvar Alterações</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="/admin/app.js"></script>
 </body>
 </html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teste Pusher</title>
+</head>
+<body>
+  <h1>Teste Pusher GarçonExpress</h1>
+  <div id="log"></div>
+
+  <script src="https://js.pusher.com/8.0.1/pusher.min.js"></script>
+  <script>
+    const log = (message) => {
+      const logDiv = document.getElementById('log');
+      logDiv.innerHTML += `<p>${message}</p>`;
+      console.log(message);
+    };
+
+    log('Inicializando Pusher...');
+    const PUSHER_APP_KEY = 'c4a9b50fe10859f2107a';
+    const PUSHER_CLUSTER = 'sa1';
+
+    try {
+      const pusher = new Pusher(PUSHER_APP_KEY, {
+        cluster: PUSHER_CLUSTER,
+        encrypted: true
+      });
+
+      log(`Pusher instanciado: ${PUSHER_APP_KEY}`);
+      log(`Cluster: ${PUSHER_CLUSTER}`);
+
+      const channel = pusher.subscribe('pedidos');
+      log('Canal "pedidos" inscrito');
+
+      channel.bind('novo-pedido', (pedido) => {
+        log(`Evento novo-pedido recebido: ${JSON.stringify(pedido)}`);
+      });
+
+      channel.bind('pusher:subscription_error', (error) => {
+        log(`Erro de assinatura: ${JSON.stringify(error)}`);
+      });
+
+      channel.bind('pusher:subscription_succeeded', () => {
+        log('Assinatura bem-sucedida');
+      });
+
+      channel.bind('pusher:error', (error) => {
+        log(`Erro do Pusher: ${JSON.stringify(error)}`);
+      });
+    } catch (error) {
+      log(`Erro ao configurar Pusher: ${error}`);
+    }
+
+    log('Teste concluído. Abra o console para ver logs detalhados.');
+  </script>
+</body>
+</html>

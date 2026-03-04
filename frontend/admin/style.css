@@ -14,6 +14,20 @@ header {
   color: white;
   padding: 1rem;
   text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+header h1 {
+  font-size: 1.5rem;
+}
+
+#faturamento-resumo {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
 }
 
 main {
@@ -24,44 +38,440 @@ main {
 
 .pedido-card {
   background-color: white;
-  padding: 1rem;
+  padding: 1.5rem;
   border-radius: 8px;
-  margin-bottom: 1rem;
-  border-left: 4px solid #3498db;
+  margin-bottom: 1.5rem;
+  border-left: 6px solid #3498db;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .pedido-header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px dashed #eee;
+}
+
+.pedido-valor {
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: #27ae60;
+}
+
+.pedido-card.status-aguardando_fechamento {
+  border-left-color: #9b59b6;
+  background-color: #f5ebfa;
+  animation: pulse-purple 2s infinite;
+}
+
+@keyframes pulse-purple {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+.status-badge {
+  background: #eee;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.status-badge.pago {
+  background-color: #27ae60;
+  color: white;
+}
+
+.status-badge.cancelado {
+  background-color: #e74c3c;
+  color: white;
 }
 
 .pedido-itens {
-  margin-top: 0.5rem;
-  padding-left: 1rem;
+  margin: 1rem 0;
 }
 
 .pedido-item {
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.pedido-item small {
+  color: #e67e22;
+  font-style: italic;
+}
+
+.pedido-footer {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid #eee;
+  padding-top: 1rem;
 }
 
 .pedido-actions {
-  margin-top: 1rem;
   display: flex;
   gap: 0.5rem;
 }
 
 button {
-  padding: 0.5rem 1rem;
+  padding: 0.6rem 1.2rem;
   background-color: #27ae60;
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  font-weight: bold;
+  transition: opacity 0.2s;
 }
 
-button:hover { background-color: #2ecc71; }
+button:hover { opacity: 0.9; }
 
-button.preparando { background-color: #f39c12; }
-button.pronto { background-color: #27ae60; }
-button.entregue { background-color: #95a5a6; }
+button.btn-copiar {
+  background-color: #34495e;
+  font-size: 0.8rem;
+}
+
+button.btn-preparando { background-color: #f39c12; }
+button.btn-pronto { background-color: #27ae60; }
+button.btn-entregue { background-color: #95a5a6; }
+
+/* Notificação Toast */
+/* Modal Styles */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 2000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+  background-color: white;
+  margin: 5% auto;
+  padding: 20px;
+  border-radius: 8px;
+  width: 80%;
+  max-width: 600px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.5rem;
+}
+
+.close {
+  font-size: 2rem;
+  cursor: pointer;
+}
+
+.item-edicao {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  background: #f9f9f9;
+  padding: 0.5rem;
+  border-radius: 4px;
+}
+
+.btn-cancelar-pedido { background-color: #e74c3c; }
+.btn-salvar-edicao { background-color: #27ae60; }
+.btn-remover-item { background: #e74c3c; padding: 2px 8px; font-size: 0.8rem; }
+
+/* Estilos da Tela de Login Admin */
+.tela-login-admin {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #34495e;
+  z-index: 5000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.login-box {
+  background: white;
+  padding: 2.5rem;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 400px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.login-box input {
+  width: 100%;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.login-box button {
+  width: 100%;
+  padding: 1.2rem;
+  font-size: 1.1rem;
+  background-color: #2c3e50;
+  color: white;
+  font-weight: bold;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.login-box p {
+  color: #e74c3c;
+  font-weight: bold;
+  margin-bottom: 1.5rem;
+}
+
+.toast-notificacao {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: #2c3e50;
+    color: white;
+    padding: 15px 25px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-20px);
+    transition: all 0.4s ease;
+    font-weight: bold;
+}
+
+.toast-notificacao.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Novos Estilos: Abas e Histórico */
+.hidden { display: none !important; }
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  background: #eee;
+  padding: 0.5rem;
+  border-radius: 8px;
+}
+
+.tab-btn {
+  background: transparent;
+  color: #555;
+  border: none;
+  padding: 0.8rem 1.2rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  flex: 1;
+  transition: all 0.2s;
+}
+
+.tab-btn.active {
+  background: #2c3e50;
+  color: white;
+}
+
+.tab-btn:hover:not(.active) {
+  background: #ddd;
+}
+
+.pedido-card.status-entregue {
+  border-left-color: #27ae60;
+  opacity: 0.85;
+}
+
+.pedido-card.status-cancelado {
+  border-left-color: #e74c3c;
+  background-color: #fdf2f2;
+}
+
+.pedido-card.status-cancelado .pedido-valor {
+  color: #95a5a6;
+  text-decoration: line-through;
+}
+
+#historico-section h2 {
+  margin-bottom: 1rem;
+}
+
+/* Novos Estilos: Painel de Configurações */
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.config-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+  border: 1px solid #eee;
+}
+
+.config-card h3 {
+  margin-bottom: 1rem;
+  color: #2c3e50;
+  border-bottom: 2px solid #3498db;
+  padding-bottom: 0.5rem;
+}
+
+.config-card input {
+  padding: 0.8rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.config-card button {
+  padding: 0.8rem;
+  font-size: 0.9rem;
+}
+
+.item-config {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f9f9f9;
+}
+
+.btn-excluir {
+  background-color: #e74c3c;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  width: auto;
+}
+
+.menu-item-config {
+  background: #f9f9f9;
+  padding: 1rem;
+  border-radius: 8px;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.menu-item-config img {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.config-card-full {
+  grid-column: 1 / -1;
+}
+
+.form-config-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.form-config-menu input {
+  flex: 1 1 200px; /* Garante que os campos quebrem linha no celular */
+}
+
+.form-config-menu button {
+  flex: 1 1 auto;
+}
+
+.menu-config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+/* Responsividade do Painel Admin */
+@media (max-width: 768px) {
+  header {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .tabs {
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+  
+  .tab-btn {
+    border-radius: 6px;
+    text-align: left;
+  }
+  
+  .config-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .config-card-full {
+    grid-column: auto;
+  }
+
+  .form-config-menu input, .form-config-menu button {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+  
+  .menu-item-config {
+    flex-direction: row;
+    text-align: left;
+    gap: 0.5rem;
+  }
+
+  .menu-item-config img {
+    width: 50px;
+    height: 50px;
+  }
+}
+
+/* Estilos de Impressão */
+@media print {
+  header, .tabs, button, .modal, .toast-notificacao, #ativos-section {
+    display: none !important;
+  }
+  
+  body, main {
+    background: white;
+    padding: 0;
+    margin: 0;
+  }
+  
+  #historico-section {
+    display: block !important;
+  }
+  
+  .pedido-card {
+    border: 1px solid #ddd;
+    box-shadow: none;
+    margin-bottom: 10px;
+    page-break-inside: avoid;
+  }
+  
+  #faturamento-total-dia {
+    font-size: 1.5rem !important;
+    margin-bottom: 2rem;
+  }
+}
