@@ -1,15 +1,24 @@
 let pedidos = [];
+let lastUpdateTime = 0;
+const POLLING_INTERVAL = 2000;
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log('DOM carregado');
   carregarPedidos();
-  configurarSocket();
+  startPolling();
 });
 
 async function carregarPedidos() {
   const res = await fetch('/api/pedidos');
-  pedidos = await res.json();
-  exibirPedidos();
+  const novosPedidos = await res.json();
+  
+  if (JSON.stringify(pedidos) !== JSON.stringify(novosPedidos)) {
+    pedidos = novosPedidos;
+    exibirPedidos();
+    console.log('Pedidos atualizados');
+  }
+  
+  lastUpdateTime = Date.now();
 }
 
 async function exibirPedidos() {
@@ -51,37 +60,9 @@ async function atualizarStatus(id, status) {
   carregarPedidos();
 }
 
-function configurarSocket() {
-  const socket = io({
-    transports: ['polling'],
-    reconnection: true,
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 1000
-  });
-
-  socket.on('connect', () => {
-    console.log('Socket conectado');
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Socket desconectado');
-  });
-
-  socket.on('reconnect', () => {
-    console.log('Socket reconectado');
-  });
-
-  socket.on('novo-pedido', (pedido) => {
-    console.log('Novo pedido recebido:', pedido);
+function startPolling() {
+  setInterval(() => {
     carregarPedidos();
-    alert('Novo pedido recebido!');
-  });
-
-  socket.on('connect_error', (error) => {
-    console.error('Erro de conexão:', error);
-  });
-
-  socket.on('error', (error) => {
-    console.error('Erro do socket:', error);
-  });
+  }, POLLING_INTERVAL);
+  console.log('Polling iniciado a cada', POLLING_INTERVAL, 'ms');
 }

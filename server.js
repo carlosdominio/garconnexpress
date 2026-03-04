@@ -1,20 +1,9 @@
 const express = require('express');
-const http = require('http');
 const path = require('path');
-const { Server } = require('socket.io');
 const NodeCache = require('node-cache');
 require('dotenv').config();
 
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: true,
-    methods: ['GET', 'POST']
-  },
-  transports: ['polling'],
-  allowEIO3: true
-});
 
 const cache = new NodeCache({ stdTTL: 0, checkperiod: 0 });
 
@@ -102,8 +91,6 @@ app.post('/api/pedidos', (req, res) => {
     });
     cache.set('pedidoItens', pedidoItens);
     
-    io.emit('novo-pedido', pedido);
-    
     res.json({ id: pedido.id, success: true });
   } catch (error) {
     console.error('Erro na API:', error);
@@ -144,15 +131,7 @@ app.get('/api/pedidos/:id/itens', (req, res) => {
   res.json(itens);
 });
 
-io.on('connection', (socket) => {
-  console.log('Cliente conectado:', socket.id);
-  
-  socket.on('disconnect', () => {
-    console.log('Cliente desconectado:', socket.id);
-  });
-});
-
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
