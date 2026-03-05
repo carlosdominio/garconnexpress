@@ -146,7 +146,7 @@ app.put('/api/pedidos/:id/solicitar-fechamento', async (req, res) => {
   try {
     await query("UPDATE pedidos SET status = 'aguardando_fechamento' WHERE id = ?", [id]);
     await query("UPDATE mesas SET status = 'fechando' WHERE id = ?", [mesa_id]);
-    pusher.trigger('garconnexpress', 'status-atualizado', { mesa_id, pedido_id: id });
+    await pusher.trigger('garconnexpress', 'status-atualizado', { mesa_id, pedido_id: id });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao solicitar fechamento' });
@@ -158,7 +158,7 @@ app.put('/api/mesas/:id/status', async (req, res) => {
   const { status } = req.body;
   try {
     await query("UPDATE mesas SET status = ? WHERE id = ?", [status, id]);
-    pusher.trigger('garconnexpress', 'status-atualizado', { mesa_id: parseInt(id), status });
+    await pusher.trigger('garconnexpress', 'status-atualizado', { mesa_id: parseInt(id), status });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao atualizar status da mesa' });
@@ -174,7 +174,7 @@ app.put('/api/mesas/:id/liberar', async (req, res) => {
     // 2. Libera a mesa
     await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [id]);
     
-    pusher.trigger('garconnexpress', 'status-atualizado', { mesa_id: parseInt(id) });
+    await pusher.trigger('garconnexpress', 'status-atualizado', { mesa_id: parseInt(id) });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao liberar mesa' });
@@ -233,7 +233,7 @@ app.put('/api/pedidos/:id/adicionar', async (req, res) => {
     const novoTotal = itensAtuais.rows.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
     await query('UPDATE pedidos SET total = ? WHERE id = ?', [novoTotal, id]);
 
-    pusher.trigger('garconnexpress', 'status-atualizado', { pedido_id: parseInt(id) });
+    await pusher.trigger('garconnexpress', 'status-atualizado', { pedido_id: parseInt(id) });
     res.json({ success: true, total: novoTotal });
   } catch (error) {
     console.error(error);
@@ -359,7 +359,7 @@ app.delete('/api/pedidos/limpar', async (req, res) => {
     await query('DELETE FROM pedido_itens');
     await query('DELETE FROM pedidos');
     await query("UPDATE mesas SET status = 'livre'");
-    pusher.trigger('garconnexpress', 'status-atualizado', {});
+    await pusher.trigger('garconnexpress', 'status-atualizado', {});
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao limpar histórico' });
@@ -389,7 +389,7 @@ app.put('/api/pedidos/:id', async (req, res) => {
     // 3. Atualizar total do pedido
     await query('UPDATE pedidos SET total = ? WHERE id = ?', [total, id]);
 
-    pusher.trigger('garconnexpress', 'status-atualizado', { pedido_id: parseInt(id) });
+    await pusher.trigger('garconnexpress', 'status-atualizado', { pedido_id: parseInt(id) });
     res.json({ success: true, total });
   } catch (error) {
     console.error(error);
@@ -445,7 +445,7 @@ app.post('/api/pedidos', async (req, res) => {
     };
 
     try {
-      pusher.trigger('garconnexpress', 'novo-pedido', { pedido: pedidoData });
+      await pusher.trigger('garconnexpress', 'novo-pedido', { pedido: pedidoData });
     } catch (pError) {
       console.error('Erro ao disparar Pusher (novo-pedido):', pError.message);
     }
