@@ -137,6 +137,11 @@ async function initDb() {
 initDb().catch(console.error);
 
 app.use(express.json());
+
+// Rota para o favicon na raiz
+app.get('/favicon.ico', (req, res) => res.sendFile(path.join(__dirname, 'favicon.svg')));
+app.get('/favicon.svg', (req, res) => res.sendFile(path.join(__dirname, 'favicon.svg')));
+
 app.use('/garcom', express.static(path.join(__dirname, 'frontend', 'garcom')));
 app.use('/admin', express.static(path.join(__dirname, 'frontend', 'admin')));
 
