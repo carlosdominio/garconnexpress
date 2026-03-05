@@ -2,11 +2,21 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent; /* Remove o brilho azul ao tocar no mobile */
+  user-select: none; /* Desabilita seleção de texto em tudo */
+  -webkit-user-select: none;
 }
 
 body {
   font-family: Arial, sans-serif;
   background-color: #f5f5f5;
+  touch-action: manipulation; /* Melhora a resposta ao toque no mobile */
+}
+
+/* Permitir seleção apenas em campos de entrada (obs do pedido) */
+input, textarea {
+  user-select: text !important;
+  -webkit-user-select: text !important;
 }
 /* Estilos da Tela de Login */
 .tela-login {
