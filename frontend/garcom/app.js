@@ -137,6 +137,39 @@ async function mostrarOpcoesMesa(mesa) {
   document.getElementById('modal-opcoes').style.display = 'block';
 }
 
+async function verItensDaMesa() {
+  if (!pedidoAbertoNaMesa) return alert("Nenhum pedido ativo encontrado para esta mesa.");
+
+  try {
+    const res = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/itens`);
+    const itens = await res.json();
+    
+    const lista = document.getElementById('lista-itens-mesa');
+    lista.innerHTML = itens.map(item => `
+      <div style="border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between;">
+        <div>
+          <p><strong>${item.quantidade}x ${item.nome}</strong></p>
+          ${item.observacao ? `<small style="color:#e67e22;">Obs: ${item.observacao}</small>` : ''}
+        </div>
+        <p>R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
+      </div>
+    `).join('');
+
+    document.getElementById('total-resumo-mesa').textContent = `Total Acumulado: R$ ${pedidoAbertoNaMesa.total.toFixed(2)}`;
+    document.getElementById('resumo-mesa-titulo').textContent = `Resumo - Mesa ${mesaAtual.numero}`;
+    
+    fecharOpcoes();
+    document.getElementById('modal-resumo-mesa').style.display = 'block';
+  } catch (error) {
+    alert("Erro ao buscar itens da mesa.");
+  }
+}
+
+function fecharResumoMesa() {
+  document.getElementById('modal-resumo-mesa').style.display = 'none';
+  document.getElementById('modal-opcoes').style.display = 'block';
+}
+
 function fecharOpcoes() {
   document.getElementById('modal-opcoes').style.display = 'none';
 }

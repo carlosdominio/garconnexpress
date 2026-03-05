@@ -52,9 +52,18 @@
   <!-- Modal de Opções da Mesa Ocupada -->
   <div id="modal-opcoes" class="modal-opcoes">
     <h2 id="modal-mesa-titulo">Mesa X</h2>
+    <button class="btn-opcoes btn-ver-itens" onclick="verItensDaMesa()" style="background-color: #f1c40f; color: #2c3e50;">📋 Ver Itens Pedidos</button>
     <button class="btn-opcoes btn-adicionar" onclick="abrirCardapioAdicionar()">➕ Adicionar mais itens</button>
     <button class="btn-opcoes btn-fechar-conta" onclick="finalizarEDesocupar()">💰 Fechar Conta (Liberar)</button>
     <button class="btn-opcoes btn-cancelar" onclick="fecharOpcoes()">Voltar</button>
+  </div>
+
+  <!-- Modal de Visualização de Itens (Resumo da Mesa) -->
+  <div id="modal-resumo-mesa" class="modal-opcoes" style="height: 70vh; overflow-y: auto; display:none;">
+    <h2 id="resumo-mesa-titulo">Itens da Mesa</h2>
+    <div id="lista-itens-mesa" style="text-align: left; margin-bottom: 1.5rem;"></div>
+    <div id="total-resumo-mesa" style="font-weight: bold; font-size: 1.2rem; margin-bottom: 1rem;">Total: R$ 0,00</div>
+    <button class="btn-opcoes btn-cancelar" onclick="fecharResumoMesa()">Fechar</button>
   </div>
 
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
