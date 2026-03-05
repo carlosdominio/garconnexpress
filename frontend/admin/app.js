@@ -447,7 +447,7 @@ function configurarPusher() {
       let tituloNotif = 'Pedido Atualizado!';
       let msgNotif = `A Mesa ${data.mesa_id || ''} teve alterações no pedido.`;
 
-      else if (data.status === 'aguardando_fechamento') {
+      if (data.status === 'aguardando_fechamento') {
           const mesaNumero = data.mesa_id || '';
           tituloNotif = `🛎️ Solicitado fechamento da mesa ${mesaNumero}`;
           msgNotif = `A Mesa ${mesaNumero} solicitou o fechamento da conta!`;
