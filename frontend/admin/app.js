@@ -439,6 +439,14 @@ function configurarPusher() {
     // 2. Outras atualizações (exigem pedido_id)
     if (data.pedido_id) {
       if (pedidoAtualizadoId === data.pedido_id) return;
+
+      // Ignorar notificações de status finalizados para não duplicar com o alerta de mesa liberada
+      if (data.status === 'entregue' || data.status === 'cancelado') {
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarPedidos(), 500);
+        return; 
+      }
+
       pedidoAtualizadoId = data.pedido_id;
 
       tocarNotificacao();

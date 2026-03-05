@@ -495,7 +495,16 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
   const { status } = req.body;
   try {
     await query('UPDATE pedidos SET status = ? WHERE id = ?', [status, id]);
-    pusher.trigger('garconnexpress', 'status-atualizado', { pedido_id: parseInt(id), status });
+    
+    // Buscar o número da mesa para a notificação
+    const pedidoRes = await query("SELECT m.numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id]);
+    const mesaNumero = pedidoRes.rows[0] ? pedidoRes.rows[0].numero : 'X';
+
+    pusher.trigger('garconnexpress', 'status-atualizado', { 
+      pedido_id: parseInt(id), 
+      mesa_id: mesaNumero,
+      status 
+    });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao atualizar status' });
