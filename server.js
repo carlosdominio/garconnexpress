@@ -254,7 +254,15 @@ app.put('/api/pedidos/:id/adicionar', async (req, res) => {
     const novoTotal = itensAtuais.rows.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
     await query('UPDATE pedidos SET total = ? WHERE id = ?', [novoTotal, id]);
 
-    await pusher.trigger('garconnexpress', 'status-atualizado', { pedido_id: parseInt(id) });
+    // Buscar o número da mesa para a notificação
+    const pedidoRes = await query("SELECT m.numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id]);
+    const mesaNumero = pedidoRes.rows[0] ? pedidoRes.rows[0].numero : 'Desconhecida';
+
+    await pusher.trigger('garconnexpress', 'status-atualizado', { 
+      pedido_id: parseInt(id),
+      mesa_id: mesaNumero,
+      status: 'itens_adicionados'
+    });
     res.json({ success: true, total: novoTotal });
   } catch (error) {
     console.error(error);

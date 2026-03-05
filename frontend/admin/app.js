@@ -447,13 +447,14 @@ function configurarPusher() {
       let tituloNotif = 'Pedido Atualizado!';
       let msgNotif = `A Mesa ${data.mesa_id || ''} teve alterações no pedido.`;
 
-      if (data.status === 'aguardando_fechamento') {
+      else if (data.status === 'aguardando_fechamento') {
           const mesaNumero = data.mesa_id || '';
           tituloNotif = `🛎️ Solicitado fechamento da mesa ${mesaNumero}`;
           msgNotif = `A Mesa ${mesaNumero} solicitou o fechamento da conta!`;
-      } else if (data.status === 'recebido' || !data.status) {
-          tituloNotif = '📝 Novos itens adicionados!';
-          msgNotif = `A Mesa ${data.mesa_id || ''} adicionou novos produtos.`;
+      } else {
+          const mesaNumero = data.mesa_id || 'X';
+          tituloNotif = `📝 Mesa ${mesaNumero} atualizada!`;
+          msgNotif = `Foram adicionados novos produtos ao pedido da Mesa ${mesaNumero}.`;
       }
 
       exibirNotificacaoNativa(tituloNotif, msgNotif);
