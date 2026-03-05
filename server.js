@@ -444,7 +444,12 @@ app.post('/api/pedidos', async (req, res) => {
       mesa_numero: mesa ? mesa.numero : mesa_id
     };
 
-    pusher.trigger('garconnexpress', 'novo-pedido', { pedido: pedidoData });
+    try {
+      pusher.trigger('garconnexpress', 'novo-pedido', { pedido: pedidoData });
+    } catch (pError) {
+      console.error('Erro ao disparar Pusher (novo-pedido):', pError.message);
+    }
+    
     res.json({ id: pedidoId, success: true });
   } catch (error) {
     console.error(error);
