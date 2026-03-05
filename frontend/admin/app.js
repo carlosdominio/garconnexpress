@@ -6,18 +6,32 @@ let abaAtiva = 'ativos';
 let adminLogado = null;
 
 const audioNotificacao = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+let audioDesbloqueado = false;
 let intervalPiscaTitulo = null;
 const tituloOriginal = "Admin - GarçomExpress";
 
 document.addEventListener('DOMContentLoaded', () => {
   verificarSessaoAdmin();
+  
+  // Desbloquear áudio no primeiro clique do usuário
+  document.addEventListener('click', () => {
+    if (!audioDesbloqueado) {
+      audioNotificacao.play().then(() => {
+        audioNotificacao.pause();
+        audioNotificacao.currentTime = 0;
+        audioDesbloqueado = true;
+        console.log('Sistema de áudio pronto.');
+      }).catch(e => console.error('Erro ao preparar áudio:', e));
+    }
+  }, { once: true });
 });
 
 function verificarSessaoAdmin() {
   const salvo = localStorage.getItem('admin_logado');
   if (salvo) {
     adminLogado = JSON.parse(salvo);
-    document.getElementById('tela-login-admin').style.display = 'none';
+    const telaLogin = document.getElementById('tela-login-admin');
+    if (telaLogin) telaLogin.style.display = 'none';
     iniciarPainelAdmin();
   }
 }
@@ -61,17 +75,19 @@ function iniciarPainelAdmin() {
 function switchTab(tab) {
   abaAtiva = tab;
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-  event.target.classList.add('active');
+  if (event && event.target) event.target.classList.add('active');
 
   const secoes = ['ativos', 'historico', 'configuracoes'];
   secoes.forEach(s => {
-    document.getElementById(`${s}-section`).classList.toggle('hidden', s !== tab);
+    const el = document.getElementById(`${s}-section`);
+    if (el) el.classList.toggle('hidden', s !== tab);
   });
 
   if (tab === 'ativos') carregarPedidos();
   else if (tab === 'historico') {
     const hoje = new Date().toLocaleDateString('pt-BR');
-    document.getElementById('data-historico').innerText = `(${hoje})`;
+    const elData = document.getElementById('data-historico');
+    if (elData) elData.innerText = `(${hoje})`;
     carregarHistorico();
   }
   else if (tab === 'configuracoes') carregarDadosConfig();
@@ -86,6 +102,7 @@ async function exibirMesasConfig() {
   const res = await fetch('/api/mesas');
   const mesas = await res.json();
   const container = document.getElementById('lista-mesas-config');
+  if (!container) return;
   container.innerHTML = mesas.map(m => `
     <div class="item-config">
       <span>Mesa ${m.numero}</span>
@@ -118,6 +135,7 @@ async function exibirGarconsConfig() {
   const res = await fetch('/api/garcons');
   const garcons = await res.json();
   const container = document.getElementById('lista-garcons-config');
+  if (!container) return;
   container.innerHTML = garcons.map(g => `
     <div class="item-config">
       <div><strong>${g.nome}</strong> (@${g.usuario})</div>
@@ -150,12 +168,13 @@ async function excluirGarcom(id) {
 }
 
 // MENU
-let idItemEdicaoMenu = null; // Armazena o ID se estiver editando
+let idItemEdicaoMenu = null;
 
 async function exibirMenuConfig() {
   const res = await fetch('/api/menu');
   const menuItens = await res.json();
   const container = document.getElementById('lista-menu-config');
+  if (!container) return;
   container.innerHTML = menuItens.map(m => `
     <div class="menu-item-config" id="item-menu-${m.id}">
       <img src="${m.imagem}" alt="${m.nome}">
@@ -185,7 +204,10 @@ function prepararEdicaoMenu(item) {
 
 function cancelarEdicaoMenu() {
   idItemEdicaoMenu = null;
-  ['menu-nome', 'menu-cat', 'menu-preco', 'menu-img'].forEach(id => document.getElementById(id).value = '');
+  ['menu-nome', 'menu-cat', 'menu-preco', 'menu-img'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
   document.getElementById('btn-acao-menu').textContent = "Adicionar Item";
   document.getElementById('btn-acao-menu').style.background = "#27ae60";
   document.getElementById('btn-cancelar-menu').classList.add('hidden');
@@ -220,10 +242,6 @@ async function processarAcaoMenu() {
   }
 }
 
-async function adicionarAoMenu() {
-  // Substituída pela processarAcaoMenu
-}
-
 async function excluirDoMenu(id) {
   if (confirm("Remover este item do cardápio?")) {
     await fetch(`/api/menu/${id}`, { method: 'DELETE' });
@@ -243,20 +261,14 @@ async function carregarHistorico() {
 
 function formatarData(dataStr) {
   if (!dataStr) return "S/ Data";
-  
   try {
-    // Para SQLite: "2026-03-04 12:12:00" -> "2026-03-04T12:12:00"
     const isoStr = dataStr.replace(' ', 'T');
     const data = new Date(isoStr);
-    
     if (!isNaN(data.getTime())) {
       return data.toLocaleDateString('pt-BR') + ' às ' + data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     }
-
-    // Se falhar o Date(), tenta limpar aspas se houver
     const limpa = dataStr.replace(/['"]/g, '');
     if (limpa.length > 5) return limpa;
-    
     return dataStr;
   } catch (e) {
     return dataStr;
@@ -278,8 +290,6 @@ async function exibirHistorico(historico) {
     card.className = `pedido-card status-${pedido.status}`;
     
     const dataFormatada = formatarData(pedido.created_at);
-    
-    // Converter status para exibição
     const statusLabel = pedido.status === 'entregue' ? 'PAGO' : pedido.status.toUpperCase();
     const statusClass = pedido.status === 'entregue' ? 'pago' : pedido.status;
 
@@ -303,7 +313,8 @@ async function exibirHistorico(historico) {
     `;
     container.appendChild(card);
   }
-  document.getElementById('faturamento-total-dia').innerText = `Faturamento Concluído: R$ ${faturamentoTotal.toFixed(2)}`;
+  const elFat = document.getElementById('faturamento-total-dia');
+  if (elFat) elFat.innerText = `Faturamento Concluído: R$ ${faturamentoTotal.toFixed(2)}`;
 }
 
 async function limparHistoricoTotal() {
@@ -343,7 +354,9 @@ async function carregarCardapio() {
   const res = await fetch('/api/menu');
   cardapio = await res.json();
   const select = document.getElementById('menu-select');
-  select.innerHTML = cardapio.map(item => `<option value="${item.id}">${item.nome} - R$ ${item.preco.toFixed(2)}</option>`).join('');
+  if (select) {
+    select.innerHTML = cardapio.map(item => `<option value="${item.id}">${item.nome} - R$ ${item.preco.toFixed(2)}</option>`).join('');
+  }
 }
 
 function iniciarPiscarTitulo() {
@@ -374,31 +387,100 @@ function exibirNotificacaoNativa(titulo, mensagem) {
 }
 
 let timeoutPusher = null;
+let pusherInstancia = null;
+let pedidoAtualizadoId = null;
 
 function configurarPusher() {
-  const pusher = new Pusher('c4a9b50fe10859f2107a', { cluster: 'sa1' });
-  const channel = pusher.subscribe('garconnexpress');
+  if (pusherInstancia) return;
+  
+  console.log('Configurando Pusher...');
+  pusherInstancia = new Pusher('c4a9b50fe10859f2107a', { cluster: 'sa1' });
+  const channel = pusherInstancia.subscribe('garconnexpress');
 
   channel.bind('novo-pedido', (data) => {
-    audioNotificacao.play().catch(() => {});
+    console.log('Novo pedido:', data);
+    if (pedidoAtualizadoId === data.pedido.id) return;
+    
+    tocarNotificacao();
     iniciarPiscarTitulo();
     exibirNotificacaoNativa('Novo Pedido!', `Mesa ${data.pedido.mesa_numero} fez um pedido.`);
-    mostrarToast(`Novo pedido: Mesa ${data.pedido.mesa_numero}`);
+    mostrarToast(`🚀 NOVO PEDIDO: Mesa ${data.pedido.mesa_numero}`);
     
+    pedidoAtualizadoId = data.pedido.id;
     clearTimeout(timeoutPusher);
     timeoutPusher = setTimeout(() => carregarPedidos(), 500);
   });
 
-  channel.bind('status-atualizado', () => {
+  channel.bind('status-atualizado', (data) => {
+    console.log('Status atualizado recebido:', data);
+    
+    if (!data) return;
+
+    // 1. Caso Especial: Mesa Liberada (pode não ter pedido_id)
+    if (data.status === 'liberada') {
+        const mesaNumero = data.mesa_id || '';
+        const tituloNotif = `✅ Mesa- ${mesaNumero} - liberada`;
+        const msgNotif = `A mesa ${mesaNumero} já está disponível para novos clientes.`;
+        
+        tocarNotificacao();
+        iniciarPiscarTitulo();
+        exibirNotificacaoNativa(tituloNotif, msgNotif);
+        mostrarToast(tituloNotif);
+        
+        // Recarregar dados para limpar a tela
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => {
+          if (abaAtiva === 'ativos') carregarPedidos();
+          else if (abaAtiva === 'historico') carregarHistorico();
+        }, 500);
+        return; // Fim do processamento para este caso
+    }
+
+    // 2. Outras atualizações (exigem pedido_id)
+    if (data.pedido_id) {
+      if (pedidoAtualizadoId === data.pedido_id) return;
+      pedidoAtualizadoId = data.pedido_id;
+
+      tocarNotificacao();
+      iniciarPiscarTitulo();
+
+      let tituloNotif = 'Pedido Atualizado!';
+      let msgNotif = `A Mesa ${data.mesa_id || ''} teve alterações no pedido.`;
+
+      if (data.status === 'aguardando_fechamento') {
+          const mesaNumero = data.mesa_id || '';
+          tituloNotif = `🛎️ Solicitado fechamento da mesa ${mesaNumero}`;
+          msgNotif = `A Mesa ${mesaNumero} solicitou o fechamento da conta!`;
+      } else if (data.status === 'recebido' || !data.status) {
+          tituloNotif = '📝 Novos itens adicionados!';
+          msgNotif = `A Mesa ${data.mesa_id || ''} adicionou novos produtos.`;
+      }
+
+      exibirNotificacaoNativa(tituloNotif, msgNotif);
+      mostrarToast(tituloNotif);
+    }
+
     clearTimeout(timeoutPusher);
     timeoutPusher = setTimeout(() => {
       if (abaAtiva === 'ativos') carregarPedidos();
-      else carregarHistorico();
+      else if (abaAtiva === 'historico') carregarHistorico();
     }, 500);
   });
 }
 
+function tocarNotificacao() {
+  if (audioDesbloqueado) {
+    audioNotificacao.currentTime = 0;
+    audioNotificacao.play().catch(e => console.error('Erro ao tocar som:', e));
+  } else {
+    console.warn('Áudio ainda não desbloqueado pelo usuário (clique na página).');
+  }
+}
+
 function mostrarToast(mensagem) {
+  const toastExistente = document.querySelector('.toast-notificacao');
+  if (toastExistente) toastExistente.remove();
+
   const toast = document.createElement('div');
   toast.className = 'toast-notificacao';
   toast.innerText = mensagem;
@@ -408,7 +490,7 @@ function mostrarToast(mensagem) {
     setTimeout(() => {
       toast.classList.remove('show');
       setTimeout(() => toast.remove(), 500);
-    }, 3000);
+    }, 8000);
   }, 100);
 }
 
@@ -425,7 +507,8 @@ async function carregarPedidos() {
 
 function atualizarResumoFaturamento() {
   const faturamentoAtivo = pedidos.reduce((sum, p) => sum + (parseFloat(p.total) || 0), 0);
-  document.getElementById('faturamento-resumo').innerText = `Faturamento Ativo: R$ ${faturamentoAtivo.toFixed(2)}`;
+  const elFat = document.getElementById('faturamento-resumo');
+  if (elFat) elFat.innerText = `Faturamento Ativo: R$ ${faturamentoAtivo.toFixed(2)}`;
 }
 
 async function exibirPedidos() {
@@ -437,10 +520,11 @@ async function exibirPedidos() {
   for (const pedido of pedidos) {
     const itens = await fetch(`/api/pedidos/${pedido.id}/itens`).then(res => res.json());
     const card = document.createElement('div');
-    card.className = `pedido-card status-${pedido.status}`;
+    
+    const classeDestaque = (pedido.id === pedidoAtualizadoId) ? 'destaque-atualizacao' : '';
+    card.className = `pedido-card status-${pedido.status} ${classeDestaque}`;
     
     const resumoParaCopia = `MESA ${pedido.mesa_numero}\nTOTAL: R$ ${pedido.total.toFixed(2)}\nITENS:\n${itens.map(i => `- ${i.quantidade}x ${i.nome}`).join('\n')}`;
-
     const dataFormatada = formatarData(pedido.created_at);
 
     card.innerHTML = `
@@ -478,18 +562,27 @@ async function exibirPedidos() {
     `;
     container.appendChild(card);
   }
+
+  if (pedidoAtualizadoId) {
+    setTimeout(() => {
+      pedidoAtualizadoId = null;
+    }, 5000);
+  }
 }
 
 function abrirModalEdicao(pedido, itens) {
   pedidoEmEdicao = pedido;
   itensEmEdicao = [...itens];
-  document.getElementById('modal-titulo').innerText = `Editar Pedido - Mesa ${pedido.mesa_numero}`;
-  document.getElementById('modal-edicao').style.display = 'block';
+  const elTit = document.getElementById('modal-titulo');
+  if (elTit) elTit.innerText = `Editar Pedido - Mesa ${pedido.mesa_numero}`;
+  const elMod = document.getElementById('modal-edicao');
+  if (elMod) elMod.style.display = 'block';
   renderizarItensEdicao();
 }
 
 function renderizarItensEdicao() {
   const container = document.getElementById('itens-atuais');
+  if (!container) return;
   let total = 0;
   container.innerHTML = itensEmEdicao.map((item, index) => {
     total += item.preco * item.quantidade;
@@ -504,7 +597,8 @@ function renderizarItensEdicao() {
       </div>
     `;
   }).join('');
-  document.getElementById('modal-total').innerText = `Total: R$ ${total.toFixed(2)}`;
+  const elTot = document.getElementById('modal-total');
+  if (elTot) elTot.innerText = `Total: R$ ${total.toFixed(2)}`;
 }
 
 function mudarQtdItem(index, qtd) {
@@ -519,6 +613,7 @@ function removerItemEdicao(index) {
 
 function adicionarAoPedidoEdicao() {
   const select = document.getElementById('menu-select');
+  if (!select) return;
   const itemId = parseInt(select.value);
   const menuItem = cardapio.find(m => m.id === itemId);
   
@@ -538,7 +633,8 @@ function adicionarAoPedidoEdicao() {
 }
 
 function fecharModal() {
-  document.getElementById('modal-edicao').style.display = 'none';
+  const elMod = document.getElementById('modal-edicao');
+  if (elMod) elMod.style.display = 'none';
 }
 
 async function salvarAlteracoes() {
@@ -558,6 +654,7 @@ async function salvarAlteracoes() {
   if (res.ok) {
     mostrarToast("Pedido atualizado com sucesso!");
     fecharModal();
+    carregarPedidos();
   }
 }
 
@@ -565,6 +662,7 @@ async function confirmarCancelamento() {
   if (confirm("Tem certeza que deseja CANCELAR este pedido?")) {
     await atualizarStatus(pedidoEmEdicao.id, 'cancelado');
     fecharModal();
+    carregarPedidos();
   }
 }
 

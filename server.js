@@ -146,7 +146,16 @@ app.put('/api/pedidos/:id/solicitar-fechamento', async (req, res) => {
   try {
     await query("UPDATE pedidos SET status = 'aguardando_fechamento' WHERE id = ?", [id]);
     await query("UPDATE mesas SET status = 'fechando' WHERE id = ?", [mesa_id]);
-    await pusher.trigger('garconnexpress', 'status-atualizado', { mesa_id, pedido_id: id });
+    
+    // Buscar o número da mesa para a notificação ser precisa
+    const mesaRes = await query("SELECT numero FROM mesas WHERE id = ?", [mesa_id]);
+    const mesaNumero = mesaRes.rows[0] ? mesaRes.rows[0].numero : mesa_id;
+
+    await pusher.trigger('garconnexpress', 'status-atualizado', { 
+      mesa_id: mesaNumero, 
+      pedido_id: parseInt(id),
+      status: 'aguardando_fechamento' 
+    });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao solicitar fechamento' });
@@ -168,13 +177,20 @@ app.put('/api/mesas/:id/status', async (req, res) => {
 app.put('/api/mesas/:id/liberar', async (req, res) => {
   const { id } = req.params;
   try {
-    // 1. Finaliza qualquer pedido aberto nesta mesa (manda para o histórico)
+    // Buscar o número da mesa antes de liberar
+    const mesaRes = await query("SELECT numero FROM mesas WHERE id = ?", [id]);
+    const mesaNumero = mesaRes.rows[0] ? mesaRes.rows[0].numero : id;
+
+    // 1. Finaliza qualquer pedido aberto nesta mesa
     await query("UPDATE pedidos SET status = 'entregue' WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado')", [id]);
     
     // 2. Libera a mesa
     await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [id]);
     
-    await pusher.trigger('garconnexpress', 'status-atualizado', { mesa_id: parseInt(id) });
+    await pusher.trigger('garconnexpress', 'status-atualizado', { 
+      mesa_id: mesaNumero, 
+      status: 'liberada' 
+    });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao liberar mesa' });
@@ -404,9 +420,13 @@ app.post('/api/pedidos', async (req, res) => {
   try {
     const total = itens.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
     
+    // Gerar data atual no fuso horário do servidor (Vercel configurado para Brasil)
+    // No Vercel, defina a variável de ambiente TZ=America/Sao_Paulo
+    const dataCriacao = new Date().toISOString();
+
     const resPedido = await query(
-      'INSERT INTO pedidos (mesa_id, garcom_id, total, status) VALUES (?, ?, ?, ?) RETURNING id',
-      [mesa_id, garcom_id, total, 'recebido']
+      'INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id',
+      [mesa_id, garcom_id, total, 'recebido', dataCriacao]
     );
     const pedidoId = resPedido.lastInsertRowid || (resPedido.rows && resPedido.rows[0] ? resPedido.rows[0].id : null);
 

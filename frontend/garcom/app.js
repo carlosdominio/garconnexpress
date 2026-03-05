@@ -56,8 +56,35 @@ async function iniciarApp() {
 function configurarPusher() {
   const pusher = new Pusher('c4a9b50fe10859f2107a', { cluster: 'sa1' });
   const channel = pusher.subscribe('garconnexpress');
+  
   channel.bind('novo-pedido', () => carregarMesas());
-  channel.bind('status-atualizado', () => carregarMesas());
+  
+  channel.bind('status-atualizado', (data) => {
+    carregarMesas();
+    
+    // Se a mesa foi liberada pelo admin
+    if (data && data.status === 'liberada') {
+      mostrarToast(`✅ Mesa- ${data.mesa_id} - liberada`);
+    }
+  });
+}
+
+function mostrarToast(mensagem) {
+  const toastExistente = document.querySelector('.toast-notificacao');
+  if (toastExistente) toastExistente.remove();
+
+  const toast = document.createElement('div');
+  toast.className = 'toast-notificacao';
+  toast.innerText = mensagem;
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.classList.add('show');
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 500);
+    }, 4000); // 4 segundos para o garçom ver
+  }, 100);
 }
 
 async function carregarMenu() {
@@ -145,18 +172,28 @@ async function finalizarEDesocupar() {
 function exibirMenu(categoria) {
   const grid = document.getElementById('menu-grid');
   const itens = categoria === 'todas' ? menu : menu.filter(item => item.categoria === categoria);
-  grid.innerHTML = itens.map(item => `
-    <div class="item-menu" data-id="${item.id}">
-      <img src="${item.imagem}" alt="${item.nome}">
-      <h3>${item.nome}</h3>
-      <p>R$ ${item.preco.toFixed(2)}</p>
-    </div>
-  `).join('');
+  
+  grid.innerHTML = itens.map(item => {
+    // Verificar se o item já está no pedido para mostrar a quantidade
+    const itemNoPedido = pedidoAtual.find(p => p.menu_id === item.id);
+    const qtdBadge = itemNoPedido ? `<div class="badge-qtd">${itemNoPedido.quantidade}</div>` : '';
+
+    return `
+      <div class="item-menu" data-id="${item.id}">
+        ${qtdBadge}
+        <img src="${item.imagem}" alt="${item.nome}">
+        <h3>${item.nome}</h3>
+        <p>R$ ${item.preco.toFixed(2)}</p>
+      </div>
+    `;
+  }).join('');
 
   document.querySelectorAll('.item-menu').forEach(item => {
     item.addEventListener('click', () => {
       const menuItem = menu.find(m => m.id == item.dataset.id);
       adicionarItemPedido(menuItem);
+      // Re-renderiza o menu para atualizar o badge sem perder o scroll
+      exibirMenu(categoria);
     });
   });
 }
@@ -181,14 +218,19 @@ function exibirResumoPedido() {
   const container = document.getElementById('itens-pedido');
   container.innerHTML = pedidoAtual.map((item, index) => `
     <div class="item-pedido">
-      <div>
-        <p>${item.nome} (x${item.quantidade})</p>
-        <input type="text" placeholder="Obs" value="${item.observacao}" 
+      <div style="flex-grow: 1; padding-right: 10px;">
+        <p><strong>${item.nome}</strong></p>
+        <input type="text" placeholder="Obs..." value="${item.observacao}" 
           onchange="pedidoAtual[${index}].observacao = this.value">
       </div>
-      <div>
-        <p>R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
-        <button style="width:auto; padding:5px" onclick="removerItemPedido(${index})">X</button>
+      <div class="controle-qtd-container">
+        <div class="seletor-qtd">
+          <button class="btn-qtd" onclick="alterarQuantidadeItem(${index}, -1)">-</button>
+          <span class="valor-qtd">${item.quantidade}</span>
+          <button class="btn-qtd" onclick="alterarQuantidadeItem(${index}, 1)">+</button>
+        </div>
+        <p class="subtotal-item">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
+        <button class="btn-remover-item" onclick="removerItemPedido(${index})">Remover</button>
       </div>
     </div>
   `).join('');
@@ -197,9 +239,25 @@ function exibirResumoPedido() {
   document.getElementById('total-pedido').textContent = `Total: R$ ${total.toFixed(2)}`;
 }
 
+function alterarQuantidadeItem(index, delta) {
+  const novoValor = pedidoAtual[index].quantidade + delta;
+  if (novoValor > 0) {
+    pedidoAtual[index].quantidade = novoValor;
+    exibirResumoPedido();
+    // Atualiza os badges no menu também
+    const catAtiva = document.querySelector('.categoria.ativa').dataset.categoria;
+    exibirMenu(catAtiva);
+  } else {
+    removerItemPedido(index);
+  }
+}
+
 function removerItemPedido(index) {
   pedidoAtual.splice(index, 1);
   exibirResumoPedido();
+  // Atualiza o menu para remover o badge se necessário
+  const catAtiva = document.querySelector('.categoria.ativa').dataset.categoria;
+  exibirMenu(catAtiva);
 }
 
 async function enviarPedido() {
