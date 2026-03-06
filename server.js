@@ -81,6 +81,10 @@ app.use(express.json());
 app.use('/garcom', express.static(path.join(__dirname, 'frontend', 'garcom')));
 app.use('/admin', express.static(path.join(__dirname, 'frontend', 'admin')));
 
+app.get('/', (req, res) => {
+  res.redirect('/garcom');
+});
+
 // Helper para disparar status-atualizado com NÚMERO DA MESA garantido em mesa_numero e mesa_id
 async function notifyStatus(pedidoId, mesaDbId, status) {
   try {
