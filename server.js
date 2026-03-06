@@ -71,7 +71,8 @@ app.use((req, res, next) => {
     "connect-src 'self' https://*.pusher.com wss://*.pusher.com https://vercel.live; " +
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "font-src 'self' https://fonts.gstatic.com; " +
-    "img-src 'self' data: https://*;"
+    "img-src 'self' data: https://*; " +
+    "media-src 'self' https://assets.mixkit.co;"
   );
   next();
 });
