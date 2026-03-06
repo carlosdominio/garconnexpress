@@ -3,9 +3,12 @@ const path = require('path');
 const Database = require('better-sqlite3');
 const { Pool } = require('pg');
 const Pusher = require('pusher');
+const bcrypt = require('bcrypt');
 require('dotenv').config();
 
 const app = express();
+
+const saltRounds = 10;
 
 const pusher = new Pusher({
   appId: process.env.PUSHER_APP_ID,
@@ -202,7 +205,8 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
 app.get('/api/garcons', async (req, res) => { res.json((await query('SELECT id, nome, usuario FROM garcons ORDER BY nome')).rows); });
 app.post('/api/garcons', async (req, res) => {
   const { nome, usuario, senha } = req.body;
-  await query('INSERT INTO garcons (nome, usuario, senha) VALUES (?, ?, ?)', [nome, usuario, senha]);
+  const hashedSenha = await bcrypt.hash(senha, saltRounds);
+  await query('INSERT INTO garcons (nome, usuario, senha) VALUES (?, ?, ?)', [nome, usuario, hashedSenha]);
   res.json({ success: true });
 });
 app.delete('/api/garcons/:id', async (req, res) => {
@@ -249,20 +253,32 @@ app.get('/api/pedidos', async (req, res) => { res.json((await query(`SELECT p.*,
 app.get('/api/pedidos/historico', async (req, res) => { res.json((await query(`SELECT p.*, m.numero as mesa_numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.status IN ('entregue', 'cancelado') ORDER BY p.created_at DESC LIMIT 50`)).rows); });
 app.get('/api/pedidos/:id/itens', async (req, res) => { res.json((await query(`SELECT pi.*, m.nome, m.preco FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [req.params.id])).rows); });
 app.post('/api/login', async (req, res) => {
-  const result = await query('SELECT id, nome FROM garcons WHERE usuario = ? AND senha = ?', [req.body.usuario, req.body.senha]);
-  if (result.rows.length > 0) res.json({ success: true, garcom: result.rows[0] });
-  else res.status(401).json({ error: 'Erro' });
+  const { usuario, senha } = req.body;
+  const result = await query('SELECT id, nome, senha FROM garcons WHERE usuario = ?', [usuario]);
+  if (result.rows.length > 0) {
+    const garcom = result.rows[0];
+    const match = await bcrypt.compare(senha, garcom.senha);
+    if (match) {
+      delete garcom.senha;
+      return res.json({ success: true, garcom });
+    }
+  }
+  res.status(401).json({ error: 'Usuário ou senha incorretos' });
 });
 
 app.post('/api/admin/login', async (req, res) => {
   const { usuario, senha } = req.body;
   try {
-    const result = await query('SELECT id, usuario FROM usuarios_admin WHERE usuario = ? AND senha = ?', [usuario, senha]);
+    const result = await query('SELECT id, usuario, senha FROM usuarios_admin WHERE usuario = ?', [usuario]);
     if (result.rows.length > 0) {
-      res.json({ success: true, admin: result.rows[0] });
-    } else {
-      res.status(401).json({ error: 'Usuário ou senha incorretos' });
+      const admin = result.rows[0];
+      const match = await bcrypt.compare(senha, admin.senha);
+      if (match) {
+        delete admin.senha;
+        return res.json({ success: true, admin });
+      }
     }
+    res.status(401).json({ error: 'Usuário ou senha incorretos' });
   } catch (error) {
     res.status(500).json({ error: 'Erro no servidor' });
   }
