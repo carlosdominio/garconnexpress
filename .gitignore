@@ -13,3 +13,4 @@ build/
 dist/
 .vercel
 garconnexpress.db
+*.bak

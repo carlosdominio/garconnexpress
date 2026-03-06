@@ -54,14 +54,22 @@ let timeoutPusher = null;
 function configurarPusher() {
   const pusher = new Pusher('c4a9b50fe10859f2107a', { cluster: 'sa1' });
   const channel = pusher.subscribe('garconnexpress');
-  channel.bind('novo-pedido', () => {
+  
+  channel.bind('novo-pedido', (data) => {
+    console.log('NOVO PEDIDO RECEBIDO:', data);
     clearTimeout(timeoutPusher);
     timeoutPusher = setTimeout(() => carregarMesas(), 500);
   });
+
   channel.bind('status-atualizado', (data) => {
+    console.log('STATUS ATUALIZADO RECEBIDO:', data);
     clearTimeout(timeoutPusher);
     timeoutPusher = setTimeout(() => carregarMesas(), 500);
-    if (data && data.status === 'liberada') mostrarToast(`✅ Mesa- ${data.mesa_id} - liberada`);
+    if (!data) return;
+    const nMesa = data.mesa_numero || data.mesa_id || 'X';
+    if (data.status === 'liberada') mostrarToast(`✅ Mesa ${nMesa} liberada`);
+    if (data.status === 'itens_atualizados') mostrarToast(`📝 Pedido da Mesa ${nMesa} atualizado pelo Admin`);
+    if (data.status === 'cancelado') mostrarToast(`❌ Pedido da Mesa ${nMesa} CANCELADO pelo Admin`);
   });
 }
 
@@ -93,10 +101,49 @@ async function carregarMesas() {
   exibirMesas();
 }
 
+async function iniciarApp() {
+  await carregarMenu();
+  await carregarMesas();
+  configurarEventos();
+  configurarPusher();
+
+  // Atualiza o cronômetro a cada minuto
+  setInterval(() => {
+    exibirMesas();
+  }, 60000);
+}
+
+function calcularMinutos(dataIso) {
+  if (!dataIso) return 0;
+  const data = new Date(dataIso.replace(' ', 'T'));
+  const agora = new Date();
+  const diffMs = agora - data;
+  return Math.floor(diffMs / 60000);
+}
+
 function exibirMesas() {
   const grid = document.getElementById('mesas-grid');
   if (!grid) return;
-  grid.innerHTML = mesas.map(mesa => `<div class="mesa ${mesa.status}" data-id="${mesa.id}"><h3>Mesa ${mesa.numero}</h3><p>${mesa.status.toUpperCase()}</p></div>`).join('');
+
+  grid.innerHTML = mesas.map(mesa => {
+    let cronometroHtml = '';
+    let classeAlerta = '';
+
+    if (mesa.status === 'ocupada' && mesa.pedido_created_at) {
+      const minutos = calcularMinutos(mesa.pedido_created_at);
+      cronometroHtml = `<div class="cronometro">⏱️ ${minutos} min</div>`;
+      if (minutos >= 10) classeAlerta = 'alerta-atraso';
+    }
+
+    return `
+      <div class="mesa ${mesa.status} ${classeAlerta}" data-id="${mesa.id}">
+        <h3>Mesa ${mesa.numero}</h3>
+        <p>${mesa.status.toUpperCase()}</p>
+        ${cronometroHtml}
+      </div>
+    `;
+  }).join('');
+
   document.querySelectorAll('.mesa').forEach(mesa => {
     mesa.addEventListener('click', async () => {
       const mesaSelecionada = mesas.find(m => m.id == mesa.dataset.id);
@@ -156,7 +203,6 @@ async function verItensDaMesa() {
     const lista = document.getElementById('lista-itens-mesa');
     lista.innerHTML = html || '<p>Nenhum item no pedido.</p>';
 
-    // Calcular totais separados
     const totalEntregue = entregues.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
     const totalPendente = pendentes.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
 

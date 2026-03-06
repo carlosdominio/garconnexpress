@@ -112,6 +112,7 @@ main {
   align-items: center;
   border-top: 1px solid #eee;
   padding-top: 1rem;
+  flex-wrap: wrap;
 }
 
 .pedido-actions {
@@ -420,6 +421,37 @@ button.btn-entregue { background-color: #95a5a6; }
     gap: 0.5rem;
   }
   
+  .pedido-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .pedido-valor {
+    width: 100%;
+    text-align: left !important;
+    border-top: 1px solid #eee;
+    padding-top: 0.5rem;
+  }
+
+  .pedido-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+
+  .pedido-footer > div {
+    width: 100%;
+    flex-direction: column;
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .pedido-footer button {
+    width: 100%;
+    margin: 0 !important;
+  }
+
   .tabs {
     flex-direction: column;
     gap: 0.2rem;
@@ -485,6 +517,18 @@ button.btn-entregue { background-color: #95a5a6; }
 }
 
 /* --- Novas animações de destaque --- */
+.alerta-borda-pisca {
+  animation: piscaBordaVermelha 1.5s infinite ease-in-out !important;
+  border-width: 4px !important;
+  box-shadow: 0 0 15px rgba(231, 76, 60, 0.4);
+}
+
+@keyframes piscaBordaVermelha {
+  0% { border-color: #e74c3c; }
+  50% { border-color: #f5f5f5; }
+  100% { border-color: #e74c3c; }
+}
+
 .pedido-card.destaque-atualizacao {
   animation: piscarDestaque 3s ease-in-out;
   border: 3px solid #3498db !important;

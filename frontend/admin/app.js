@@ -25,11 +25,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function verificarSessaoAdmin() {
   const salvo = localStorage.getItem('admin_logado');
-  if (salvo) {
-    adminLogado = JSON.parse(salvo);
-    const telaLogin = document.getElementById('tela-login-admin');
-    if (telaLogin) telaLogin.style.display = 'none';
-    iniciarPainelAdmin();
+  if (salvo && salvo !== 'undefined') {
+    try {
+      adminLogado = JSON.parse(salvo);
+      const telaLogin = document.getElementById('tela-login-admin');
+      if (telaLogin) telaLogin.style.display = 'none';
+      iniciarPainelAdmin();
+    } catch (e) {
+      console.error("Erro ao carregar sessão:", e);
+      localStorage.removeItem('admin_logado');
+    }
   }
 }
 
@@ -44,7 +49,7 @@ async function realizarLoginAdmin() {
   });
   if (res.ok) {
     const data = await res.json();
-    adminLogado = data.user;
+    adminLogado = data.admin;
     localStorage.setItem('admin_logado', JSON.stringify(adminLogado));
     location.reload();
   } else alert("Credenciais inválidas");
@@ -61,6 +66,20 @@ function iniciarPainelAdmin() {
   carregarCardapio();
   configurarPusher();
   window.addEventListener('focus', () => pararPiscarTitulo());
+  
+  // Atualiza os cronômetros a cada minuto no painel admin
+  setInterval(() => {
+    exibirPedidos();
+  }, 60000);
+}
+
+function calcularMinutos(dataIso) {
+  if (!dataIso) return 0;
+  const isoStr = dataIso.replace(' ', 'T');
+  const data = new Date(isoStr);
+  const agora = new Date();
+  const diffMs = agora - data;
+  return Math.floor(diffMs / 60000);
 }
 
 function switchTab(tab) {
@@ -215,8 +234,15 @@ async function limparHistoricoTotal() {
   }
 }
 
-async function liberarMesa(idMesa) {
-  if (confirm("Liberar mesa agora?")) await fetch(`/api/mesas/${idMesa}/liberar`, { method: 'PUT' });
+async function liberarMesa(idMesa, temPendentes = false) {
+  let msg = "Liberar mesa agora?";
+  if (temPendentes) {
+    msg = "⚠️ ATENÇÃO: Esta mesa possui itens PENDENTES de entrega! Tem certeza que deseja LIBERAR a mesa e encerrar o pedido sem entregar tudo?";
+  }
+  if (confirm(msg)) {
+    const res = await fetch(`/api/mesas/${idMesa}/liberar`, { method: 'PUT' });
+    if (res.ok) carregarPedidos();
+  }
 }
 
 async function aprovarFechamento(idPedido, idMesa) {
@@ -247,36 +273,44 @@ function configurarPusher() {
   if (pusherInstancia) return;
   pusherInstancia = new Pusher('c4a9b50fe10859f2107a', { cluster: 'sa1' });
   const channel = pusherInstancia.subscribe('garconnexpress');
+  
   channel.bind('novo-pedido', (data) => {
-    if (pedidoAtualizadoId === data.pedido.id) return;
     tocarNotificacao(); iniciarPiscarTitulo();
     exibirNotificacaoNativa('Novo Pedido!', `Mesa ${data.pedido.mesa_numero}`);
     mostrarToast(`🚀 NOVO PEDIDO: Mesa ${data.pedido.mesa_numero}`);
-    pedidoAtualizadoId = data.pedido.id;
     clearTimeout(timeoutPusher); timeoutPusher = setTimeout(() => carregarPedidos(), 500);
   });
+
   channel.bind('status-atualizado', (data) => {
+    console.log('STATUS ATUALIZADO RECEBIDO:', data);
     if (!data) return;
+    
+    const nMesa = data.mesa_numero || data.mesa_id || 'X';
+
+    // Se for liberação de mesa
     if (data.status === 'liberada') {
-        tocarNotificacao(); iniciarPiscarTitulo();
-        exibirNotificacaoNativa(`✅ Mesa- ${data.mesa_id} - liberada`, "Mesa pronta!");
-        mostrarToast(`✅ Mesa- ${data.mesa_id} - liberada`);
+        tocarNotificacao();
+        exibirNotificacaoNativa('Mesa Liberada', `Mesa ${nMesa} está livre.`);
+        mostrarToast(`✅ Mesa ${nMesa} liberada`);
         clearTimeout(timeoutPusher); timeoutPusher = setTimeout(() => carregarPedidos(), 500);
         return;
     }
-    if (data.pedido_id) {
-      if (pedidoAtualizadoId === data.pedido_id) return;
-      if (data.status === 'entregue' || data.status === 'cancelado') { clearTimeout(timeoutPusher); timeoutPusher = setTimeout(() => carregarPedidos(), 500); return; }
-      pedidoAtualizadoId = data.pedido_id;
+
+    if (data.pedido_id || data.status) {
       tocarNotificacao(); iniciarPiscarTitulo();
       let tit = 'Atualização!';
-      if (data.status === 'aguardando_fechamento') tit = `🛎️ Fechamento mesa ${data.mesa_id}`;
-      else if (data.status === 'servido') tit = `🚚 Mesa ${data.mesa_id} servida!`;
-      else tit = `📝 Mesa ${data.mesa_id} atualizada!`;
+
+      if (data.status === 'aguardando_fechamento') tit = `🛎️ Fechamento mesa ${nMesa}`;
+      else if (data.status === 'servido') tit = `🚚 Mesa ${nMesa} servida!`;
+      else if (data.status === 'itens_adicionados') tit = `📝 Novos itens na Mesa ${nMesa}`;
+      else if (data.status === 'itens_atualizados') tit = `📝 Pedido da Mesa ${nMesa} editado`;
+      else if (data.status === 'cancelado') tit = `❌ Pedido da Mesa ${nMesa} CANCELADO`;
+      else tit = `📝 Mesa ${nMesa} atualizada!`;
+
       exibirNotificacaoNativa(tit, "Verifique o painel.");
       mostrarToast(tit);
+      clearTimeout(timeoutPusher); timeoutPusher = setTimeout(() => carregarPedidos(), 500);
     }
-    clearTimeout(timeoutPusher); timeoutPusher = setTimeout(() => carregarPedidos(), 500);
   });
 }
 
@@ -309,9 +343,19 @@ async function exibirPedidos() {
     faturamentoRealAtivo += totalEnt;
     const hasPend = itens.some(i => i.status === 'pendente');
     const statusGeral = hasPend ? 'recebido' : 'servido';
+
+    // Lógica do Cronômetro e Alerta
+    let cronometroHtml = '';
+    let classeAlertaAtraso = '';
+    if (statusGeral === 'recebido' && pedido.created_at) {
+      const minutos = calcularMinutos(pedido.created_at);
+      cronometroHtml = `<span style="margin-left:10px; font-size:0.9rem; background:#eee; padding:2px 6px; border-radius:4px; color:#333;">⏱️ ${minutos} min</span>`;
+      if (minutos >= 10) classeAlertaAtraso = 'alerta-borda-pisca';
+    }
+
     const card = document.createElement('div');
-    card.className = `pedido-card status-${statusGeral} ${pedido.id === pedidoAtualizadoId ? 'destaque-atualizacao' : ''}`;
-    card.innerHTML = `<div class="pedido-header"><div><h3>Mesa ${pedido.mesa_numero}</h3><span class="status-badge">${statusGeral.toUpperCase()}</span><small style="display:block; margin-top:4px;">📅 ${formatarData(pedido.created_at)}</small><small style="display:block; font-weight:bold;">👤 ${pedido.garcom_id || 'N/I'}</small></div><div style="text-align:right"><div class="pedido-valor" style="font-size:1.1rem; color:#27ae60;">✓ R$ ${totalEnt.toFixed(2)}</div>${totalPend > 0 ? `<div style="font-size:0.8rem; color:#e74c3c; font-weight:bold;">⏳ + R$ ${totalPend.toFixed(2)}</div>` : ''}<div style="font-size:0.7rem; color:#7f8c8d; border-top:1px solid #eee; margin-top:3px;">Total: R$ ${(totalEnt + totalPend).toFixed(2)}</div></div></div><div class="pedido-itens">${itens.map(item => `<div class="pedido-item" style="${item.status === 'entregue' ? 'opacity:0.5; text-decoration:line-through; background:#f0fff4;' : 'border-left:3px solid #e74c3c; background:#fff5f5;'} border-radius:4px; padding:2px 5px; margin-bottom:4px;"><div style="display:flex; justify-content:space-between; align-items:center;"><strong>${item.quantidade}x ${item.nome}</strong><span style="font-size:0.7rem; font-weight:bold; color:${item.status === 'entregue' ? '#27ae60' : '#e74c3c'};">${item.status === 'entregue' ? '✓ NA MESA' : '⏳ PENDENTE'}</span></div>${item.observacao ? `<small>Obs: ${item.observacao}</small>` : ''}</div>`).join('')}</div><div class="pedido-footer"><div style="display:flex; gap:0.5rem"><button class="btn-copiar" onclick="copiarPedido(this, 'MESA ${pedido.mesa_numero}')">📋 Copiar</button><button style="background:#3498db" onclick='abrirModalEdicao(${JSON.stringify(pedido)}, ${JSON.stringify(itens)})'>✏️ Editar</button></div><div class="pedido-actions">${pedido.status === 'aguardando_fechamento' ? `<button style="background:#27ae60; font-size:1rem; border:2px solid #fff; padding: 1rem;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 CONFIRMAR PAGAMENTO E LIBERAR</button>` : `<button style="background:#e67e22" onclick="liberarMesa(${pedido.mesa_id})">🔓 Liberar Mesa Manualmente</button>`}</div></div>`;
+    card.className = `pedido-card status-${statusGeral} ${pedido.id === pedidoAtualizadoId ? 'destaque-atualizacao' : ''} ${classeAlertaAtraso}`;
+    card.innerHTML = `<div class="pedido-header"><div><h3>Mesa ${pedido.mesa_numero} ${cronometroHtml}</h3><span class="status-badge">${statusGeral.toUpperCase()}</span><small style="display:block; margin-top:4px;">📅 ${formatarData(pedido.created_at)}</small><small style="display:block; font-weight:bold;">👤 ${pedido.garcom_id || 'N/I'}</small></div><div style="text-align:right"><div class="pedido-valor" style="font-size:1.1rem; color:#27ae60;">✓ R$ ${totalEnt.toFixed(2)}</div>${totalPend > 0 ? `<div style="font-size:0.8rem; color:#e74c3c; font-weight:bold;">⏳ + R$ ${totalPend.toFixed(2)}</div>` : ''}<div style="font-size:0.7rem; color:#7f8c8d; border-top:1px solid #eee; margin-top:3px;">Total: R$ ${(totalEnt + totalPend).toFixed(2)}</div></div></div><div class="pedido-itens">${itens.map(item => `<div class="pedido-item" style="${item.status === 'entregue' ? 'opacity:0.5; text-decoration:line-through; background:#f0fff4;' : 'border-left:3px solid #e74c3c; background:#fff5f5;'} border-radius:4px; padding:2px 5px; margin-bottom:4px;"><div style="display:flex; justify-content:space-between; align-items:center;"><strong>${item.quantidade}x ${item.nome}</strong><span style="font-size:0.7rem; font-weight:bold; color:${item.status === 'entregue' ? '#27ae60' : '#e74c3c'};">${item.status === 'entregue' ? '✓ NA MESA' : '⏳ PENDENTE'}</span></div>${item.observacao ? `<small>Obs: ${item.observacao}</small>` : ''}</div>`).join('')}</div><div class="pedido-footer"><div style="display:flex; gap:0.5rem"><button class="btn-copiar" onclick="copiarPedido(this, 'MESA ${pedido.mesa_numero}')">📋 Copiar</button><button style="background:#3498db" onclick='abrirModalEdicao(${JSON.stringify(pedido)}, ${JSON.stringify(itens)})'>✏️ Editar</button></div><div class="pedido-actions" style="display:flex; flex-direction:column; gap:5px;">${pedido.status === 'aguardando_fechamento' ? `<button style="background:#27ae60; font-size:1rem; border:2px solid #fff; padding: 1rem;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 CONFIRMAR PAGAMENTO E LIBERAR</button>` : `${hasPend ? `<button style="background:#e67e22; width:100%;" onclick="marcarPedidoEntregue(${pedido.id})">🚚 ENTREGAR TUDO</button>` : ''}<button style="background:#7f8c8d; width:100%;" onclick="liberarMesa(${pedido.mesa_id}, ${hasPend})">🔓 Liberar Mesa Manualmente</button>`}</div></div>`;
     container.appendChild(card);
   }
   const elFat = document.getElementById('faturamento-resumo');
@@ -366,4 +410,14 @@ function copiarPedido(btn, texto) {
 
 async function atualizarStatus(id, status) {
   await fetch(`/api/pedidos/${id}/status`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+}
+
+async function marcarPedidoEntregue(id) {
+  if (confirm("Marcar todos os itens como entregues?")) {
+    const res = await fetch(`/api/pedidos/${id}/marcar-entregue`, { method: 'PUT' });
+    if (res.ok) {
+      mostrarToast("Pedido marcado como entregue!");
+      carregarPedidos();
+    }
+  }
 }
