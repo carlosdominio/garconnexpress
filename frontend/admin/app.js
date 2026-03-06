@@ -171,6 +171,9 @@ async function excluirDoMenu(id) {
 
 async function carregarHistorico() {
   try {
+    const elData = document.getElementById('data-historico');
+    if (elData) elData.innerText = `(${new Date().toLocaleDateString('pt-BR')})`;
+    
     const res = await fetch('/api/pedidos/historico');
     const historico = await res.json();
     exibirHistorico(historico);
