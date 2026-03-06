@@ -82,7 +82,8 @@ async function initDb() {
       pedido_id INTEGER,
       menu_id INTEGER,
       quantidade INTEGER,
-      observacao TEXT
+      observacao TEXT,
+      status TEXT DEFAULT 'pendente'
     );
     CREATE TABLE IF NOT EXISTS garcons (
       id SERIAL PRIMARY KEY,
@@ -100,19 +101,18 @@ async function initDb() {
   if (isPostgres) {
     await db.query(createTables.replace(/INTEGER PRIMARY KEY AUTOINCREMENT/g, 'SERIAL PRIMARY KEY'));
   } else {
-    // Para SQLite, usamos DATETIME e PRIMARY KEY AUTOINCREMENT
     db.exec(createTables
       .replace(/SERIAL PRIMARY KEY/g, 'INTEGER PRIMARY KEY AUTOINCREMENT')
     );
+    // Garantir coluna status em pedido_itens
+    try { db.exec("ALTER TABLE pedido_itens ADD COLUMN status TEXT DEFAULT 'pendente'"); } catch(e) {}
   }
 
-  // Criar admin padrão se não existir
   const countAdmin = await query('SELECT COUNT(*) as count FROM usuarios_admin');
   if (parseInt(countAdmin.rows[0].count) === 0) {
     await query('INSERT INTO usuarios_admin (usuario, senha) VALUES (?, ?)', ['admin', 'Admin#2026']);
   }
 
-  // Dados iniciais
   const countMesas = await query('SELECT COUNT(*) as count FROM mesas');
   if (parseInt(countMesas.rows[0].count) === 0) {
     for (let num of [1, 2, 3, 4, 5]) {
@@ -138,7 +138,6 @@ initDb().catch(console.error);
 
 app.use(express.json());
 
-// Rota para o favicon na raiz
 app.get('/favicon.ico', (req, res) => res.sendFile(path.join(__dirname, 'favicon.svg')));
 app.get('/favicon.svg', (req, res) => res.sendFile(path.join(__dirname, 'favicon.svg')));
 
@@ -151,16 +150,9 @@ app.put('/api/pedidos/:id/solicitar-fechamento', async (req, res) => {
   try {
     await query("UPDATE pedidos SET status = 'aguardando_fechamento' WHERE id = ?", [id]);
     await query("UPDATE mesas SET status = 'fechando' WHERE id = ?", [mesa_id]);
-    
-    // Buscar o número da mesa para a notificação ser precisa
     const mesaRes = await query("SELECT numero FROM mesas WHERE id = ?", [mesa_id]);
     const mesaNumero = mesaRes.rows[0] ? mesaRes.rows[0].numero : mesa_id;
-
-    await pusher.trigger('garconnexpress', 'status-atualizado', { 
-      mesa_id: mesaNumero, 
-      pedido_id: parseInt(id),
-      status: 'aguardando_fechamento' 
-    });
+    await pusher.trigger('garconnexpress', 'status-atualizado', { mesa_id: mesaNumero, pedido_id: parseInt(id), status: 'aguardando_fechamento' });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao solicitar fechamento' });
@@ -182,20 +174,11 @@ app.put('/api/mesas/:id/status', async (req, res) => {
 app.put('/api/mesas/:id/liberar', async (req, res) => {
   const { id } = req.params;
   try {
-    // Buscar o número da mesa antes de liberar
     const mesaRes = await query("SELECT numero FROM mesas WHERE id = ?", [id]);
     const mesaNumero = mesaRes.rows[0] ? mesaRes.rows[0].numero : id;
-
-    // 1. Finaliza qualquer pedido aberto nesta mesa
     await query("UPDATE pedidos SET status = 'entregue' WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado')", [id]);
-    
-    // 2. Libera a mesa
     await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [id]);
-    
-    await pusher.trigger('garconnexpress', 'status-atualizado', { 
-      mesa_id: mesaNumero, 
-      status: 'liberada' 
-    });
+    await pusher.trigger('garconnexpress', 'status-atualizado', { mesa_id: mesaNumero, status: 'liberada' });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao liberar mesa' });
@@ -205,68 +188,50 @@ app.put('/api/mesas/:id/liberar', async (req, res) => {
 app.get('/api/pedidos/mesa/:mesaId', async (req, res) => {
   const { mesaId } = req.params;
   try {
-    const result = await query(`
-      SELECT * FROM pedidos 
-      WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado') 
-      ORDER BY created_at DESC LIMIT 1
-    `, [mesaId]);
+    const result = await query(`SELECT * FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado') ORDER BY created_at DESC LIMIT 1`, [mesaId]);
     res.json(result.rows[0] || null);
   } catch (error) {
     res.status(500).json({ error: 'Erro ao buscar pedido da mesa' });
   }
 });
 
-// Adicionar itens a um pedido existente
 app.put('/api/pedidos/:id/adicionar', async (req, res) => {
   const { id } = req.params;
   const { itens } = req.body;
   if (!itens) return res.status(400).json({ error: 'Itens não informados' });
-
   try {
     for (const item of itens) {
-      // Verificar se o item já existe no pedido (mesmo produto E mesma observação)
-      const itemExistente = await query(
-        'SELECT id, quantidade FROM pedido_itens WHERE pedido_id = ? AND menu_id = ? AND observacao = ?',
-        [id, item.menu_id, item.observacao || '']
-      );
-
+      const itemExistente = await query('SELECT id, quantidade FROM pedido_itens WHERE pedido_id = ? AND menu_id = ? AND observacao = ? AND status = ?', [id, item.menu_id, item.observacao || '', 'pendente']);
       if (itemExistente.rows.length > 0) {
-        // Se já existe, soma a quantidade
         const novaQtd = itemExistente.rows[0].quantidade + item.quantidade;
         await query('UPDATE pedido_itens SET quantidade = ? WHERE id = ?', [novaQtd, itemExistente.rows[0].id]);
       } else {
-        // Se não existe, insere como novo item
-        await query(
-          'INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao) VALUES (?, ?, ?, ?)',
-          [id, item.menu_id, item.quantidade, item.observacao || '']
-        );
+        await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES (?, ?, ?, ?, ?)', [id, item.menu_id, item.quantidade, item.observacao || '', 'pendente']);
       }
     }
-
-    // 2. Recalcular o total total do pedido
-    const itensAtuais = await query(`
-      SELECT pi.quantidade, m.preco 
-      FROM pedido_itens pi
-      JOIN menu m ON pi.menu_id = m.id
-      WHERE pi.pedido_id = ?
-    `, [id]);
-
+    const itensAtuais = await query(`SELECT pi.quantidade, m.preco FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ?`, [id]);
     const novoTotal = itensAtuais.rows.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
-    await query('UPDATE pedidos SET total = ? WHERE id = ?', [novoTotal, id]);
-
-    // Buscar o número da mesa para a notificação
+    await query("UPDATE pedidos SET total = ?, status = 'recebido' WHERE id = ?", [novoTotal, id]);
     const pedidoRes = await query("SELECT m.numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id]);
     const mesaNumero = pedidoRes.rows[0] ? pedidoRes.rows[0].numero : 'Desconhecida';
-
-    await pusher.trigger('garconnexpress', 'status-atualizado', { 
-      pedido_id: parseInt(id),
-      mesa_id: mesaNumero,
-      status: 'itens_adicionados'
-    });
+    await pusher.trigger('garconnexpress', 'status-atualizado', { pedido_id: parseInt(id), mesa_id: mesaNumero, status: 'itens_adicionados' });
     res.json({ success: true, total: novoTotal });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: 'Erro ao adicionar itens' });
+  }
+});
+
+app.put('/api/pedidos/:id/marcar-entregue', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await query("UPDATE pedido_itens SET status = 'entregue' WHERE pedido_id = ? AND status = 'pendente'", [id]);
+    await query("UPDATE pedidos SET status = 'servido' WHERE id = ?", [id]);
+    const pedidoRes = await query("SELECT m.numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id]);
+    const mesaNumero = pedidoRes.rows[0] ? pedidoRes.rows[0].numero : 'X';
+    await pusher.trigger('garconnexpress', 'status-atualizado', { pedido_id: parseInt(id), mesa_id: mesaNumero, status: 'servido' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao marcar itens como entregues' });
   }
 });
 
@@ -274,32 +239,24 @@ app.post('/api/admin/login', async (req, res) => {
   const { usuario, senha } = req.body;
   try {
     const result = await query('SELECT id, usuario FROM usuarios_admin WHERE usuario = ? AND senha = ?', [usuario, senha]);
-    if (result.rows.length > 0) {
-      res.json({ success: true, user: result.rows[0] });
-    } else {
-      res.status(401).json({ error: 'Usuário ou senha de admin incorretos' });
-    }
+    if (result.rows.length > 0) res.json({ success: true, user: result.rows[0] });
+    else res.status(401).json({ error: 'Usuário ou senha de admin incorretos' });
   } catch (error) {
     res.status(500).json({ error: 'Erro no servidor' });
   }
 });
 
-// Rota de Login para Garçons
 app.post('/api/login', async (req, res) => {
   const { usuario, senha } = req.body;
   try {
     const result = await query('SELECT id, nome, usuario FROM garcons WHERE usuario = ? AND senha = ?', [usuario, senha]);
-    if (result.rows.length > 0) {
-      res.json({ success: true, garcom: result.rows[0] });
-    } else {
-      res.status(401).json({ error: 'Usuário ou senha incorretos' });
-    }
+    if (result.rows.length > 0) res.json({ success: true, garcom: result.rows[0] });
+    else res.status(401).json({ error: 'Usuário ou senha incorretos' });
   } catch (error) {
     res.status(500).json({ error: 'Erro no servidor' });
   }
 });
 
-// Gerenciamento de Garçons
 app.get('/api/garcons', async (req, res) => {
   const result = await query('SELECT id, nome, usuario, senha FROM garcons ORDER BY nome');
   res.json(result.rows);
@@ -320,7 +277,6 @@ app.delete('/api/garcons/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// Gerenciamento de Mesas (Adicionar/Remover)
 app.post('/api/mesas', async (req, res) => {
   const { numero } = req.body;
   await query('INSERT INTO mesas (numero, status) VALUES (?, ?)', [numero, 'livre']);
@@ -332,7 +288,6 @@ app.delete('/api/mesas/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// Gerenciamento de Menu (Adicionar/Editar/Excluir)
 app.post('/api/menu', async (req, res) => {
   const { nome, categoria, preco, imagem } = req.body;
   await query('INSERT INTO menu (nome, categoria, preco, imagem) VALUES (?, ?, ?, ?)', [nome, categoria, preco, imagem]);
@@ -361,67 +316,40 @@ app.get('/api/menu', async (req, res) => {
 });
 
 app.get('/api/pedidos', async (req, res) => {
-  const result = await query(`
-    SELECT p.*, m.numero as mesa_numero 
-    FROM pedidos p 
-    JOIN mesas m ON p.mesa_id = m.id 
-    WHERE p.status NOT IN ('entregue', 'cancelado')
-    ORDER BY p.created_at DESC
-  `);
+  const result = await query(`SELECT p.*, m.numero as mesa_numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`);
   res.json(result.rows);
 });
 
 app.get('/api/pedidos/historico', async (req, res) => {
-  const result = await query(`
-    SELECT p.*, m.numero as mesa_numero 
-    FROM pedidos p 
-    JOIN mesas m ON p.mesa_id = m.id 
-    WHERE p.status IN ('entregue', 'cancelado')
-    ORDER BY p.created_at DESC
-    LIMIT 50
-  `);
+  const result = await query(`SELECT p.*, m.numero as mesa_numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.status IN ('entregue', 'cancelado') ORDER BY p.created_at DESC LIMIT 50`);
   res.json(result.rows);
 });
 
 app.delete('/api/pedidos/limpar', async (req, res) => {
   try {
-    await query('DELETE FROM pedido_itens');
-    await query('DELETE FROM pedidos');
-    await query("UPDATE mesas SET status = 'livre'");
+    await query(`DELETE FROM pedido_itens WHERE pedido_id IN (SELECT id FROM pedidos WHERE status IN ('entregue', 'cancelado'))`);
+    const resDel = await query("DELETE FROM pedidos WHERE status IN ('entregue', 'cancelado')");
     await pusher.trigger('garconnexpress', 'status-atualizado', {});
-    res.json({ success: true });
+    res.json({ success: true, deletedCount: resDel.changes });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao limpar histórico' });
   }
 });
 
-// Novo endpoint: Editar Pedido Completo
 app.put('/api/pedidos/:id', async (req, res) => {
   const { id } = req.params;
   const { itens } = req.body;
   if (!itens) return res.status(400).json({ error: 'Itens não informados' });
-
   try {
     const total = itens.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
-    
-    // 1. Remover itens antigos
     await query('DELETE FROM pedido_itens WHERE pedido_id = ?', [id]);
-
-    // 2. Inserir novos itens
     for (const item of itens) {
-      await query(
-        'INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao) VALUES (?, ?, ?, ?)',
-        [id, item.menu_id, item.quantidade, item.observacao || '']
-      );
+      await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES (?, ?, ?, ?, ?)', [id, item.menu_id, item.quantidade, item.observacao || '', item.status || 'pendente']);
     }
-
-    // 3. Atualizar total do pedido
     await query('UPDATE pedidos SET total = ? WHERE id = ?', [total, id]);
-
     await pusher.trigger('garconnexpress', 'status-atualizado', { pedido_id: parseInt(id) });
     res.json({ success: true, total });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: 'Erro ao editar pedido' });
   }
 });
@@ -429,63 +357,21 @@ app.put('/api/pedidos/:id', async (req, res) => {
 app.post('/api/pedidos', async (req, res) => {
   const { mesa_id, garcom_id, itens } = req.body;
   if (!mesa_id || !itens) return res.status(400).json({ error: 'Dados inválidos' });
-
   try {
     const total = itens.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
-    
-    // Gerar data atual no fuso horário do servidor (Vercel configurado para Brasil)
-    // No Vercel, defina a variável de ambiente TZ=America/Sao_Paulo
     const dataCriacao = new Date().toISOString();
-
-    const resPedido = await query(
-      'INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id',
-      [mesa_id, garcom_id, total, 'recebido', dataCriacao]
-    );
+    const resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id', [mesa_id, garcom_id, total, 'recebido', dataCriacao]);
     const pedidoId = resPedido.lastInsertRowid || (resPedido.rows && resPedido.rows[0] ? resPedido.rows[0].id : null);
-
     if (!pedidoId) throw new Error('Falha ao obter ID do pedido');
-
-    // Atualizar status da mesa para ocupada
     await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [mesa_id]);
-
-    // Inserir itens (mesclando se houver repetição)
     for (const item of itens) {
-      const itemExistente = await query(
-        'SELECT id, quantidade FROM pedido_itens WHERE pedido_id = ? AND menu_id = ? AND observacao = ?',
-        [pedidoId, item.menu_id, item.observacao || '']
-      );
-
-      if (itemExistente.rows.length > 0) {
-        const novaQtd = itemExistente.rows[0].quantidade + item.quantidade;
-        await query('UPDATE pedido_itens SET quantidade = ? WHERE id = ?', [novaQtd, itemExistente.rows[0].id]);
-      } else {
-        await query(
-          'INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao) VALUES (?, ?, ?, ?)',
-          [pedidoId, item.menu_id, item.quantidade, item.observacao || '']
-        );
-      }
+      await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES (?, ?, ?, ?, ?)', [pedidoId, item.menu_id, item.quantidade, item.observacao || '', 'pendente']);
     }
-
     const mesa = (await query('SELECT numero FROM mesas WHERE id = ?', [mesa_id])).rows[0];
-
-    const pedidoData = {
-      id: pedidoId,
-      mesa_id: parseInt(mesa_id),
-      garcom_id,
-      status: "recebido",
-      total,
-      mesa_numero: mesa ? mesa.numero : mesa_id
-    };
-
-    try {
-      await pusher.trigger('garconnexpress', 'novo-pedido', { pedido: pedidoData });
-    } catch (pError) {
-      console.error('Erro ao disparar Pusher (novo-pedido):', pError.message);
-    }
-    
+    const pedidoData = { id: pedidoId, mesa_id: parseInt(mesa_id), garcom_id, status: "recebido", total, mesa_numero: mesa ? mesa.numero : mesa_id };
+    try { await pusher.trigger('garconnexpress', 'novo-pedido', { pedido: pedidoData }); } catch (pError) {}
     res.json({ id: pedidoId, success: true });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: 'Erro ao criar pedido' });
   }
 });
@@ -495,16 +381,9 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
   const { status } = req.body;
   try {
     await query('UPDATE pedidos SET status = ? WHERE id = ?', [status, id]);
-    
-    // Buscar o número da mesa para a notificação
-    const pedidoRes = await query("SELECT m.numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id]);
-    const mesaNumero = pedidoRes.rows[0] ? pedidoRes.rows[0].numero : 'X';
-
-    pusher.trigger('garconnexpress', 'status-atualizado', { 
-      pedido_id: parseInt(id), 
-      mesa_id: mesaNumero,
-      status 
-    });
+    const pedidoRes = await query("SELECT m.numero, m.id as mesa_id FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id]);
+    const mesaData = pedidoRes.rows[0] || { numero: 'X', mesa_id: null };
+    await pusher.trigger('garconnexpress', 'status-atualizado', { pedido_id: parseInt(id), mesa_id: mesaData.numero, mesa_db_id: mesaData.mesa_id, status });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao atualizar status' });
@@ -512,20 +391,13 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
 });
 
 app.get('/api/pedidos/:id/itens', async (req, res) => {
-  const result = await query(`
-    SELECT pi.*, m.nome, m.preco 
-    FROM pedido_itens pi
-    JOIN menu m ON pi.menu_id = m.id
-    WHERE pi.pedido_id = ?
-  `, [req.params.id]);
+  const result = await query(`SELECT pi.*, m.nome, m.preco FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [req.params.id]);
   res.json(result.rows);
 });
 
-// Rotas de arquivos estáticos para a Vercel
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'admin', 'index.html')));
 app.get('/garcom', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'garcom', 'index.html')));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'garcom', 'index.html')));
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
-

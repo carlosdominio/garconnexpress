@@ -298,9 +298,15 @@ button.btn-entregue { background-color: #95a5a6; }
   background: #ddd;
 }
 
-.pedido-card.status-entregue {
+.pedido-card.status-servido {
   border-left-color: #27ae60;
-  opacity: 0.85;
+  background-color: #f0fff4;
+  opacity: 0.95;
+}
+
+.pedido-card.status-servido .status-badge {
+  background-color: #27ae60;
+  color: white;
 }
 
 .pedido-card.status-cancelado {
