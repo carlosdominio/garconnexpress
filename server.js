@@ -70,7 +70,7 @@ app.use((req, res, next) => {
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://js.pusher.com; " +
     "connect-src 'self' https://*.pusher.com wss://*.pusher.com https://vercel.live; " +
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-    "font-src 'self' https://fonts.gstatic.com; " +
+    "font-src 'self' https://fonts.gstatic.com https://vercel.live; " +
     "img-src 'self' data: https://*; " +
     "media-src 'self' https://assets.mixkit.co; " +
     "frame-src 'self' https://vercel.live;"
