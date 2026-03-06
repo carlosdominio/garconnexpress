@@ -252,6 +252,19 @@ app.get('/api/menu', async (req, res) => { res.json((await query('SELECT * FROM 
 app.get('/api/pedidos', async (req, res) => { res.json((await query(`SELECT p.*, m.numero as mesa_numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`)).rows); });
 app.get('/api/pedidos/historico', async (req, res) => { res.json((await query(`SELECT p.*, m.numero as mesa_numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.status IN ('entregue', 'cancelado') ORDER BY p.created_at DESC LIMIT 50`)).rows); });
 app.get('/api/pedidos/:id/itens', async (req, res) => { res.json((await query(`SELECT pi.*, m.nome, m.preco FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [req.params.id])).rows); });
+
+app.delete('/api/pedidos/limpar', async (req, res) => {
+  try {
+    // Primeiro removemos os itens dos pedidos entregues/cancelados para manter a integridade
+    await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT id FROM pedidos WHERE status IN ('entregue', 'cancelado'))");
+    // Depois removemos os pedidos
+    await query("DELETE FROM pedidos WHERE status IN ('entregue', 'cancelado')");
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao limpar histórico' });
+  }
+});
+
 app.post('/api/login', async (req, res) => {
   const { usuario, senha } = req.body;
   const result = await query('SELECT id, nome, senha FROM garcons WHERE usuario = ?', [usuario]);
