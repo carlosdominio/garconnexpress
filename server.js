@@ -33,24 +33,28 @@ if (isPostgres) {
 
 // Função auxiliar para queries universais
 async function query(text, params) {
-  if (isPostgres) {
-    // Converter ? para $1, $2 no Postgres
-    let i = 1;
-    const pgText = text.replace(/\?/g, () => `$${i++}`);
-    const res = await db.query(pgText, params);
-    return { 
-      rows: res.rows || [], 
-      changes: res.rowCount, 
-      lastInsertRowid: res.rows && res.rows[0] ? res.rows[0].id : null 
-    };
-  } else {
-    const stmt = db.prepare(text);
-    if (text.trim().toUpperCase().startsWith('SELECT') || text.trim().toUpperCase().includes('RETURNING')) {
-      return { rows: stmt.all(...(params || [])) };
+  try {
+    if (isPostgres) {
+      let i = 1;
+      const pgText = text.replace(/\?/g, () => `$${i++}`);
+      const res = await db.query(pgText, params);
+      return { 
+        rows: res.rows || [], 
+        changes: res.rowCount, 
+        lastInsertRowid: res.rows && res.rows[0] ? res.rows[0].id : null 
+      };
     } else {
-      const info = stmt.run(...(params || []));
-      return { changes: info.changes, lastInsertRowid: info.lastInsertRowid };
+      const stmt = db.prepare(text);
+      if (text.trim().toUpperCase().startsWith('SELECT') || text.trim().toUpperCase().includes('RETURNING')) {
+        return { rows: stmt.all(...(params || [])) };
+      } else {
+        const info = stmt.run(...(params || []));
+        return { changes: info.changes, lastInsertRowid: info.lastInsertRowid };
+      }
     }
+  } catch (err) {
+    console.error('DATABASE ERROR:', { text, params, error: err.message });
+    throw err;
   }
 }
 
@@ -316,8 +320,13 @@ app.get('/api/menu', async (req, res) => {
 });
 
 app.get('/api/pedidos', async (req, res) => {
-  const result = await query(`SELECT p.*, m.numero as mesa_numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`);
-  res.json(result.rows);
+  try {
+    const result = await query(`SELECT p.*, m.numero as mesa_numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao buscar pedidos:', error);
+    res.status(500).json({ error: 'Erro ao buscar pedidos', details: error.message });
+  }
 });
 
 app.get('/api/pedidos/historico', async (req, res) => {
