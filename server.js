@@ -114,9 +114,18 @@ async function initDb() {
     }
   }
 
-  // Ajustes adicionais para SQLite local
-  if (!isPostgres) {
-    try { db.exec("ALTER TABLE pedido_itens ADD COLUMN status TEXT DEFAULT 'pendente'"); } catch(e) {}
+  // Ajustes de migração (garantir que colunas novas existam)
+  try {
+    if (isPostgres) {
+      // Postgres: Tenta adicionar a coluna, ignora se já existir
+      await db.query("ALTER TABLE pedido_itens ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pendente'");
+    } else {
+      // SQLite: Tenta adicionar a coluna
+      db.exec("ALTER TABLE pedido_itens ADD COLUMN status TEXT DEFAULT 'pendente'");
+    }
+  } catch (e) {
+    // Silencia o erro se a coluna já existir
+    console.log("Coluna 'status' já existe ou erro de migração ignorado.");
   }
 
   try {
