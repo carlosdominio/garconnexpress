@@ -50,12 +50,17 @@ async function iniciarApp() {
   configurarPusher();
 }
 
+let timeoutPusher = null;
 function configurarPusher() {
   const pusher = new Pusher('c4a9b50fe10859f2107a', { cluster: 'sa1' });
   const channel = pusher.subscribe('garconnexpress');
-  channel.bind('novo-pedido', () => carregarMesas());
+  channel.bind('novo-pedido', () => {
+    clearTimeout(timeoutPusher);
+    timeoutPusher = setTimeout(() => carregarMesas(), 500);
+  });
   channel.bind('status-atualizado', (data) => {
-    carregarMesas();
+    clearTimeout(timeoutPusher);
+    timeoutPusher = setTimeout(() => carregarMesas(), 500);
     if (data && data.status === 'liberada') mostrarToast(`✅ Mesa- ${data.mesa_id} - liberada`);
   });
 }
