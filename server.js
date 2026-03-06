@@ -63,6 +63,19 @@ async function initDb() {
 
 initDb().catch(console.error);
 
+app.use((req, res, next) => {
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://js.pusher.com; " +
+    "connect-src 'self' https://*.pusher.com wss://*.pusher.com https://vercel.live; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "font-src 'self' https://fonts.gstatic.com; " +
+    "img-src 'self' data: https://*;"
+  );
+  next();
+});
+
 app.use(express.json());
 app.use('/garcom', express.static(path.join(__dirname, 'frontend', 'garcom')));
 app.use('/admin', express.static(path.join(__dirname, 'frontend', 'admin')));
