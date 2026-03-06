@@ -199,6 +199,41 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Erro' }); }
 });
 
+app.get('/api/garcons', async (req, res) => { res.json((await query('SELECT id, nome, usuario FROM garcons ORDER BY nome')).rows); });
+app.post('/api/garcons', async (req, res) => {
+  const { nome, usuario, senha } = req.body;
+  await query('INSERT INTO garcons (nome, usuario, senha) VALUES (?, ?, ?)', [nome, usuario, senha]);
+  res.json({ success: true });
+});
+app.delete('/api/garcons/:id', async (req, res) => {
+  await query('DELETE FROM garcons WHERE id = ?', [req.params.id]);
+  res.json({ success: true });
+});
+
+app.post('/api/mesas', async (req, res) => {
+  await query('INSERT INTO mesas (numero) VALUES (?)', [req.body.numero]);
+  res.json({ success: true });
+});
+app.delete('/api/mesas/:id', async (req, res) => {
+  await query('DELETE FROM mesas WHERE id = ?', [req.params.id]);
+  res.json({ success: true });
+});
+
+app.post('/api/menu', async (req, res) => {
+  const { nome, categoria, preco, imagem } = req.body;
+  await query('INSERT INTO menu (nome, categoria, preco, imagem) VALUES (?, ?, ?, ?)', [nome, categoria, preco, imagem]);
+  res.json({ success: true });
+});
+app.put('/api/menu/:id', async (req, res) => {
+  const { nome, categoria, preco, imagem } = req.body;
+  await query('UPDATE menu SET nome = ?, categoria = ?, preco = ?, imagem = ? WHERE id = ?', [nome, categoria, preco, imagem, req.params.id]);
+  res.json({ success: true });
+});
+app.delete('/api/menu/:id', async (req, res) => {
+  await query('DELETE FROM menu WHERE id = ?', [req.params.id]);
+  res.json({ success: true });
+});
+
 app.get('/api/pedidos/mesa/:mesaId', async (req, res) => { res.json((await query(`SELECT * FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado') ORDER BY created_at DESC LIMIT 1`, [req.params.mesaId])).rows[0] || null); });
 app.get('/api/mesas', async (req, res) => { 
   const querySql = `
