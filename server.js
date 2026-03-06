@@ -72,7 +72,8 @@ app.use((req, res, next) => {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "font-src 'self' https://fonts.gstatic.com; " +
     "img-src 'self' data: https://*; " +
-    "media-src 'self' https://assets.mixkit.co;"
+    "media-src 'self' https://assets.mixkit.co; " +
+    "frame-src 'self' https://vercel.live;"
   );
   next();
 });
