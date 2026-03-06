@@ -60,81 +60,92 @@ async function query(text, params) {
 
 // Inicializar Banco de Dados
 async function initDb() {
-  const createTables = `
-    CREATE TABLE IF NOT EXISTS mesas (
+  const tables = [
+    `CREATE TABLE IF NOT EXISTS mesas (
       id SERIAL PRIMARY KEY,
       numero INTEGER NOT NULL,
       status TEXT DEFAULT 'livre'
-    );
-    CREATE TABLE IF NOT EXISTS menu (
+    )`,
+    `CREATE TABLE IF NOT EXISTS menu (
       id SERIAL PRIMARY KEY,
       nome TEXT NOT NULL,
       categoria TEXT NOT NULL,
       preco REAL NOT NULL,
       imagem TEXT
-    );
-    CREATE TABLE IF NOT EXISTS pedidos (
+    )`,
+    `CREATE TABLE IF NOT EXISTS pedidos (
       id SERIAL PRIMARY KEY,
       mesa_id INTEGER,
       garcom_id TEXT,
       status TEXT DEFAULT 'recebido',
       total REAL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS pedido_itens (
+    )`,
+    `CREATE TABLE IF NOT EXISTS pedido_itens (
       id SERIAL PRIMARY KEY,
       pedido_id INTEGER,
       menu_id INTEGER,
       quantidade INTEGER,
       observacao TEXT,
       status TEXT DEFAULT 'pendente'
-    );
-    CREATE TABLE IF NOT EXISTS garcons (
+    )`,
+    `CREATE TABLE IF NOT EXISTS garcons (
       id SERIAL PRIMARY KEY,
       nome TEXT NOT NULL,
       usuario TEXT UNIQUE NOT NULL,
       senha TEXT NOT NULL DEFAULT '123'
-    );
-    CREATE TABLE IF NOT EXISTS usuarios_admin (
+    )`,
+    `CREATE TABLE IF NOT EXISTS usuarios_admin (
       id SERIAL PRIMARY KEY,
       usuario TEXT UNIQUE NOT NULL,
       senha TEXT NOT NULL
-    );
-  `;
+    )`
+  ];
 
-  if (isPostgres) {
-    await db.query(createTables.replace(/INTEGER PRIMARY KEY AUTOINCREMENT/g, 'SERIAL PRIMARY KEY'));
-  } else {
-    db.exec(createTables
-      .replace(/SERIAL PRIMARY KEY/g, 'INTEGER PRIMARY KEY AUTOINCREMENT')
-    );
-    // Garantir coluna status em pedido_itens
+  for (let tableSql of tables) {
+    try {
+      if (isPostgres) {
+        await db.query(tableSql);
+      } else {
+        db.exec(tableSql.replace(/SERIAL PRIMARY KEY/g, 'INTEGER PRIMARY KEY AUTOINCREMENT'));
+      }
+    } catch (e) {
+      console.error('Erro ao criar tabela:', e.message);
+    }
+  }
+
+  // Ajustes adicionais para SQLite local
+  if (!isPostgres) {
     try { db.exec("ALTER TABLE pedido_itens ADD COLUMN status TEXT DEFAULT 'pendente'"); } catch(e) {}
   }
 
-  const countAdmin = await query('SELECT COUNT(*) as count FROM usuarios_admin');
-  if (parseInt(countAdmin.rows[0].count) === 0) {
-    await query('INSERT INTO usuarios_admin (usuario, senha) VALUES (?, ?)', ['admin', 'Admin#2026']);
-  }
-
-  const countMesas = await query('SELECT COUNT(*) as count FROM mesas');
-  if (parseInt(countMesas.rows[0].count) === 0) {
-    for (let num of [1, 2, 3, 4, 5]) {
-      await query('INSERT INTO mesas (numero, status) VALUES (?, ?)', [num, 'livre']);
+  try {
+    const countAdmin = await query('SELECT COUNT(*) as count FROM usuarios_admin');
+    if (parseInt(countAdmin.rows[0].count) === 0) {
+      await query('INSERT INTO usuarios_admin (usuario, senha) VALUES (?, ?)', ['admin', 'Admin#2026']);
     }
-  }
 
-  const countMenu = await query('SELECT COUNT(*) as count FROM menu');
-  if (parseInt(countMenu.rows[0].count) === 0) {
-    const initialMenu = [
-      ["Cerveja Heineken", "bebidas", 8.5, "https://placehold.co/100"],
-      ["Caipirinha de Limão", "bebidas", 12.0, "https://placehold.co/100"],
-      ["Hambúrguer Clássico", "comidas", 15.0, "https://placehold.co/100"],
-      ["Batata Frita", "comidas", 7.5, "https://placehold.co/100"]
-    ];
-    for (let item of initialMenu) {
-      await query('INSERT INTO menu (nome, categoria, preco, imagem) VALUES (?, ?, ?, ?)', item);
+    const countMesas = await query('SELECT COUNT(*) as count FROM mesas');
+    if (parseInt(countMesas.rows[0].count) === 0) {
+      for (let num of [1, 2, 3, 4, 5]) {
+        await query('INSERT INTO mesas (numero, status) VALUES (?, ?)', [num, 'livre']);
+      }
     }
+
+    const countMenu = await query('SELECT COUNT(*) as count FROM menu');
+    if (parseInt(countMenu.rows[0].count) === 0) {
+      const initialMenu = [
+        ["Cerveja Heineken", "bebidas", 8.5, "https://placehold.co/100"],
+        ["Caipirinha de Limão", "bebidas", 12.0, "https://placehold.co/100"],
+        ["Hambúrguer Clássico", "comidas", 15.0, "https://placehold.co/100"],
+        ["Batata Frita", "comidas", 7.5, "https://placehold.co/100"]
+      ];
+      for (let item of initialMenu) {
+        await query('INSERT INTO menu (nome, categoria, preco, imagem) VALUES (?, ?, ?, ?)', item);
+      }
+    }
+  } catch (err) {
+    console.error('Erro na inicialização dos dados:', err);
   }
 }
 
@@ -370,18 +381,31 @@ app.post('/api/pedidos', async (req, res) => {
     const total = itens.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
     const dataCriacao = new Date().toISOString();
     const resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id', [mesa_id, garcom_id, total, 'recebido', dataCriacao]);
+    
     const pedidoId = resPedido.lastInsertRowid || (resPedido.rows && resPedido.rows[0] ? resPedido.rows[0].id : null);
-    if (!pedidoId) throw new Error('Falha ao obter ID do pedido');
+    
+    if (!pedidoId) {
+      console.error('RES_PEDIDO:', resPedido);
+      throw new Error('Falha ao obter ID do pedido recém criado');
+    }
+
     await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [mesa_id]);
+    
     for (const item of itens) {
       await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES (?, ?, ?, ?, ?)', [pedidoId, item.menu_id, item.quantidade, item.observacao || '', 'pendente']);
     }
+
     const mesa = (await query('SELECT numero FROM mesas WHERE id = ?', [mesa_id])).rows[0];
     const pedidoData = { id: pedidoId, mesa_id: parseInt(mesa_id), garcom_id, status: "recebido", total, mesa_numero: mesa ? mesa.numero : mesa_id };
-    try { await pusher.trigger('garconnexpress', 'novo-pedido', { pedido: pedidoData }); } catch (pError) {}
+    
+    try { await pusher.trigger('garconnexpress', 'novo-pedido', { pedido: pedidoData }); } catch (pError) {
+      console.error('Erro Pusher:', pError);
+    }
+
     res.json({ id: pedidoId, success: true });
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao criar pedido' });
+    console.error('ERRO POST /api/pedidos:', error);
+    res.status(500).json({ error: 'Erro ao criar pedido', details: error.message });
   }
 });
 
