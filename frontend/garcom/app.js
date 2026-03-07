@@ -313,19 +313,30 @@ function exibirResumoPedido() {
   if (!container) return;
   container.innerHTML = pedidoAtual.map((item, index) => `
     <div class="item-pedido">
-      <div style="flex-grow: 1; padding-right: 10px;">
-        <p><strong>${item.nome}</strong></p>
-        <input type="text" placeholder="Obs..." value="${item.observacao}" onchange="pedidoAtual[${index}].observacao = this.value">
-      </div>
-      <div class="controle-qtd-container">
-        <div class="seletor-qtd">
-          <button class="btn-qtd" onclick="alterarQuantidadeItem(${index}, -1)">-</button>
-          <span class="valor-qtd">${item.quantidade}</span>
-          <button class="btn-qtd" onclick="alterarQuantidadeItem(${index}, 1)">+</button>
+      <div class="item-pedido-info">
+        <div style="flex-grow: 1; padding-right: 10px;">
+          <p><strong>${item.nome}</strong></p>
         </div>
-        <p class="subtotal-item">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
-        <button class="btn-remover-item" onclick="removerItemPedido(${index})">Remover</button>
+        <div class="controle-qtd-container">
+          <div class="seletor-qtd">
+            <button class="btn-qtd" onclick="alterarQuantidadeItem(${index}, -1)">-</button>
+            <span class="valor-qtd">${item.quantidade}</span>
+            <button class="btn-qtd" onclick="alterarQuantidadeItem(${index}, 1)">+</button>
+          </div>
+          <p class="subtotal-item">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
+        </div>
       </div>
+      
+      <div class="obs-container">
+        <span class="obs-icon">📝</span>
+        <input type="text" 
+               class="obs-input" 
+               placeholder="Alguma observação? (ex: sem cebola)" 
+               value="${item.observacao}" 
+               onchange="pedidoAtual[${index}].observacao = this.value">
+      </div>
+      
+      <button class="btn-remover-item" style="margin-top:12px; width:100% !important; background:#dfe6e9 !important; color:#636e72 !important;" onclick="removerItemPedido(${index})">Remover este item</button>
     </div>
   `).join('');
   const total = pedidoAtual.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);

@@ -283,11 +283,57 @@ main {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.8rem;
-  padding: 1rem;
+  padding: 1.2rem;
   background: #fff;
   border-radius: 12px;
   border: 1px solid #eee;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.item-pedido-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.obs-container {
+  position: relative;
+  width: 100%;
+  margin-top: 5px;
+}
+
+.obs-input {
+  width: 100% !important;
+  padding: 10px 12px 10px 35px !important;
+  margin-bottom: 0 !important;
+  border: 1px solid #e0e0e0 !important;
+  border-radius: 8px !important;
+  font-size: 0.85rem !important;
+  background-color: #fcfcfc !important;
+  color: #2d3436 !important;
+  transition: all 0.2s ease !important;
+  font-style: italic;
+}
+
+.obs-input:focus {
+  border-color: #3498db !important;
+  background-color: #fff !important;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1) !important;
+  font-style: normal;
+}
+
+.obs-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #b2bec3;
+  font-size: 0.9rem;
+  pointer-events: none;
 }
 
 .controle-qtd-container {
