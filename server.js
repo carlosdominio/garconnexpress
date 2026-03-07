@@ -63,12 +63,16 @@ async function initDb() {
     else db.exec(tableSql.replace(/SERIAL PRIMARY KEY/g, 'INTEGER PRIMARY KEY AUTOINCREMENT'));
   }
 
-  // Garante que exista pelo menos um administrador
-  const adminCheck = await query('SELECT id FROM usuarios_admin LIMIT 1');
-  if (adminCheck.rows.length === 0) {
-    const hashedPass = await bcrypt.hash('admin123', saltRounds);
+  // Garante que o usuário 'admin' tenha a senha solicitada pelo usuário
+  const hashedPass = await bcrypt.hash('Admin#2026', saltRounds);
+  const adminExists = await query('SELECT id FROM usuarios_admin WHERE usuario = ?', ['admin']);
+  
+  if (adminExists.rows.length === 0) {
     await query('INSERT INTO usuarios_admin (usuario, senha) VALUES (?, ?)', ['admin', hashedPass]);
-    console.log('--- USUÁRIO ADMIN PADRÃO CRIADO (admin / admin123) ---');
+    console.log('--- USUÁRIO ADMIN CRIADO (admin / Admin#2026) ---');
+  } else {
+    await query('UPDATE usuarios_admin SET senha = ? WHERE usuario = ?', [hashedPass, 'admin']);
+    console.log('--- SENHA DO ADMIN ATUALIZADA PARA (Admin#2026) ---');
   }
 }
 
