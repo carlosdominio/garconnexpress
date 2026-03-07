@@ -256,9 +256,11 @@ app.delete('/api/menu/:id', async (req, res) => {
 app.get('/api/pedidos/mesa/:mesaId', async (req, res) => { res.json((await query(`SELECT * FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado') ORDER BY created_at DESC LIMIT 1`, [req.params.mesaId])).rows[0] || null); });
 app.get('/api/mesas', async (req, res) => { 
   const querySql = `
-    SELECT m.*, p.created_at as pedido_created_at 
+    SELECT m.*, 
+           (CASE WHEN p.status = 'recebido' THEN p.created_at ELSE NULL END) as pedido_created_at, 
+           p.garcom_id 
     FROM mesas m 
-    LEFT JOIN pedidos p ON m.id = p.mesa_id AND p.status = 'recebido'
+    LEFT JOIN pedidos p ON m.id = p.mesa_id AND p.status NOT IN ('entregue', 'cancelado')
     ORDER BY m.numero
   `;
   res.json((await query(querySql)).rows); 

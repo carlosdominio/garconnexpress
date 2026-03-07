@@ -68,6 +68,7 @@ function configurarPusher() {
     if (!data) return;
     const nMesa = data.mesa_numero || data.mesa_id || 'X';
     if (data.status === 'liberada') mostrarToast(`✅ Mesa ${nMesa} liberada`);
+    if (data.status === 'servido') mostrarToast(`🚚 Pedido da Mesa ${nMesa} entregue!`);
     if (data.status === 'itens_atualizados') mostrarToast(`📝 Pedido da Mesa ${nMesa} atualizado pelo Admin`);
     if (data.status === 'cancelado') mostrarToast(`❌ Pedido da Mesa ${nMesa} CANCELADO pelo Admin`);
   });
@@ -128,17 +129,28 @@ function exibirMesas() {
   grid.innerHTML = mesas.map(mesa => {
     let cronometroHtml = '';
     let classeAlerta = '';
+    let classeBloqueada = '';
+    let statusTexto = mesa.status.toUpperCase();
 
-    if (mesa.status === 'ocupada' && mesa.pedido_created_at) {
-      const minutos = calcularMinutos(mesa.pedido_created_at);
-      cronometroHtml = `<div class="cronometro">⏱️ ${minutos} min</div>`;
-      if (minutos >= 10) classeAlerta = 'alerta-atraso';
+    // Se a mesa estiver ocupada, verifica se o garçom é o mesmo logado
+    if (mesa.status === 'ocupada') {
+      const eMeuPedido = mesa.garcom_id === garcomLogado.nome;
+      if (!eMeuPedido) {
+        classeBloqueada = 'bloqueada';
+        statusTexto = `OCUPADA (${mesa.garcom_id})`;
+      }
+      
+      if (mesa.pedido_created_at) {
+        const minutos = calcularMinutos(mesa.pedido_created_at);
+        cronometroHtml = `<div class="cronometro">⏱️ ${minutos} min</div>`;
+        if (minutos >= 10) classeAlerta = 'alerta-atraso';
+      }
     }
 
     return `
-      <div class="mesa ${mesa.status} ${classeAlerta}" data-id="${mesa.id}">
+      <div class="mesa ${mesa.status} ${classeAlerta} ${classeBloqueada}" data-id="${mesa.id}">
         <h3>Mesa ${mesa.numero}</h3>
-        <p>${mesa.status.toUpperCase()}</p>
+        <p>${statusTexto}</p>
         ${cronometroHtml}
       </div>
     `;
@@ -148,8 +160,18 @@ function exibirMesas() {
     mesa.addEventListener('click', async () => {
       const mesaSelecionada = mesas.find(m => m.id == mesa.dataset.id);
       mesaAtual = mesaSelecionada;
-      if (mesaSelecionada.status === 'ocupada') mostrarOpcoesMesa(mesaSelecionada);
-      else { pedidoAbertoNaMesa = null; abrirCardapio(); }
+      
+      if (mesaSelecionada.status === 'ocupada') {
+        const eMeuPedido = mesaSelecionada.garcom_id === garcomLogado.nome;
+        if (!eMeuPedido) {
+          alert(`Esta mesa está sendo atendida pelo colega: ${mesaSelecionada.garcom_id}`);
+          return;
+        }
+        mostrarOpcoesMesa(mesaSelecionada);
+      } else { 
+        pedidoAbertoNaMesa = null; 
+        abrirCardapio(); 
+      }
     });
   });
 }
