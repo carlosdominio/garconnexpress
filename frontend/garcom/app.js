@@ -250,6 +250,12 @@ function abrirCardapioAdicionar() {
 function abrirCardapio() {
   const mesaTxt = document.getElementById('mesa-atual');
   if (mesaTxt) mesaTxt.textContent = pedidoAbertoNaMesa ? `${mesaAtual.numero} (+ itens)` : mesaAtual.numero;
+  
+  // Resetar visual das categorias para "Todas"
+  document.querySelectorAll('.categoria').forEach(c => {
+    c.classList.toggle('ativa', c.dataset.categoria === 'todas');
+  });
+
   document.getElementById('mesas').classList.add('hidden');
   document.getElementById('pedido').classList.remove('hidden');
   pedidoAtual = [];
@@ -273,6 +279,13 @@ async function finalizarEDesocupar() {
 function exibirMenu(categoria) {
   const grid = document.getElementById('menu-grid');
   if (!grid) return;
+  
+  // Se for chamado sem categoria, tenta pegar a visualmente ativa
+  if (!categoria) {
+    const elAtivo = document.querySelector('.categoria.ativa');
+    categoria = elAtivo ? elAtivo.dataset.categoria : 'todas';
+  }
+
   const itens = categoria === 'todas' ? menu : menu.filter(item => item.categoria === categoria);
   grid.innerHTML = itens.map(item => {
     const itemNoPedido = pedidoAtual.find(p => p.menu_id === item.id);
