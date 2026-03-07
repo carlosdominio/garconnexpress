@@ -62,6 +62,14 @@ async function initDb() {
     if (isPostgres) await db.query(tableSql);
     else db.exec(tableSql.replace(/SERIAL PRIMARY KEY/g, 'INTEGER PRIMARY KEY AUTOINCREMENT'));
   }
+
+  // Garante que exista pelo menos um administrador
+  const adminCheck = await query('SELECT id FROM usuarios_admin LIMIT 1');
+  if (adminCheck.rows.length === 0) {
+    const hashedPass = await bcrypt.hash('admin123', saltRounds);
+    await query('INSERT INTO usuarios_admin (usuario, senha) VALUES (?, ?)', ['admin', hashedPass]);
+    console.log('--- USUÁRIO ADMIN PADRÃO CRIADO (admin / admin123) ---');
+  }
 }
 
 initDb().catch(console.error);
