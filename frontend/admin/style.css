@@ -530,15 +530,24 @@ button.btn-entregue { background-color: #95a5a6; }
 }
 
 .pedido-card.destaque-atualizacao {
-  animation: piscarDestaque 3s ease-in-out;
+  animation: piskarDestaque 3s ease-in-out;
   border: 3px solid #3498db !important;
   box-shadow: 0 0 20px rgba(52, 152, 219, 0.4);
 }
 
-@keyframes piscarDestaque {
+@keyframes piskarDestaque {
   0% { background-color: #fff; }
   25% { background-color: #d1ecf1; }
   50% { background-color: #fff; }
   75% { background-color: #d1ecf1; }
   100% { background-color: #fff; }
+}
+
+/* Espaçamento Admin Limpo */
+#ativos-section h2 {
+  margin: 50px 0 !important; /* 50px em cima e embaixo, 0 nos lados para manter o alinhamento horizontal */
+}
+
+#pedidos-list {
+  margin-top: 10px;
 }

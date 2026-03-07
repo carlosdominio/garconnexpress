@@ -205,9 +205,24 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
 app.get('/api/garcons', async (req, res) => { res.json((await query('SELECT id, nome, usuario FROM garcons ORDER BY nome')).rows); });
 app.post('/api/garcons', async (req, res) => {
   const { nome, usuario, senha } = req.body;
-  const hashedSenha = await bcrypt.hash(senha, saltRounds);
+  const hashedSenha = await bcrypt.hash(senha || '123', saltRounds);
   await query('INSERT INTO garcons (nome, usuario, senha) VALUES (?, ?, ?)', [nome, usuario, hashedSenha]);
   res.json({ success: true });
+});
+app.put('/api/garcons/:id', async (req, res) => {
+  const { id } = req.params;
+  const { nome, usuario, senha } = req.body;
+  try {
+    if (senha && senha.trim() !== "") {
+      const hashedSenha = await bcrypt.hash(senha, saltRounds);
+      await query('UPDATE garcons SET nome = ?, usuario = ?, senha = ? WHERE id = ?', [nome, usuario, hashedSenha, id]);
+    } else {
+      await query('UPDATE garcons SET nome = ?, usuario = ? WHERE id = ?', [nome, usuario, id]);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao atualizar garçom' });
+  }
 });
 app.delete('/api/garcons/:id', async (req, res) => {
   await query('DELETE FROM garcons WHERE id = ?', [req.params.id]);

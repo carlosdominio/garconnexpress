@@ -122,22 +122,63 @@ async function excluirMesa(id) {
 }
 
 // GARÇONS
+let idGarcomEdicao = null;
+
 async function exibirGarconsConfig() {
   const res = await fetch('/api/garcons');
   const garcons = await res.json();
   const container = document.getElementById('lista-garcons-config');
   if (!container) return;
-  container.innerHTML = garcons.map(g => `<div class="item-config"><div><strong>${g.nome}</strong> (@${g.usuario})</div><button class="btn-excluir" onclick="excluirGarcom(${g.id})">X</button></div>`).join('');
+  container.innerHTML = garcons.map(g => `
+    <div class="item-config">
+      <div><strong>${g.nome}</strong> (@${g.usuario})</div>
+      <div style="display:flex; gap:0.5rem">
+        <button style="background:#3498db; padding:4px 8px; font-size:0.8rem; width:auto;" onclick='prepararEdicaoGarcom(${JSON.stringify(g)})'>✏️</button>
+        <button class="btn-excluir" style="width:auto;" onclick="excluirGarcom(${g.id})">X</button>
+      </div>
+    </div>`).join('');
+}
+
+function prepararEdicaoGarcom(g) {
+  idGarcomEdicao = g.id;
+  document.getElementById('garcom-nome').value = g.nome;
+  document.getElementById('garcom-usuario').value = g.usuario;
+  document.getElementById('garcom-senha').value = '';
+  document.getElementById('garcom-senha').placeholder = 'Deixe em branco para manter';
+  const btn = document.querySelector("button[onclick='adicionarGarcom()']");
+  if (btn) btn.textContent = "💾 Salvar Alterações";
 }
 
 async function adicionarGarcom() {
   const nome = document.getElementById('garcom-nome').value;
   const usuario = document.getElementById('garcom-usuario').value;
   const senha = document.getElementById('garcom-senha').value;
-  if (!nome || !usuario || !senha) return;
-  await fetch('/api/garcons', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome, usuario, senha }) });
-  ['garcom-nome', 'garcom-usuario', 'garcom-senha'].forEach(id => document.getElementById(id).value = '');
-  exibirGarconsConfig();
+  
+  if (!nome || !usuario) return alert("Nome e usuário são obrigatórios");
+  if (!idGarcomEdicao && !senha) return alert("A senha é obrigatória para novos cadastros");
+
+  const url = idGarcomEdicao ? `/api/garcons/${idGarcomEdicao}` : '/api/garcons';
+  const method = idGarcomEdicao ? 'PUT' : 'POST';
+
+  try {
+    const res = await fetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, usuario, senha })
+    });
+
+    if (res.ok) {
+      idGarcomEdicao = null;
+      ['garcom-nome', 'garcom-usuario', 'garcom-senha'].forEach(id => {
+        const el = document.getElementById(id);
+        el.value = '';
+        if (id === 'garcom-senha') el.placeholder = 'Senha';
+      });
+      const btn = document.querySelector("button[onclick='adicionarGarcom()']");
+      if (btn) btn.textContent = "Cadastrar";
+      exibirGarconsConfig();
+    }
+  } catch (e) { alert("Erro ao salvar garçom"); }
 }
 
 async function excluirGarcom(id) {
@@ -358,7 +399,7 @@ async function exibirPedidos() {
 
     const card = document.createElement('div');
     card.className = `pedido-card status-${statusGeral} ${pedido.id === pedidoAtualizadoId ? 'destaque-atualizacao' : ''} ${classeAlertaAtraso}`;
-    card.innerHTML = `<div class="pedido-header"><div><h3>Mesa ${pedido.mesa_numero} ${cronometroHtml}</h3><span class="status-badge">${statusGeral.toUpperCase()}</span><small style="display:block; margin-top:4px;">📅 ${formatarData(pedido.created_at)}</small><small style="display:block; font-weight:bold;">👤 ${pedido.garcom_id || 'N/I'}</small></div><div style="text-align:right"><div class="pedido-valor" style="font-size:1.1rem; color:#27ae60;">✓ R$ ${totalEnt.toFixed(2)}</div>${totalPend > 0 ? `<div style="font-size:0.8rem; color:#e74c3c; font-weight:bold;">⏳ + R$ ${totalPend.toFixed(2)}</div>` : ''}<div style="font-size:0.7rem; color:#7f8c8d; border-top:1px solid #eee; margin-top:3px;">Total: R$ ${totalGeral.toFixed(2)}</div></div></div><div class="pedido-itens">${itens.map(item => `<div class="pedido-item" style="${item.status === 'entregue' ? 'opacity:0.5; text-decoration:line-through; background:#f0fff4;' : 'border-left:3px solid #e74c3c; background:#fff5f5;'} border-radius:4px; padding:2px 5px; margin-bottom:4px;"><div style="display:flex; justify-content:space-between; align-items:center;"><strong>${item.quantidade}x ${item.nome}</strong><span style="font-size:0.7rem; font-weight:bold; color:${item.status === 'entregue' ? '#27ae60' : '#e74c3c'};">${item.status === 'entregue' ? '✓ NA MESA' : '⏳ PENDENTE'}</span></div>${item.observacao ? `<small>Obs: ${item.observacao}</small>` : ''}</div>`).join('')}</div><div class="pedido-footer"><div style="display:flex; gap:0.5rem"><button class="btn-copiar" onclick="copiarPedido(this, \`${textoCopiar}\`)">📋 Copiar</button><button style="background:#3498db" onclick='abrirModalEdicao(${JSON.stringify(pedido)}, ${JSON.stringify(itens)})'>✏️ Editar</button></div><div class="pedido-actions" style="display:flex; flex-direction:column; gap:5px;">${pedido.status === 'aguardando_fechamento' ? `<button style="background:#27ae60; font-size:1rem; border:2px solid #fff; padding: 1rem;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 CONFIRMAR PAGAMENTO E LIBERAR</button>` : `${hasPend ? `<button style="background:#e67e22; width:100%;" onclick="marcarPedidoEntregue(${pedido.id})">🚚 ENTREGAR TUDO</button>` : ''}<button style="background:#7f8c8d; width:100%;" onclick="liberarMesa(${pedido.mesa_id}, ${hasPend})">🔓 Liberar Mesa Manualmente</button>`}</div></div>`;
+    card.innerHTML = `<div class="pedido-header"><div><h3>Mesa ${pedido.mesa_numero} ${cronometroHtml}</h3><span class="status-badge">${statusGeral.toUpperCase()}</span><small style="display:block; margin-top:4px;">📅 ${formatarData(pedido.created_at)}</small><small style="display:block; font-weight:bold; color: #2c3e50;">👤 Garçom: ${pedido.garcom_id || 'N/I'}</small></div><div style="text-align:right"><div class="pedido-valor" style="font-size:1.1rem; color:#27ae60;">✓ R$ ${totalEnt.toFixed(2)}</div>${totalPend > 0 ? `<div style="font-size:0.8rem; color:#e74c3c; font-weight:bold;">⏳ + R$ ${totalPend.toFixed(2)}</div>` : ''}<div style="font-size:0.7rem; color:#7f8c8d; border-top:1px solid #eee; margin-top:3px;">Total: R$ ${totalGeral.toFixed(2)}</div></div></div><div class="pedido-itens">${itens.map(item => `<div class="pedido-item" style="${item.status === 'entregue' ? 'opacity:0.5; text-decoration:line-through; background:#f0fff4;' : 'border-left:3px solid #e74c3c; background:#fff5f5;'} border-radius:4px; padding:2px 5px; margin-bottom:4px;"><div style="display:flex; justify-content:space-between; align-items:center;"><strong>${item.quantidade}x ${item.nome}</strong><span style="font-size:0.7rem; font-weight:bold; color:${item.status === 'entregue' ? '#27ae60' : '#e74c3c'};">${item.status === 'entregue' ? '✓ NA MESA' : '⏳ PENDENTE'}</span></div>${item.observacao ? `<small>Obs: ${item.observacao}</small>` : ''}</div>`).join('')}</div><div class="pedido-footer"><div style="display:flex; gap:0.5rem"><button class="btn-copiar" onclick="copiarPedido(this, \`${textoCopiar}\`)">📋 Copiar</button><button style="background:#3498db" onclick='abrirModalEdicao(${JSON.stringify(pedido)}, ${JSON.stringify(itens)})'>✏️ Editar</button></div><div class="pedido-actions" style="display:flex; flex-direction:column; gap:5px;">${pedido.status === 'aguardando_fechamento' ? `<button style="background:#27ae60; font-size:1rem; border:2px solid #fff; padding: 1rem;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 CONFIRMAR PAGAMENTO E LIBERAR</button>` : `${hasPend ? `<button style="background:#e67e22; width:100%;" onclick="marcarPedidoEntregue(${pedido.id})">🚚 ENTREGAR TUDO</button>` : ''}<button style="background:#7f8c8d; width:100%;" onclick="liberarMesa(${pedido.mesa_id}, ${hasPend})">🔓 Liberar Mesa Manualmente</button>`}</div></div>`;
     container.appendChild(card);
   }
   const elFat = document.getElementById('faturamento-resumo');
