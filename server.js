@@ -177,7 +177,8 @@ app.put('/api/pedidos/:id', async (req, res) => {
 app.post('/api/pedidos', async (req, res) => {
   const { mesa_id, garcom_id, itens } = req.body;
   try {
-    const total = itens.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
+    const subtotal = itens.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
+    const total = subtotal * 1.10; // Adiciona 10% de taxa de serviço
     const resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id', [mesa_id, garcom_id, total, 'recebido', new Date().toISOString()]);
     const pedidoId = resPedido.lastInsertRowid || (resPedido.rows && resPedido.rows[0] ? resPedido.rows[0].id : null);
     await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [mesa_id]);

@@ -227,12 +227,15 @@ async function verItensDaMesa() {
 
     const totalEntregue = entregues.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
     const totalPendente = pendentes.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
+    const totalConsumido = totalEntregue + totalPendente;
+    const taxaServico = totalConsumido * 0.10;
+    const totalGeral = totalConsumido + taxaServico;
 
     document.getElementById('total-resumo-mesa').innerHTML = `
       <div style="text-align: right; border-top: 2px solid #eee; padding-top: 10px;">
-        <p style="color: #27ae60; font-size: 1rem;">✅ Consumido (Na Mesa): <strong>R$ ${totalEntregue.toFixed(2)}</strong></p>
-        ${totalPendente > 0 ? `<p style="color: #e74c3c; font-size: 0.9rem;">⏳ Pendente de Entrega: <strong>R$ ${totalPendente.toFixed(2)}</strong></p>` : ''}
-        <p style="font-size: 1.2rem; margin-top: 5px; color: #2c3e50;">Total Geral: <strong>R$ ${(totalEntregue + totalPendente).toFixed(2)}</strong></p>
+        <p style="color: #7f8c8d; font-size: 0.9rem;">Subtotal Consumido: R$ ${totalConsumido.toFixed(2)}</p>
+        <p style="color: #3498db; font-size: 0.9rem;">Taxa de Serviço (10%): R$ ${taxaServico.toFixed(2)}</p>
+        <p style="font-size: 1.25rem; margin-top: 8px; color: #2c3e50; border-top: 1px dashed #ddd; padding-top: 5px;">Total Final: <strong>R$ ${totalGeral.toFixed(2)}</strong></p>
       </div>
     `;
     

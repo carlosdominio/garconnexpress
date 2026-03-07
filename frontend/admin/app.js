@@ -394,12 +394,14 @@ async function exibirPedidos() {
       if (minutos >= 10) classeAlertaAtraso = 'alerta-borda-pisca';
     }
 
-    const totalGeral = totalEnt + totalPend;
-    const textoCopiar = `PEDIDO MESA ${pedido.mesa_numero}\n------------------\n${itens.map(i => `• ${i.quantidade}x ${i.nome}${i.observacao ? ` (Obs: ${i.observacao})` : ''} - ${i.status === 'entregue' ? '✓' : '⏳'}`).join('\n')}\n------------------\nTotal: R$ ${totalGeral.toFixed(2)}`;
+    const subtotal = totalEnt + totalPend;
+    const taxaServico = subtotal * 0.10;
+    const totalGeral = subtotal + taxaServico;
+    const textoCopiar = `PEDIDO MESA ${pedido.mesa_numero}\n------------------\n${itens.map(i => `• ${i.quantidade}x ${i.nome}${i.observacao ? ` (Obs: ${i.observacao})` : ''} - ${i.status === 'entregue' ? '✓' : '⏳'}`).join('\n')}\n------------------\nSubtotal: R$ ${subtotal.toFixed(2)}\nTaxa de Serviço (10%): R$ ${taxaServico.toFixed(2)}\nTotal Final: R$ ${totalGeral.toFixed(2)}`;
 
     const card = document.createElement('div');
     card.className = `pedido-card status-${statusGeral} ${pedido.id === pedidoAtualizadoId ? 'destaque-atualizacao' : ''} ${classeAlertaAtraso}`;
-    card.innerHTML = `<div class="pedido-header"><div><h3>Mesa ${pedido.mesa_numero} ${cronometroHtml}</h3><span class="status-badge">${statusGeral.toUpperCase()}</span><small style="display:block; margin-top:4px;">📅 ${formatarData(pedido.created_at)}</small><small style="display:block; font-weight:bold; color: #2c3e50;">👤 Garçom: ${pedido.garcom_id || 'N/I'}</small></div><div style="text-align:right"><div class="pedido-valor" style="font-size:1.1rem; color:#27ae60;">✓ R$ ${totalEnt.toFixed(2)}</div>${totalPend > 0 ? `<div style="font-size:0.8rem; color:#e74c3c; font-weight:bold;">⏳ + R$ ${totalPend.toFixed(2)}</div>` : ''}<div style="font-size:0.7rem; color:#7f8c8d; border-top:1px solid #eee; margin-top:3px;">Total: R$ ${totalGeral.toFixed(2)}</div></div></div><div class="pedido-itens">${itens.map(item => `<div class="pedido-item" style="${item.status === 'entregue' ? 'opacity:0.5; text-decoration:line-through; background:#f0fff4;' : 'border-left:3px solid #e74c3c; background:#fff5f5;'} border-radius:4px; padding:2px 5px; margin-bottom:4px;"><div style="display:flex; justify-content:space-between; align-items:center;"><strong>${item.quantidade}x ${item.nome}</strong><span style="font-size:0.7rem; font-weight:bold; color:${item.status === 'entregue' ? '#27ae60' : '#e74c3c'};">${item.status === 'entregue' ? '✓ NA MESA' : '⏳ PENDENTE'}</span></div>${item.observacao ? `<small>Obs: ${item.observacao}</small>` : ''}</div>`).join('')}</div><div class="pedido-footer"><div style="display:flex; gap:0.5rem"><button class="btn-copiar" onclick="copiarPedido(this, \`${textoCopiar}\`)">📋 Copiar</button><button style="background:#3498db" onclick='abrirModalEdicao(${JSON.stringify(pedido)}, ${JSON.stringify(itens)})'>✏️ Editar</button></div><div class="pedido-actions" style="display:flex; flex-direction:column; gap:5px;">${pedido.status === 'aguardando_fechamento' ? `<button style="background:#27ae60; font-size:1rem; border:2px solid #fff; padding: 1rem;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 CONFIRMAR PAGAMENTO E LIBERAR</button>` : `${hasPend ? `<button style="background:#e67e22; width:100%;" onclick="marcarPedidoEntregue(${pedido.id})">🚚 ENTREGAR TUDO</button>` : ''}<button style="background:#7f8c8d; width:100%;" onclick="liberarMesa(${pedido.mesa_id}, ${hasPend})">🔓 Liberar Mesa Manualmente</button>`}</div></div>`;
+    card.innerHTML = `<div class="pedido-header"><div><h3>Mesa ${pedido.mesa_numero} ${cronometroHtml}</h3><span class="status-badge">${statusGeral.toUpperCase()}</span><small style="display:block; margin-top:4px;">📅 ${formatarData(pedido.created_at)}</small><small style="display:block; font-weight:bold; color: #2c3e50;">👤 Garçom: ${pedido.garcom_id || 'N/I'}</small></div><div style="text-align:right"><div class="pedido-valor" style="font-size:1.1rem; color:#27ae60;">Total: R$ ${totalGeral.toFixed(2)}</div><div style="font-size:0.75rem; color:#7f8c8d; border-top:1px solid #eee; margin-top:3px;">Sub: R$ ${subtotal.toFixed(2)} + 10%: R$ ${taxaServico.toFixed(2)}</div></div></div><div class="pedido-itens">${itens.map(item => `<div class="pedido-item" style="${item.status === 'entregue' ? 'opacity:0.5; text-decoration:line-through; background:#f0fff4;' : 'border-left:3px solid #e74c3c; background:#fff5f5;'} border-radius:4px; padding:2px 5px; margin-bottom:4px;"><div style="display:flex; justify-content:space-between; align-items:center;"><strong>${item.quantidade}x ${item.nome}</strong><span style="font-size:0.7rem; font-weight:bold; color:${item.status === 'entregue' ? '#27ae60' : '#e74c3c'};">${item.status === 'entregue' ? '✓ NA MESA' : '⏳ PENDENTE'}</span></div>${item.observacao ? `<small>Obs: ${item.observacao}</small>` : ''}</div>`).join('')}</div><div class="pedido-footer"><div style="display:flex; gap:0.5rem"><button style="background:#2c3e50; border:1px solid #34495e;" onclick='imprimirCupom(${JSON.stringify(pedido)}, ${JSON.stringify(itens)})'>🖨️ Imprimir</button><button class="btn-copiar" onclick="copiarPedido(this, \`${textoCopiar}\`)">📋 Copiar</button><button style="background:#3498db" onclick='abrirModalEdicao(${JSON.stringify(pedido)}, ${JSON.stringify(itens)})'>✏️ Editar</button></div><div class="pedido-actions" style="display:flex; flex-direction:column; gap:5px;">${pedido.status === 'aguardando_fechamento' ? `<button style="background:#27ae60; font-size:1rem; border:2px solid #fff; padding: 1rem;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 CONFIRMAR PAGAMENTO E LIBERAR</button>` : `${hasPend ? `<button style="background:#e67e22; width:100%;" onclick="marcarPedidoEntregue(${pedido.id})">🚚 ENTREGAR TUDO</button>` : ''}<button style="background:#7f8c8d; width:100%;" onclick="liberarMesa(${pedido.mesa_id}, ${hasPend})">🔓 Liberar Mesa Manualmente</button>`}</div></div>`;
     container.appendChild(card);
   }
   const elFat = document.getElementById('faturamento-resumo');
@@ -464,4 +466,72 @@ async function marcarPedidoEntregue(id) {
       carregarPedidos();
     }
   }
+}
+
+// FUNÇÃO DE IMPRESSÃO DE CUPOM TÉRMICO (OTIMIZADO PARA EPSON TM-T20X)
+function imprimirCupom(pedido, itens) {
+  const container = document.getElementById('cupom-impressao');
+  if (!container) return;
+
+  const subtotal = itens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+  const taxa = subtotal * 0.10;
+  const total = subtotal + taxa;
+
+  const html = `
+    <div style="width: 72mm; font-family: 'Courier New', monospace; font-size: 9pt; line-height: 1.2; color: #000; background: #fff; padding: 0;">
+      <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 8px; margin-bottom: 8px;">
+        <h1 style="margin: 0; font-size: 1.4rem; letter-spacing: 1px;">GuGA Bebidas</h1>
+        <p style="margin: 2px 0; font-weight: bold;">*** COMPROVANTE DE CONTA ***</p>
+      </div>
+      
+      <div style="margin-bottom: 8px;">
+        <div style="display:flex; justify-content:space-between;">
+          <span>DATA: ${formatarData(pedido.created_at)}</span>
+          <span>MESA: <strong>${pedido.mesa_numero}</strong></span>
+        </div>
+        <p style="margin: 2px 0;">GARÇOM: ${pedido.garcom_id || 'N/I'}</p>
+      </div>
+
+      <div style="border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 3px 0; margin-bottom: 5px; font-weight: bold; display: flex; justify-content: space-between;">
+        <span style="width: 60%;">DESCRIÇÃO</span>
+        <span style="width: 15%; text-align: center;">QTD</span>
+        <span style="width: 25%; text-align: right;">TOTAL</span>
+      </div>
+
+      <div style="min-height: 30px;">
+        ${itens.map(item => `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px; align-items: flex-start;">
+            <div style="width: 60%; word-wrap: break-word;">${item.nome.toUpperCase()}</div>
+            <div style="width: 15%; text-align: center;">${item.quantidade}</div>
+            <div style="width: 25%; text-align: right;">${(item.preco * item.quantidade).toFixed(2)}</div>
+          </div>
+          ${item.observacao ? `<div style="font-size: 8pt; font-style: italic; margin-bottom: 5px; padding-left: 5px;">>> Obs: ${item.observacao}</div>` : ''}
+        `).join('')}
+      </div>
+
+      <div style="border-top: 1px dashed #000; margin-top: 10px; padding-top: 5px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom: 2px;">
+          <span>SUBTOTAL DOS PRODUTOS:</span>
+          <span>R$ ${subtotal.toFixed(2)}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom: 2px;">
+          <span>TAXA DE SERVIÇO (10%):</span>
+          <span>R$ ${taxa.toFixed(2)}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size: 1.2rem; font-weight: bold; margin-top: 5px; border-top: 1px solid #000; padding-top: 5px;">
+          <span>TOTAL FINAL:</span>
+          <span>R$ ${total.toFixed(2)}</span>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-top: 20px; border-top: 1px dashed #000; padding-top: 10px;">
+        <p style="margin: 0; font-weight: bold;">OBRIGADO PELA PREFERÊNCIA!</p>
+        <p style="margin: 2px 0; font-size: 7pt;">GuGA Bebidas - Sistema de Gestão</p>
+        <br><br>.
+      </div>
+    </div>
+  `;
+
+  container.innerHTML = html;
+  setTimeout(() => { window.print(); }, 250);
 }
