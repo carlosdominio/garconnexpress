@@ -261,7 +261,21 @@ async function exibirHistorico(historico) {
     const itens = await fetch(`/api/pedidos/${pedido.id}/itens`).then(res => res.json());
     const card = document.createElement('div');
     card.className = `pedido-card status-${pedido.status}`;
-    card.innerHTML = `<div class="pedido-header"><div><h3>Mesa ${pedido.mesa_numero}</h3><span class="status-badge ${pedido.status === 'entregue' ? 'pago' : 'cancelado'}">${pedido.status === 'entregue' ? 'PAGO' : pedido.status.toUpperCase()}</span><small style="display:block; margin-top:4px;">📅 ${formatarData(pedido.created_at)}</small><small style="display:block; font-weight:bold;">👤 Garçom: ${pedido.garcom_id || 'N/I'}</small></div><div class="pedido-valor">R$ ${pedido.total.toFixed(2)}</div></div><div class="pedido-itens">${itens.map(item => `<div class="pedido-item"><span>• ${item.quantidade}x ${item.nome}</span></div>`).join('')}</div>`;
+    card.innerHTML = `
+      <div class="pedido-header">
+        <div>
+          <h3>Mesa ${pedido.mesa_numero}</h3>
+          <span class="status-badge ${pedido.status === 'entregue' ? 'pago' : 'cancelado'}">${pedido.status === 'entregue' ? 'PAGO' : pedido.status.toUpperCase()}</span>
+          <small style="display:block; margin-top:4px;">📅 ${formatarData(pedido.created_at)}</small>
+          <small style="display:block; font-weight:bold;">👤 Garçom: ${pedido.garcom_id || 'N/I'}</small>
+        </div>
+        <div style="text-align: right;">
+          <div class="pedido-valor">R$ ${pedido.total.toFixed(2)}</div>
+          <button style="background:#2c3e50; border:1px solid #34495e; margin-top: 5px; font-size: 0.75rem; width: auto; padding: 5px 10px;" onclick='imprimirCupom(${JSON.stringify(pedido)}, ${JSON.stringify(itens)})'>🖨️ Re-imprimir</button>
+        </div>
+      </div>
+      <div class="pedido-itens">${itens.map(item => `<div class="pedido-item"><span>• ${item.quantidade}x ${item.nome}</span></div>`).join('')}</div>
+    `;
     container.appendChild(card);
   }
   const elFat = document.getElementById('faturamento-total-dia');
