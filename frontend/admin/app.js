@@ -581,6 +581,10 @@ function configurarPusher() {
       clearTimeout(timeoutPusher); timeoutPusher = setTimeout(() => carregarPedidos(), 500);
     }
   });
+
+  channel.bind('menu-atualizado', () => {
+    carregarCardapio();
+  });
 }
 
 function tocarNotificacao() { if (audioDesbloqueado) { audioNotificacao.currentTime = 0; audioNotificacao.play().catch(e => console.error(e)); } }
