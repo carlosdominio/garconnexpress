@@ -72,6 +72,10 @@ function configurarPusher() {
     if (data.status === 'itens_atualizados') mostrarToast(`📝 Pedido da Mesa ${nMesa} atualizado pelo Admin`);
     if (data.status === 'cancelado') mostrarToast(`❌ Pedido da Mesa ${nMesa} CANCELADO pelo Admin`);
   });
+
+  channel.bind('menu-atualizado', () => {
+    carregarMenu();
+  });
 }
 
 function mostrarToast(mensagem) {
@@ -204,9 +208,15 @@ async function verItensDaMesa() {
     if (pendentes.length > 0) {
       html += `<h4 style="color:#e74c3c; margin-bottom:10px; border-bottom:2px solid #e74c3c;">⏳ PARA ENTREGAR AGORA</h4>`;
       html += pendentes.map(item => `
-        <div style="border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; background:#fff5f5;">
-          <div><p><strong>${item.quantidade}x ${item.nome}</strong></p>${item.observacao ? `<small style="color:#e67e22;">Obs: ${item.observacao}</small>` : ''}</div>
-          <p>R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
+        <div style="border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; background:#fff5f5;">
+          <div style="flex-grow: 1;">
+            <p><strong>${item.quantidade}x ${item.nome}</strong></p>
+            ${item.observacao ? `<small style="color:#e67e22;">Obs: ${item.observacao}</small>` : ''}
+          </div>
+          <div style="display: flex; align-items: center; gap: 15px;">
+            <p>R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
+            <button onclick="removerItemDoPedido(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer;">🗑️</button>
+          </div>
         </div>
       `).join('');
       html += `<button class="btn-opcoes" onclick="marcarComoServido(${pedidoAbertoNaMesa.id})" style="background-color: #27ae60; margin: 1rem 0;">🚚 ENTREGUEI ESTES ITENS</button>`;
@@ -215,9 +225,14 @@ async function verItensDaMesa() {
     if (entregues.length > 0) {
       html += `<h4 style="color:#27ae60; margin: 20px 0 10px 0; border-bottom:2px solid #27ae60;">✅ JÁ ESTÃO NA MESA</h4>`;
       html += entregues.map(item => `
-        <div style="border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; opacity:0.7;">
-          <div><p>${item.quantidade}x ${item.nome}</p></div>
-          <p>R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
+        <div style="border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; opacity:0.7;">
+          <div style="flex-grow: 1;">
+            <p>${item.quantidade}x ${item.nome}</p>
+          </div>
+          <div style="display: flex; align-items: center; gap: 15px;">
+            <p>R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
+            <button onclick="removerItemDoPedido(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer;">🗑️</button>
+          </div>
         </div>
       `).join('');
     }
@@ -244,6 +259,17 @@ async function verItensDaMesa() {
     fecharOpcoes();
     document.getElementById('modal-resumo-mesa').style.display = 'block';
   } catch (error) { alert("Erro ao carregar dados."); }
+}
+
+async function removerItemDoPedido(itemId) {
+  if (!confirm("Remover este item do pedido?")) return;
+  try {
+    const res = await fetch(`/api/pedidos/itens/${itemId}`, { method: 'DELETE' });
+    if (res.ok) {
+      // Recarrega o resumo da mesa para mostrar os dados atualizados
+      verItensDaMesa();
+    }
+  } catch (error) { alert("Erro ao excluir item."); }
 }
 
 async function marcarComoServido(idPedido) {
@@ -301,11 +327,10 @@ async function finalizarEDesocupar() {
   }
 }
 
-function exibirMenu(categoria) {
+async function exibirMenu(categoria) {
   const grid = document.getElementById('menu-grid');
   if (!grid) return;
   
-  // Se for chamado sem categoria, tenta pegar a visualmente ativa
   if (!categoria) {
     const elAtivo = document.querySelector('.categoria.ativa');
     categoria = elAtivo ? elAtivo.dataset.categoria : 'todas';
@@ -315,11 +340,26 @@ function exibirMenu(categoria) {
   grid.innerHTML = itens.map(item => {
     const itemNoPedido = pedidoAtual.find(p => p.menu_id === item.id);
     const qtdBadge = itemNoPedido ? `<div class="badge-qtd">${itemNoPedido.quantidade}</div>` : '';
-    return `<div class="item-menu" data-id="${item.id}">${qtdBadge}<img src="${item.imagem}" alt="${item.nome}"><h3>${item.nome}</h3><p>R$ ${item.preco.toFixed(2)}</p></div>`;
+    
+    // Lógica de estoque
+    const esgotado = item.estoque === 0;
+    const infoEstoque = item.estoque === -1 ? '' : `<div class="info-estoque ${esgotado ? 'zero' : ''}">Estoque: ${item.estoque}</div>`;
+
+    return `
+      <div class="item-menu ${esgotado ? 'esgotado' : ''}" data-id="${item.id}">
+        ${qtdBadge}
+        <img src="${item.imagem}" alt="${item.nome}">
+        <h3>${item.nome}</h3>
+        <p>R$ ${item.preco.toFixed(2)}</p>
+        ${infoEstoque}
+        ${esgotado ? '<div class="overlay-esgotado">ESGOTADO</div>' : ''}
+      </div>`;
   }).join('');
-  document.querySelectorAll('.item-menu').forEach(item => {
-    item.addEventListener('click', () => {
-      const menuItem = menu.find(m => m.id == item.dataset.id);
+
+  document.querySelectorAll('.item-menu').forEach(itemEl => {
+    itemEl.addEventListener('click', () => {
+      const menuItem = menu.find(m => m.id == itemEl.dataset.id);
+      if (menuItem.estoque === 0) return alert("Este item está esgotado!");
       adicionarItemPedido(menuItem);
       exibirMenu(categoria);
     });
@@ -328,6 +368,13 @@ function exibirMenu(categoria) {
 
 function adicionarItemPedido(item) {
   const existing = pedidoAtual.find(p => p.menu_id === item.id);
+  const quantidadeNoCarrinho = existing ? existing.quantidade : 0;
+
+  // Verifica se tem estoque para adicionar mais um (se não for ilimitado)
+  if (item.estoque !== -1 && (quantidadeNoCarrinho + 1) > item.estoque) {
+    return alert(`Estoque insuficiente! Você já adicionou o limite de ${item.estoque} unidades.`);
+  }
+
   if (existing) existing.quantidade++;
   else pedidoAtual.push({ menu_id: item.id, nome: item.nome, preco: item.preco, quantidade: 1, observacao: '' });
   exibirResumoPedido();
@@ -369,9 +416,18 @@ function exibirResumoPedido() {
 }
 
 function alterarQuantidadeItem(index, delta) {
-  const novoValor = pedidoAtual[index].quantidade + delta;
+  const itemNoPedido = pedidoAtual[index];
+  const itemNoMenu = menu.find(m => m.id === itemNoPedido.menu_id);
+
+  if (delta > 0 && itemNoMenu && itemNoMenu.estoque !== -1) {
+    if (itemNoPedido.quantidade + delta > itemNoMenu.estoque) {
+      return alert(`Estoque insuficiente! Restam apenas ${itemNoMenu.estoque} unidades.`);
+    }
+  }
+
+  const novoValor = itemNoPedido.quantidade + delta;
   if (novoValor > 0) {
-    pedidoAtual[index].quantidade = novoValor;
+    itemNoPedido.quantidade = novoValor;
     exibirResumoPedido();
     const catAtiva = document.querySelector('.categoria.ativa').dataset.categoria;
     exibirMenu(catAtiva);

@@ -14,7 +14,7 @@ body {
 }
 
 /* Permitir seleção apenas em campos de entrada (obs do pedido) */
-input, textarea {
+input, textarea, select {
   user-select: text !important;
   -webkit-user-select: text !important;
 }
@@ -190,6 +190,8 @@ main {
   box-shadow: 0 -5px 20px rgba(0,0,0,0.2);
   z-index: 1000;
   text-align: center;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .modal-opcoes h2 { margin-bottom: 1.5rem; color: #333; }
@@ -471,36 +473,86 @@ button:hover { background-color: #2ecc71; }
 
 #voltar-mesas { background-color: #95a5a6; }
 #voltar-mesas:hover { background-color: #7f8c8d; }
- 
- / *   A j u s t e   d o   M o d a l   d e   R e s u m o   ( G a r a n t i r   B o t � o   n a   B a s e )   * / 
- # m o d a l - r e s u m o - m e s a   { 
-     m a x - h e i g h t :   8 5 v h ;   / *   O c u p a r   q u a s e   a   t e l a   t o d a   n o   m o b i l e   * / 
-     d i s p l a y :   f l e x   ! i m p o r t a n t ; 
-     f l e x - d i r e c t i o n :   c o l u m n ; 
-     p a d d i n g :   1 . 5 r e m   1 r e m   1 r e m   1 r e m ; 
- } 
- 
- # m o d a l - r e s u m o - m e s a [ s t y l e * = ' d i s p l a y : n o n e ' ]   { 
-     d i s p l a y :   n o n e   ! i m p o r t a n t ; 
- } 
- 
- # l i s t a - i t e n s - m e s a   { 
-     f l e x :   1 ;   / *   F a z   a   l i s t a   c r e s c e r   e   o c u p a r   o   e s p a � o   d i s p o n � v e l   * / 
-     o v e r f l o w - y :   a u t o ;   / *   P e r m i t e   r o l a r   a p e n a s   o s   i t e n s   * / 
-     m a r g i n - b o t t o m :   1 r e m ; 
-     p a d d i n g - r i g h t :   5 p x ; 
- } 
- 
- # t o t a l - r e s u m o - m e s a   { 
-     b o r d e r - t o p :   1 p x   s o l i d   # e e e ; 
-     p a d d i n g - t o p :   1 0 p x ; 
-     m a r g i n - b o t t o m :   1 r e m ; 
- } 
- 
- / *   O   b o t � o   b t n - c a n c e l a r   d e n t r o   d o   r e s u m o   v a i   f i c a r   c o l a d o   n a   b a s e   * / 
- # m o d a l - r e s u m o - m e s a   . b t n - c a n c e l a r   { 
-     m a r g i n - t o p :   a u t o ; 
-     m a r g i n - b o t t o m :   0 ; 
- } 
-  
- 
+
+/* Estilos para o Modal de Fechamento */
+#modal-fechamento label {
+  display: block;
+  font-size: 0.85rem;
+  color: #7f8c8d;
+  margin-bottom: 4px;
+  font-weight: bold;
+}
+
+#modal-fechamento input, #modal-fechamento select {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 1rem;
+  background: white;
+  margin-bottom: 10px;
+}
+
+#modal-fechamento input:focus {
+  border-color: #3498db;
+  outline: none;
+}
+
+#secao-troco {
+  border-top: 1px dashed #ddd;
+  padding-top: 10px;
+  margin-top: 5px;
+}
+
+/* Ajustes Gerais para Modais no Mobile */
+#modal-resumo-mesa, #modal-fechamento {
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#lista-itens-mesa {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+}
+
+/* --- Estilos de Estoque --- */
+.item-menu.esgotado {
+  opacity: 0.6;
+  filter: grayscale(1);
+  position: relative;
+}
+
+.overlay-esgotado {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+  border-radius: 12px;
+  z-index: 10;
+}
+
+.info-estoque {
+  font-size: 0.75rem;
+  background: #eee;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-top: 5px;
+  color: #666;
+}
+
+.info-estoque.zero {
+  background: #fdf2f2;
+  color: #e74c3c;
+}
+

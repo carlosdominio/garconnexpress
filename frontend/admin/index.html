@@ -34,8 +34,60 @@
     <nav class="tabs">
       <button class="tab-btn active" onclick="switchTab('ativos')">Pedidos Ativos</button>
       <button class="tab-btn" onclick="switchTab('historico')">Histórico</button>
+      <button class="tab-btn" onclick="switchTab('caixa')">💰 Caixa</button>
       <button class="tab-btn" onclick="switchTab('configuracoes')">⚙️ Configurações</button>
     </nav>
+
+    <section id="caixa-section" class="hidden">
+      <div id="caixa-fechado-view" class="config-card" style="max-width: 500px; margin: 2rem auto; text-align: center;">
+        <h2 style="margin-bottom: 1.5rem;">O Caixa está FECHADO</h2>
+        <p style="color: #7f8c8d; margin-bottom: 1.5rem;">Informe o valor inicial em dinheiro para abrir o caixa e começar a receber pedidos.</p>
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+          <input type="number" id="caixa-valor-inicial" placeholder="Valor Inicial (R$)" step="0.50" style="padding: 1rem; font-size: 1.2rem; text-align: center;">
+          <button onclick="abrirCaixa()" style="padding: 1rem; font-size: 1.1rem; background: #27ae60;">🚀 ABRIR CAIXA AGORA</button>
+        </div>
+      </div>
+
+      <div id="caixa-aberto-view" class="hidden">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+          <div class="config-card" style="border-top: 4px solid #3498db;">
+            <small>Valor Inicial</small>
+            <h2 id="resumo-caixa-inicial">R$ 0,00</h2>
+          </div>
+          <div class="config-card" style="border-top: 4px solid #27ae60;">
+            <small>Vendas (Total)</small>
+            <h2 id="resumo-caixa-vendas">R$ 0,00</h2>
+          </div>
+          <div class="config-card" style="border-top: 4px solid #f1c40f;">
+            <small>Em Dinheiro (Esperado)</small>
+            <h2 id="resumo-caixa-dinheiro">R$ 0,00</h2>
+          </div>
+        </div>
+
+        <div class="config-card" style="margin-bottom: 2rem;">
+          <h3>Detalhamento por Meio de Pagamento</h3>
+          <div style="display: flex; justify-content: space-around; padding: 1rem 0;">
+            <div style="text-align: center;">
+              <p>💵 Dinheiro</p>
+              <strong id="detalhe-caixa-dinheiro" style="font-size: 1.2rem;">R$ 0,00</strong>
+            </div>
+            <div style="text-align: center;">
+              <p>📱 Pix</p>
+              <strong id="detalhe-caixa-pix" style="font-size: 1.2rem;">R$ 0,00</strong>
+            </div>
+            <div style="text-align: center;">
+              <p>💳 Cartão</p>
+              <strong id="detalhe-caixa-cartao" style="font-size: 1.2rem;">R$ 0,00</strong>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+          <button onclick="imprimirRelatorioCaixa()" style="background: #3498db; flex: 1; padding: 1.5rem; font-size: 1.2rem;">🖨️ IMPRIMIR RELATÓRIO PARCIAL</button>
+          <button onclick="confirmarFechamentoCaixa()" style="background: #e74c3c; flex: 1; padding: 1.5rem; font-size: 1.2rem;">🏁 FECHAR CAIXA E ENCERRAR DIA</button>
+        </div>
+      </div>
+    </section>
 
     <section id="ativos-section">
       <h2>Pedidos em Andamento</h2>
@@ -87,6 +139,7 @@
             <input type="text" id="menu-nome" placeholder="Nome">
             <input type="text" id="menu-cat" placeholder="Categoria">
             <input type="number" id="menu-preco" placeholder="Preço">
+            <input type="number" id="menu-estoque" placeholder="Qtd. Estoque (-1 = ilimitado)" value="-1">
             <input type="text" id="menu-img" placeholder="Link da Foto">
             <button id="btn-acao-menu" onclick="processarAcaoMenu()">Adicionar Item</button>
             <button id="btn-cancelar-menu" class="hidden" onclick="cancelarEdicaoMenu()" style="background-color: #95a5a6;">Cancelar</button>
@@ -99,24 +152,84 @@
 
   <!-- Modal de Edição -->
   <div id="modal-edicao" class="modal">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width: 900px; width: 95%;">
       <div class="modal-header">
         <h2 id="modal-titulo">Editar Pedido</h2>
-        <span class="close" onclick="fecharModal()">&times;</span>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <button id="btn-imprimir-edicao" style="background:#2c3e50; font-size: 0.8rem; width: auto; padding: 5px 15px;">🖨️ Imprimir Parcial</button>
+          <span class="close" onclick="fecharModal()">&times;</span>
+        </div>
       </div>
-      <div class="modal-body">
-        <div id="itens-atuais"></div>
-        <hr>
-        <h4>Adicionar Novo Item</h4>
-        <select id="menu-select"></select>
-        <button onclick="adicionarAoPedidoEdicao()">Adicionar</button>
+      <div class="modal-body edit-modal-grid">
+        <!-- Coluna da Esquerda: Itens do Pedido Atual -->
+        <div class="edit-col-itens">
+          <h3>Itens no Pedido</h3>
+          <div id="itens-atuais"></div>
+          <div id="modal-total" style="font-weight: bold; margin-top: 1rem; font-size: 1.2rem; border-top: 2px solid #eee; padding-top: 10px;">Total: R$ 0,00</div>
+        </div>
+        
+        <!-- Coluna da Direita: Cardápio para Adicionar -->
+        <div class="edit-col-menu">
+          <h3>Adicionar Itens</h3>
+          <div id="edit-menu-categorias" class="categorias-grid-mini"></div>
+          <div id="edit-menu-grid" class="menu-grid-mini"></div>
+        </div>
       </div>
       <div class="modal-footer">
-        <div id="modal-total" style="font-weight: bold; margin-bottom: 1rem;">Total: R$ 0,00</div>
-        <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-          <button class="btn-cancelar-pedido" onclick="confirmarCancelamento()">❌ Cancelar Pedido</button>
-          <button class="btn-salvar-edicao" onclick="salvarAlteracoes()">💾 Salvar Alterações</button>
+        <div style="display: flex; gap: 0.5rem; justify-content: flex-end; width: 100%;">
+          <button class="btn-cancelar-pedido" onclick="confirmarCancelamento()" style="width: auto; padding: 10px 20px;">❌ Cancelar Pedido</button>
+          <button class="btn-salvar-edicao" onclick="salvarAlteracoes()" style="width: auto; padding: 10px 20px; background: #27ae60;">💾 Salvar Alterações</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Fechamento (NOVO) -->
+  <div id="modal-fechamento-admin" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width: 450px;">
+      <div class="modal-header">
+        <h2 id="fechamento-titulo-admin">Fechar Conta</h2>
+        <span class="close" onclick="fecharModalFechamentoAdmin()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+            <label style="margin: 0; color: #2c3e50; font-weight: bold; cursor: pointer;">
+              <input type="checkbox" id="fechamento-taxa-admin" checked onchange="recalcularFechamentoAdmin()"> Cobrar Taxa de Serviço (10%)
+            </label>
+          </div>
+          <p style="margin: 0; font-size: 0.9rem;">Subtotal Consumo: <strong id="fechamento-subtotal-admin">R$ 0,00</strong></p>
+          <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #3498db;">Taxa de Serviço (10%): <strong id="fechamento-valor-taxa-admin">R$ 0,00</strong></p>
+          <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label style="display:block; font-size:0.75rem; font-weight:bold; color:#7f8c8d; margin-bottom:3px;">Acréscimo (R$):</label>
+              <input type="number" id="fechamento-acrescimo-admin" value="0" step="0.50" min="0" oninput="recalcularFechamentoAdmin()" style="width:100%; padding:8px; border-radius:5px; border:1px solid #ddd;">
+            </div>
+            <div>
+              <label style="display:block; font-size:0.75rem; font-weight:bold; color:#7f8c8d; margin-bottom:3px;">Desconto (R$):</label>
+              <input type="number" id="fechamento-desconto-admin" value="0" step="0.50" min="0" oninput="recalcularFechamentoAdmin()" style="width:100%; padding:8px; border-radius:5px; border:1px solid #ddd;">
+            </div>
+          </div>
+          <p style="margin: 15px 0 0 0; font-size: 1.3rem; color: #2c3e50; font-weight:bold;">Total Final: <span id="fechamento-total-final-admin">R$ 0,00</span></p>
+        </div>
+
+        <div style="margin-bottom: 15px;">
+          <label style="display:block; font-size:0.75rem; font-weight:bold; color:#7f8c8d; margin-bottom:3px;">Forma de Pagamento:</label>
+          <select id="fechamento-forma-admin" onchange="toggleTrocoAdmin()" style="width:100%; padding:10px; border-radius:5px; border:1px solid #ddd; font-size:1rem;">
+            <option value="Dinheiro">Dinheiro</option>
+            <option value="Pix">Pix</option>
+            <option value="Cartão">Cartão</option>
+          </select>
+        </div>
+
+        <div id="secao-troco-admin" style="margin-bottom: 15px; border-top:1px dashed #ddd; padding-top:10px;">
+          <label style="display:block; font-size:0.75rem; font-weight:bold; color:#7f8c8d; margin-bottom:3px;">Valor Recebido (R$):</label>
+          <input type="number" id="fechamento-recebido-admin" placeholder="0,00" step="0.50" oninput="recalcularFechamentoAdmin()" style="width:100%; padding:10px; border-radius:5px; border:1px solid #ddd; font-size:1.1rem; font-weight:bold; color:#27ae60;">
+          <p style="margin: 5px 0 0 0; color: #27ae60; font-weight:bold;">Troco: <span id="fechamento-troco-admin">R$ 0,00</span></p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button onclick="confirmarPagamentoAdmin()" style="background:#27ae60; color:white; padding:12px; font-weight:bold; font-size:1rem; width:100%; border:none; border-radius:8px; cursor:pointer;">💰 CONFIRMAR E LIBERAR MESA</button>
       </div>
     </div>
   </div>
