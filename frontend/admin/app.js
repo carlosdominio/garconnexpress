@@ -685,14 +685,14 @@ async function exibirPedidos() {
       
       <div class="pedido-itens">
         ${itens.map(item => `
-          <div class="pedido-item" style="${item.status === 'entregue' ? 'opacity:0.5; background:#f0fff4;' : 'border-left:3px solid #e74c3c; background:#fff5f5;'} border-radius:4px; padding:4px 8px; margin-bottom:4px;">
+          <div class="pedido-item" style="${item.status === 'entregue' ? 'opacity:0.5; background:#f0fff4; text-decoration: line-through;' : 'border-left:3px solid #e74c3c; background:#fff5f5;'} border-radius:4px; padding:4px 8px; margin-bottom:4px;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <strong>${item.quantidade}x ${item.nome}</strong>
-              <span style="font-size:0.7rem; font-weight:bold; color:${item.status === 'entregue' ? '#27ae60' : '#e74c3c'};">
+              <span style="font-size:0.7rem; font-weight:bold; color:${item.status === 'entregue' ? '#27ae60' : '#e74c3c'}; text-decoration: none !important; display: inline-block;">
                 ${item.status === 'entregue' ? '✓ NA MESA' : '⏳ PENDENTE'}
               </span>
             </div>
-            ${item.observacao ? `<small>Obs: ${item.observacao}</small>` : ''}
+            ${item.observacao ? `<small style="text-decoration: none !important;">Obs: ${item.observacao}</small>` : ''}
           </div>
         `).join('')}
       </div>
