@@ -460,16 +460,22 @@ button.btn-entregue { background-color: #95a5a6; }
 }
 
 .categorias-grid-mini {
-  display: block !important; /* Mudado para block com white-space nowrap */
+  display: block !important;
   white-space: nowrap !important;
   overflow-x: auto !important;
+  overflow-y: hidden !important; /* Adicionado para travar movimento vertical */
   padding: 10px 5px !important;
   border-bottom: 1px solid #eee;
   margin-bottom: 15px;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  -webkit-overflow-scrolling: touch;
   width: 100%;
+  /* Esconde barra de rolagem */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+  -webkit-overflow-scrolling: touch;
+}
+
+.categorias-grid-mini::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
 }
 
 .cat-mini {

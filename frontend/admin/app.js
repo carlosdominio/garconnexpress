@@ -79,6 +79,15 @@ function iniciarPainelAdmin() {
     };
   }
 
+  // Listener para scroll horizontal nas categorias com o mouse
+  const catScroll = document.getElementById('edit-menu-categorias');
+  if (catScroll) {
+    catScroll.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      catScroll.scrollLeft += e.deltaY;
+    });
+  }
+
   // Atualiza os cronômetros a cada minuto no painel admin
   setInterval(() => {
     exibirPedidos();
