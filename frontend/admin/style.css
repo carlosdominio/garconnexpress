@@ -463,23 +463,22 @@ button.btn-entregue { background-color: #95a5a6; }
   display: block !important;
   white-space: nowrap !important;
   overflow-x: auto !important;
-  overflow-y: hidden !important; /* Adicionado para travar movimento vertical */
-  padding: 10px 5px !important;
-  border-bottom: 1px solid #eee;
-  margin-bottom: 15px;
+  overflow-y: hidden !important;
+  padding: 10px 5px 15px 5px !important;
+  border-bottom: 2px solid #f1f1f1;
+  margin-bottom: 25px !important; /* Espaço aumentado entre categorias e cardápio */
   width: 100%;
-  /* Esconde barra de rolagem */
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
 }
 
 .categorias-grid-mini::-webkit-scrollbar {
-  display: none !important; /* Chrome, Safari, Opera */
+  display: none !important;
 }
 
 .cat-mini {
-  display: inline-block !important; /* inline-block com white-space nowrap impede quebra */
+  display: inline-block !important;
   padding: 8px 20px;
   background: #f8f9fa;
   border: 2px solid #ddd;
@@ -487,7 +486,7 @@ button.btn-entregue { background-color: #95a5a6; }
   font-size: 0.85rem;
   cursor: pointer;
   font-weight: bold;
-  margin-right: 8px; /* Espaçamento manual em vez de gap */
+  margin-right: 10px;
   transition: all 0.2s;
   color: #2c3e50;
   box-sizing: border-box;
@@ -507,11 +506,12 @@ button.btn-entregue { background-color: #95a5a6; }
 }
 
 .menu-grid-mini {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 10px;
-  overflow-y: auto;
-  padding: 10px 5px;
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
+  gap: 15px !important;
+  overflow-y: auto !important;
+  padding: 10px 5px !important;
+  flex-grow: 1;
 }
 
 .item-menu-mini {
