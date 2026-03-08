@@ -1,5 +1,7 @@
-let pedidos = [];
 let cardapio = [];
+let pedidos = [];
+let historico = [];
+let mesaAtual = null;
 let pedidoEmEdicao = null;
 let itensEmEdicao = [];
 let abaAtiva = 'ativos';
@@ -11,38 +13,18 @@ let audioDesbloqueado = false;
 let intervalPiscaTitulo = null;
 const tituloOriginal = "Admin - GarçomExpress";
 
-document.addEventListener('DOMContentLoaded', () => {
-  verificarSessaoAdmin();
-  document.addEventListener('click', () => {
-    if (!audioDesbloqueado) {
-      audioNotificacao.play().then(() => {
-        audioNotificacao.pause();
-        audioNotificacao.currentTime = 0;
-        audioDesbloqueado = true;
-      }).catch(e => console.error(e));
-    }
-  }, { once: true });
-});
-
-function verificarSessaoAdmin() {
+document.addEventListener('DOMContentLoaded', async () => {
   const salvo = localStorage.getItem('admin_logado');
-  if (salvo && salvo !== 'undefined') {
-    try {
-      adminLogado = JSON.parse(salvo);
-      const telaLogin = document.getElementById('tela-login-admin');
-      if (telaLogin) telaLogin.style.display = 'none';
-      iniciarPainelAdmin();
-    } catch (e) {
-      console.error("Erro ao carregar sessão:", e);
-      localStorage.removeItem('admin_logado');
-    }
+  if (salvo) {
+    adminLogado = JSON.parse(salvo);
+    document.getElementById('tela-login-admin').classList.add('hidden');
+    iniciarPainelAdmin();
   }
-}
+});
 
 async function realizarLoginAdmin() {
   const usuario = document.getElementById('admin-usuario').value;
   const senha = document.getElementById('admin-senha').value;
-  if (!usuario || !senha) return alert("Preencha todos os campos");
   const res = await fetch('/api/admin/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -130,7 +112,14 @@ function calcularMinutos(dataIso) {
 function switchTab(tab) {
   abaAtiva = tab;
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-  if (event && event.target) event.target.classList.add('active');
+  
+  // Tenta encontrar o botão que disparou o evento para ativar
+  if (event && event.currentTarget && event.currentTarget.classList.contains('tab-btn')) {
+      event.currentTarget.classList.add('active');
+  } else {
+      // Fallback manual baseado no texto ou algo assim se necessário
+  }
+
   const secoes = ['ativos', 'historico', 'configuracoes', 'caixa'];
   secoes.forEach(s => {
     const el = document.getElementById(`${s}-section`);
@@ -206,13 +195,13 @@ async function exibirMesasConfig() {
   const mesas = await res.json();
   const container = document.getElementById('lista-mesas-config');
   if (!container) return;
-  container.innerHTML = mesas.map(m => `<div class="item-config"><span>Mesa ${m.numero}</span><button class="btn-excluir" onclick="excluirMesa(${m.id})">Remover</button></div>`).join('');
+  container.innerHTML = mesas.map(m => `<div class="item-config"><span>Mesa ${m.numero}</span><button class="btn-excluir" onclick="excluirMesa(${m.id})">Excluir</button></div>`).join('');
 }
 
 async function adicionarMesa() {
   const num = document.getElementById('nova-mesa-num').value;
   if (!num) return;
-  await fetch('/api/mesas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ numero: parseInt(num) }) });
+  await fetch('/api/mesas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ numero: num }) });
   document.getElementById('nova-mesa-num').value = '';
   exibirMesasConfig();
 }
@@ -231,7 +220,10 @@ async function exibirGarconsConfig() {
   if (!container) return;
   container.innerHTML = garcons.map(g => `
     <div class="item-config">
-      <div><strong>${g.nome}</strong> (@${g.usuario})</div>
+      <div>
+        <strong>${g.nome}</strong> (@${g.usuario})
+        ${g.telefone ? `<br><small style="color:#25D366; cursor:pointer;" onclick="window.open('https://wa.me/${g.telefone.replace(/\D/g, '')}', '_blank')">📱 WhatsApp: ${g.telefone}</small>` : ''}
+      </div>
       <div style="display:flex; gap:0.5rem">
         <button style="background:#3498db; padding:4px 8px; font-size:0.8rem; width:auto;" onclick='prepararEdicaoGarcom(${JSON.stringify(g)})'>✏️</button>
         <button class="btn-excluir" style="width:auto;" onclick="excluirGarcom(${g.id})">X</button>
@@ -243,50 +235,68 @@ function prepararEdicaoGarcom(g) {
   idGarcomEdicao = g.id;
   document.getElementById('garcom-nome').value = g.nome;
   document.getElementById('garcom-usuario').value = g.usuario;
+  document.getElementById('garcom-telefone').value = g.telefone || '';
   document.getElementById('garcom-senha').value = '';
   document.getElementById('garcom-senha').placeholder = 'Deixe em branco para manter';
-  const btn = document.querySelector("button[onclick='adicionarGarcom()']");
-  if (btn) btn.textContent = "💾 Salvar Alterações";
+  const btn = document.getElementById('btn-acao-garcom');
+  if (btn) {
+      btn.textContent = "💾 Salvar Alterações";
+      btn.style.background = "#e67e22";
+  }
+  const btnCan = document.getElementById('btn-cancelar-garcom');
+  if (btnCan) btnCan.classList.remove('hidden');
 }
 
-async function adicionarGarcom() {
+function cancelarEdicaoGarcom() {
+  idGarcomEdicao = null;
+  ['garcom-nome', 'garcom-usuario', 'garcom-telefone', 'garcom-senha'].forEach(id => {
+    const el = document.getElementById(id); 
+    if (el) { el.value = ''; el.placeholder = ''; }
+  });
+  const btn = document.getElementById('btn-acao-garcom');
+  if (btn) {
+      btn.textContent = "Cadastrar";
+      btn.style.background = "#27ae60";
+  }
+  const btnCan = document.getElementById('btn-cancelar-garcom');
+  if (btnCan) btnCan.classList.add('hidden');
+}
+
+async function processarAcaoGarcom() {
   const nome = document.getElementById('garcom-nome').value;
   const usuario = document.getElementById('garcom-usuario').value;
+  const telefone = document.getElementById('garcom-telefone').value;
   const senha = document.getElementById('garcom-senha').value;
   
   if (!nome || !usuario) return alert("Nome e usuário são obrigatórios");
-  if (!idGarcomEdicao && !senha) return alert("A senha é obrigatória para novos cadastros");
-
+  
+  const payload = { nome, usuario, telefone, senha };
   const url = idGarcomEdicao ? `/api/garcons/${idGarcomEdicao}` : '/api/garcons';
   const method = idGarcomEdicao ? 'PUT' : 'POST';
 
-  try {
-    const res = await fetch(url, {
-      method: method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, usuario, senha })
-    });
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
 
-    if (res.ok) {
-      idGarcomEdicao = null;
-      ['garcom-nome', 'garcom-usuario', 'garcom-senha'].forEach(id => {
-        const el = document.getElementById(id);
-        el.value = '';
-        if (id === 'garcom-senha') el.placeholder = 'Senha';
-      });
-      const btn = document.querySelector("button[onclick='adicionarGarcom()']");
-      if (btn) btn.textContent = "Cadastrar";
-      exibirGarconsConfig();
-    }
-  } catch (e) { alert("Erro ao salvar garçom"); }
+  if (res.ok) {
+    mostrarToast(idGarcomEdicao ? "Garçom atualizado!" : "Garçom cadastrado!");
+    cancelarEdicaoGarcom();
+    exibirGarconsConfig();
+  }
 }
 
 async function excluirGarcom(id) {
-  if (confirm("Remover garçom?")) { await fetch(`/api/garcons/${id}`, { method: 'DELETE' }); exibirGarconsConfig(); }
+  if (confirm("Excluir este garçom?")) {
+    const res = await fetch(`/api/garcons/${id}`, { method: 'DELETE' });
+    if (res.ok) exibirGarconsConfig();
+  }
 }
 
 // MENU
 let idItemEdicaoMenu = null;
+
 async function exibirMenuConfig() {
   const res = await fetch('/api/menu');
   const menuItens = await res.json();
@@ -342,38 +352,27 @@ async function processarAcaoMenu() {
 }
 
 async function excluirDoMenu(id) {
-  if (confirm("Remover item?")) { await fetch(`/api/menu/${id}`, { method: 'DELETE' }); exibirMenuConfig(); }
+  if (confirm("Excluir item do cardápio?")) { await fetch(`/api/menu/${id}`, { method: 'DELETE' }); exibirMenuConfig(); }
 }
 
 async function carregarHistorico() {
-  try {
-    const elData = document.getElementById('data-historico');
-    if (elData) elData.innerText = `(${new Date().toLocaleDateString('pt-BR')})`;
-    
-    const res = await fetch('/api/pedidos/historico');
-    const historico = await res.json();
-    exibirHistorico(historico);
-  } catch (error) { console.error(error); }
+  const res = await fetch('/api/pedidos/historico');
+  historico = await res.json();
+  exibirHistorico();
 }
 
-function formatarData(dataStr) {
-  if (!dataStr) return "S/ Data";
-  try {
-    const isoStr = dataStr.replace(' ', 'T');
-    const data = new Date(isoStr);
-    if (!isNaN(data.getTime())) return data.toLocaleDateString('pt-BR') + ' às ' + data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    return dataStr;
-  } catch (e) { return dataStr; }
-}
-
-async function exibirHistorico(historico) {
-  if (abaAtiva !== 'historico') return;
+async function exibirHistorico() {
   const container = document.getElementById('historico-list');
   if (!container) return;
   container.innerHTML = '';
+  
+  const dataHoje = new Date().toLocaleDateString('pt-BR');
+  document.getElementById('data-historico').innerText = dataHoje;
+
   let faturamentoTotal = 0;
+
   for (const pedido of historico) {
-    if (pedido.status === 'entregue') faturamentoTotal += parseFloat(pedido.total);
+    if (pedido.status === 'entregue') faturamentoTotal += pedido.total;
     const itens = await fetch(`/api/pedidos/${pedido.id}/itens`).then(res => res.json());
     const card = document.createElement('div');
     card.className = `pedido-card status-${pedido.status}`;
@@ -381,9 +380,8 @@ async function exibirHistorico(historico) {
       <div class="pedido-header">
         <div>
           <h3>Mesa ${pedido.mesa_numero}</h3>
-          <span class="status-badge ${pedido.status === 'entregue' ? 'pago' : 'cancelado'}">${pedido.status === 'entregue' ? 'PAGO' : pedido.status.toUpperCase()}</span>
+          <span class="status-badge ${pedido.status}">${pedido.status.toUpperCase()}</span>
           <small style="display:block; margin-top:4px;">📅 ${formatarData(pedido.created_at)}</small>
-          <small style="display:block; font-weight:bold;">👤 Garçom: ${pedido.garcom_id || 'N/I'}</small>
         </div>
         <div style="text-align: right;">
           <div class="pedido-valor">R$ ${pedido.total.toFixed(2)}</div>
@@ -397,211 +395,14 @@ async function exibirHistorico(historico) {
     `;
     container.appendChild(card);
   }
-  const elFat = document.getElementById('faturamento-total-dia');
-  if (elFat) elFat.innerText = `Faturamento Concluído: R$ ${faturamentoTotal.toFixed(2)}`;
+  document.getElementById('faturamento-total-dia').innerText = `Faturamento Concluído: R$ ${faturamentoTotal.toFixed(2)}`;
 }
 
 async function limparHistoricoTotal() {
-  if (confirm("Limpar APENAS o histórico (pedidos entregues/cancelados)?")) {
+  if (confirm("⚠️ ATENÇÃO: Isso apagará TODO o histórico de pedidos entregues e cancelados. Deseja continuar?")) {
     const res = await fetch('/api/pedidos/limpar', { method: 'DELETE' });
-    if (res.ok) { mostrarToast("Histórico limpo!"); if (abaAtiva === 'ativos') carregarPedidos(); else carregarHistorico(); }
+    if (res.ok) { mostrarToast("Histórico limpo!"); carregarHistorico(); }
   }
-}
-
-async function liberarMesa(idPedido, idMesa, temPendentes = false) {
-  let msg = "Liberar mesa agora?";
-  if (temPendentes) {
-    msg = "⚠️ ATENÇÃO: Esta mesa possui itens PENDENTES de entrega! Tem certeza que deseja LIBERAR a mesa e encerrar o pedido sem entregar tudo?";
-  }
-  if (confirm(msg)) {
-    // Agora chama o modal de fechamento para conferência antes de liberar
-    aprovarFechamento(idPedido, idMesa);
-  }
-}
-
-// LOGICA DE FECHAMENTO NO ADMIN (NOVO)
-let pedidoParaFecharAdmin = null;
-let subtotalConsumoAdmin = 0;
-
-async function aprovarFechamento(idPedido, idMesa) {
-  pedidoParaFecharAdmin = pedidos.find(p => p.id === idPedido);
-  if (!pedidoParaFecharAdmin) return alert("Pedido não encontrado.");
-  
-  const resItens = await fetch(`/api/pedidos/${idPedido}/itens`);
-  const itens = await resItens.json();
-  
-  subtotalConsumoAdmin = itens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
-
-  document.getElementById('fechamento-titulo-admin').innerText = `Fechar Conta - Mesa ${pedidoParaFecharAdmin.mesa_numero}`;
-  document.getElementById('fechamento-subtotal-admin').innerText = `R$ ${subtotalConsumoAdmin.toFixed(2)}`;
-  
-  // Reseta campos e ativa checkbox por padrão
-  document.getElementById('fechamento-taxa-admin').checked = true;
-  document.getElementById('fechamento-acrescimo-admin').value = pedidoParaFecharAdmin.acrescimo || 0;
-  document.getElementById('fechamento-desconto-admin').value = pedidoParaFecharAdmin.desconto || 0;
-  document.getElementById('fechamento-forma-admin').value = pedidoParaFecharAdmin.forma_pagamento || 'Dinheiro';
-  document.getElementById('fechamento-recebido-admin').value = pedidoParaFecharAdmin.valor_recebido || '';
-  
-  recalcularFechamentoAdmin();
-  toggleTrocoAdmin();
-  
-  document.getElementById('modal-fechamento-admin').style.display = 'block';
-}
-
-function recalcularFechamentoAdmin() {
-  const cobrarTaxa = document.getElementById('fechamento-taxa-admin').checked;
-  const taxaServico = cobrarTaxa ? subtotalConsumoAdmin * 0.10 : 0;
-  
-  document.getElementById('fechamento-valor-taxa-admin').innerText = `R$ ${taxaServico.toFixed(2)}`;
-  document.getElementById('fechamento-valor-taxa-admin').parentElement.style.opacity = cobrarTaxa ? '1' : '0.3';
-  
-  const acrescimo = parseFloat(document.getElementById('fechamento-acrescimo-admin').value) || 0;
-  const desconto = parseFloat(document.getElementById('fechamento-desconto-admin').value) || 0;
-  const recebido = parseFloat(document.getElementById('fechamento-recebido-admin').value) || 0;
-  
-  const totalFinal = subtotalConsumoAdmin + taxaServico + acrescimo - desconto;
-  document.getElementById('fechamento-total-final-admin').innerText = `R$ ${totalFinal.toFixed(2)}`;
-  
-  const troco = recebido > totalFinal ? recebido - totalFinal : 0;
-  document.getElementById('fechamento-troco-admin').innerText = `R$ ${troco.toFixed(2)}`;
-}
-
-function toggleTrocoAdmin() {
-  const forma = document.getElementById('fechamento-forma-admin').value;
-  document.getElementById('secao-troco-admin').style.display = (forma === 'Dinheiro') ? 'block' : 'none';
-}
-
-function fecharModalFechamentoAdmin() {
-  document.getElementById('modal-fechamento-admin').style.display = 'none';
-}
-
-async function confirmarPagamentoAdmin() {
-  const idPedido = pedidoParaFecharAdmin.id;
-  const idMesa = pedidoParaFecharAdmin.mesa_id;
-  const forma_pagamento = document.getElementById('fechamento-forma-admin').value;
-  const acrescimo = parseFloat(document.getElementById('fechamento-acrescimo-admin').value) || 0;
-  const desconto = parseFloat(document.getElementById('fechamento-desconto-admin').value) || 0;
-  const valor_recebido = parseFloat(document.getElementById('fechamento-recebido-admin').value) || 0;
-  
-  const cobrarTaxa = document.getElementById('fechamento-taxa-admin').checked;
-  const taxaServico = cobrarTaxa ? subtotalConsumoAdmin * 0.10 : 0;
-  
-  const total = subtotalConsumoAdmin + taxaServico + acrescimo - desconto;
-  const troco = valor_recebido > total ? valor_recebido - total : 0;
-
-  try {
-    // 1. Atualiza os dados financeiros do pedido
-    const resFechamento = await fetch(`/api/pedidos/${idPedido}/solicitar-fechamento`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mesa_id: idMesa, forma_pagamento, acrescimo, desconto, valor_recebido, troco, total })
-    });
-
-    if (!resFechamento.ok) {
-      const err = await resFechamento.json();
-      throw new Error(err.error || "Erro ao atualizar dados de fechamento");
-    }
-
-    // 2. Finaliza o pedido e atualiza o CAIXA
-    const resStatus = await fetch(`/api/pedidos/${idPedido}/status`, { 
-      method: 'PUT', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify({ status: 'entregue' }) 
-    });
-
-    if (!resStatus.ok) {
-      const err = await resStatus.json();
-      // Caso específico do caixa fechado
-      if (resStatus.status === 400 && err.error.includes("CAIXA")) {
-        alert("⚠️ ERRO: O CAIXA ESTÁ FECHADO!\n\nVá na aba 'Caixa' e realize a abertura para poder finalizar vendas.");
-        return;
-      }
-      throw new Error(err.error || "Erro ao finalizar pedido");
-    }
-    
-    // 3. Libera a mesa
-    await fetch(`/api/mesas/${idMesa}/liberar`, { method: 'PUT' });
-    
-    mostrarToast("✅ Pago e Liberado!");
-    fecharModalFechamentoAdmin();
-    carregarPedidos();
-  } catch (error) {
-    console.error(error);
-    alert("❌ Erro: " + error.message);
-  }
-}
-
-async function carregarCardapio() {
-  const res = await fetch('/api/menu');
-  cardapio = await res.json();
-  const select = document.getElementById('menu-select');
-  if (select) select.innerHTML = cardapio.map(item => `<option value="${item.id}">${item.nome} - R$ ${item.preco.toFixed(2)}</option>`).join('');
-}
-
-function iniciarPiscarTitulo() { if (intervalPiscaTitulo) return; let alt = false; intervalPiscaTitulo = setInterval(() => { document.title = alt ? '🔔 NOVO!' : '⚠️ VERIFIQUE'; alt = !alt; }, 1000); }
-function pararPiscarTitulo() { clearInterval(intervalPiscaTitulo); intervalPiscaTitulo = null; document.title = tituloOriginal; }
-function solicitarPermissaoNotificacao() { if ("Notification" in window) Notification.requestPermission(); }
-function exibirNotificacaoNativa(tit, msg) { if ("Notification" in window && Notification.permission === "granted") new Notification(tit, { body: msg }); }
-
-let timeoutPusher = null;
-let pusherInstancia = null;
-let pedidoAtualizadoId = null;
-
-function configurarPusher() {
-  if (pusherInstancia) return;
-  pusherInstancia = new Pusher('c4a9b50fe10859f2107a', { cluster: 'sa1' });
-  const channel = pusherInstancia.subscribe('garconnexpress');
-  
-  channel.bind('novo-pedido', (data) => {
-    tocarNotificacao(); iniciarPiscarTitulo();
-    exibirNotificacaoNativa('Novo Pedido!', `Mesa ${data.pedido.mesa_numero}`);
-    mostrarToast(`🚀 NOVO PEDIDO: Mesa ${data.pedido.mesa_numero}`);
-    clearTimeout(timeoutPusher); timeoutPusher = setTimeout(() => carregarPedidos(), 500);
-  });
-
-  channel.bind('status-atualizado', (data) => {
-    console.log('STATUS ATUALIZADO RECEBIDO:', data);
-    if (!data) return;
-    
-    const nMesa = data.mesa_numero || data.mesa_id || 'X';
-
-    // Se for liberação de mesa
-    if (data.status === 'liberada') {
-        tocarNotificacao();
-        exibirNotificacaoNativa('Mesa Liberada', `Mesa ${nMesa} está livre.`);
-        mostrarToast(`✅ Mesa ${nMesa} liberada`);
-        clearTimeout(timeoutPusher); timeoutPusher = setTimeout(() => carregarPedidos(), 500);
-        return;
-    }
-
-    if (data.pedido_id || data.status) {
-      tocarNotificacao(); iniciarPiscarTitulo();
-      let tit = 'Atualização!';
-
-      if (data.status === 'aguardando_fechamento') tit = `🛎️ Fechamento mesa ${nMesa}`;
-      else if (data.status === 'servido') tit = `🚚 Mesa ${nMesa} servida!`;
-      else if (data.status === 'itens_adicionados') tit = `📝 Novos itens na Mesa ${nMesa}`;
-      else if (data.status === 'itens_atualizados') tit = `📝 Pedido da Mesa ${nMesa} editado`;
-      else if (data.status === 'cancelado') tit = `❌ Pedido da Mesa ${nMesa} CANCELADO`;
-      else tit = `📝 Mesa ${nMesa} atualizada!`;
-
-      exibirNotificacaoNativa(tit, "Verifique o painel.");
-      mostrarToast(tit);
-      clearTimeout(timeoutPusher); timeoutPusher = setTimeout(() => carregarPedidos(), 500);
-    }
-  });
-
-  channel.bind('menu-atualizado', () => {
-    carregarCardapio();
-  });
-}
-
-function tocarNotificacao() { if (audioDesbloqueado) { audioNotificacao.currentTime = 0; audioNotificacao.play().catch(e => console.error(e)); } }
-
-function mostrarToast(msg) {
-  const old = document.querySelector('.toast-notificacao'); if (old) old.remove();
-  const t = document.createElement('div'); t.className = 'toast-notificacao'; t.innerText = msg; document.body.appendChild(t);
-  setTimeout(() => { t.classList.add('show'); setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 500); }, 8000); }, 100);
 }
 
 async function carregarPedidos() {
@@ -839,23 +640,21 @@ function renderizarItensEdicao() {
   const elTot = document.getElementById('modal-total'); if (elTot) elTot.innerText = `Total: R$ ${total.toFixed(2)}`;
 }
 
-function fecharModal() { const elMod = document.getElementById('modal-edicao'); if (elMod) elMod.style.display = 'none'; }
-
 async function salvarAlteracoes() {
-  if (itensEmEdicao.length === 0) { if (confirm("Cancelar pedido?")) return confirmarCancelamento(); return; }
+  if (itensEmEdicao.length === 0) { if (confirm("Pedido vazio. Deseja cancelar pedido?")) return confirmarCancelamento(); return; }
   const res = await fetch(`/api/pedidos/${pedidoEmEdicao.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itens: itensEmEdicao }) });
-  if (res.ok) { mostrarToast("Atualizado!"); fecharModal(); carregarPedidos(); }
+  if (res.ok) { mostrarToast("Pedido atualizado!"); fecharModal(); carregarPedidos(); }
+  else { const err = await res.json(); alert("Erro: " + err.error); }
 }
 
 async function confirmarCancelamento() {
-  if (confirm("CANCELAR este pedido?")) { await atualizarStatus(pedidoEmEdicao.id, 'cancelado'); fecharModal(); carregarPedidos(); }
+  if (confirm("⚠️ CANCELAR TODO O PEDIDO?\nA mesa será liberada e o pedido excluído.")) {
+    const res = await fetch(`/api/pedidos/${pedidoEmEdicao.id}`, { method: 'DELETE' });
+    if (res.ok) { mostrarToast("Pedido cancelado!"); fecharModal(); carregarPedidos(); }
+  }
 }
 
-function copiarPedido(btn, texto) {
-  navigator.clipboard.writeText(texto).then(() => {
-    const orig = btn.innerHTML; btn.innerHTML = "✅ Copiado!"; mostrarToast("Copiado!"); setTimeout(() => btn.innerHTML = orig, 2000);
-  });
-}
+function fecharModal() { document.getElementById('modal-edicao').style.display = 'none'; }
 
 async function excluirPedido(id) {
   if (confirm("⚠️ EXCLUIR PERMANENTEMENTE?\n\nIsso removerá o pedido do banco de dados e do histórico. Esta ação não pode ser desfeita.")) {
@@ -896,7 +695,211 @@ async function marcarPedidoEntregue(id) {
   }
 }
 
-// FUNÇÃO DE IMPRESSÃO DE CUPOM TÉRMICO (OTIMIZADO PARA EPSON TM-T20X)
+async function liberarMesa(idPedido, idMesa, temPendentes = false) {
+  let msg = "Liberar mesa agora?";
+  if (temPendentes) {
+    msg = "⚠️ ATENÇÃO: Esta mesa possui itens PENDENTES de entrega! Tem certeza que deseja LIBERAR a mesa e encerrar o pedido sem entregar tudo?";
+  }
+  if (confirm(msg)) {
+    // Agora chama o modal de fechamento para conferência antes de liberar
+    aprovarFechamento(idPedido, idMesa);
+  }
+}
+
+// LOGICA DE FECHAMENTO NO ADMIN (NOVO)
+let pedidoParaFecharAdmin = null;
+let subtotalConsumoAdmin = 0;
+
+async function aprovarFechamento(idPedido, idMesa) {
+  pedidoParaFecharAdmin = pedidos.find(p => p.id === idPedido);
+  if (!pedidoParaFecharAdmin) return;
+
+  const resItens = await fetch(`/api/pedidos/${idPedido}/itens`);
+  const itens = await resItens.json();
+  subtotalConsumoAdmin = itens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+
+  document.getElementById('fechamento-mesa-admin').textContent = pedidoParaFecharAdmin.mesa_numero;
+  document.getElementById('fechamento-subtotal-admin').textContent = subtotalConsumoAdmin.toFixed(2);
+  
+  // Calcula 10% inicial
+  const taxa = subtotalConsumoAdmin * 0.10;
+  document.getElementById('fechamento-taxa-valor-admin').textContent = taxa.toFixed(2);
+  document.getElementById('fechamento-total-admin').textContent = (subtotalConsumoAdmin + taxa).toFixed(2);
+
+  // Preenche campos se já houver dados
+  document.getElementById('fechamento-acrescimo-admin').value = pedidoParaFecharAdmin.acrescimo || 0;
+  document.getElementById('fechamento-desconto-admin').value = pedidoParaFecharAdmin.desconto || 0;
+  document.getElementById('fechamento-forma-admin').value = pedidoParaFecharAdmin.forma_pagamento || 'Dinheiro';
+  document.getElementById('fechamento-recebido-admin').value = pedidoParaFecharAdmin.valor_recebido || '';
+  
+  recalcularTotalFechamentoAdmin();
+  document.getElementById('modal-fechamento-admin').style.display = 'block';
+}
+
+function recalcularTotalFechamentoAdmin() {
+  const cobrarTaxa = document.getElementById('fechamento-taxa-admin').checked;
+  const taxa = cobrarTaxa ? subtotalConsumoAdmin * 0.10 : 0;
+  const acrescimo = parseFloat(document.getElementById('fechamento-acrescimo-admin').value) || 0;
+  const desconto = parseFloat(document.getElementById('fechamento-desconto-admin').value) || 0;
+  const recebido = parseFloat(document.getElementById('fechamento-recebido-admin').value) || 0;
+
+  const total = subtotalConsumoAdmin + taxa + acrescimo - desconto;
+  const troco = recebido > total ? recebido - total : 0;
+
+  document.getElementById('fechamento-taxa-valor-admin').textContent = taxa.toFixed(2);
+  document.getElementById('fechamento-total-admin').textContent = total.toFixed(2);
+  document.getElementById('fechamento-troco-admin').textContent = troco.toFixed(2);
+}
+
+async function confirmarPagamentoAdmin() {
+  const idPedido = pedidoParaFecharAdmin.id;
+  const idMesa = pedidoParaFecharAdmin.mesa_id;
+  const forma_pagamento = document.getElementById('fechamento-forma-admin').value;
+  const acrescimo = parseFloat(document.getElementById('fechamento-acrescimo-admin').value) || 0;
+  const desconto = parseFloat(document.getElementById('fechamento-desconto-admin').value) || 0;
+  const valor_recebido = parseFloat(document.getElementById('fechamento-recebido-admin').value) || 0;
+  
+  const cobrarTaxa = document.getElementById('fechamento-taxa-admin').checked;
+  const taxaServico = cobrarTaxa ? subtotalConsumoAdmin * 0.10 : 0;
+  
+  const total = subtotalConsumoAdmin + taxaServico + acrescimo - desconto;
+  const troco = valor_recebido > total ? valor_recebido - total : 0;
+
+  try {
+    // 1. Atualiza os dados financeiros do pedido
+    const resFechamento = await fetch(`/api/pedidos/${idPedido}/solicitar-fechamento`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mesa_id: idMesa, forma_pagamento, acrescimo, desconto, valor_recebido, troco, total })
+    });
+
+    if (!resFechamento.ok) {
+      const err = await resFechamento.json();
+      throw new Error(err.error || "Erro ao atualizar dados de fechamento");
+    }
+
+    // 2. Finaliza o pedido e atualiza o CAIXA
+    const resStatus = await fetch(`/api/pedidos/${idPedido}/status`, { 
+      method: 'PUT', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify({ status: 'entregue' }) 
+    });
+
+    if (!resStatus.ok) {
+      const err = await resStatus.json();
+      // Caso específico do caixa fechado
+      if (resStatus.status === 400 && err.error.includes("CAIXA")) {
+        alert("⚠️ ERRO: O CAIXA ESTÁ FECHADO!\n\nVá na aba 'Caixa' e realize a abertura para poder finalizar vendas.");
+        return;
+      }
+      throw new Error(err.error || "Erro ao finalizar pedido");
+    }
+    
+    // 3. Libera a mesa
+    await fetch(`/api/mesas/${idMesa}/liberar`, { method: 'PUT' });
+    
+    mostrarToast("✅ Pago e Liberado!");
+    fecharModalFechamentoAdmin();
+    carregarPedidos();
+  } catch (error) {
+    console.error(error);
+    alert("❌ Erro: " + error.message);
+  }
+}
+
+function fecharModalFechamentoAdmin() { document.getElementById('modal-fechamento-admin').style.display = 'none'; }
+
+async function carregarCardapio() {
+  const res = await fetch('/api/menu');
+  cardapio = await res.json();
+  const select = document.getElementById('menu-select');
+  if (select) select.innerHTML = cardapio.map(item => `<option value="${item.id}">${item.nome} - R$ ${item.preco.toFixed(2)}</option>`).join('');
+}
+
+function iniciarPiscarTitulo() { if (intervalPiscaTitulo) return; let alt = false; intervalPiscaTitulo = setInterval(() => { document.title = alt ? '🔔 NOVO!' : '⚠️ VERIFIQUE'; alt = !alt; }, 1000); }
+function pararPiscarTitulo() { clearInterval(intervalPiscaTitulo); intervalPiscaTitulo = null; document.title = tituloOriginal; }
+function solicitarPermissaoNotificacao() { if ("Notification" in window) Notification.requestPermission(); }
+function exibirNotificacaoNativa(tit, msg) { if ("Notification" in window && Notification.permission === "granted") new Notification(tit, { body: msg }); }
+
+let timeoutPusher = null;
+let pusherInstancia = null;
+let pedidoAtualizadoId = null;
+
+function configurarPusher() {
+  if (pusherInstancia) return;
+  pusherInstancia = new Pusher('c4a9b50fe10859f2107a', { cluster: 'sa1' });
+  const channel = pusherInstancia.subscribe('garconnexpress');
+
+  channel.bind('novo-pedido', (data) => {
+    tocarNotificacao(); iniciarPiscarTitulo();
+    exibirNotificacaoNativa('Novo Pedido!', `Mesa ${data.pedido.mesa_numero}`);
+    mostrarToast(`🚀 NOVO PEDIDO: Mesa ${data.pedido.mesa_numero}`);
+    clearTimeout(timeoutPusher); timeoutPusher = setTimeout(() => carregarPedidos(), 500);
+  });
+
+  channel.bind('status-atualizado', (data) => {
+    console.log('STATUS ATUALIZADO RECEBIDO:', data);
+    if (!data) return;
+
+    const nMesa = data.mesa_numero || data.mesa_id || 'X';
+
+    // Se for liberação de mesa
+    if (data.status === 'liberada') {
+        tocarNotificacao();
+        exibirNotificacaoNativa('Mesa Liberada', `Mesa ${nMesa} está livre.`);
+        mostrarToast(`✅ Mesa ${nMesa} liberada`);
+        clearTimeout(timeoutPusher); timeoutPusher = setTimeout(() => carregarPedidos(), 500);
+        return;
+    }
+
+    if (data.status === 'itens_adicionados') {
+        tocarNotificacao();
+        exibirNotificacaoNativa('Novos itens!', `Mesa ${nMesa} adicionou itens.`);
+        mostrarToast(`📝 Mesa ${nMesa} adicionou itens`);
+        pedidoAtualizadoId = data.pedido_id;
+        clearTimeout(timeoutPusher); timeoutPusher = setTimeout(() => carregarPedidos(), 500);
+        return;
+    }
+
+    let tit = 'Atualização!';
+
+    if (data.status === 'aguardando_fechamento') tit = `🛎️ Fechamento mesa ${nMesa}`;
+    else if (data.status === 'servido') tit = `🚚 Mesa ${nMesa} servida!`;
+    else if (data.status === 'itens_atualizados') tit = `📝 Pedido da Mesa ${nMesa} editado`;
+    else if (data.status === 'cancelado') tit = `❌ Pedido da Mesa ${nMesa} CANCELADO`;
+    else tit = `📝 Mesa ${nMesa} atualizada!`;
+
+    exibirNotificacaoNativa(tit, "Verifique o painel.");
+    mostrarToast(tit);
+    clearTimeout(timeoutPusher); timeoutPusher = setTimeout(() => carregarPedidos(), 500);
+  });
+
+  channel.bind('menu-atualizado', () => {
+    carregarCardapio();
+  });
+}
+
+function tocarNotificacao() { if (audioDesbloqueado) { audioNotificacao.currentTime = 0; audioNotificacao.play().catch(e => console.error(e)); } }
+
+function mostrarToast(msg) {
+  const old = document.querySelector('.toast-notificacao'); if (old) old.remove();
+  const t = document.createElement('div'); t.className = 'toast-notificacao'; t.innerText = msg; document.body.appendChild(t);
+  setTimeout(() => { t.classList.add('show'); setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 500); }, 8000); }, 100);
+}
+
+function formatarData(dataIso) {
+  if (!dataIso) return '--:--';
+  const data = new Date(dataIso.replace(' ', 'T'));
+  return data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function copiarPedido(btn, texto) {
+  navigator.clipboard.writeText(texto).then(() => {
+    const orig = btn.innerHTML; btn.innerHTML = "✅ Copiado!";
+    setTimeout(() => btn.innerHTML = orig, 2000);
+  });
+}
+
 function imprimirCupom(pedido, itens) {
   const container = document.getElementById('cupom-impressao');
   if (!container) return;
@@ -905,83 +908,45 @@ function imprimirCupom(pedido, itens) {
   const taxa = subtotal * 0.10;
   
   // Se for um pedido com fechamento solicitado, usa os valores do banco
-  const desconto = pedido.desconto || 0;
-  const acrescimo = pedido.acrescimo || 0;
-  const total = pedido.status === 'aguardando_fechamento' ? pedido.total : (subtotal + taxa);
-  const forma = pedido.forma_pagamento || "N/I";
+  const totalFinal = pedido.status === 'aguardando_fechamento' ? pedido.total : (subtotal + taxa);
 
   const html = `
-    <div style="width: 72mm; font-family: 'Courier New', monospace; font-size: 9pt; line-height: 1.2; color: #000; background: #fff; padding: 0;">
-      <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 8px; margin-bottom: 8px;">
-        <h1 style="margin: 0; font-size: 1.4rem; letter-spacing: 1px;">GuGA Bebidas</h1>
-        <p style="margin: 2px 0; font-weight: bold;">*** COMPROVANTE DE CONTA ***</p>
-      </div>
-      
-      <div style="margin-bottom: 8px;">
-        <div style="display:flex; justify-content:space-between;">
-          <span>DATA: ${formatarData(pedido.created_at)}</span>
-          <span>MESA: <strong>${pedido.mesa_numero}</strong></span>
-        </div>
-        <p style="margin: 2px 0;">GARÇOM: ${pedido.garcom_id || 'N/I'}</p>
-        <p style="margin: 2px 0;">PAGAMENTO: <strong>${forma.toUpperCase()}</strong></p>
-      </div>
-
-      <div style="border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 3px 0; margin-bottom: 5px; font-weight: bold; display: flex; justify-content: space-between;">
-        <span style="width: 60%;">DESCRIÇÃO</span>
-        <span style="width: 15%; text-align: center;">QTD</span>
-        <span style="width: 25%; text-align: right;">TOTAL</span>
-      </div>
-
-      <div style="min-height: 30px;">
-        ${itens.map(item => `
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px; align-items: flex-start;">
-            <div style="width: 60%; word-wrap: break-word;">${item.nome.toUpperCase()}</div>
-            <div style="width: 15%; text-align: center;">${item.quantidade}</div>
-            <div style="width: 25%; text-align: right;">${(item.preco * item.quantidade).toFixed(2)}</div>
-          </div>
-          ${item.observacao ? `<div style="font-size: 8pt; font-style: italic; margin-bottom: 5px; padding-left: 5px;">>> Obs: ${item.observacao}</div>` : ''}
-        `).join('')}
-      </div>
-
-      <div style="border-top: 1px dashed #000; margin-top: 10px; padding-top: 5px;">
+    <div class="cupom-header">
+      <h2 style="margin:0">GuGA Bebidas</h2>
+      <p style="margin:2px 0; font-size: 9pt;">Comprovante de Pedido</p>
+      <p style="margin:2px 0; font-weight:bold; font-size: 11pt;">MESA ${pedido.mesa_numero}</p>
+      <p style="margin:2px 0; font-size: 8pt;">${new Date().toLocaleString('pt-BR')}</p>
+    </div>
+    
+    <div style="font-size: 9pt; font-family: monospace;">
+      ${itens.map(i => `
         <div style="display:flex; justify-content:space-between; margin-bottom: 2px;">
-          <span>SUBTOTAL PRODUTOS:</span>
-          <span>R$ ${subtotal.toFixed(2)}</span>
+          <span>${i.quantidade}x ${i.nome}</span>
+          <span>R$ ${(i.preco * i.quantidade).toFixed(2)}</span>
         </div>
-        <div style="display:flex; justify-content:space-between; margin-bottom: 2px;">
-          <span>TAXA SERVIÇO (10%):</span>
-          <span>R$ ${taxa.toFixed(2)}</span>
-        </div>
-        ${acrescimo > 0 ? `
-        <div style="display:flex; justify-content:space-between; margin-bottom: 2px; color: #27ae60;">
-          <span>ACRÉSCIMO:</span>
-          <span>+ R$ ${acrescimo.toFixed(2)}</span>
-        </div>` : ''}
-        ${desconto > 0 ? `
-        <div style="display:flex; justify-content:space-between; margin-bottom: 2px; color: #e74c3c;">
-          <span>DESCONTO:</span>
-          <span>- R$ ${desconto.toFixed(2)}</span>
-        </div>` : ''}
-        <div style="display:flex; justify-content:space-between; font-size: 1.2rem; font-weight: bold; margin-top: 5px; border-top: 1px solid #000; padding-top: 5px;">
-          <span>TOTAL FINAL:</span>
-          <span>R$ ${total.toFixed(2)}</span>
-        </div>
-        ${pedido.forma_pagamento === 'Dinheiro' ? `
-        <div style="display:flex; justify-content:space-between; margin-top: 5px; font-size: 0.8rem;">
-          <span>VALOR RECEBIDO:</span>
-          <span>R$ ${pedido.valor_recebido.toFixed(2)}</span>
-        </div>
-        <div style="display:flex; justify-content:space-between; font-weight: bold; font-size: 0.9rem;">
-          <span>TROCO:</span>
-          <span>R$ ${pedido.troco.toFixed(2)}</span>
-        </div>` : ''}
-      </div>
+        ${i.observacao ? `<div style="font-size:8pt; margin-bottom:4px;">&nbsp;&nbsp;- ${i.observacao}</div>` : ''}
+      `).join('')}
+    </div>
 
-      <div style="text-align: center; margin-top: 20px; border-top: 1px dashed #000; padding-top: 10px;">
-        <p style="margin: 0; font-weight: bold;">OBRIGADO PELA PREFERÊNCIA!</p>
-        <p style="margin: 2px 0; font-size: 7pt;">GuGA Bebidas - Sistema de Gestão</p>
-        <br><br>.
+    <div class="cupom-footer" style="font-size: 9pt; font-family: monospace;">
+      <div style="display:flex; justify-content:space-between; margin-top:5px;">
+        <span>SUBTOTAL:</span>
+        <span>R$ ${subtotal.toFixed(2)}</span>
       </div>
+      <div style="display:flex; justify-content:space-between;">
+        <span>TAXA SERV (10%):</span>
+        <span>R$ ${taxa.toFixed(2)}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size: 11pt; border-top: 1px solid #000; padding-top: 4px; margin-top: 4px;">
+        <span>TOTAL FINAL:</span>
+        <span>R$ ${totalFinal.toFixed(2)}</span>
+      </div>
+    </div>
+
+    <div class="cupom-central">
+      <p style="margin: 5px 0;">OBRIGADO PELA PREFERÊNCIA!</p>
+      <p style="margin: 2px 0; font-size: 7pt;">GuGA Bebidas - Sistema de Gestão</p>
+      <br><br>.
     </div>
   `;
 

@@ -129,8 +129,10 @@
           <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;">
             <input type="text" id="garcom-nome" placeholder="Nome do Garçom">
             <input type="text" id="garcom-usuario" placeholder="Usuário (ex: joao123)">
+            <input type="text" id="garcom-telefone" placeholder="Telefone (ex: 5511999999999)">
             <input type="password" id="garcom-senha" placeholder="Senha">
-            <button onclick="adicionarGarcom()">Cadastrar</button>
+            <button id="btn-acao-garcom" onclick="processarAcaoGarcom()">Cadastrar</button>
+            <button id="btn-cancelar-garcom" class="hidden" onclick="cancelarEdicaoGarcom()" style="background-color: #95a5a6;">Cancelar</button>
           </div>
           <div id="lista-garcons-config"></div>
         </div>

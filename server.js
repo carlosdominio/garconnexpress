@@ -55,7 +55,7 @@ async function initDb() {
     `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, imagem TEXT, estoque INTEGER DEFAULT -1)`,
     `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL, troco REAL)`,
     `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
-    `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123')`,
+    `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT)`,
     `CREATE TABLE IF NOT EXISTS usuarios_admin (id SERIAL PRIMARY KEY, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS fluxo_caixa (id SERIAL PRIMARY KEY, data_abertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, data_fechamento TIMESTAMP, valor_inicial REAL NOT NULL, valor_final REAL, status TEXT DEFAULT 'aberto', total_dinheiro REAL DEFAULT 0, total_pix REAL DEFAULT 0, total_cartao REAL DEFAULT 0, total_vendas REAL DEFAULT 0)`
   ];
@@ -90,6 +90,9 @@ async function initDb() {
       const menuInfo = db.prepare("PRAGMA table_info(menu)").all();
       const menuCols = menuInfo.map(c => c.name);
       if (!menuCols.includes('estoque')) db.exec("ALTER TABLE menu ADD COLUMN estoque INTEGER DEFAULT -1");
+
+      const garcomInfo = db.prepare("PRAGMA table_info(garcons)").all();
+      if (!garcomInfo.map(c => c.name).includes('telefone')) db.exec("ALTER TABLE garcons ADD COLUMN telefone TEXT");
     }
   } catch (e) {
     console.log('Migração concluída ou não necessária.');
@@ -359,22 +362,22 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Erro' }); }
 });
 
-app.get('/api/garcons', async (req, res) => { res.json((await query('SELECT id, nome, usuario FROM garcons ORDER BY nome')).rows); });
+app.get('/api/garcons', async (req, res) => { res.json((await query('SELECT id, nome, usuario, telefone FROM garcons ORDER BY nome')).rows); });
 app.post('/api/garcons', async (req, res) => {
-  const { nome, usuario, senha } = req.body;
+  const { nome, usuario, senha, telefone } = req.body;
   const hashedSenha = await bcrypt.hash(senha || '123', saltRounds);
-  await query('INSERT INTO garcons (nome, usuario, senha) VALUES (?, ?, ?)', [nome, usuario, hashedSenha]);
+  await query('INSERT INTO garcons (nome, usuario, senha, telefone) VALUES (?, ?, ?, ?)', [nome, usuario, hashedSenha, telefone]);
   res.json({ success: true });
 });
 app.put('/api/garcons/:id', async (req, res) => {
   const { id } = req.params;
-  const { nome, usuario, senha } = req.body;
+  const { nome, usuario, senha, telefone } = req.body;
   try {
     if (senha && senha.trim() !== "") {
       const hashedSenha = await bcrypt.hash(senha, saltRounds);
-      await query('UPDATE garcons SET nome = ?, usuario = ?, senha = ? WHERE id = ?', [nome, usuario, hashedSenha, id]);
+      await query('UPDATE garcons SET nome = ?, usuario = ?, senha = ?, telefone = ? WHERE id = ?', [nome, usuario, hashedSenha, telefone, id]);
     } else {
-      await query('UPDATE garcons SET nome = ?, usuario = ? WHERE id = ?', [nome, usuario, id]);
+      await query('UPDATE garcons SET nome = ?, usuario = ?, telefone = ? WHERE id = ?', [nome, usuario, telefone, id]);
     }
     res.json({ success: true });
   } catch (error) {
