@@ -67,9 +67,12 @@ async function initDb() {
   // Migração para bancos existentes
   try {
     if (isPostgres) {
-      // Migração Postgres (Ignora erro se coluna já existir)
+      // Migração Postgres: Verifica e adiciona colunas faltantes
       const addCol = async (table, col, type) => {
-        try { await db.query(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`); } catch (e) {}
+        try { await db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} ${type}`); } catch (e) {
+          // Fallback para ALTER TABLE caso IF NOT EXISTS não seja suportado (depende da versão do PG)
+          try { await db.query(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`); } catch (err) {}
+        }
       };
       await addCol('pedidos', 'forma_pagamento', 'TEXT');
       await addCol('pedidos', 'desconto', 'REAL DEFAULT 0');
@@ -77,6 +80,7 @@ async function initDb() {
       await addCol('pedidos', 'valor_recebido', 'REAL DEFAULT 0');
       await addCol('pedidos', 'troco', 'REAL DEFAULT 0');
       await addCol('menu', 'estoque', 'INTEGER DEFAULT -1');
+      await addCol('garcons', 'telefone', 'TEXT');
     } else {
       // Migração SQLite
       const tableInfo = db.prepare("PRAGMA table_info(pedidos)").all();

@@ -454,10 +454,9 @@ async function exibirPedidos() {
     const subtotal = totalEnt + totalPend;
     const taxaServico = subtotal * 0.10;
     // Se o pedido estiver aguardando fechamento, usa o total e ajustes vindos do banco
-    const totalExibicao = pedido.status === 'aguardando_fechamento' ? pedido.total : (subtotal + taxaServico);
-    const infoPagamento = pedido.status === 'aguardando_fechamento' ? `
+    const infoPagamento = (pedido.status === 'aguardando_fechamento' && pedido.forma_pagamento) ? `
       <div style="background:#f9f9f9; padding:5px; border-radius:4px; margin-top:5px; font-size:0.85rem; border:1px solid #ddd;">
-        <strong>Pagamento:</strong> ${pedido.forma_pagamento || 'Não informado'}<br>
+        <strong>Pagamento:</strong> ${pedido.forma_pagamento}<br>
         ${(pedido.forma_pagamento === 'Dinheiro') ? `<strong>Recebido:</strong> R$ ${(pedido.valor_recebido || 0).toFixed(2)} | <strong>Troco:</strong> R$ ${(pedido.troco || 0).toFixed(2)}` : ''}
         ${(pedido.desconto > 0) ? `<br><span style="color:#e74c3c;"><strong>Desconto:</strong> - R$ ${pedido.desconto.toFixed(2)}</span>` : ''}
         ${(pedido.acrescimo > 0) ? `<br><span style="color:#27ae60;"><strong>Acréscimo:</strong> + R$ ${pedido.acrescimo.toFixed(2)}</span>` : ''}
