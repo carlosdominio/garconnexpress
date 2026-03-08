@@ -80,14 +80,24 @@ main {
   font-weight: bold;
 }
 
-.status-badge.pago {
-  background-color: #27ae60;
-  color: white;
+.status-badge.pago, .status-badge.entregue, .status-badge.servido {
+  background-color: #27ae60 !important;
+  color: white !important;
 }
 
 .status-badge.cancelado {
-  background-color: #e74c3c;
-  color: white;
+  background-color: #e74c3c !important;
+  color: white !important;
+}
+
+.status-badge.recebido {
+  background-color: #f39c12 !important;
+  color: white !important;
+}
+
+.status-badge.aguardando_fechamento {
+  background-color: #9b59b6 !important;
+  color: white !important;
 }
 
 .pedido-itens {
