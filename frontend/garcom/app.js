@@ -209,13 +209,13 @@ async function verItensDaMesa() {
       html += `<h4 style="color:#e74c3c; margin-bottom:10px; border-bottom:2px solid #e74c3c;">⏳ PARA ENTREGAR AGORA</h4>`;
       html += pendentes.map(item => `
         <div style="border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; background:#fff5f5;">
-          <div style="flex-grow: 1;">
+          <div style="flex-grow: 1; text-align: left;">
             <p><strong>${item.quantidade}x ${item.nome}</strong></p>
             ${item.observacao ? `<small style="color:#e67e22;">Obs: ${item.observacao}</small>` : ''}
           </div>
-          <div style="display: flex; align-items: center; gap: 15px;">
-            <p>R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
-            <button onclick="removerItemDoPedido(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer;">🗑️</button>
+          <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
+            <p style="white-space: nowrap; font-weight: bold;">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
+            <button onclick="removerItemDoPedido(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; width: auto !important; margin: 0 !important;">🗑️</button>
           </div>
         </div>
       `).join('');
@@ -226,12 +226,12 @@ async function verItensDaMesa() {
       html += `<h4 style="color:#27ae60; margin: 20px 0 10px 0; border-bottom:2px solid #27ae60;">✅ JÁ ESTÃO NA MESA</h4>`;
       html += entregues.map(item => `
         <div style="border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; opacity:0.7;">
-          <div style="flex-grow: 1;">
+          <div style="flex-grow: 1; text-align: left;">
             <p>${item.quantidade}x ${item.nome}</p>
           </div>
-          <div style="display: flex; align-items: center; gap: 15px;">
-            <p>R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
-            <button onclick="removerItemDoPedido(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer;">🗑️</button>
+          <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
+            <p style="white-space: nowrap;">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
+            <button onclick="removerItemDoPedido(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; width: auto !important; margin: 0 !important;">🗑️</button>
           </div>
         </div>
       `).join('');
@@ -248,9 +248,9 @@ async function verItensDaMesa() {
 
     document.getElementById('total-resumo-mesa').innerHTML = `
       <div style="text-align: right; border-top: 2px solid #eee; padding-top: 10px;">
-        <p style="color: #7f8c8d; font-size: 0.9rem;">Subtotal Consumido: R$ ${totalConsumido.toFixed(2)}</p>
-        <p style="color: #3498db; font-size: 0.9rem;">Taxa de Serviço (10%): R$ ${taxaServico.toFixed(2)}</p>
-        <p style="font-size: 1.25rem; margin-top: 8px; color: #2c3e50; border-top: 1px dashed #ddd; padding-top: 5px;">Total Final: <strong>R$ ${totalGeral.toFixed(2)}</strong></p>
+        <p style="color: #7f8c8d; font-size: 0.9rem; white-space: nowrap;">Subtotal Consumido: <strong>R$ ${totalConsumido.toFixed(2)}</strong></p>
+        <p style="color: #3498db; font-size: 0.9rem; white-space: nowrap;">Taxa de Serviço (10%): <strong>R$ ${taxaServico.toFixed(2)}</strong></p>
+        <p style="font-size: 1.2rem; margin-top: 8px; color: #2c3e50; border-top: 1px dashed #ddd; padding-top: 5px; white-space: nowrap;">Total Final: <strong>R$ ${totalGeral.toFixed(2)}</strong></p>
       </div>
     `;
     
