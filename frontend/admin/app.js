@@ -454,6 +454,7 @@ async function exibirPedidos() {
     const subtotal = totalEnt + totalPend;
     const taxaServico = subtotal * 0.10;
     // Se o pedido estiver aguardando fechamento, usa o total e ajustes vindos do banco
+    const totalExibicao = pedido.status === 'aguardando_fechamento' ? pedido.total : (subtotal + taxaServico);
     const infoPagamento = (pedido.status === 'aguardando_fechamento' && pedido.forma_pagamento) ? `
       <div style="background:#f9f9f9; padding:5px; border-radius:4px; margin-top:5px; font-size:0.85rem; border:1px solid #ddd;">
         <strong>Pagamento:</strong> ${pedido.forma_pagamento}<br>
