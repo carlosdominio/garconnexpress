@@ -423,7 +423,7 @@ button.btn-entregue { background-color: #95a5a6; }
 }
 
 .form-config-menu input {
-  flex: 1 1 200px; /* Garante que os campos quebrem linha no celular */
+  flex: 1 1 200px;
 }
 
 .form-config-menu button {
@@ -436,145 +436,7 @@ button.btn-entregue { background-color: #95a5a6; }
   gap: 1rem;
 }
 
-/* Responsividade do Painel Admin */
-@media (max-width: 768px) {
-  header {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-  
-  .pedido-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-  }
-
-  .pedido-valor {
-    width: 100%;
-    text-align: left !important;
-    border-top: 1px solid #eee;
-    padding-top: 0.5rem;
-  }
-
-  .pedido-footer {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 1rem;
-  }
-
-  .pedido-footer > div {
-    width: 100%;
-    flex-direction: column;
-    display: flex;
-    gap: 0.5rem;
-  }
-
-  .pedido-footer button {
-    width: 100%;
-    margin: 0 !important;
-  }
-
-  .tabs {
-    flex-direction: column;
-    gap: 0.2rem;
-  }
-  
-  .tab-btn {
-    border-radius: 6px;
-    text-align: left;
-  }
-  
-  .config-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .config-card-full {
-    grid-column: auto;
-  }
-
-  .form-config-menu input, .form-config-menu button {
-    width: 100%;
-    flex: 1 1 100%;
-  }
-  
-  .menu-item-config {
-    flex-direction: row;
-    text-align: left;
-    gap: 0.5rem;
-  }
-
-  .menu-item-config img {
-    width: 50px;
-    height: 50px;
-  }
-}
-
-/* Estilos de Impressão */
-@media print {
-  header, .tabs, button, .modal, .toast-notificacao, #ativos-section {
-    display: none !important;
-  }
-  
-  body, main {
-    background: white;
-    padding: 0;
-    margin: 0;
-  }
-  
-  #historico-section {
-    display: block !important;
-  }
-  
-  .pedido-card {
-    border: 1px solid #ddd;
-    box-shadow: none;
-    margin-bottom: 10px;
-    page-break-inside: avoid;
-  }
-  
-  #faturamento-total-dia {
-    font-size: 1.5rem !important;
-    margin-bottom: 2rem;
-  }
-}
-
-/* --- Novas animações de destaque --- */
-.alerta-borda-pisca {
-  animation: piscaBordaVermelha 1.5s infinite ease-in-out !important;
-  border-width: 4px !important;
-  box-shadow: 0 0 15px rgba(231, 76, 60, 0.4);
-}
-
-@keyframes piscaBordaVermelha {
-  0% { border-color: #e74c3c; }
-  50% { border-color: #f5f5f5; }
-  100% { border-color: #e74c3c; }
-}
-
-.pedido-card.destaque-atualizacao {
-  animation: piskarDestaque 3s ease-in-out;
-  border: 3px solid #3498db !important;
-  box-shadow: 0 0 20px rgba(52, 152, 219, 0.4);
-}
-
-@keyframes piskarDestaque {
-  0% { background-color: #fff; }
-  25% { background-color: #d1ecf1; }
-  50% { background-color: #fff; }
-  75% { background-color: #d1ecf1; }
-  100% { background-color: #fff; }
-}
-
-/* Espaçamento Admin Limpo */
-#ativos-section h2 {
-  margin: 50px 0 !important; /* 50px em cima e embaixo, 0 nos lados para manter o alinhamento horizontal */
-}
-
-#pedidos-list {
-  margin-top: 10px;
-}
-
-/* --- Estilos do Modal de Edi��o Melhorado --- */
+/* --- Estilos do Modal de Edição Melhorado --- */
 .edit-modal-grid {
   display: grid;
   grid-template-columns: 1fr 1.5fr;
@@ -597,32 +459,47 @@ button.btn-entregue { background-color: #95a5a6; }
   overflow: hidden;
 }
 
-#itens-atuais {
-  flex-grow: 1;
-}
-
 .categorias-grid-mini {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   overflow-x: auto;
-  padding: 10px 0;
+  padding: 10px 5px;
   border-bottom: 1px solid #eee;
-  margin-bottom: 10px;
+  margin-bottom: 15px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.categorias-grid-mini::-webkit-scrollbar {
+  display: none;
 }
 
 .cat-mini {
-  padding: 5px 12px;
-  background: #eee;
-  border-radius: 20px;
-  font-size: 0.8rem;
+  padding: 8px 18px;
+  background: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 25px;
+  font-size: 0.85rem;
   white-space: nowrap;
   cursor: pointer;
   font-weight: bold;
+  flex-shrink: 0;
+  transition: all 0.2s;
+  color: #2c3e50;
+  display: inline-block;
+}
+
+.cat-mini:hover {
+  background: #f0f0f0;
+  border-color: #3498db;
 }
 
 .cat-mini.ativa {
-  background: #3498db;
-  color: white;
+  background: #3498db !important;
+  color: white !important;
+  border-color: #2980b9 !important;
+  box-shadow: 0 2px 4px rgba(52, 152, 219, 0.3);
 }
 
 .menu-grid-mini {
@@ -666,7 +543,22 @@ button.btn-entregue { background-color: #95a5a6; }
   font-weight: bold;
 }
 
+/* Responsividade do Painel Admin */
 @media (max-width: 768px) {
+  header { flex-direction: column; gap: 0.5rem; }
+  .pedido-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+  .pedido-valor { width: 100%; text-align: left !important; border-top: 1px solid #eee; padding-top: 0.5rem; }
+  .pedido-footer { flex-direction: column; align-items: stretch; gap: 1rem; }
+  .pedido-footer > div { width: 100%; flex-direction: column; display: flex; gap: 0.5rem; }
+  .pedido-footer button { width: 100%; margin: 0 !important; }
+  .tabs { flex-direction: column; gap: 0.2rem; }
+  .tab-btn { border-radius: 6px; text-align: left; }
+  .config-grid { grid-template-columns: 1fr; }
+  .config-card-full { grid-column: auto; }
+  .form-config-menu input, .form-config-menu button { width: 100%; flex: 1 1 100%; }
+  .menu-item-config { flex-direction: row; text-align: left; gap: 0.5rem; }
+  .menu-item-config img { width: 50px; height: 50px; }
+  
   .edit-modal-grid {
     grid-template-columns: 1fr;
     height: auto;
@@ -681,33 +573,32 @@ button.btn-entregue { background-color: #95a5a6; }
   }
 }
 
-
-/* --- Refinamento das Categorias no Modal --- */
-.categorias-grid-mini::-webkit-scrollbar {
-  display: none; /* Esconde a barra de rolagem para um visual mais limpo */
+/* Animações */
+.alerta-borda-pisca {
+  animation: piscaBordaVermelha 1.5s infinite ease-in-out !important;
+  border-width: 4px !important;
+  box-shadow: 0 0 15px rgba(231, 76, 60, 0.4);
 }
 
-.categorias-grid-mini {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-  padding-bottom: 5px;
+@keyframes piscaBordaVermelha {
+  0% { border-color: #e74c3c; }
+  50% { border-color: #f5f5f5; }
+  100% { border-color: #e74c3c; }
 }
 
-.cat-mini {
-  border: 1px solid #ddd;
-  transition: all 0.2s;
-  color: #2c3e50;
+.pedido-card.destaque-atualizacao {
+  animation: piskarDestaque 3s ease-in-out;
+  border: 3px solid #3498db !important;
+  box-shadow: 0 0 20px rgba(52, 152, 219, 0.4);
 }
 
-.cat-mini:hover {
-  background: #f0f0f0;
-  border-color: #3498db;
+@keyframes piskarDestaque {
+  0% { background-color: #fff; }
+  25% { background-color: #d1ecf1; }
+  50% { background-color: #fff; }
+  75% { background-color: #d1ecf1; }
+  100% { background-color: #fff; }
 }
 
-.cat-mini.ativa {
-  background: #3498db !important;
-  color: white !important;
-  border-color: #2980b9 !important;
-  box-shadow: 0 2px 4px rgba(52, 152, 219, 0.3);
-}
-
+#ativos-section h2 { margin: 50px 0 !important; }
+#pedidos-list { margin-top: 10px; }
