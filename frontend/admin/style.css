@@ -460,35 +460,32 @@ button.btn-entregue { background-color: #95a5a6; }
 }
 
 .categorias-grid-mini {
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  padding: 10px 5px;
+  display: block !important; /* Mudado para block com white-space nowrap */
+  white-space: nowrap !important;
+  overflow-x: auto !important;
+  padding: 10px 5px !important;
   border-bottom: 1px solid #eee;
   margin-bottom: 15px;
   scrollbar-width: none;
   -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
-}
-
-.categorias-grid-mini::-webkit-scrollbar {
-  display: none;
+  width: 100%;
 }
 
 .cat-mini {
-  padding: 8px 18px;
+  display: inline-block !important; /* inline-block com white-space nowrap impede quebra */
+  padding: 8px 20px;
   background: #f8f9fa;
-  border: 2px solid #ddd; /* Aumentado para 2px para ficar fixo */
+  border: 2px solid #ddd;
   border-radius: 25px;
   font-size: 0.85rem;
-  white-space: nowrap;
   cursor: pointer;
   font-weight: bold;
-  flex-shrink: 0;
+  margin-right: 8px; /* Espaçamento manual em vez de gap */
   transition: all 0.2s;
   color: #2c3e50;
-  display: inline-block;
-  box-sizing: border-box; /* Garante que a borda não aumente o tamanho do botão */
+  box-sizing: border-box;
+  vertical-align: middle;
 }
 
 .cat-mini:hover {

@@ -758,10 +758,18 @@ function exibirMenuEdicao(categoria) {
   const container = document.getElementById('edit-menu-grid');
   if (!container) return;
   
+  // Força o display grid caso tenha sido alterado por algum erro
+  container.style.display = 'grid';
+  
   const itens = categoria === 'todas' 
     ? cardapio 
     : cardapio.filter(i => i.categoria.trim().toLowerCase() === categoria);
     
+  if (itens.length === 0) {
+    container.innerHTML = `<p style="grid-column: 1/-1; text-align: center; padding: 20px; opacity: 0.5;">Nenhum item nesta categoria.</p>`;
+    return;
+  }
+
   container.innerHTML = itens.map(item => `
     <div class="item-menu-mini" onclick="adicionarAoPedidoEdicao(${item.id})">
       <img src="${item.imagem}" alt="${item.nome}">
