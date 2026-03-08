@@ -203,25 +203,31 @@ main {
 .hidden { display: none; }
 
 #categorias {
-  display: flex;
-  gap: 0.8rem;
+  display: block !important;
+  white-space: nowrap !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
   margin: 1rem 0;
-  padding: 0.5rem 0;
-  overflow-x: auto;
-  scrollbar-width: none; /* Esconde scroll no Firefox */
+  padding: 0.5rem 5px !important;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+  -webkit-overflow-scrolling: touch;
 }
-#categorias::-webkit-scrollbar { display: none; } /* Esconde scroll no Chrome/Safari */
+#categorias::-webkit-scrollbar { display: none !important; }
 
 .categoria {
+  display: inline-block !important;
   background-color: #ecf0f1;
   color: #7f8c8d;
-  padding: 0.6rem 1.2rem;
+  padding: 0.6rem 1.5rem;
   border-radius: 25px;
   cursor: pointer;
   white-space: nowrap;
   font-weight: bold;
-  transition: all 0.3s ease;
-  border: 1px solid #ddd;
+  transition: all 0.2s ease;
+  border: 2px solid #ddd;
+  margin-right: 8px;
+  vertical-align: middle;
 }
 
 .categoria.ativa { 

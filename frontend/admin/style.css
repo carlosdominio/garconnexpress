@@ -441,7 +441,7 @@ button.btn-entregue { background-color: #95a5a6; }
   display: grid;
   grid-template-columns: 1fr 1.5fr;
   gap: 20px;
-  height: 60vh;
+  height: 70vh !important; /* Aumentado altura */
   overflow: hidden;
 }
 
@@ -457,6 +457,7 @@ button.btn-entregue { background-color: #95a5a6; }
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative; /* Para controle absoluto se necessário */
 }
 
 .categorias-grid-mini {
@@ -464,13 +465,16 @@ button.btn-entregue { background-color: #95a5a6; }
   white-space: nowrap !important;
   overflow-x: auto !important;
   overflow-y: hidden !important;
-  padding: 10px 5px 15px 5px !important;
+  padding: 10px 5px !important;
   border-bottom: 2px solid #f1f1f1;
-  margin-bottom: 25px !important; /* Espaço aumentado entre categorias e cardápio */
+  margin-bottom: 20px !important;
   width: 100%;
+  min-height: 65px !important; /* Altura fixa garantida */
+  max-height: 65px !important;
   scrollbar-width: none;
   -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
+  flex-shrink: 0; /* Impede que a barra encolha */
 }
 
 .categorias-grid-mini::-webkit-scrollbar {
@@ -511,7 +515,7 @@ button.btn-entregue { background-color: #95a5a6; }
   gap: 15px !important;
   overflow-y: auto !important;
   padding: 10px 5px !important;
-  flex-grow: 1;
+  flex-grow: 1; /* Ocupa todo o resto do espaço */
 }
 
 .item-menu-mini {
