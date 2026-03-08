@@ -723,29 +723,43 @@ function abrirModalEdicao(pedido, itens) {
 function exibirCategoriasEdicao() {
   const container = document.getElementById('edit-menu-categorias');
   if (!container) return;
-  const categorias = ['todas', ...new Set(cardapio.map(item => item.categoria))];
-  container.innerHTML = categorias.map(cat => `
-    <div class="cat-mini ${cat === 'todas' ? 'ativa' : ''}" data-categoria="${cat}" onclick="selecionarCategoriaEdicao(this, '${cat}')">
-      ${cat === 'todas' ? 'Todos' : cat}
-    </div>
-  `).join('');
+  
+  // Normaliza categorias para evitar duplicatas (ex: 'Bebidas' e 'bebidas')
+  const categoriasUnicas = [...new Set(cardapio.map(item => item.categoria.trim().toLowerCase()))];
+  const categorias = ['todas', ...categoriasUnicas];
+  
+  container.innerHTML = categorias.map(cat => {
+    const nomeExibicao = cat === 'todas' ? 'Todos' : cat.charAt(0).toUpperCase() + cat.slice(1);
+    return `
+      <div class="cat-mini ${cat === 'todas' ? 'ativa' : ''}" data-categoria="${cat}" onclick="selecionarCategoriaEdicao(this, '${cat}')">
+        ${nomeExibicao}
+      </div>
+    `;
+  }).join('');
 }
 
 function selecionarCategoriaEdicao(el, cat) {
   document.querySelectorAll('.cat-mini').forEach(c => c.classList.remove('ativa'));
   el.classList.add('ativa');
+  
+  // Ao filtrar, também normaliza a comparação
   exibirMenuEdicao(cat);
 }
 
 function exibirMenuEdicao(categoria) {
   const container = document.getElementById('edit-menu-grid');
   if (!container) return;
-  const itens = categoria === 'todas' ? cardapio : cardapio.filter(i => i.categoria === categoria);
+  
+  const itens = categoria === 'todas' 
+    ? cardapio 
+    : cardapio.filter(i => i.categoria.trim().toLowerCase() === categoria);
+    
   container.innerHTML = itens.map(item => `
     <div class="item-menu-mini" onclick="adicionarAoPedidoEdicao(${item.id})">
       <img src="${item.imagem}" alt="${item.nome}">
       <h4>${item.nome}</h4>
       <p>R$ ${item.preco.toFixed(2)}</p>
+      ${item.estoque !== -1 ? `<small style="display:block; font-size:0.7rem; color:${item.estoque === 0 ? '#e74c3c' : '#7f8c8d'}">Estoque: ${item.estoque}</small>` : ''}
     </div>
   `).join('');
 }

@@ -681,3 +681,33 @@ button.btn-entregue { background-color: #95a5a6; }
   }
 }
 
+
+/* --- Refinamento das Categorias no Modal --- */
+.categorias-grid-mini::-webkit-scrollbar {
+  display: none; /* Esconde a barra de rolagem para um visual mais limpo */
+}
+
+.categorias-grid-mini {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+  padding-bottom: 5px;
+}
+
+.cat-mini {
+  border: 1px solid #ddd;
+  transition: all 0.2s;
+  color: #2c3e50;
+}
+
+.cat-mini:hover {
+  background: #f0f0f0;
+  border-color: #3498db;
+}
+
+.cat-mini.ativa {
+  background: #3498db !important;
+  color: white !important;
+  border-color: #2980b9 !important;
+  box-shadow: 0 2px 4px rgba(52, 152, 219, 0.3);
+}
+
