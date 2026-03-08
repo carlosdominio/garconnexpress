@@ -4,14 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GarçonExpress - Admin</title>
-  <link rel="icon" type="image/svg+xml" href="/admin/favicon.svg">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Contêiner de Impressão (Visível apenas na impressão) -->
-  <div id="cupom-impressao"></div>
-
-  <!-- Tela de Login Admin -->
+  <!-- Modal de Login Admin -->
   <div id="tela-login-admin" class="tela-login-admin">
     <div class="login-box">
       <h1>Painel Admin</h1>
@@ -189,38 +186,38 @@
     </div>
   </div>
 
-  <!-- Modal de Fechamento (NOVO) -->
-  <div id="modal-fechamento-admin" class="modal" style="display:none;">
-    <div class="modal-content" style="max-width: 450px;">
+  <!-- Modal de Fechamento Admin -->
+  <div id="modal-fechamento-admin" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
       <div class="modal-header">
-        <h2 id="fechamento-titulo-admin">Fechar Conta</h2>
+        <h2>Fechar Conta - Mesa <span id="fechamento-mesa-admin">--</span></h2>
         <span class="close" onclick="fecharModalFechamentoAdmin()">&times;</span>
       </div>
-      <div class="modal-body">
+      <div class="modal-body" style="display: block;">
         <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
             <label style="margin: 0; color: #2c3e50; font-weight: bold; cursor: pointer;">
-              <input type="checkbox" id="fechamento-taxa-admin" checked onchange="recalcularFechamentoAdmin()"> Cobrar Taxa de Serviço (10%)
+              <input type="checkbox" id="fechamento-taxa-admin" checked onchange="recalcularTotalFechamentoAdmin()"> Cobrar Taxa de Serviço (10%)
             </label>
           </div>
-          <p style="margin: 0; font-size: 0.9rem;">Subtotal Consumo: <strong id="fechamento-subtotal-admin">R$ 0,00</strong></p>
-          <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #3498db;">Taxa de Serviço (10%): <strong id="fechamento-valor-taxa-admin">R$ 0,00</strong></p>
+          <p style="margin: 0; font-size: 0.9rem;">Subtotal Consumo: R$ <span id="fechamento-subtotal-admin">0,00</span></p>
+          <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #3498db;">Taxa de Serviço (10%): R$ <span id="fechamento-taxa-valor-admin">0,00</span></p>
           <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <div>
               <label style="display:block; font-size:0.75rem; font-weight:bold; color:#7f8c8d; margin-bottom:3px;">Acréscimo (R$):</label>
-              <input type="number" id="fechamento-acrescimo-admin" value="0" step="0.50" min="0" oninput="recalcularFechamentoAdmin()" style="width:100%; padding:8px; border-radius:5px; border:1px solid #ddd;">
+              <input type="number" id="fechamento-acrescimo-admin" value="0" step="0.50" min="0" oninput="recalcularTotalFechamentoAdmin()" style="width:100%; padding:8px; border-radius:5px; border:1px solid #ddd;">
             </div>
             <div>
               <label style="display:block; font-size:0.75rem; font-weight:bold; color:#7f8c8d; margin-bottom:3px;">Desconto (R$):</label>
-              <input type="number" id="fechamento-desconto-admin" value="0" step="0.50" min="0" oninput="recalcularFechamentoAdmin()" style="width:100%; padding:8px; border-radius:5px; border:1px solid #ddd;">
+              <input type="number" id="fechamento-desconto-admin" value="0" step="0.50" min="0" oninput="recalcularTotalFechamentoAdmin()" style="width:100%; padding:8px; border-radius:5px; border:1px solid #ddd;">
             </div>
           </div>
-          <p style="margin: 15px 0 0 0; font-size: 1.3rem; color: #2c3e50; font-weight:bold;">Total Final: <span id="fechamento-total-final-admin">R$ 0,00</span></p>
+          <p style="margin: 15px 0 0 0; font-size: 1.3rem; color: #2c3e50; font-weight:bold;">Total Final: R$ <span id="fechamento-total-admin">0,00</span></p>
         </div>
 
         <div style="margin-bottom: 15px;">
           <label style="display:block; font-size:0.75rem; font-weight:bold; color:#7f8c8d; margin-bottom:3px;">Forma de Pagamento:</label>
-          <select id="fechamento-forma-admin" onchange="toggleTrocoAdmin()" style="width:100%; padding:10px; border-radius:5px; border:1px solid #ddd; font-size:1rem;">
+          <select id="fechamento-forma-admin" style="width:100%; padding:10px; border-radius:5px; border:1px solid #ddd; font-size:1rem;">
             <option value="Dinheiro">Dinheiro</option>
             <option value="Pix">Pix</option>
             <option value="Cartão">Cartão</option>
@@ -229,8 +226,8 @@
 
         <div id="secao-troco-admin" style="margin-bottom: 15px; border-top:1px dashed #ddd; padding-top:10px;">
           <label style="display:block; font-size:0.75rem; font-weight:bold; color:#7f8c8d; margin-bottom:3px;">Valor Recebido (R$):</label>
-          <input type="number" id="fechamento-recebido-admin" placeholder="0,00" step="0.50" oninput="recalcularFechamentoAdmin()" style="width:100%; padding:10px; border-radius:5px; border:1px solid #ddd; font-size:1.1rem; font-weight:bold; color:#27ae60;">
-          <p style="margin: 5px 0 0 0; color: #27ae60; font-weight:bold;">Troco: <span id="fechamento-troco-admin">R$ 0,00</span></p>
+          <input type="number" id="fechamento-recebido-admin" placeholder="0,00" step="0.50" oninput="recalcularTotalFechamentoAdmin()" style="width:100%; padding:10px; border-radius:5px; border:1px solid #ddd; font-size:1.1rem; font-weight:bold; color:#27ae60;">
+          <p style="margin: 5px 0 0 0; color: #27ae60; font-weight:bold;">Troco: R$ <span id="fechamento-troco-admin">0,00</span></p>
         </div>
       </div>
       <div class="modal-footer">
@@ -238,6 +235,8 @@
       </div>
     </div>
   </div>
+
+  <div id="cupom-impressao"></div>
 
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="app.js"></script>
