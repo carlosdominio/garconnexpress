@@ -381,7 +381,7 @@ async function exibirHistorico() {
       <div class="pedido-header">
         <div>
           <h3>Mesa ${pedido.mesa_numero}</h3>
-          <span class="status-badge ${pedido.status}">${pedido.status.toUpperCase()}</span>
+          <span class="status-badge ${pedido.status}">${pedido.status === 'entregue' ? 'PAGO' : pedido.status.toUpperCase()}</span>
           <small style="display:block; margin-top:4px;">📅 ${formatarData(pedido.created_at)}</small>
         </div>
         <div style="text-align: right;">
@@ -471,7 +471,7 @@ async function exibirPedidos() {
       <div class="pedido-header">
         <div>
           <h3>Mesa ${pedido.mesa_numero} ${cronometroHtml}</h3>
-          <span class="status-badge">${statusGeral.toUpperCase()}</span>
+          <span class="status-badge">${statusGeral === 'servido' ? 'PAGO' : statusGeral.toUpperCase()}</span>
           <small style="display:block; margin-top:4px;">📅 ${formatarData(pedido.created_at)}</small>
           <small style="display:block; font-weight:bold; color: #2c3e50;">👤 Garçom: ${pedido.garcom_id || 'N/I'}</small>
         </div>
@@ -889,11 +889,12 @@ function mostrarToast(msg) {
 }
 
 function formatarData(dataIso) {
-  if (!dataIso) return '--/-- --:--';
+  if (!dataIso) return '--/--/---- --:--';
   const data = new Date(dataIso.replace(' ', 'T'));
   return data.toLocaleString('pt-BR', { 
     day: '2-digit', 
     month: '2-digit', 
+    year: 'numeric',
     hour: '2-digit', 
     minute: '2-digit' 
   });
