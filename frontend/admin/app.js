@@ -889,9 +889,14 @@ function mostrarToast(msg) {
 }
 
 function formatarData(dataIso) {
-  if (!dataIso) return '--:--';
+  if (!dataIso) return '--/-- --:--';
   const data = new Date(dataIso.replace(' ', 'T'));
-  return data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return data.toLocaleString('pt-BR', { 
+    day: '2-digit', 
+    month: '2-digit', 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
 }
 
 function copiarPedido(btn, texto) {
