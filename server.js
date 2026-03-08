@@ -74,8 +74,8 @@ async function initDb() {
       await addCol('pedidos', 'forma_pagamento', 'TEXT');
       await addCol('pedidos', 'desconto', 'REAL DEFAULT 0');
       await addCol('pedidos', 'acrescimo', 'REAL DEFAULT 0');
-      await addCol('pedidos', 'valor_recebido', 'REAL');
-      await addCol('pedidos', 'troco', 'REAL');
+      await addCol('pedidos', 'valor_recebido', 'REAL DEFAULT 0');
+      await addCol('pedidos', 'troco', 'REAL DEFAULT 0');
       await addCol('menu', 'estoque', 'INTEGER DEFAULT -1');
     } else {
       // Migração SQLite
@@ -84,8 +84,8 @@ async function initDb() {
       if (!columns.includes('forma_pagamento')) db.exec("ALTER TABLE pedidos ADD COLUMN forma_pagamento TEXT");
       if (!columns.includes('desconto')) db.exec("ALTER TABLE pedidos ADD COLUMN desconto REAL DEFAULT 0");
       if (!columns.includes('acrescimo')) db.exec("ALTER TABLE pedidos ADD COLUMN acrescimo REAL DEFAULT 0");
-      if (!columns.includes('valor_recebido')) db.exec("ALTER TABLE pedidos ADD COLUMN valor_recebido REAL");
-      if (!columns.includes('troco')) db.exec("ALTER TABLE pedidos ADD COLUMN troco REAL");
+      if (!columns.includes('valor_recebido')) db.exec("ALTER TABLE pedidos ADD COLUMN valor_recebido REAL DEFAULT 0");
+      if (!columns.includes('troco')) db.exec("ALTER TABLE pedidos ADD COLUMN troco REAL DEFAULT 0");
 
       const menuInfo = db.prepare("PRAGMA table_info(menu)").all();
       const menuCols = menuInfo.map(c => c.name);

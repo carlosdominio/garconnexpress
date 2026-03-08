@@ -48,6 +48,7 @@ function iniciarPainelAdmin() {
   carregarPedidos();
   carregarCardapio();
   carregarStatusCaixa();
+  carregarDadosConfig(); // Adicionado para carregar garçons e mesas na partida
   configurarPusher();
   window.addEventListener('focus', () => pararPiscarTitulo());
   
@@ -456,10 +457,10 @@ async function exibirPedidos() {
     const totalExibicao = pedido.status === 'aguardando_fechamento' ? pedido.total : (subtotal + taxaServico);
     const infoPagamento = pedido.status === 'aguardando_fechamento' ? `
       <div style="background:#f9f9f9; padding:5px; border-radius:4px; margin-top:5px; font-size:0.85rem; border:1px solid #ddd;">
-        <strong>Pagamento:</strong> ${pedido.forma_pagamento}<br>
-        ${pedido.forma_pagamento === 'Dinheiro' ? `<strong>Recebido:</strong> R$ ${pedido.valor_recebido.toFixed(2)} | <strong>Troco:</strong> R$ ${pedido.troco.toFixed(2)}` : ''}
-        ${pedido.desconto > 0 ? `<br><span style="color:#e74c3c;"><strong>Desconto:</strong> - R$ ${pedido.desconto.toFixed(2)}</span>` : ''}
-        ${pedido.acrescimo > 0 ? `<br><span style="color:#27ae60;"><strong>Acréscimo:</strong> + R$ ${pedido.acrescimo.toFixed(2)}</span>` : ''}
+        <strong>Pagamento:</strong> ${pedido.forma_pagamento || 'Não informado'}<br>
+        ${(pedido.forma_pagamento === 'Dinheiro') ? `<strong>Recebido:</strong> R$ ${(pedido.valor_recebido || 0).toFixed(2)} | <strong>Troco:</strong> R$ ${(pedido.troco || 0).toFixed(2)}` : ''}
+        ${(pedido.desconto > 0) ? `<br><span style="color:#e74c3c;"><strong>Desconto:</strong> - R$ ${pedido.desconto.toFixed(2)}</span>` : ''}
+        ${(pedido.acrescimo > 0) ? `<br><span style="color:#27ae60;"><strong>Acréscimo:</strong> + R$ ${pedido.acrescimo.toFixed(2)}</span>` : ''}
       </div>` : '';
 
     const textoCopiar = `PEDIDO MESA ${pedido.mesa_numero}\n------------------\n${itens.map(i => `• ${i.quantidade}x ${i.nome}${i.observacao ? ` (Obs: ${i.observacao})` : ''} - ${i.status === 'entregue' ? '✓' : '⏳'}`).join('\n')}\n------------------\nSubtotal: R$ ${subtotal.toFixed(2)}\nTaxa de Serviço (10%): R$ ${taxaServico.toFixed(2)}\nTotal Final: R$ ${totalExibicao.toFixed(2)}`;
