@@ -67,7 +67,7 @@ main {
 }
 
 @keyframes pulse-purple {
-  0% { transform: scale(1); }
+  0 { transform: scale(1); }
   50% { transform: scale(1.02); }
   100% { transform: scale(1); }
 }
@@ -157,20 +157,31 @@ button.btn-entregue { background-color: #95a5a6; }
 
 .modal-content {
   background-color: white;
-  margin: 5% auto;
+  margin: 2vh auto;
   padding: 20px;
-  border-radius: 8px;
-  width: 80%;
-  max-width: 600px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  border-radius: 12px;
+  width: 95%;
+  max-width: 900px;
+  max-height: 96vh;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 1.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
   border-bottom: 1px solid #eee;
-  padding-bottom: 0.5rem;
+  padding-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.modal-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
 }
 
 .close {
@@ -188,9 +199,34 @@ button.btn-entregue { background-color: #95a5a6; }
   border-radius: 4px;
 }
 
-.btn-cancelar-pedido { background-color: #e74c3c; }
-.btn-salvar-edicao { background-color: #27ae60; }
-.btn-remover-item { background: #e74c3c; padding: 2px 8px; font-size: 0.8rem; }
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+  margin-top: 10px;
+  flex-shrink: 0;
+}
+
+.btn-cancelar-pedido { 
+  background-color: #fdf2f2 !important; 
+  color: #e74c3c !important;
+  border: 1px solid #fab1a0 !important;
+  padding: 12px 25px !important;
+  font-size: 0.95rem !important;
+}
+
+.btn-salvar-edicao { 
+  background-color: #27ae60 !important; 
+  color: white !important;
+  padding: 12px 40px !important;
+  font-size: 1rem !important;
+  box-shadow: 0 4px 10px rgba(39, 174, 96, 0.3);
+}
+
+.btn-cancelar-pedido:hover { background-color: #e74c3c !important; color: white !important; }
+.btn-salvar-edicao:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(39, 174, 96, 0.4); }
 
 /* Estilos da Tela de Login Admin */
 .tela-login-admin {
@@ -244,13 +280,13 @@ button.btn-entregue { background-color: #95a5a6; }
 
 .toast-notificacao {
     position: fixed;
-    top: 75px; /* Logo abaixo do cabeçalho */
+    top: 75px;
     left: 50%;
     transform: translateX(-50%) translateY(-20px);
-    background-color: #27ae60; /* Verde para destaque positivo */
+    background-color: #27ae60;
     color: white;
     padding: 15px 35px;
-    border-radius: 30px; /* Mais arredondado estilo pílula */
+    border-radius: 30px;
     box-shadow: 0 8px 16px rgba(0,0,0,0.3);
     z-index: 9999;
     opacity: 0;
@@ -261,23 +297,14 @@ button.btn-entregue { background-color: #95a5a6; }
     white-space: nowrap;
 }
 
-/* Estilos de Impressão (Otimizado para Epson TM-T20X) */
+/* Estilos de Impressão */
 @media print {
-  @page {
-    margin: 0;
-    size: auto;
-  }
+  @page { margin: 0; size: auto; }
   body > * { display: none !important; }
   #cupom-impressao { 
     display: block !important; 
     visibility: visible !important;
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 72mm; /* Área útil de impressão da Epson TM-T20X */
-    margin: 0;
-    padding: 2mm;
-    background: #fff;
+    position: absolute; left: 0; top: 0; width: 72mm; margin: 0; padding: 2mm; background: #fff;
   }
   #cupom-impressao * { visibility: visible !important; }
 }
@@ -288,160 +315,40 @@ button.btn-entregue { background-color: #95a5a6; }
 .cupom-footer { border-top: 1px dashed #000; margin-top: 10px; padding-top: 10px; font-weight: bold; }
 .cupom-central { text-align: center; margin-top: 10px; font-size: 0.8rem; }
 
-/* Novos Estilos: Abas e Histórico */
+/* Abas e Histórico */
 .hidden { display: none !important; }
+.tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; background: #eee; padding: 0.5rem; border-radius: 8px; }
+.tab-btn { background: transparent; color: #555; border: none; padding: 0.8rem 1.2rem; border-radius: 6px; cursor: pointer; font-weight: bold; flex: 1; transition: all 0.2s; }
+.tab-btn.active { background: #2c3e50; color: white; }
+.tab-btn:hover:not(.active) { background: #ddd; }
 
-.tabs {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-  background: #eee;
-  padding: 0.5rem;
-  border-radius: 8px;
-}
+.pedido-card.status-servido { border-left-color: #27ae60; background-color: #f0fff4; opacity: 0.95; }
+.pedido-card.status-servido .status-badge { background-color: #27ae60; color: white; }
+.pedido-card.status-cancelado { border-left-color: #e74c3c; background-color: #fdf2f2; }
+.pedido-card.status-cancelado .pedido-valor { color: #95a5a6; text-decoration: line-through; }
 
-.tab-btn {
-  background: transparent;
-  color: #555;
-  border: none;
-  padding: 0.8rem 1.2rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: bold;
-  flex: 1;
-  transition: all 0.2s;
-}
-
-.tab-btn.active {
-  background: #2c3e50;
-  color: white;
-}
-
-.tab-btn:hover:not(.active) {
-  background: #ddd;
-}
-
-.pedido-card.status-servido {
-  border-left-color: #27ae60;
-  background-color: #f0fff4;
-  opacity: 0.95;
-}
-
-.pedido-card.status-servido .status-badge {
-  background-color: #27ae60;
-  color: white;
-}
-
-.pedido-card.status-cancelado {
-  border-left-color: #e74c3c;
-  background-color: #fdf2f2;
-}
-
-.pedido-card.status-cancelado .pedido-valor {
-  color: #95a5a6;
-  text-decoration: line-through;
-}
-
-#historico-section h2 {
-  margin-bottom: 1rem;
-}
-
-/* Novos Estilos: Painel de Configurações */
-.config-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 1.5rem;
-}
-
-.config-card {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-  border: 1px solid #eee;
-}
-
-.config-card h3 {
-  margin-bottom: 1rem;
-  color: #2c3e50;
-  border-bottom: 2px solid #3498db;
-  padding-bottom: 0.5rem;
-}
-
-.config-card input {
-  padding: 0.8rem;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 0.9rem;
-}
-
-.config-card button {
-  padding: 0.8rem;
-  font-size: 0.9rem;
-}
-
-.item-config {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #f9f9f9;
-}
-
-.btn-excluir {
-  background-color: #e74c3c;
-  padding: 4px 8px;
-  font-size: 0.8rem;
-  width: auto;
-}
-
-.menu-item-config {
-  background: #f9f9f9;
-  padding: 1rem;
-  border-radius: 8px;
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-.menu-item-config img {
-  width: 60px;
-  height: 60px;
-  object-fit: cover;
-  border-radius: 4px;
-}
-
-.config-card-full {
-  grid-column: 1 / -1;
-}
-
-.form-config-menu {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.form-config-menu input {
-  flex: 1 1 200px;
-}
-
-.form-config-menu button {
-  flex: 1 1 auto;
-}
-
-.menu-config-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
-}
+/* Configurações */
+.config-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1.5rem; }
+.config-card { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #eee; }
+.config-card h3 { margin-bottom: 1rem; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 0.5rem; }
+.config-card input { padding: 0.8rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; }
+.config-card button { padding: 0.8rem; font-size: 0.9rem; }
+.item-config { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid #f9f9f9; }
+.btn-excluir { background-color: #e74c3c; padding: 4px 8px; font-size: 0.8rem; width: auto; }
+.menu-item-config { background: #f9f9f9; padding: 1rem; border-radius: 8px; display: flex; gap: 1rem; align-items: center; }
+.menu-item-config img { width: 60px; height: 60px; object-fit: cover; border-radius: 4px; }
+.config-card-full { grid-column: 1 / -1; }
+.form-config-menu { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; }
+.form-config-menu input { flex: 1 1 200px; }
+.form-config-menu button { flex: 1 1 auto; }
+.menu-config-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
 
 /* --- Estilos do Modal de Edição Melhorado --- */
 .edit-modal-grid {
   display: grid;
   grid-template-columns: 1fr 1.5fr;
   gap: 20px;
-  height: 70vh !important; /* Aumentado altura */
+  flex: 1;
   overflow: hidden;
 }
 
@@ -457,7 +364,6 @@ button.btn-entregue { background-color: #95a5a6; }
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  position: relative; /* Para controle absoluto se necessário */
 }
 
 .categorias-grid-mini {
@@ -465,21 +371,19 @@ button.btn-entregue { background-color: #95a5a6; }
   white-space: nowrap !important;
   overflow-x: auto !important;
   overflow-y: hidden !important;
-  padding: 10px 5px !important;
+  padding: 10px 5px 15px 5px !important;
   border-bottom: 2px solid #f1f1f1;
-  margin-bottom: 20px !important;
+  margin-bottom: 10px !important;
   width: 100%;
-  min-height: 65px !important; /* Altura fixa garantida */
+  min-height: 65px !important;
   max-height: 65px !important;
   scrollbar-width: none;
   -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
-  flex-shrink: 0; /* Impede que a barra encolha */
+  flex-shrink: 0;
 }
 
-.categorias-grid-mini::-webkit-scrollbar {
-  display: none !important;
-}
+.categorias-grid-mini::-webkit-scrollbar { display: none !important; }
 
 .cat-mini {
   display: inline-block !important;
@@ -497,17 +401,8 @@ button.btn-entregue { background-color: #95a5a6; }
   vertical-align: middle;
 }
 
-.cat-mini:hover {
-  background: #f0f0f0;
-  border-color: #bdc3c7;
-}
-
-.cat-mini.ativa {
-  background: #3498db !important;
-  color: white !important;
-  border-color: #2980b9 !important;
-  box-shadow: 0 2px 6px rgba(52, 152, 219, 0.4);
-}
+.cat-mini:hover { background: #f0f0f0; border-color: #bdc3c7; }
+.cat-mini.ativa { background: #3498db !important; color: white !important; border-color: #2980b9 !important; box-shadow: 0 2px 6px rgba(52, 152, 219, 0.4); }
 
 .menu-grid-mini {
   display: grid !important;
@@ -515,98 +410,32 @@ button.btn-entregue { background-color: #95a5a6; }
   gap: 15px !important;
   overflow-y: auto !important;
   padding: 10px 5px !important;
-  flex-grow: 1; /* Ocupa todo o resto do espaço */
+  flex: 1;
 }
 
-.item-menu-mini {
-  background: white;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  padding: 8px;
-  text-align: center;
-  cursor: pointer;
-  transition: transform 0.1s;
-}
-
+.item-menu-mini { background: white; border: 1px solid #eee; border-radius: 8px; padding: 8px; text-align: center; cursor: pointer; transition: transform 0.1s; }
 .item-menu-mini:active { transform: scale(0.95); }
+.item-menu-mini img { width: 100%; height: 70px; object-fit: cover; border-radius: 4px; margin-bottom: 5px; }
+.item-menu-mini h4 { font-size: 0.8rem; margin: 5px 0; height: 2.4em; overflow: hidden; }
+.item-menu-mini p { font-size: 0.85rem; color: #27ae60; font-weight: bold; }
 
-.item-menu-mini img {
-  width: 100%;
-  height: 70px;
-  object-fit: cover;
-  border-radius: 4px;
-  margin-bottom: 5px;
-}
-
-.item-menu-mini h4 {
-  font-size: 0.8rem;
-  margin: 5px 0;
-  height: 2.4em;
-  overflow: hidden;
-}
-
-.item-menu-mini p {
-  font-size: 0.85rem;
-  color: #27ae60;
-  font-weight: bold;
-}
-
-/* Responsividade do Painel Admin */
+/* Responsividade */
 @media (max-width: 768px) {
   header { flex-direction: column; gap: 0.5rem; }
-  .pedido-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
-  .pedido-valor { width: 100%; text-align: left !important; border-top: 1px solid #eee; padding-top: 0.5rem; }
   .pedido-footer { flex-direction: column; align-items: stretch; gap: 1rem; }
-  .pedido-footer > div { width: 100%; flex-direction: column; display: flex; gap: 0.5rem; }
-  .pedido-footer button { width: 100%; margin: 0 !important; }
   .tabs { flex-direction: column; gap: 0.2rem; }
-  .tab-btn { border-radius: 6px; text-align: left; }
   .config-grid { grid-template-columns: 1fr; }
-  .config-card-full { grid-column: auto; }
-  .form-config-menu input, .form-config-menu button { width: 100%; flex: 1 1 100%; }
-  .menu-item-config { flex-direction: row; text-align: left; gap: 0.5rem; }
-  .menu-item-config img { width: 50px; height: 50px; }
-  
-  .edit-modal-grid {
-    grid-template-columns: 1fr;
-    height: auto;
-    max-height: 80vh;
-    overflow-y: auto;
-  }
-  .edit-col-itens {
-    border-right: none;
-    border-bottom: 2px solid #eee;
-    padding-bottom: 15px;
-    height: 300px;
-  }
+  .edit-modal-grid { grid-template-columns: 1fr; }
+  .modal-content { margin: 1vh auto; height: 98vh; width: 98%; }
+  .modal-footer { flex-direction: column; }
+  .btn-salvar-edicao, .btn-cancelar-pedido { width: 100% !important; }
 }
 
 /* Animações */
-.alerta-borda-pisca {
-  animation: piscaBordaVermelha 1.5s infinite ease-in-out !important;
-  border-width: 4px !important;
-  box-shadow: 0 0 15px rgba(231, 76, 60, 0.4);
-}
-
-@keyframes piscaBordaVermelha {
-  0% { border-color: #e74c3c; }
-  50% { border-color: #f5f5f5; }
-  100% { border-color: #e74c3c; }
-}
-
-.pedido-card.destaque-atualizacao {
-  animation: piskarDestaque 3s ease-in-out;
-  border: 3px solid #3498db !important;
-  box-shadow: 0 0 20px rgba(52, 152, 219, 0.4);
-}
-
-@keyframes piskarDestaque {
-  0% { background-color: #fff; }
-  25% { background-color: #d1ecf1; }
-  50% { background-color: #fff; }
-  75% { background-color: #d1ecf1; }
-  100% { background-color: #fff; }
-}
+.alerta-borda-pisca { animation: piscaBordaVermelha 1.5s infinite ease-in-out !important; border-width: 4px !important; box-shadow: 0 0 15px rgba(231, 76, 60, 0.4); }
+@keyframes piscaBordaVermelha { 0% { border-color: #e74c3c; } 50% { border-color: #f5f5f5; } 100% { border-color: #e74c3c; } }
+.pedido-card.destaque-atualizacao { animation: piskarDestaque 3s ease-in-out; border: 3px solid #3498db !important; box-shadow: 0 0 20px rgba(52, 152, 219, 0.4); }
+@keyframes piskarDestaque { 0%, 50%, 100% { background-color: #fff; } 25%, 75% { background-color: #d1ecf1; } }
 
 #ativos-section h2 { margin: 50px 0 !important; }
 #pedidos-list { margin-top: 10px; }
