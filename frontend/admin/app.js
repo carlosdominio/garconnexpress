@@ -471,7 +471,7 @@ async function exibirPedidos() {
       <div class="pedido-header">
         <div>
           <h3>Mesa ${pedido.mesa_numero} ${cronometroHtml}</h3>
-          <span class="status-badge ${statusGeral === 'servido' ? 'entregue' : statusGeral}">${statusGeral === 'servido' ? 'PAGO' : statusGeral.toUpperCase()}</span>
+          <span class="status-badge ${statusGeral}">${statusGeral === 'servido' ? 'EM ANDAMENTO' : statusGeral.toUpperCase()}</span>
           <small style="display:block; margin-top:4px;">📅 ${formatarData(pedido.created_at)}</small>
           <small style="display:block; font-weight:bold; color: #2c3e50;">👤 Garçom: ${pedido.garcom_id || 'N/I'}</small>
         </div>
