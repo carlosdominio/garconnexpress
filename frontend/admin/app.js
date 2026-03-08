@@ -724,25 +724,29 @@ function exibirCategoriasEdicao() {
   const container = document.getElementById('edit-menu-categorias');
   if (!container) return;
   
-  // Normaliza categorias para evitar duplicatas (ex: 'Bebidas' e 'bebidas')
   const categoriasUnicas = [...new Set(cardapio.map(item => item.categoria.trim().toLowerCase()))];
   const categorias = ['todas', ...categoriasUnicas];
   
   container.innerHTML = categorias.map(cat => {
     const nomeExibicao = cat === 'todas' ? 'Todos' : cat.charAt(0).toUpperCase() + cat.slice(1);
     return `
-      <div class="cat-mini ${cat === 'todas' ? 'ativa' : ''}" data-categoria="${cat}" onclick="selecionarCategoriaEdicao(this, '${cat}')">
+      <div class="cat-mini ${cat === 'todas' ? 'ativa' : ''}" 
+           id="cat-edit-${cat}" 
+           onclick="selecionarCategoriaEdicao('${cat}')">
         ${nomeExibicao}
       </div>
     `;
   }).join('');
 }
 
-function selecionarCategoriaEdicao(el, cat) {
+function selecionarCategoriaEdicao(cat) {
+  // Remove classe ativa de todos
   document.querySelectorAll('.cat-mini').forEach(c => c.classList.remove('ativa'));
-  el.classList.add('ativa');
   
-  // Ao filtrar, também normaliza a comparação
+  // Adiciona no selecionado por ID (mais seguro que 'this')
+  const el = document.getElementById(`cat-edit-${cat}`);
+  if (el) el.classList.add('ativa');
+  
   exibirMenuEdicao(cat);
 }
 
