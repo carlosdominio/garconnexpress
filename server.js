@@ -21,6 +21,12 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 
+// Log global de todas as requisições
+app.use((req, res, next) => {
+  console.log(`📡 [${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+  next();
+});
+
 // Configuração de CORS dinâmica baseada em ALLOWED_ORIGINS
 const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['*'];
 app.use(require('cors')({
@@ -117,7 +123,11 @@ async function query(text, params) {
       } else {
         const stmt = db.prepare(text);
         if (text.trim().toUpperCase().startsWith('SELECT') || text.trim().toUpperCase().includes('RETURNING')) {
-          return { rows: stmt.all(...(params || [])) };
+          const rows = stmt.all(...(params || []));
+          return { 
+            rows: rows,
+            lastInsertRowid: (rows && rows.length > 0) ? (rows[0].id || null) : null
+          };
         } else {
           const info = stmt.run(...(params || []));
           return { changes: info.changes, lastInsertRowid: info.lastInsertRowid };
@@ -138,11 +148,15 @@ async function query(text, params) {
 }
 
 async function safePusherTrigger(channel, event, data) {
-  if (!pusher) return;
+  if (!pusher) {
+    console.log(`⚠️ Pusher não configurado. Ignorando evento: ${event}`);
+    return;
+  }
   try {
+    console.log(`📡 Enviando Pusher: Canal=${channel}, Evento=${event}`);
     await pusher.trigger(channel, event, data);
   } catch (e) {
-    console.error(`Pusher Error (${event}):`, e.message);
+    console.error(`❌ Pusher Error (${event}):`, e.message);
   }
 }
 
@@ -157,6 +171,7 @@ async function notifyStatus(pedidoId, mesaDbId, status) {
       mesaNum = res.rows[0] ? res.rows[0].numero : 'BALCÃO';
     }
     const payload = { pedido_id: pedidoId, mesa_id: mesaNum, mesa_numero: mesaNum, status: status };
+    console.log(`🔔 Notificando status: Mesa ${mesaNum}, Status ${status}`);
     await safePusherTrigger('garconnexpress', 'status-atualizado', payload);
   } catch (e) { console.error('Erro notificar:', e.message); }
 }
@@ -167,7 +182,7 @@ async function initDb() {
   const tables = [
     `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero INTEGER NOT NULL, status TEXT DEFAULT 'livre')`,
     `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, imagem TEXT, estoque INTEGER DEFAULT -1, validade DATE)`,
-    `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL)`,
+    `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
     `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT)`,
     `CREATE TABLE IF NOT EXISTS usuarios_admin (id SERIAL PRIMARY KEY, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL)`,
@@ -217,6 +232,8 @@ async function initDb() {
       await addCol('menu', 'validade', 'DATE');
       await addCol('garcons', 'telefone', 'TEXT');
     }
+    await addCol('pedidos', 'observacao', 'TEXT');
+    await addCol('pedidos', 'pago_parcial', 'REAL DEFAULT 0');
   } catch (e) { 
     console.error('Erro na migração:', e);
     dbInitError = e;
@@ -403,7 +420,22 @@ app.get('/api/pedidos', ensureDbInitialized, async (req, res) => {
   res.json((await query(`SELECT p.*, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`)).rows); 
 });
 
-app.get('/api/pedidos/historico', async (req, res) => { 
+app.get('/api/pedidos/:id/pagamentos', async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Se a tabela não existir, retorna array vazio em vez de erro 500
+    try {
+      const pagamentos = (await query("SELECT * FROM pagamentos WHERE pedido_id = ? ORDER BY data ASC", [id])).rows;
+      res.json(pagamentos || []);
+    } catch (e) {
+      console.warn("⚠️ Tabela 'pagamentos' pode não existir ainda:", e.message);
+      res.json([]);
+    }
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.get('/api/pedidos/historico', async (req, res) => {
+ 
   res.json((await query(`SELECT p.*, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.status IN ('entregue', 'cancelado') ORDER BY p.created_at DESC LIMIT 50`)).rows); 
 });
 
@@ -514,7 +546,21 @@ app.put('/api/pedidos/:id', async (req, res) => {
     }
     const pedido = (await query("SELECT cobrar_taxa FROM pedidos WHERE id = ?", [id])).rows[0];
     const total = (pedido && pedido.cobrar_taxa) ? Math.round(novoSub * 1.10 * 100) / 100 : novoSub;
-    await query("UPDATE pedidos SET total = ? WHERE id = ?", [total, id]);
+    
+    // Determina o status do pedido com base nos itens:
+    // Se houver algum item 'pendente', o status do pedido deve ser 'recebido'.
+    // Caso contrário (todos entregues), o status deve ser 'servido'.
+    const temPendente = itens.some(i => i.status === 'pendente');
+    const novoStatusPedido = temPendente ? 'recebido' : 'servido';
+    const agora = new Date().toISOString();
+    
+    // Se tem pendente, atualizamos o created_at para reiniciar o cronômetro de entrega
+    if (temPendente) {
+      await query("UPDATE pedidos SET total = ?, status = ?, created_at = ? WHERE id = ?", [total, novoStatusPedido, agora, id]);
+    } else {
+      await query("UPDATE pedidos SET total = ?, status = ? WHERE id = ?", [total, novoStatusPedido, id]);
+    }
+    
     await notifyStatus(id, null, 'itens_atualizados');
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
     res.json({ success: true });
@@ -536,7 +582,10 @@ app.put('/api/pedidos/:id/adicionar', async (req, res) => {
     const tItens = (await query("SELECT i.quantidade, m.preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
     const sub = tItens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
     const tot = deveTaxa ? Math.round(sub * 1.10 * 100) / 100 : sub;
-    await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido' WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), id]);
+    const agora = new Date().toISOString();
+    
+    // Atualiza o total e reinicia o cronômetro (created_at) para os novos itens adicionados
+    await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ? WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, id]);
     const pMesa = (await query("SELECT mesa_id FROM pedidos WHERE id = ?", [id])).rows[0];
     if (pMesa && pMesa.mesa_id) await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [pMesa.mesa_id]);
     await notifyStatus(id, null, 'itens_adicionados');
@@ -549,12 +598,79 @@ app.put('/api/pedidos/:id/solicitar-fechamento', async (req, res) => {
   const { id } = req.params;
   const { mesa_id, forma_pagamento, desconto, acrescimo, valor_recebido, troco, total, num_pessoas, valor_por_pessoa } = req.body;
   try {
+    let totalFinal = total;
+    
+    // Se o total não for enviado (solicitação do garçom), calcula com base nos itens
+    if (totalFinal === undefined || totalFinal === null || totalFinal === 0) {
+      const pOrig = (await query("SELECT cobrar_taxa FROM pedidos WHERE id = ?", [id])).rows[0];
+      const deveTaxa = pOrig ? pOrig.cobrar_taxa : true;
+      const tItens = (await query("SELECT i.quantidade, m.preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
+      const sub = tItens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+      totalFinal = deveTaxa ? Math.round(sub * 1.10 * 100) / 100 : sub;
+    }
+
     await query(`UPDATE pedidos SET status = 'aguardando_fechamento', forma_pagamento = ?, desconto = ?, acrescimo = ?, valor_recebido = ?, troco = ?, total = ?, num_pessoas = ?, valor_por_pessoa = ? WHERE id = ?`, 
-      [forma_pagamento, desconto || 0, acrescimo || 0, valor_recebido || 0, troco || 0, total, num_pessoas || 1, valor_por_pessoa || total, id]);
+      [forma_pagamento || 'Dinheiro', desconto || 0, acrescimo || 0, valor_recebido || 0, troco || 0, totalFinal, num_pessoas || 1, valor_por_pessoa || totalFinal, id]);
+    
     if (mesa_id) await query("UPDATE mesas SET status = 'fechando' WHERE id = ?", [mesa_id]);
     await notifyStatus(id, mesa_id, 'aguardando_fechamento');
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.put('/api/pedidos/:id/pessoas', async (req, res) => {
+  const { id } = req.params;
+  const { num_pessoas } = req.body;
+  try {
+    const p = (await query("SELECT total FROM pedidos WHERE id = ?", [id])).rows[0];
+    const valor_por_pessoa = p ? p.total / (num_pessoas || 1) : 0;
+    await query("UPDATE pedidos SET num_pessoas = ?, valor_por_pessoa = ? WHERE id = ?", [num_pessoas || 1, valor_por_pessoa, id]);
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/pedidos/:id/pagamento-fracao', async (req, res) => {
+  const { id } = req.params;
+  const { mesa_id, valor_pago, forma_pagamento, num_pessoas_restantes } = req.body;
+  
+  try {
+    const cx = (await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'")).rows[0];
+    if (!cx) return res.status(400).json({ error: 'CAIXA FECHADO' });
+
+    // 1. Busca o pedido original para saber o total atual e a mesa
+    const pOrig = (await query("SELECT * FROM pedidos WHERE id = ?", [id])).rows[0];
+    if (!pOrig) return res.status(404).json({ error: 'PEDIDO NÃO ENCONTRADO' });
+
+    // 2. Registra o valor no fluxo de caixa
+    const col = forma_pagamento === 'Cartão' ? 'total_cartao' : (forma_pagamento === 'Pix' ? 'total_pix' : 'total_dinheiro');
+    await query(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [valor_pago, valor_pago, cx.id]);
+
+    // 3. Cria um registro no histórico apenas para este pagamento parcial
+    const agora = new Date().toISOString();
+    // 3. Garante que a tabela existe e registra o pagamento
+    const sqlCreate = isPostgres 
+      ? `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`
+      : `CREATE TABLE IF NOT EXISTS pagamentos (id INTEGER PRIMARY KEY AUTOINCREMENT, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`;
+    
+    await query(sqlCreate);
+    await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento) VALUES (?, ?, ?)", [id, valor_pago, forma_pagamento]);
+
+    // 4. Atualiza o pedido original: subtrai o valor pago, incrementa o pago_parcial e ajusta o número de pessoas
+    const novoTotalMesa = Math.max(0, pOrig.total - valor_pago);
+    const novoValorPessoa = num_pessoas_restantes > 0 ? novoTotalMesa / num_pessoas_restantes : 0;
+
+    await query("UPDATE pedidos SET total = ?, pago_parcial = pago_parcial + ?, num_pessoas = ?, valor_por_pessoa = ? WHERE id = ?", 
+      [novoTotalMesa, valor_pago, num_pessoas_restantes, novoValorPessoa, id]);
+
+    await notifyStatus(id, mesa_id, 'itens_atualizados');
+    
+    res.json({ 
+      success: true, 
+      saldo_restante: novoTotalMesa 
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.post('/api/pedidos/:id/pagamento-parcial', async (req, res) => {
@@ -563,17 +679,34 @@ app.post('/api/pedidos/:id/pagamento-parcial', async (req, res) => {
   try {
     const cx = (await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'")).rows[0];
     if (!cx) return res.status(400).json({ error: 'CAIXA FECHADO' });
-    const resP = await query(`INSERT INTO pedidos (mesa_id, garcom_id, status, total, forma_pagamento, num_pessoas, valor_por_pessoa, created_at) VALUES (?, 'DIVISAO', 'entregue', ?, ?, ?, ?, ?) RETURNING id`, [mesa_id, total, forma_pagamento, num_pessoas || 1, valor_por_pessoa || total, new Date().toISOString()]);
-    const nId = isPostgres ? resP.rows[0].id : resP.lastInsertRowid;
+
+    // 1. Registra o pagamento na tabela de pagamentos vinculada ao pedido principal
+    const sqlCreate = isPostgres 
+      ? `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`
+      : `CREATE TABLE IF NOT EXISTS pagamentos (id INTEGER PRIMARY KEY AUTOINCREMENT, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`;
+    await query(sqlCreate);
+    await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento) VALUES (?, ?, ?)", [id, total, forma_pagamento]);
+
+    // 2. Remove os itens do pedido original (já que foram pagos separadamente)
     for (const i of itens) {
-      await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, status, observacao) VALUES (?, ?, ?, ?, ?)', [nId, i.menu_id, i.quantidade, 'entregue', i.observacao || '']);
       await query('DELETE FROM pedido_itens WHERE id = ?', [i.id]);
     }
+
+    // 3. Registra o valor no fluxo de caixa
     const col = forma_pagamento === 'Cartão' ? 'total_cartao' : (forma_pagamento === 'Pix' ? 'total_pix' : 'total_dinheiro');
     await query(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [total, total, cx.id]);
+
+    // 4. Verifica se restam itens no pedido original
     const rest = (await query("SELECT id FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
-    if (rest.length === 0) { await query("DELETE FROM pedidos WHERE id = ?", [id]); if (mesa_id) await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [mesa_id]); await notifyStatus(null, mesa_id, 'liberada'); }
-    else { await notifyStatus(id, mesa_id, 'itens_atualizados'); }
+    if (rest.length === 0) { 
+      await query("UPDATE pedidos SET status = 'entregue', pago_parcial = pago_parcial + ?, total = 0 WHERE id = ?", [total, id]); 
+      if (mesa_id) await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [mesa_id]); 
+      await notifyStatus(null, mesa_id, 'liberada'); 
+    } else { 
+      // Atualiza o total do pedido original subtraindo o que foi pago
+      await query("UPDATE pedidos SET total = MAX(0, total - ?), pago_parcial = pago_parcial + ? WHERE id = ?", [total, total, id]);
+      await notifyStatus(id, mesa_id, 'itens_atualizados'); 
+    }
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
@@ -585,10 +718,23 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
     if (status === 'entregue') {
       const cx = (await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'")).rows[0];
       if (!cx) return res.status(400).json({ error: 'CAIXA FECHADO' });
-      const p = (await query("SELECT total, forma_pagamento FROM pedidos WHERE id = ?", [id])).rows[0];
+      
+      const p = (await query("SELECT total, forma_pagamento, pago_parcial FROM pedidos WHERE id = ?", [id])).rows[0];
       if (p) {
         const col = p.forma_pagamento === 'Cartão' ? 'total_cartao' : (p.forma_pagamento === 'Pix' ? 'total_pix' : 'total_dinheiro');
-        await query(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [p.total, p.total, cx.id]);
+        const valorFinal = p.total; // O total do pedido é o saldo restante a pagar
+        
+        await query(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [valorFinal, valorFinal, cx.id]);
+        
+        // Registra o pagamento final na tabela de pagamentos
+        const sqlCreate = isPostgres 
+          ? `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`
+          : `CREATE TABLE IF NOT EXISTS pagamentos (id INTEGER PRIMARY KEY AUTOINCREMENT, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`;
+        await query(sqlCreate);
+        await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento) VALUES (?, ?, ?)", [id, valorFinal, p.forma_pagamento]);
+        
+        // Atualiza o pedido: limpa o saldo e soma ao pago_parcial para consolidar o histórico
+        await query("UPDATE pedidos SET pago_parcial = pago_parcial + total, total = 0 WHERE id = ?", [id]);
       }
     }
     await query('UPDATE pedidos SET status = ? WHERE id = ?', [status, id]);
@@ -680,10 +826,11 @@ app.post('/api/admin/login', async (req, res) => {
       
       const token = jwt.sign({ id: admin.id, usuario: admin.usuario, role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
       
+      const isProd = process.env.NODE_ENV === 'production';
       res.cookie('token', token, {
         httpOnly: true,
-        secure: true, // Sempre true em produção (Vercel)
-        sameSite: 'none',
+        secure: isProd,
+        sameSite: isProd ? 'none' : 'lax',
         maxAge: 1000 * 60 * 60 * 24 * 7 // 7 dias
       });
       
@@ -703,10 +850,11 @@ app.post('/api/login', async (req, res) => {
       
       const token = jwt.sign({ id: garcom.id, nome: garcom.nome, role: 'garcom' }, JWT_SECRET, { expiresIn: '7d' });
       
+      const isProd = process.env.NODE_ENV === 'production';
       res.cookie('token', token, {
         httpOnly: true,
-        secure: true, // Sempre true em produção (Vercel)
-        sameSite: 'none',
+        secure: isProd,
+        sameSite: isProd ? 'none' : 'lax',
         maxAge: 1000 * 60 * 60 * 24 * 7 // 7 dias
       });
 
@@ -736,7 +884,10 @@ app.get('/api/diag', async (req, res) => {
       env: {
         NODE_ENV: process.env.NODE_ENV,
         HAS_POSTGRES_URL: !!process.env.POSTGRES_URL,
-        HAS_DATABASE_URL: !!process.env.DATABASE_URL
+        HAS_DATABASE_URL: !!process.env.DATABASE_URL,
+        PUSHER_CONFIGURED: !!(process.env.PUSHER_APP_ID && process.env.PUSHER_APP_KEY && process.env.PUSHER_APP_SECRET),
+        PUSHER_CLUSTER: process.env.PUSHER_CLUSTER || 'não definido',
+        JWT_SECRET_DEFINED: !!process.env.JWT_SECRET
       }
     });
   } catch (e) {
@@ -756,8 +907,9 @@ app.get('/api/diag', async (req, res) => {
       const tables = [
         `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero INTEGER NOT NULL, status TEXT DEFAULT 'livre')`,
         `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, imagem TEXT, estoque INTEGER DEFAULT -1, validade DATE)`,
-        `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL)`,
+        `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
         `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
+        `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
         `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT)`,
         `CREATE TABLE IF NOT EXISTS usuarios_admin (id SERIAL PRIMARY KEY, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL)`,
         `CREATE TABLE IF NOT EXISTS fluxo_caixa (id SERIAL PRIMARY KEY, data_abertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, data_fechamento TIMESTAMP, valor_inicial REAL NOT NULL, valor_final REAL, status TEXT DEFAULT 'aberto', total_dinheiro REAL DEFAULT 0, total_pix REAL DEFAULT 0, total_cartao REAL DEFAULT 0, total_vendas REAL DEFAULT 0)`

@@ -115,11 +115,12 @@ function inicializarConfiguracaoImpressao() {
 
 function iniciarPainelAdmin() {
   inicializarConfiguracaoImpressao();
+  inicializarConfiguracaoSom(); // Carrega preferência de som
   solicitarPermissaoNotificacao();
   carregarPedidos();
   carregarCardapio();
   carregarStatusCaixa();
-  carregarDadosConfig(); // Adicionado para carregar garçons e mesas na partida
+  carregarDadosConfig(); 
   configurarPusher();
   window.addEventListener('focus', () => pararPiscarTitulo());
   
@@ -132,12 +133,17 @@ function iniciarPainelAdmin() {
         const selecionados = itensEmEdicao.filter(i => i.selecionado);
         const itensParaImprimir = selecionados.length > 0 ? selecionados : itensEmEdicao;
         
-        const titOriginal = pedidoEmEdicao.status;
         if (selecionados.length > 0) {
             mostrarToast("🖨️ Imprimindo apenas itens selecionados...");
         }
+
+        // Cria um mock para indicar que é uma impressão parcial de itens
+        const pedidoMock = {
+          ...pedidoEmEdicao,
+          isImpressaoParcialItens: true
+        };
         
-        imprimirCupom(pedidoEmEdicao, itensParaImprimir);
+        imprimirCupom(pedidoMock, itensParaImprimir);
       }
     };
   }
@@ -789,7 +795,9 @@ async function exibirHistorico() {
   let faturamentoTotal = 0;
 
   for (const pedido of historico) {
-    if (pedido.status === 'entregue') faturamentoTotal += pedido.total;
+    const valorConsolidado = (pedido.total || 0) + (pedido.pago_parcial || 0);
+    if (pedido.status === 'entregue') faturamentoTotal += valorConsolidado;
+    
     const itens = await fetch(`/api/pedidos/${pedido.id}/itens`).then(res => res.json());
     const card = document.createElement('div');
     card.className = `pedido-card status-${pedido.status}`;
@@ -800,10 +808,11 @@ async function exibirHistorico() {
           <h3>${mesaNomeExibicao}</h3>
           <span class="status-badge ${pedido.status}">${pedido.status === 'entregue' ? 'PAGO' : pedido.status.toUpperCase()}</span>
           <small style="display:block; margin-top:4px;">📅 ${formatarData(pedido.created_at)}</small>
-          ${pedido.num_pessoas > 1 ? `<small style="display:block; color:#2980b9; font-weight:bold; margin-top:2px;">👥 Dividido: ${pedido.num_pessoas} pessoas (R$ ${pedido.valor_por_pessoa.toFixed(2)}/cada)</small>` : ''}
+          ${pedido.observacao ? `<small style="display:block; color:#e67e22; font-weight:bold; margin-top:2px;">📝 ${pedido.observacao}</small>` : ''}
+          ${pedido.num_pessoas > 1 ? `<small style="display:block; color:#2980b9; font-weight:bold; margin-top:2px;">👥 Dividido: ${pedido.num_pessoas} pessoas</small>` : ''}
         </div>
         <div style="text-align: right;">
-          <div class="pedido-valor">R$ ${pedido.total.toFixed(2)}</div>
+          <div class="pedido-valor">R$ ${valorConsolidado.toFixed(2)}</div>
           <div style="display:flex; flex-direction:column; gap:5px; margin-top:5px;">
             <button style="background:#2c3e50; border:1px solid #34495e; font-size: 0.75rem; width: 100%; padding: 5px 10px;" onclick='imprimirCupom(${JSON.stringify(pedido)}, ${JSON.stringify(itens)})'>🖨️ Re-imprimir</button>
             <button style="background:#e74c3c; font-size: 0.75rem; width: 100%; padding: 5px 10px;" onclick="excluirPedido(${pedido.id})">🗑️ Excluir</button>
@@ -996,8 +1005,12 @@ async function exibirPedidos() {
 
       const subtotal = totalEnt + totalPend;
       const taxaServico = cobrarTaxaNoPedido ? (subtotal * 0.10) : 0;
+      const pagoParcial = pedido.pago_parcial || 0;
+      
       // Se o pedido estiver aguardando fechamento, usa o total e ajustes vindos do banco
-      const totalExibicao = (pedido.status === 'aguardando_fechamento' ? pedido.total : (subtotal + taxaServico)) || 0;
+      const totalConsumo = (subtotal + taxaServico);
+      const totalExibicao = (pedido.status === 'aguardando_fechamento' ? pedido.total : (totalConsumo - pagoParcial)) || 0;
+      
       const infoPagamento = (pedido.status === 'aguardando_fechamento' && pedido.forma_pagamento) ? `
         <div style="background:#f9f9f9; padding:5px; border-radius:4px; margin-top:5px; font-size:0.85rem; border:1px solid #ddd;">
           <strong>Pagamento:</strong> ${pedido.forma_pagamento}<br>
@@ -1020,18 +1033,20 @@ async function exibirPedidos() {
           </div>
           <div style="text-align:right">
             <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
-              <div class="pedido-valor" data-role="pedido-total" style="font-size:1.1rem; color:#27ae60;">Total: R$ ${totalExibicao.toFixed(2)}</div>
+              <div class="pedido-valor" data-role="pedido-total" style="font-size:1.1rem; color:#27ae60;">Saldo: R$ ${totalExibicao.toFixed(2)}</div>
               
-              <div class="toggle-container">
+              <div class="toggle-container" title="${pagoParcial > 0 ? 'Bloqueado: Mesa com pagamento parcial' : ''}">
                 <span>10%</span>
-                <label class="switch">
-                  <input type="checkbox" ${cobrarTaxaNoPedido ? 'checked' : ''} onchange="alternarTaxaPedido(${pedido.id}, this)">
+                <label class="switch" style="${pagoParcial > 0 ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
+                  <input type="checkbox" ${cobrarTaxaNoPedido ? 'checked' : ''} 
+                         ${pagoParcial > 0 ? 'disabled' : ''} 
+                         onchange="alternarTaxaPedido(${pedido.id}, this)">
                   <span class="slider"></span>
                 </label>
               </div>
             </div>
             <div data-role="pedido-subtotais" style="font-size:0.75rem; color:#7f8c8d; border-top:1px solid #eee; margin-top:3px;">
-              Sub: R$ ${subtotal.toFixed(2)} + 10%: R$ ${taxaServico.toFixed(2)}
+              Consumo: R$ ${totalConsumo.toFixed(2)} ${pagoParcial > 0 ? `<br><span style="color:#27ae60; font-weight:bold;">(-) Já Pago: R$ ${pagoParcial.toFixed(2)}</span>` : ''}
             </div>
           </div>
         </div>
@@ -1222,12 +1237,14 @@ async function adicionarAoPedidoEdicao(itemId) {
           return;
         }
 
-        // Substitui o item mantendo a quantidade e o status (si já estava entregue, continua entregue)
+        // Substitui o item mantendo a quantidade, mas reseta o status para 'pendente' 
+        // já que o novo item ainda não foi entregue ao cliente.
         itensEmEdicao[index] = {
           ...itemOriginal,
           menu_id: menuItem.id,
           nome: menuItem.nome,
           preco: menuItem.preco,
+          status: 'pendente', // Novo item substituído deve ser preparado/entregue
           selecionado: false // Desmarca após substituir
         };
       });
@@ -1406,9 +1423,21 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   document.getElementById('fechamento-acrescimo-admin').value = pedidoParaFecharAdmin.acrescimo || 0;
   document.getElementById('fechamento-desconto-admin').value = pedidoParaFecharAdmin.desconto || 0;
   document.getElementById('fechamento-forma-admin').value = pedidoParaFecharAdmin.forma_pagamento || 'Dinheiro';
-  document.getElementById('fechamento-recebido-admin').value = '';
-  document.getElementById('fechamento-divisao-pessoas').value = 1;
+  document.getElementById('fechamento-recebido-admin').value = pedidoParaFecharAdmin.valor_recebido || '';
+  document.getElementById('fechamento-divisao-pessoas').value = pedidoParaFecharAdmin.num_pessoas || 1;
   
+  const pagoParcial = pedidoParaFecharAdmin.pago_parcial || 0;
+  const elPagoContainer = document.getElementById('fechamento-pago-parcial-container');
+  const elPagoValor = document.getElementById('fechamento-pago-parcial-admin');
+  if (elPagoContainer && elPagoValor) {
+    if (pagoParcial > 0) {
+      elPagoValor.textContent = pagoParcial.toFixed(2);
+      elPagoContainer.style.display = 'block';
+    } else {
+      elPagoContainer.style.display = 'none';
+    }
+  }
+
   recalcularTotalFechamentoAdmin();
   document.getElementById('modal-fechamento-admin').style.display = 'flex';
 }
@@ -1447,8 +1476,9 @@ function recalcularTotalFechamentoAdmin() {
   const desconto = parseFloat(document.getElementById('fechamento-desconto-admin').value) || 0;
   const recebido = parseFloat(document.getElementById('fechamento-recebido-admin').value) || 0;
   const pessoas = parseInt(document.getElementById('fechamento-divisao-pessoas').value) || 1;
+  const pagoParcial = (pedidoParaFecharAdmin && pedidoParaFecharAdmin.pago_parcial) ? pedidoParaFecharAdmin.pago_parcial : 0;
 
-  const total = subtotalConsumoAdmin + taxa + acrescimo - desconto;
+  const total = (subtotalConsumoAdmin + taxa + acrescimo - desconto) - pagoParcial;
   const troco = recebido > total ? recebido - total : 0;
   const valorPessoa = total / pessoas;
 
@@ -1466,23 +1496,70 @@ async function confirmarPagamentoAdmin() {
   
   if (selecionados.length === 0) return await mostrarAlerta("Selecione pelo menos um item para pagar!", "Aviso");
   
-  const todosPagos = selecionados.length === itensFechamentoAdmin.length;
+  const subtotalLocal = selecionados.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+  const todosItensSelecionados = selecionados.length === itensFechamentoAdmin.length;
+  
   const forma_pagamento = document.getElementById('fechamento-forma-admin').value;
   const acrescimo = parseFloat(document.getElementById('fechamento-acrescimo-admin').value) || 0;
   const desconto = parseFloat(document.getElementById('fechamento-desconto-admin').value) || 0;
   const valor_recebido = parseFloat(document.getElementById('fechamento-recebido-admin').value) || 0;
   const num_pessoas = parseInt(document.getElementById('fechamento-divisao-pessoas').value) || 1;
+  const pagoParcial = (pedidoParaFecharAdmin && pedidoParaFecharAdmin.pago_parcial) ? pedidoParaFecharAdmin.pago_parcial : 0;
   
   const cobrarTaxa = document.getElementById('fechamento-taxa-admin').checked;
-  const taxaServico = cobrarTaxa ? subtotalConsumoAdmin * 0.10 : 0;
+  const taxaServico = cobrarTaxa ? subtotalLocal * 0.10 : 0;
   
-  const total = subtotalConsumoAdmin + taxaServico + acrescimo - desconto;
+  const total = (subtotalLocal + taxaServico + acrescimo - desconto) - pagoParcial;
   const valor_por_pessoa = total / num_pessoas;
   const troco = valor_recebido > total ? valor_recebido - total : 0;
 
   try {
-    if (!todosPagos) {
-      // PAGAMENTO PARCIAL
+    // CENÁRIO: Pagamento de APENAS UMA PARTE DA DIVISÃO (Ex: 1 de 3 pessoas saindo)
+    // Se o usuário clicar em pagar e o número de pessoas for > 1, oferecemos pagar a fração
+    if (num_pessoas > 1 && todosItensSelecionados) {
+      const pagarFracao = await mostrarConfirmacao(`Esta conta está dividida para ${num_pessoas} pessoas.\n\nDeseja pagar apenas 1 PARTE (R$ ${valor_por_pessoa.toFixed(2)}) e manter a mesa aberta para as outras ${num_pessoas - 1} pessoas?`, "Pagamento de Fração", "Sim", "Não");
+      
+      if (pagarFracao) {
+        const resFracao = await fetch(`/api/pedidos/${idPedido}/pagamento-fracao`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            mesa_id: idMesa, 
+            valor_pago: valor_por_pessoa,
+            forma_pagamento, 
+            num_pessoas_restantes: num_pessoas - 1
+          })
+        });
+
+        if (resFracao.ok) {
+          const dataFracao = await resFracao.json();
+          mostrarToast("✅ 1 Parte paga com sucesso!");
+          
+          // Prepara um "mock" do pedido com flag de pagamento de fração
+          const pedidoMock = {
+            ...pedidoParaFecharAdmin,
+            num_pessoas: num_pessoas,
+            valor_por_pessoa: valor_por_pessoa,
+            acrescimo: acrescimo,
+            desconto: desconto,
+            cobrar_taxa: cobrarTaxa,
+            pago_parcial: pedidoParaFecharAdmin.pago_parcial || 0,
+            isFracaoPagamento: true, // Flag para o cupom mostrar o valor da fração
+            total: (subtotalLocal + taxaServico + acrescimo - desconto)
+          };
+
+          imprimirCupom(pedidoMock, itensFechamentoAdmin);
+          
+          fecharModalFechamentoAdmin();
+          await carregarStatusCaixa();
+          carregarPedidos();
+          return;
+        }
+      }
+    }
+
+    if (!todosItensSelecionados) {
+      // PAGAMENTO PARCIAL POR ITENS
       const resParcial = await fetch(`/api/pedidos/${idPedido}/pagamento-parcial`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1505,9 +1582,12 @@ async function confirmarPagamentoAdmin() {
         throw new Error(err.error || "Erro no pagamento parcial");
       }
       
-      mostrarToast("✅ Pagamento parcial registrado!");
+      mostrarToast("✅ Pagamento parcial (itens) registrado!");
+      
+      // Passa as informações corretas para o cupom de itens não adivinhar
+      imprimirCupomParcialItens(pedidoParaFecharAdmin, selecionados, total, cobrarTaxa);
     } else {
-      // PAGAMENTO TOTAL
+      // PAGAMENTO TOTAL DA MESA
       const resFechamento = await fetch(`/api/pedidos/${idPedido}/solicitar-fechamento`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1532,26 +1612,145 @@ async function confirmarPagamentoAdmin() {
         body: JSON.stringify({ status: 'entregue' }) 
       });
 
-      if (!resStatus.ok) {
-        const err = await resStatus.json();
-        throw new Error(err.error || "Erro ao finalizar pedido");
-      }
-      
+      if (!resStatus.ok) throw new Error("Erro ao finalizar pedido");
       if (idMesa) await fetch(`/api/mesas/${idMesa}/liberar`, { method: 'PUT' });
       
-      mostrarToast("✅ Pago e Finalizado!");
+      mostrarToast("✅ Conta Total Finalizada!");
+      
+      const pedidoFinal = {
+        ...pedidoParaFecharAdmin,
+        num_pessoas: num_pessoas,
+        valor_por_pessoa: valor_por_pessoa,
+        total: total,
+        cobrar_taxa: cobrarTaxa,
+        acrescimo: acrescimo,
+        desconto: desconto,
+        pago_parcial: pagoParcial,
+        isFechamentoFinal: true // Flag para o cupom mostrar o saldo pago
+      };
+      imprimirCupom(pedidoFinal, itensFechamentoAdmin);
     }
     
     fecharModalFechamentoAdmin();
     await carregarStatusCaixa();
-    
-    if (abaAtiva === 'lancar') switchTab('historico');
-    else carregarPedidos();
+    if (abaAtiva === 'lancar') switchTab('historico'); else carregarPedidos();
 
   } catch (error) {
     console.error(error);
     await mostrarAlerta("❌ Erro: " + error.message, "Erro");
   }
+}
+
+function imprimirCupomParcialFracao(pedido, itens, valorPago, saldoRestante, pessoasRestantes, cobrarTaxa) {
+  const container = document.getElementById('cupom-impressao');
+  if (!container) return;
+  aplicarConfiguracaoImpressao();
+
+  const subtotal = itens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+  const taxa = cobrarTaxa ? subtotal * 0.10 : 0;
+  const totalMesa = subtotal + taxa;
+  const numPessoasTotal = (pessoasRestantes + 1);
+  const mesaNomeCupom = pedido.mesa_numero ? `MESA ${pedido.mesa_numero}` : 'BALCÃO / VENDA DIRETA';
+
+  const html = `
+    <div class="cupom-header">
+      <h2 style="margin:0; font-size: 12pt; font-weight: 900;">GuGA Bebidas</h2>
+      <p style="margin:2px 0; font-size: 9pt; font-weight: 700;">Comprovante de Pedido</p>
+      <p style="margin:2px 0; font-weight: 900; font-size: 11pt;">${mesaNomeCupom}</p>
+      <p style="margin:2px 0; font-size: 8pt; font-weight: 700;">${new Date().toLocaleString('pt-BR')}</p>
+      <p style="margin:2px 0; font-size: 9pt; font-weight:900;">DIVIDIDO POR: ${numPessoasTotal} PESSOAS</p>
+    </div>
+    
+    <div style="font-size: 10pt;">
+      ${itens.map(i => `
+        <div style="display:flex; justify-content:space-between; margin-bottom: 2px;">
+          <span style="flex:1; padding-right:6px; overflow:hidden; text-overflow: ellipsis; white-space:nowrap; font-weight:700;">${i.quantidade}x ${i.nome}</span>
+          <span style="flex:0 0 auto; white-space:nowrap; font-weight:900;">R$ ${(i.preco * i.quantidade).toFixed(2)}</span>
+        </div>
+        ${i.observacao ? `<div style="font-size:9pt; margin-bottom:4px; font-weight:700;">&nbsp;&nbsp;- ${i.observacao}</div>` : ''}
+      `).join('')}
+    </div>
+
+    <div class="cupom-footer" style="font-size: 10pt;">
+      <div style="display:flex; justify-content:space-between; margin-top:5px;">
+        <span style="font-weight:900;">SUBTOTAL:</span>
+        <span style="font-weight:900;">R$ ${subtotal.toFixed(2)}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between;">
+        <span style="font-weight:900;">TAXA SERV (${cobrarTaxa ? '10%' : 'OFF'}):</span>
+        <span style="font-weight:900;">R$ ${taxa.toFixed(2)}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size: 12pt; font-weight: 900; border-top: 2px solid #000; padding-top: 4px; margin-top: 4px;">
+        <span>TOTAL PAGO:</span>
+        <span>R$ ${totalMesa.toFixed(2)}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-weight:bold; margin-top:2px;">
+        <span>VALOR POR PESSOA:</span>
+        <span>R$ ${valorPago.toFixed(2)}</span>
+      </div>
+    </div>
+
+    <div class="cupom-central">
+      <p style="margin: 5px 0;">OBRIGADO PELA PREFERÊNCIA!</p>
+      <p style="margin: 2px 0; font-size: 7pt;">GuGA Bebidas - Sistema de Gestão</p>
+      <br><br>.
+    </div>
+  `;
+
+  container.innerHTML = html;
+  setTimeout(() => { window.print(); }, 250);
+}
+
+function imprimirCupomParcialItens(pedido, itensPagos, totalPago, cobrarTaxa) {
+  const container = document.getElementById('cupom-impressao');
+  if (!container) return;
+  aplicarConfiguracaoImpressao();
+
+  const subtotalPagos = itensPagos.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+  const taxaPagos = cobrarTaxa ? subtotalPagos * 0.10 : 0;
+  // O totalPago já vem calculado com taxa/desconto/acréscimo da função chamadora
+
+  const html = `
+    <div class="cupom-header">
+      <h2 style="margin:0; font-size: 12pt; font-weight: 900;">GuGA Bebidas</h2>
+      <p style="margin:2px 0; font-weight: 900; font-size: 10pt;">*** PAGAMENTO DE ITENS ***</p>
+      <p style="margin:2px 0; font-weight: 900; font-size: 11pt;">MESA ${pedido.mesa_numero}</p>
+      <p style="margin:2px 0; font-size: 8pt; font-weight: 700;">${new Date().toLocaleString('pt-BR')}</p>
+    </div>
+    
+    <div style="font-size: 10pt; margin-top: 10px; border-bottom: 1px solid #000; padding-bottom: 5px;">
+      <p style="margin:0 0 5px 0; font-weight:900; text-align:center;">ITENS PAGOS NESTA PARCIAL</p>
+      ${itensPagos.map(i => `
+        <div style="display:flex; justify-content:space-between; margin-bottom: 2px;">
+          <span style="flex:1; padding-right:6px; overflow:hidden; text-overflow: ellipsis; white-space:nowrap; font-weight:700;">${i.quantidade}x ${i.nome}</span>
+          <span style="flex:0 0 auto; white-space:nowrap; font-weight:900;">R$ ${(i.preco * i.quantidade).toFixed(2)}</span>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="cupom-footer" style="font-size: 10pt;">
+      <div style="display:flex; justify-content:space-between; margin-top:5px;">
+        <span style="font-weight:900;">SUBTOTAL ITENS:</span>
+        <span style="font-weight:900;">R$ ${subtotalPagos.toFixed(2)}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between;">
+        <span style="font-weight:900;">TAXA SERV (${cobrarTaxa ? '10%' : 'OFF'}):</span>
+        <span style="font-weight:900;">R$ ${taxaPagos.toFixed(2)}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size: 12pt; font-weight: 900; border-top: 2px solid #000; padding-top: 4px; margin-top: 4px;">
+        <span>TOTAL PAGO AGORA:</span>
+        <span>R$ ${totalPago.toFixed(2)}</span>
+      </div>
+    </div>
+
+    <div class="cupom-central" style="margin-top: 20px;">
+      <p style="margin: 5px 0; font-size: 8pt;">Os demais itens continuam na conta da mesa.</p>
+      <p style="margin: 2px 0; font-size: 7pt;">GuGA Bebidas - Sistema de Gestão</p>
+      <br><br>.
+    </div>
+  `;
+  container.innerHTML = html;
+  setTimeout(() => { window.print(); }, 250);
 }
 
 function fecharModalFechamentoAdmin() { document.getElementById('modal-fechamento-admin').style.display = 'none'; }
@@ -1568,7 +1767,15 @@ async function carregarCardapio() {
 function iniciarPiscarTitulo() { if (intervalPiscaTitulo) return; let alt = false; intervalPiscaTitulo = setInterval(() => { document.title = alt ? '🔔 NOVO!' : '⚠️ VERIFIQUE'; alt = !alt; }, 1000); }
 function pararPiscarTitulo() { clearInterval(intervalPiscaTitulo); intervalPiscaTitulo = null; document.title = tituloOriginal; }
 function solicitarPermissaoNotificacao() { if ("Notification" in window) Notification.requestPermission(); }
-function exibirNotificacaoNativa(tit, msg) { if ("Notification" in window && Notification.permission === "granted") new Notification(tit, { body: msg }); }
+function exibirNotificacaoNativa(tit, msg) { 
+  const somWindows = localStorage.getItem('admin_som_windows') === 'true';
+  if ("Notification" in window && Notification.permission === "granted") {
+    new Notification(tit, { 
+      body: msg,
+      silent: !somWindows 
+    }); 
+  } 
+}
 
 let timeoutPusher = null;
 let pusherInstancia = null;
@@ -1578,19 +1785,26 @@ function configurarPusher() {
   if (pusherInstancia) return;
   
   try {
+    console.log('📡 Inicializando Pusher no Admin...');
     pusherInstancia = new Pusher('5b2b284e309dea9d90fb', { 
       cluster: 'sa1',
       forceTLS: true
     });
+    
+    pusherInstancia.connection.bind('connected', () => {
+      console.log('✅ Admin conectado ao Pusher com sucesso!');
+    });
 
     pusherInstancia.connection.bind('error', function(err) {
-      console.warn('Pusher Connection Warning:', err);
+      console.warn('❌ Erro de conexão no Pusher (Admin):', err);
     });
 
     const channel = pusherInstancia.subscribe('garconnexpress');
+    console.log('📺 Admin inscrito no canal: garconnexpress');
 
 
   channel.bind('novo-pedido', (data) => {
+    console.log('📢 Admin: Novo pedido recebido!', data);
     tocarNotificacao(); iniciarPiscarTitulo();
     exibirNotificacaoNativa('Novo Pedido!', `Mesa ${data.pedido.mesa_numero}`);
     mostrarToast(`🚀 NOVO PEDIDO: Mesa ${data.pedido.mesa_numero}`);
@@ -1598,7 +1812,7 @@ function configurarPusher() {
   });
 
   channel.bind('status-atualizado', (data) => {
-    console.log('STATUS ATUALIZADO RECEBIDO:', data);
+    console.log('📢 Admin: Status atualizado recebido!', data);
     if (!data) return;
 
     const mesaData = data.mesa_numero || data.mesa_id || 'X';
@@ -1635,13 +1849,32 @@ function configurarPusher() {
     clearTimeout(timeoutPusher); timeoutPusher = setTimeout(() => carregarPedidos(), 500);
   });
 
-  channel.bind('menu-atualizado', () => {
+  channel.bind('menu-atualizado', (data) => {
+    console.log('📢 Admin: Menu atualizado recebido!', data);
     carregarCardapio();
   });
   } catch (e) { console.warn('Pusher init error:', e); }
 }
 
-function tocarNotificacao() { if (audioDesbloqueado) { audioNotificacao.currentTime = 0; audioNotificacao.play().catch(e => console.error(e)); } }
+function tocarNotificacao() { 
+  const somWindows = localStorage.getItem('admin_som_windows') === 'true';
+  // Só toca o MP3 se o Som do Windows NÃO estiver ativado
+  if (audioDesbloqueado && !somWindows) { 
+    audioNotificacao.currentTime = 0; 
+    audioNotificacao.play().catch(e => console.error(e)); 
+  } 
+}
+
+function inicializarConfiguracaoSom() {
+  const somWindows = localStorage.getItem('admin_som_windows') === 'true';
+  const toggle = document.getElementById('toggle-som-windows');
+  if (toggle) toggle.checked = somWindows;
+}
+
+function alternarSomWindows(ativo) {
+  localStorage.setItem('admin_som_windows', ativo);
+  mostrarToast(ativo ? "🔊 Som padrão do Windows ativado" : "🎵 Som personalizado (MP3) ativado");
+}
 
 function mostrarToast(msg) {
   const old = document.querySelector('.toast-notificacao'); if (old) old.remove();
@@ -1671,13 +1904,13 @@ function mostrarAlerta(msg, titulo = "Aviso") {
   });
 }
 
-function mostrarConfirmacao(msg, titulo = "Confirmação") {
+function mostrarConfirmacao(msg, titulo = "Confirmação", txtConfirmar = "Confirmar", txtCancelar = "Cancelar") {
   return new Promise(resolve => {
     document.getElementById('modal-sistema-titulo').innerText = titulo;
     document.getElementById('modal-sistema-mensagem').innerText = msg;
     document.getElementById('btn-sistema-cancelar').classList.remove('hidden');
-    document.getElementById('btn-sistema-cancelar').innerText = "Cancelar";
-    document.getElementById('btn-sistema-confirmar').innerText = "Confirmar";
+    document.getElementById('btn-sistema-cancelar').innerText = txtCancelar;
+    document.getElementById('btn-sistema-confirmar').innerText = txtConfirmar;
     document.getElementById('btn-sistema-confirmar').style.background = "#e74c3c";
     
     const modal = document.getElementById('modal-sistema');
@@ -1736,10 +1969,17 @@ function copiarPedido(btn, texto) {
   });
 }
 
-function imprimirCupom(pedido, itens) {
+async function imprimirCupom(pedido, itens) {
   const container = document.getElementById('cupom-impressao');
   if (!container) return;
   aplicarConfiguracaoImpressao();
+
+  // Busca histórico de pagamentos deste pedido no servidor
+  let historicoPagos = [];
+  try {
+    const resPagos = await fetch(`/api/pedidos/${pedido.id}/pagamentos`);
+    if (resPagos.ok) historicoPagos = await resPagos.json();
+  } catch (e) { console.error("Erro ao buscar pagamentos:", e); }
 
   const subtotal = itens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
   
@@ -1756,10 +1996,26 @@ function imprimirCupom(pedido, itens) {
     cobrarTaxaNoCupom = (pedido.total > subtotal + 0.01); 
   }
 
+  const acrescimo = pedido.acrescimo || 0;
+  const desconto = pedido.desconto || 0;
   const taxa = cobrarTaxaNoCupom ? subtotal * 0.10 : 0;
-  const totalFinal = (pedido.status === 'aguardando_fechamento' || pedido.status === 'entregue') ? pedido.total : (subtotal + taxa);
+  const pagoAnterior = pedido.pago_parcial || 0;
   
+  const totalGeralMesa = subtotal + taxa + acrescimo - desconto;
+  
+  // Define o que será exibido como "PAGO AGORA"
+  let pagoAgora = totalGeralMesa; // Padrão: pagamento total
+  
+  if (pedido.isFracaoPagamento) {
+    pagoAgora = pedido.valor_por_pessoa || (totalGeralMesa / (pedido.num_pessoas || 1));
+  } else if (pedido.isFechamentoFinal) {
+    pagoAgora = totalGeralMesa - pagoAnterior;
+  } else if (pedido.isImpressaoParcialItens) {
+    pagoAgora = totalGeralMesa; // Neste caso, o totalGeralMesa já é a soma apenas dos itens enviados
+  }
+
   const mesaNomeCupom = pedido.mesa_numero ? `MESA ${pedido.mesa_numero}` : 'BALCÃO / VENDA DIRETA';
+  const numPessoas = pedido.num_pessoas || 1;
 
   const html = `
     <div class="cupom-header">
@@ -1767,7 +2023,7 @@ function imprimirCupom(pedido, itens) {
       <p style="margin:2px 0; font-size: 9pt; font-weight: 700;">Comprovante de Pedido</p>
       <p style="margin:2px 0; font-weight: 900; font-size: 11pt;">${mesaNomeCupom}</p>
       <p style="margin:2px 0; font-size: 8pt; font-weight: 700;">${new Date().toLocaleString('pt-BR')}</p>
-      ${pedido.num_pessoas > 1 ? `<p style="margin:2px 0; font-size: 9pt; font-weight:900;">DIVIDIDO POR: ${pedido.num_pessoas} PESSOAS</p>` : ''}
+      ${numPessoas > 1 ? `<p style="margin:2px 0; font-size: 9pt; font-weight:900;">DIVIDIDO POR: ${numPessoas} PESSOAS</p>` : ''}
     </div>
     
     <div style="font-size: 10pt;">
@@ -1781,22 +2037,45 @@ function imprimirCupom(pedido, itens) {
     </div>
 
     <div class="cupom-footer" style="font-size: 10pt;">
-      <div style="display:flex; justify-content:space-between; margin-top:5px;">
-        <span style="font-weight:900;">SUBTOTAL:</span>
-        <span style="font-weight:900;">R$ ${subtotal.toFixed(2)}</span>
+      <div style="display:flex; justify-content:space-between; margin-top:5px; border-top: 1px dashed #000; padding-top: 2px;">
+        <span>SUBTOTAL:</span>
+        <span>R$ ${subtotal.toFixed(2)}</span>
       </div>
-      <div style="display:flex; justify-content:space-between;">
-        <span style="font-weight:900;">TAXA SERV (${cobrarTaxaNoCupom ? '10%' : 'OFF'}):</span>
-        <span style="font-weight:900;">R$ ${taxa.toFixed(2)}</span>
+      ${taxa > 0 ? `<div style="display:flex; justify-content:space-between;"><span>TAXA SERV (10%):</span><span>R$ ${taxa.toFixed(2)}</span></div>` : ''}
+      ${acrescimo > 0 ? `<div style="display:flex; justify-content:space-between;"><span>ACRÉSCIMO:</span><span>R$ ${acrescimo.toFixed(2)}</span></div>` : ''}
+      ${desconto > 0 ? `<div style="display:flex; justify-content:space-between;"><span>DESCONTO:</span><span>- R$ ${desconto.toFixed(2)}</span></div>` : ''}
+      
+      <div style="display:flex; justify-content:space-between; font-weight: 900; margin-top: 2px; border-top: 1px solid #000;">
+        <span>${pedido.isImpressaoParcialItens ? 'TOTAL DA CONTA PARCIAL:' : 'TOTAL DA CONTA:'}</span>
+        <span>R$ ${totalGeralMesa.toFixed(2)}</span>
       </div>
-      <div style="display:flex; justify-content:space-between; font-size: 12pt; font-weight: 900; border-top: 2px solid #000; padding-top: 4px; margin-top: 4px;">
-        <span>TOTAL PAGO:</span>
-        <span>R$ ${totalFinal.toFixed(2)}</span>
-      </div>
-      ${pedido.num_pessoas > 1 ? `
-      <div style="display:flex; justify-content:space-between; font-weight:bold; margin-top:2px;">
+
+      ${historicoPagos.length > 0 ? `
+        <div style="margin-top: 5px; border-top: 1px dashed #000; padding-top: 2px; font-size: 8.5pt;">
+          <p style="margin: 0; font-weight: 900; text-align: center;">HISTÓRICO DE PAGAMENTOS</p>
+          ${historicoPagos.map(pag => `
+            <div style="display:flex; justify-content:space-between; opacity: 0.8;">
+              <span>${new Date(pag.data).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})} - ${pag.forma_pagamento}:</span>
+              <span>R$ ${pag.valor.toFixed(2)}</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : (pagoAnterior > 0 ? `
+        <div style="display:flex; justify-content:space-between; font-size: 9pt; color: #555;">
+          <span>(-) JÁ PAGO ANTERIOR:</span>
+          <span>R$ ${pagoAnterior.toFixed(2)}</span>
+        </div>` : '')}
+
+      ${!pedido.isImpressaoParcialItens ? `
+      <div style="display:flex; justify-content:space-between; font-size: 12pt; font-weight: 900; border: 2px solid #000; padding: 4px; margin-top: 6px; text-align: center;">
+        <span>TOTAL PAGO AGORA:</span>
+        <span>R$ ${pagoAgora.toFixed(2)}</span>
+      </div>` : ''}
+
+      ${numPessoas > 1 ? `
+      <div style="display:flex; justify-content:space-between; font-weight:bold; margin-top:4px; font-size: 9pt;">
         <span>VALOR POR PESSOA:</span>
-        <span>R$ ${pedido.valor_por_pessoa.toFixed(2)}</span>
+        <span>R$ ${(pedido.valor_por_pessoa || (totalGeralMesa / numPessoas)).toFixed(2)}</span>
       </div>` : ''}
     </div>
 
