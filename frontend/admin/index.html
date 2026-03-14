@@ -25,9 +25,18 @@
         <h1 style="margin:0">Painel Administrativo</h1>
         <span id="caixa-status-badge-admin" class="badge-caixa" style="display:none; width:fit-content;"></span>
       </div>
-      <a href="https://web.whatsapp.com" target="_blank" class="btn-whatsapp-header">
-        💬 WhatsApp Web
-      </a>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="display:flex; align-items:center; gap:8px; background: rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2);">
+          <span style="font-size: 0.7rem; font-weight: bold; color: #fff;">🔊 SOM WINDOWS</span>
+          <label class="switch" style="width: 40px; height: 20px;">
+            <input type="checkbox" id="toggle-som-windows" onchange="alternarSomWindows(this.checked)">
+            <span class="slider round"></span>
+          </label>
+        </div>
+        <a href="https://web.whatsapp.com" target="_blank" class="btn-whatsapp-header">
+          💬 WhatsApp Web
+        </a>
+      </div>
     </div>
     
     <div class="header-stats">
@@ -275,6 +284,7 @@
           </div>
           <p style="margin: 0; font-size: 0.9rem;">Subtotal Consumo: R$ <span id="fechamento-subtotal-admin">0,00</span></p>
           <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #3498db;">Taxa de Serviço (10%): R$ <span id="fechamento-taxa-valor-admin">0,00</span></p>
+          <p id="fechamento-pago-parcial-container" style="margin: 5px 0 0 0; font-size: 0.9rem; color: #27ae60; font-weight: bold; display: none;">(-) Já Pago Antecipado: R$ <span id="fechamento-pago-parcial-admin">0,00</span></p>
           <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <div>
               <label style="display:block; font-size:0.75rem; font-weight:bold; color:#7f8c8d; margin-bottom:3px;">Acréscimo (R$):</label>
@@ -361,6 +371,6 @@
   <div id="cupom-impressao"></div>
 
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=1.0.1"></script>
 </body>
 </html>

@@ -69,6 +69,46 @@
     <button class="btn-opcoes btn-cancelar" onclick="fecharResumoMesa()">Fechar</button>
   </div>
 
+  <!-- Modal de Fechamento (Novo) -->
+  <div id="modal-fechamento-garcom" class="modal" style="display:none; align-items: center; justify-content: center; background: rgba(0,0,0,0.8); position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10000;">
+    <div class="modal-content" style="max-width: 90%; width: 350px; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 5px 25px rgba(0,0,0,0.3);">
+      <h2 style="margin-bottom: 15px; color: #2c3e50; text-align: center;">Fechar Conta</h2>
+      
+      <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #e9ecef;">
+        <p style="margin: 0; font-size: 1.1rem; font-weight: bold; text-align: center; color: #27ae60;">Total: <span id="total-fechamento-garcom">R$ 0,00</span></p>
+      </div>
+
+      <div style="margin-bottom: 15px;">
+        <label style="display:block; font-size:0.8rem; font-weight:bold; color:#7f8c8d; margin-bottom:5px;">FORMA DE PAGAMENTO:</label>
+        <select id="forma-pagamento-garcom" style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; font-size:1rem; background: #fff;" onchange="alternarCampoTroco()">
+          <option value="Dinheiro">💵 Dinheiro</option>
+          <option value="Pix">📱 Pix</option>
+          <option value="Cartão">💳 Cartão</option>
+        </select>
+      </div>
+
+      <div id="campo-recebido-garcom" style="margin-bottom: 15px;">
+        <label style="display:block; font-size:0.8rem; font-weight:bold; color:#7f8c8d; margin-bottom:5px;">VALOR QUE O CLIENTE VAI DAR (R$):</label>
+        <input type="number" id="valor-recebido-garcom" placeholder="0.00" step="0.50" style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; font-size:1.1rem; font-weight:bold; color:#27ae60;" oninput="calcularTrocoGarcom()">
+        <p style="margin: 8px 0 0 0; color: #e67e22; font-weight:bold; font-size: 0.9rem;">Troco: <span id="troco-garcom">R$ 0,00</span></p>
+      </div>
+
+      <div style="margin-bottom: 15px; padding: 10px; background: #fff9db; border-radius: 8px; border: 1px solid #fab1a0;">
+        <label style="display:block; font-size:0.8rem; font-weight:bold; color:#e67e22; margin-bottom:5px;">DIVIDIR CONTA POR:</label>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <input type="number" id="divisao-pessoas-garcom" value="1" min="1" style="width:70px; padding:8px; border-radius:5px; border:1px solid #ddd; text-align:center;" oninput="calcularTrocoGarcom()">
+          <span style="font-weight:bold; color:#e67e22; font-size:0.9rem;">Pessoas</span>
+        </div>
+        <p style="margin: 8px 0 0 0; color: #d35400; font-weight:bold; font-size: 0.9rem;">Cada um paga: <span id="valor-pessoa-garcom">R$ 0,00</span></p>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button onclick="cancelarFechamentoGarcom()" style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold; color: #7f8c8d;">VOLTAR</button>
+        <button onclick="confirmarSolicitacaoFechamento()" style="flex: 1.5; padding: 12px; border-radius: 8px; border: none; background: #27ae60; color: #fff; font-weight: bold; font-size: 1rem;">SOLICITAR</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal de Sistema (Alert/Confirm) -->
   <div id="modal-sistema" class="modal">
     <div class="modal-content" style="max-width: 400px; text-align: center; padding: 2rem;">
@@ -83,6 +123,6 @@
   </div>
 
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
-  <script src="/garcom/app.js"></script>
+  <script src="/garcom/app.js?v=1.0.1"></script>
 </body>
 </html>

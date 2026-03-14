@@ -162,40 +162,53 @@ async function atualizarStatusCaixa() {
 let timeoutPusher = null;
 function configurarPusher() {
   try {
+    console.log('📡 Inicializando Pusher no garçom...');
     const pusher = new Pusher('5b2b284e309dea9d90fb', { 
       cluster: 'sa1',
       forceTLS: true
     });
     
+    pusher.connection.bind('connected', () => {
+      console.log('✅ Conectado ao Pusher com sucesso!');
+    });
+
     pusher.connection.bind('error', function(err) {
-      console.warn('Pusher Connection Warning:', err);
+      console.warn('❌ Erro de conexão no Pusher:', err);
     });
 
     const channel = pusher.subscribe('garconnexpress');
+    console.log('📺 Inscrito no canal: garconnexpress');
   
   channel.bind('novo-pedido', (data) => {
-    console.log('NOVO PEDIDO RECEBIDO:', data);
+    console.log('📢 Evento recebido: novo-pedido', data);
     clearTimeout(timeoutPusher);
     timeoutPusher = setTimeout(() => carregarMesas(), 500);
   });
 
-  channel.bind('status-caixa-atualizado', () => {
+  channel.bind('status-caixa-atualizado', (data) => {
+    console.log('📢 Evento recebido: status-caixa-atualizado', data);
     atualizarStatusCaixa();
   });
 
   channel.bind('status-atualizado', (data) => {
-    console.log('STATUS ATUALIZADO RECEBIDO:', data);
+    console.log('📢 Evento recebido: status-atualizado', data);
+    // Debounce de 500ms para evitar recargas excessivas se vários eventos chegarem juntos
     clearTimeout(timeoutPusher);
-    timeoutPusher = setTimeout(() => carregarMesas(), 500);
-    if (!data) return;
-    const nMesa = data.mesa_numero || data.mesa_id || 'X';
-    if (data.status === 'liberada') mostrarToast(`✅ Mesa ${nMesa} liberada`);
-    if (data.status === 'servido') mostrarToast(`🚚 Pedido da Mesa ${nMesa} entregue!`);
-    if (data.status === 'itens_atualizados') mostrarToast(`📝 Pedido da Mesa ${nMesa} atualizado pelo Admin`);
-    if (data.status === 'cancelado') mostrarToast(`❌ Pedido da Mesa ${nMesa} CANCELADO pelo Admin`);
+    timeoutPusher = setTimeout(() => {
+      console.log('🔄 Recarregando mesas devido a atualização de status...');
+      carregarMesas();
+      if (data) {
+        const nMesa = data.mesa_numero || data.mesa_id || 'X';
+        if (data.status === 'liberada') mostrarToast(`✅ Mesa ${nMesa} liberada`);
+        else if (data.status === 'servido') mostrarToast(`🚚 Pedido da Mesa ${nMesa} entregue!`);
+        else if (data.status === 'itens_atualizados') mostrarToast(`📝 Pedido da Mesa ${nMesa} atualizado pelo Admin`);
+        else if (data.status === 'cancelado') mostrarToast(`❌ Pedido da Mesa ${nMesa} CANCELADO pelo Admin`);
+      }
+    }, 500);
   });
 
-  channel.bind('menu-atualizado', () => {
+  channel.bind('menu-atualizado', (data) => {
+    console.log('📢 Evento recebido: menu-atualizado', data);
     carregarMenu();
   });
   } catch (e) { console.warn('Pusher init error:', e); }
@@ -362,8 +375,8 @@ async function verItensDaMesa() {
     lista.innerHTML = html || '<p>Nenhum item no pedido.</p>';
   
     // Sanitizar observações
-    if (pedidoAbertoNaMesa) {
-      pedidoAbertoNaMesa.itens.forEach(item => {
+    if (itens) {
+      itens.forEach(item => {
         if (item.observacao) {
           const obsElement = document.getElementById(`obs-${item.id}`);
           if (obsElement) {
@@ -451,7 +464,6 @@ async function finalizarEDesocupar() {
   if (!mesaAtual || !pedidoAbertoNaMesa) return;
 
   try {
-    // Verificar se existem itens pendentes antes de permitir a solicitação de fechamento
     const resItens = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/itens`);
     const itens = await resItens.json();
     const temPendentes = itens.some(i => i.status === 'pendente');
@@ -460,18 +472,120 @@ async function finalizarEDesocupar() {
       return await mostrarAlerta("Não é possível solicitar o fechamento! Existem itens pendentes de entrega nesta mesa. Marque-os como entregues primeiro.", "Aviso");
     }
 
-    if (await mostrarConfirmacao(`Solicitar fechamento da Mesa ${mesaAtual.numero}?`, "Fechar Mesa")) {
-      await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/solicitar-fechamento`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mesa_id: mesaAtual.id })
-      });
-      await mostrarAlerta("Solicitação enviada!", "Sucesso");
-      fecharOpcoes();
+    const subtotal = itens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+    const totalComTaxa = Math.round(subtotal * 1.10 * 100) / 100;
+
+    const elTotal = document.getElementById('total-fechamento-garcom');
+    const elRecebido = document.getElementById('valor-recebido-garcom');
+    const elTroco = document.getElementById('troco-garcom');
+    const elForma = document.getElementById('forma-pagamento-garcom');
+
+    if (elTotal) elTotal.textContent = `R$ ${totalComTaxa.toFixed(2)}`;
+    if (elRecebido) elRecebido.value = '';
+    if (elTroco) elTroco.textContent = 'R$ 0,00';
+    if (elForma) elForma.value = 'Dinheiro';
+    
+    // Zera divisão de conta
+    const elPessoas = document.getElementById('divisao-pessoas-garcom');
+    const elValorPessoa = document.getElementById('valor-pessoa-garcom');
+    if (elPessoas) elPessoas.value = '1';
+    if (elValorPessoa) elValorPessoa.textContent = `R$ ${totalComTaxa.toFixed(2)}`;
+
+    alternarCampoTroco();
+
+    // Fecha o modal de opções antes de abrir o de fechamento
+    fecharOpcoes();
+    
+    const modalFechamento = document.getElementById('modal-fechamento-garcom');
+    if (modalFechamento) modalFechamento.style.display = 'flex';
+
+  } catch (error) {
+    console.error("Erro no fechamento:", error);
+    await mostrarAlerta("Erro ao carregar dados do pedido.", "Erro");
+  }
+}
+
+function alternarCampoTroco() {
+  const elForma = document.getElementById('forma-pagamento-garcom');
+  const elCampoRecebido = document.getElementById('campo-recebido-garcom');
+  if (elForma && elCampoRecebido) {
+    elCampoRecebido.style.display = (elForma.value === 'Dinheiro') ? 'block' : 'none';
+  }
+}
+
+function calcularTrocoGarcom() {
+  const elTotal = document.getElementById('total-fechamento-garcom');
+  const elRecebido = document.getElementById('valor-recebido-garcom');
+  const elTroco = document.getElementById('troco-garcom');
+  const elPessoas = document.getElementById('divisao-pessoas-garcom');
+  const elValorPessoa = document.getElementById('valor-pessoa-garcom');
+
+  if (elTotal && elRecebido && elTroco) {
+    const total = parseFloat(elTotal.textContent.replace('R$ ', '')) || 0;
+    const recebido = parseFloat(elRecebido.value) || 0;
+    const troco = recebido > total ? recebido - total : 0;
+    elTroco.textContent = `R$ ${troco.toFixed(2)}`;
+
+    // Divisão de conta
+    const pessoas = parseInt(elPessoas.value) || 1;
+    const valorPessoa = total / pessoas;
+    if (elValorPessoa) elValorPessoa.textContent = `R$ ${valorPessoa.toFixed(2)}`;
+  }
+}
+
+function cancelarFechamentoGarcom() {
+  const modalFechamento = document.getElementById('modal-fechamento-garcom');
+  if (modalFechamento) modalFechamento.style.display = 'none';
+  
+  const modalOpcoes = document.getElementById('modal-opcoes');
+  if (modalOpcoes) modalOpcoes.style.display = 'block';
+}
+
+async function confirmarSolicitacaoFechamento() {
+  const elForma = document.getElementById('forma-pagamento-garcom');
+  const elRecebido = document.getElementById('valor-recebido-garcom');
+  const elTotal = document.getElementById('total-fechamento-garcom');
+  const elPessoas = document.getElementById('divisao-pessoas-garcom');
+
+  if (!elForma || !elTotal) return;
+
+  const forma = elForma.value;
+  const recebido = elRecebido ? (parseFloat(elRecebido.value) || 0) : 0;
+  const total = parseFloat(elTotal.textContent.replace('R$ ', '')) || 0;
+  const troco = recebido > total ? recebido - total : 0;
+  const num_pessoas = elPessoas ? (parseInt(elPessoas.value) || 1) : 1;
+  const valor_por_pessoa = total / num_pessoas;
+
+  if (forma === 'Dinheiro' && recebido < total && recebido > 0) {
+    if (!await mostrarConfirmacao("O valor recebido é menor que o total. Deseja continuar?", "Aviso")) return;
+  }
+
+  try {
+    const res = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/solicitar-fechamento`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        mesa_id: mesaAtual.id,
+        forma_pagamento: forma,
+        valor_recebido: recebido,
+        troco: troco,
+        total: total,
+        num_pessoas: num_pessoas,
+        valor_por_pessoa: valor_por_pessoa
+      })
+    });
+
+    if (res.ok) {
+      const modalFechamento = document.getElementById('modal-fechamento-garcom');
+      if (modalFechamento) modalFechamento.style.display = 'none';
+      
+      await mostrarAlerta("Solicitação de fechamento enviada ao caixa!", "Sucesso");
       carregarMesas();
+    } else {
+      throw new Error("Falha na solicitação");
     }
   } catch (error) {
-    await mostrarAlerta("Erro ao verificar itens do pedido.", "Erro");
+    await mostrarAlerta("Erro ao enviar solicitação.", "Erro");
   }
 }
 
@@ -591,7 +705,17 @@ function removerItemPedido(index) {
 
 async function enviarPedido() {
   if (pedidoAtual.length === 0) return await mostrarAlerta('Adicione pelo menos um item', "Aviso");
+  
+  const btnEnviar = document.getElementById('enviar-pedido');
+  const originalTexto = btnEnviar.innerText;
+  
   try {
+    // Desabilita o botão para evitar duplicidade
+    btnEnviar.disabled = true;
+    btnEnviar.innerText = "Enviando...";
+    btnEnviar.style.opacity = "0.5";
+    btnEnviar.style.cursor = "not-allowed";
+
     const mesa_id = mesaAtual ? mesaAtual.id : null;
     const url = pedidoAbertoNaMesa ? `/api/pedidos/${pedidoAbertoNaMesa.id}/adicionar` : '/api/pedidos';
     
@@ -620,6 +744,12 @@ async function enviarPedido() {
   } catch (error) { 
     console.error("Erro ao enviar pedido:", error);
     await mostrarAlerta('Erro de conexão com o servidor', "Erro"); 
+  } finally {
+    // Reabilita o botão em caso de erro ou ao finalizar
+    btnEnviar.disabled = false;
+    btnEnviar.innerText = originalTexto;
+    btnEnviar.style.opacity = "1";
+    btnEnviar.style.cursor = "pointer";
   }
 }
 

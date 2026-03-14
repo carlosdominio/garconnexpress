@@ -634,7 +634,7 @@ button:hover { background-color: #2ecc71; }
 .modal {
   display: none;
   position: fixed;
-  z-index: 9999;
+  z-index: 20000;
   left: 0;
   top: 0;
   width: 100%;
