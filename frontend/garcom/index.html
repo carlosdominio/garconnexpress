@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR" translate="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GarçomExpress - Garçom</title>
+  <link rel="icon" type="image/svg+xml" href="/garcom/favicon.svg">
+  <link rel="stylesheet" href="/garcom/style.css">
+</head>
+<body>
+  <!-- Tela de Login -->
+  <div id="tela-login" class="tela-login">
+    <div class="login-box">
+      <h1>GarçomExpress</h1>
+      <p>Área do Colaborador</p>
+      <input type="text" id="login-usuario" placeholder="Usuário">
+      <input type="password" id="login-senha" placeholder="Senha">
+      <button onclick="realizarLogin()">Entrar</button>
+    </div>
+  </div>
+
+  <header>
+    <div style="display:flex; justify-content: space-between; align-items: center; width: 100%;">
+      <div>
+        <h1>GarçomExpress</h1>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <p id="garcom-nome-exibicao">Aguardando Login...</p>
+          <span id="caixa-status-badge" class="badge-caixa" style="display:none;"></span>
+        </div>
+      </div>
+      <button onclick="logout()" style="width: auto; background: transparent; color: #fff; font-size: 0.8rem; border: 1px solid rgba(255,255,255,0.3);">SAIR</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="mesas">
+      <h2>Escolha uma Mesa</h2>
+      <div id="mesas-grid"></div>
+    </section>
+
+    <section id="pedido" class="hidden">
+      <h2>Pedido - Mesa <span id="mesa-atual"></span></h2>
+      <div id="categorias"></div>
+      <div id="menu-grid"></div>
+      <div id="resumo-pedido">
+        <h3>Resumo</h3>
+        <div id="itens-pedido"></div>
+        <p id="total-pedido">Total: R$ 0,00</p>
+        <button id="enviar-pedido">Enviar Pedido</button>
+        <button id="voltar-mesas">Voltar</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal de Opções da Mesa Ocupada -->
+  <div id="modal-opcoes" class="modal-opcoes">
+    <h2 id="modal-mesa-titulo">Mesa X</h2>
+    <button class="btn-opcoes btn-ver-itens" onclick="verItensDaMesa()" style="background-color: #f1c40f; color: #2c3e50;">📋 Ver Itens Pedidos</button>
+    <button class="btn-opcoes btn-adicionar" onclick="abrirCardapioAdicionar()">➕ Adicionar mais itens</button>
+    <button class="btn-opcoes btn-fechar-conta" onclick="finalizarEDesocupar()">💰 Fechar Conta (Liberar)</button>
+    <button class="btn-opcoes btn-cancelar" onclick="fecharOpcoes()">Voltar</button>
+  </div>
+
+  <!-- Modal de Visualização de Itens (Resumo da Mesa) -->
+  <div id="modal-resumo-mesa" class="modal-opcoes" style="display:none;">
+    <h2 id="resumo-mesa-titulo">Itens da Mesa</h2>
+    <div id="lista-itens-mesa" style="text-align: left; margin-bottom: 1.5rem;"></div>
+    <div id="total-resumo-mesa" style="font-weight: bold; font-size: 1.2rem; margin-bottom: 1rem;">Total: R$ 0,00</div>
+    <button class="btn-opcoes btn-cancelar" onclick="fecharResumoMesa()">Fechar</button>
+  </div>
+
+  <!-- Modal de Sistema (Alert/Confirm) -->
+  <div id="modal-sistema" class="modal">
+    <div class="modal-content" style="max-width: 400px; text-align: center; padding: 2rem;">
+      <h2 id="modal-sistema-titulo" style="margin-bottom: 1rem; color: #2c3e50;">Aviso</h2>
+      <p id="modal-sistema-mensagem" style="margin-bottom: 2rem; color: #7f8c8d; font-size: 1.1rem; line-height: 1.4;"></p>
+      
+      <div id="modal-sistema-acoes" style="display: flex; gap: 1rem; justify-content: center;">
+        <button id="btn-sistema-cancelar" style="background: #7f8c8d; padding: 0.8rem 1.5rem; border-radius: 8px; flex: 1;" class="hidden">Cancelar</button>
+        <button id="btn-sistema-confirmar" style="background: #27ae60; padding: 0.8rem 1.5rem; border-radius: 8px; flex: 1;">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+  <script src="/garcom/app.js"></script>
+</body>
+</html>
