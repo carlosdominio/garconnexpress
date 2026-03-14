@@ -2020,13 +2020,15 @@ async function imprimirCupom(pedido, itens) {
   const html = `
     <div class="cupom-header">
       <h2 style="margin:0; font-size: 12pt; font-weight: 900;">GuGA Bebidas</h2>
-      <p style="margin:2px 0; font-size: 9pt; font-weight: 700;">Comprovante de Pedido</p>
+      <p style="margin:2px 0; font-size: 10pt; font-weight: 900; color: #000;">
+        ${pedido.status === 'cancelado' ? '*** PEDIDO CANCELADO ***' : 'Comprovante de Pedido'}
+      </p>
       <p style="margin:2px 0; font-weight: 900; font-size: 11pt;">${mesaNomeCupom}</p>
       <p style="margin:2px 0; font-size: 8pt; font-weight: 700;">${new Date().toLocaleString('pt-BR')}</p>
       ${numPessoas > 1 ? `<p style="margin:2px 0; font-size: 9pt; font-weight:900;">DIVIDIDO POR: ${numPessoas} PESSOAS</p>` : ''}
     </div>
     
-    <div style="font-size: 10pt;">
+    <div style="font-size: 10pt; ${pedido.status === 'cancelado' ? 'text-decoration: line-through; opacity: 0.7;' : ''}">
       ${itens.map(i => `
         <div style="display:flex; justify-content:space-between; margin-bottom: 2px;">
           <span style="flex:1; padding-right:6px; overflow:hidden; text-overflow: ellipsis; white-space:nowrap; font-weight:700;">${i.quantidade}x ${i.nome}</span>
@@ -2050,7 +2052,7 @@ async function imprimirCupom(pedido, itens) {
         <span>R$ ${totalGeralMesa.toFixed(2)}</span>
       </div>
 
-      ${historicoPagos.length > 0 ? `
+      ${historicoPagos.length > 0 && pedido.status !== 'cancelado' ? `
         <div style="margin-top: 5px; border-top: 1px dashed #000; padding-top: 2px; font-size: 8.5pt;">
           <p style="margin: 0; font-weight: 900; text-align: center;">HISTÓRICO DE PAGAMENTOS</p>
           ${historicoPagos.map(pag => `
@@ -2060,7 +2062,7 @@ async function imprimirCupom(pedido, itens) {
             </div>
           `).join('')}
         </div>
-      ` : (pagoAnterior > 0 ? `
+      ` : (pagoAnterior > 0 && pedido.status !== 'cancelado' ? `
         <div style="display:flex; justify-content:space-between; font-size: 9pt; color: #555;">
           <span>(-) JÁ PAGO ANTERIOR:</span>
           <span>R$ ${pagoAnterior.toFixed(2)}</span>
@@ -2068,7 +2070,7 @@ async function imprimirCupom(pedido, itens) {
 
       ${!pedido.isImpressaoParcialItens ? `
       <div style="display:flex; justify-content:space-between; font-size: 12pt; font-weight: 900; border: 2px solid #000; padding: 4px; margin-top: 6px; text-align: center;">
-        <span>TOTAL PAGO AGORA:</span>
+        <span>${pedido.status === 'cancelado' ? 'VALOR CANCELADO:' : 'TOTAL PAGO AGORA:'}</span>
         <span>R$ ${pagoAgora.toFixed(2)}</span>
       </div>` : ''}
 
