@@ -416,8 +416,8 @@ app.post('/api/caixa/fechar', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Erro ao fechar caixa' }); }
 });
 
-app.get('/api/pedidos', ensureDbInitialized, async (req, res) => { 
-  res.json((await query(`SELECT p.*, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`)).rows); 
+app.get('/api/pedidos', ensureDbInitialized, async (req, res) => {
+  res.json((await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`)).rows);
 });
 
 app.get('/api/pedidos/:id/pagamentos', async (req, res) => {
@@ -435,10 +435,9 @@ app.get('/api/pedidos/:id/pagamentos', async (req, res) => {
 });
 
 app.get('/api/pedidos/historico', async (req, res) => {
- 
-  res.json((await query(`SELECT p.*, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.status IN ('entregue', 'cancelado') ORDER BY p.created_at DESC LIMIT 50`)).rows); 
-});
 
+  res.json((await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status IN ('entregue', 'cancelado') ORDER BY p.created_at DESC LIMIT 50`)).rows);
+});
 app.delete('/api/pedidos/limpar', async (req, res) => {
   try {
     await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT id FROM pedidos WHERE status IN ('entregue', 'cancelado'))");
@@ -609,8 +608,8 @@ app.put('/api/pedidos/:id/solicitar-fechamento', async (req, res) => {
       totalFinal = deveTaxa ? Math.round(sub * 1.10 * 100) / 100 : sub;
     }
 
-    await query(`UPDATE pedidos SET status = 'aguardando_fechamento', forma_pagamento = ?, desconto = ?, acrescimo = ?, valor_recebido = ?, troco = ?, total = ?, num_pessoas = ?, valor_por_pessoa = ? WHERE id = ?`, 
-      [forma_pagamento || 'Dinheiro', desconto || 0, acrescimo || 0, valor_recebido || 0, troco || 0, totalFinal, num_pessoas || 1, valor_por_pessoa || totalFinal, id]);
+    await query(`UPDATE pedidos SET status = 'aguardando_fechamento', forma_pagamento = ?, desconto = ?, acrescimo = ?, valor_recebido = ?, troco = ?, total = ?, num_pessoas = ?, valor_por_pessoa = ?, cobrar_taxa = ? WHERE id = ?`, 
+      [forma_pagamento || 'Dinheiro', desconto || 0, acrescimo || 0, valor_recebido || 0, troco || 0, totalFinal, num_pessoas || 1, valor_por_pessoa || totalFinal, (req.body.cobrar_taxa !== undefined ? (req.body.cobrar_taxa ? 1 : 0) : 1), id]);
     
     if (mesa_id) await query("UPDATE mesas SET status = 'fechando' WHERE id = ?", [mesa_id]);
     await notifyStatus(id, mesa_id, 'aguardando_fechamento');

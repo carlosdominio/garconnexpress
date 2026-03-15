@@ -798,18 +798,45 @@ async function exibirHistorico() {
     const valorConsolidado = (pedido.total || 0) + (pedido.pago_parcial || 0);
     if (pedido.status === 'entregue') faturamentoTotal += valorConsolidado;
     
-    const itens = await fetch(`/api/pedidos/${pedido.id}/itens`).then(res => res.json());
+    // Busca itens e pagamentos em paralelo
+    const [itens, pagamentos] = await Promise.all([
+      fetch(`/api/pedidos/${pedido.id}/itens`).then(res => res.json()),
+      fetch(`/api/pedidos/${pedido.id}/pagamentos`).then(res => res.json())
+    ]);
+
     const card = document.createElement('div');
     card.className = `pedido-card status-${pedido.status}`;
     const mesaNomeExibicao = pedido.mesa_numero ? `Mesa ${pedido.mesa_numero}` : 'BALCÃO';
+    
+    // Gerar HTML dos pagamentos se houver
+    let htmlPagamentos = '';
+    if (pagamentos && pagamentos.length > 0) {
+      htmlPagamentos = `
+        <div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6; text-align: left;">
+          <h4 style="margin: 0 0 5px 0; font-size: 0.85rem; color: #495057; border-bottom: 1px solid #dee2e6; padding-bottom: 3px;">💳 Resumo de Pagamentos</h4>
+          ${pagamentos.map((pag, idx) => `
+            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 2px;">
+              <span>Parte ${idx + 1} (${pag.forma_pagamento}):</span>
+              <span style="font-weight: bold;">R$ ${pag.valor.toFixed(2)}</span>
+            </div>
+          `).join('')}
+          <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-top: 5px; padding-top: 3px; border-top: 1px dashed #ced4da; font-weight: bold; color: #212529;">
+            <span>TOTAL PAGO:</span>
+            <span>R$ ${pedido.pago_parcial.toFixed(2)}</span>
+          </div>
+        </div>
+      `;
+    }
+
     card.innerHTML = `
       <div class="pedido-header">
         <div>
           <h3>${mesaNomeExibicao}</h3>
           <span class="status-badge ${pedido.status}">${pedido.status === 'entregue' ? 'PAGO' : pedido.status.toUpperCase()}</span>
           <small style="display:block; margin-top:4px;">📅 ${formatarData(pedido.created_at)}</small>
+          <small style="display:block; font-weight:bold; color: #2c3e50;">👤 Garçom: ${pedido.garcom_nome || pedido.garcom_id || 'Administrador'}</small>
           ${pedido.observacao ? `<small style="display:block; color:#e67e22; font-weight:bold; margin-top:2px;">📝 ${pedido.observacao}</small>` : ''}
-          ${pedido.num_pessoas > 1 ? `<small style="display:block; color:#2980b9; font-weight:bold; margin-top:2px;">👥 Dividido: ${pedido.num_pessoas} pessoas</small>` : ''}
+          ${pagamentos.length > 1 ? `<small style="display:block; color:#2980b9; font-weight:bold; margin-top:2px;">👥 DIVIDIDO POR: ${pagamentos.length} PESSOAS</small>` : ''}
         </div>
         <div style="text-align: right;">
           <div class="pedido-valor">R$ ${valorConsolidado.toFixed(2)}</div>
@@ -824,6 +851,7 @@ async function exibirHistorico() {
           <span>• ${item.quantidade}x ${item.nome}</span>
           ${item.observacao ? `<br><small style="color:#e67e22; margin-left:15px;">Obs: ${item.observacao}</small>` : ''}
         </div>`).join('')}</div>
+      ${htmlPagamentos}
     `;
     container.appendChild(card);
   }
@@ -1513,9 +1541,34 @@ async function confirmarPagamentoAdmin() {
   const valor_por_pessoa = total / num_pessoas;
   const troco = valor_recebido > total ? valor_recebido - total : 0;
 
+  // NOVO: Modal de Escolha entre Parcial ou Total
+  const escolha = await mostrarConfirmacao(
+    `Deseja apenas imprimir uma CONTA PARCIAL (a mesa continuará aberta) ou realizar o FECHAMENTO TOTAL e liberar a mesa?`,
+    "Opções de Finalização",
+    "FECHAR CONTA TOTAL",
+    "APENAS IMPRIMIR PARCIAL"
+  );
+
+  // Se escolheu APENAS IMPRIMIR PARCIAL (false no mostrarConfirmacao porque o cancelar é o segundo botão)
+  if (escolha === false) {
+    const pedidoParcialMock = {
+      ...pedidoParaFecharAdmin,
+      num_pessoas: num_pessoas,
+      valor_por_pessoa: valor_por_pessoa,
+      acrescimo: acrescimo,
+      desconto: desconto,
+      cobrar_taxa: cobrarTaxa,
+      pago_parcial: pagoParcial,
+      isImpressaoParcialMesa: true, // Flag para o cupom
+      total: (subtotalLocal + taxaServico + acrescimo - desconto)
+    };
+    imprimirCupom(pedidoParcialMock, selecionados);
+    return; // Interrompe aqui, não chama APIs de fechamento
+  }
+
+  // Se escolheu FECHAR CONTA TOTAL (true), segue a lógica normal...
   try {
-    // CENÁRIO: Pagamento de APENAS UMA PARTE DA DIVISÃO (Ex: 1 de 3 pessoas saindo)
-    // Se o usuário clicar em pagar e o número de pessoas for > 1, oferecemos pagar a fração
+    // CENÁRIO: Pagamento de APENAS UMA PARTE DA DIVISÃO
     if (num_pessoas > 1 && todosItensSelecionados) {
       const pagarFracao = await mostrarConfirmacao(`Esta conta está dividida para ${num_pessoas} pessoas.\n\nDeseja pagar apenas 1 PARTE (R$ ${valor_por_pessoa.toFixed(2)}) e manter a mesa aberta para as outras ${num_pessoas - 1} pessoas?`, "Pagamento de Fração", "Sim", "Não");
       
@@ -1600,7 +1653,8 @@ async function confirmarPagamentoAdmin() {
           troco, 
           total,
           num_pessoas,
-          valor_por_pessoa
+          valor_por_pessoa,
+          cobrar_taxa: cobrarTaxa
         })
       });
 
@@ -1657,7 +1711,8 @@ function imprimirCupomParcialFracao(pedido, itens, valorPago, saldoRestante, pes
       <h2 style="margin:0; font-size: 12pt; font-weight: 900;">GuGA Bebidas</h2>
       <p style="margin:2px 0; font-size: 9pt; font-weight: 700;">Comprovante de Pedido</p>
       <p style="margin:2px 0; font-weight: 900; font-size: 11pt;">${mesaNomeCupom}</p>
-      <p style="margin:2px 0; font-size: 8pt; font-weight: 700;">${new Date().toLocaleString('pt-BR')}</p>
+      <p style="margin:2px 0; font-size: 9pt;"><strong>ABERTURA:</strong> ${formatarData(pedido.created_at)}</p>
+      <p style="margin:2px 0; font-size: 8pt;"><strong>EMISSÃO:</strong> ${new Date().toLocaleString('pt-BR')}</p>
       <p style="margin:2px 0; font-size: 9pt; font-weight:900;">DIVIDIDO POR: ${numPessoasTotal} PESSOAS</p>
     </div>
     
@@ -1681,7 +1736,7 @@ function imprimirCupomParcialFracao(pedido, itens, valorPago, saldoRestante, pes
         <span style="font-weight:900;">R$ ${taxa.toFixed(2)}</span>
       </div>
       <div style="display:flex; justify-content:space-between; font-size: 12pt; font-weight: 900; border-top: 2px solid #000; padding-top: 4px; margin-top: 4px;">
-        <span>TOTAL PAGO:</span>
+        <span>TOTAL A PAGAR:</span>
         <span>R$ ${totalMesa.toFixed(2)}</span>
       </div>
       <div style="display:flex; justify-content:space-between; font-weight:bold; margin-top:2px;">
@@ -1715,7 +1770,8 @@ function imprimirCupomParcialItens(pedido, itensPagos, totalPago, cobrarTaxa) {
       <h2 style="margin:0; font-size: 12pt; font-weight: 900;">GuGA Bebidas</h2>
       <p style="margin:2px 0; font-weight: 900; font-size: 10pt;">*** PAGAMENTO DE ITENS ***</p>
       <p style="margin:2px 0; font-weight: 900; font-size: 11pt;">MESA ${pedido.mesa_numero}</p>
-      <p style="margin:2px 0; font-size: 8pt; font-weight: 700;">${new Date().toLocaleString('pt-BR')}</p>
+      <p style="margin:2px 0; font-size: 9pt;"><strong>ABERTURA:</strong> ${formatarData(pedido.created_at)}</p>
+      <p style="margin:2px 0; font-size: 8pt;"><strong>EMISSÃO:</strong> ${new Date().toLocaleString('pt-BR')}</p>
     </div>
     
     <div style="font-size: 10pt; margin-top: 10px; border-bottom: 1px solid #000; padding-bottom: 5px;">
@@ -1738,7 +1794,7 @@ function imprimirCupomParcialItens(pedido, itensPagos, totalPago, cobrarTaxa) {
         <span style="font-weight:900;">R$ ${taxaPagos.toFixed(2)}</span>
       </div>
       <div style="display:flex; justify-content:space-between; font-size: 12pt; font-weight: 900; border-top: 2px solid #000; padding-top: 4px; margin-top: 4px;">
-        <span>TOTAL PAGO AGORA:</span>
+        <span>TOTAL A PAGAR:</span>
         <span>R$ ${totalPago.toFixed(2)}</span>
       </div>
     </div>
@@ -1931,26 +1987,14 @@ function mostrarConfirmacao(msg, titulo = "Confirmação", txtConfirmar = "Confi
 function formatarData(dataIso) {
   if (!dataIso) return '--/--/---- --:--';
   
-  let data;
-  if (typeof dataIso === 'string') {
-    // Se for formato SQLite "YYYY-MM-DD HH:MM:SS", converte para formato ISO local "YYYY-MM-DDTHH:MM:SS"
-    // Isso garante que o navegador trate como hora LOCAL.
-    const isoLocal = dataIso.includes(' ') && !dataIso.includes('T') 
-      ? dataIso.replace(' ', 'T') 
-      : dataIso;
-    data = new Date(isoLocal);
-  } else {
-    data = new Date(dataIso);
+  let d = dataIso;
+  // Se for string no formato YYYY-MM-DD HH:MM:SS (padrão do backend)
+  // Adicionamos 'Z' para que o navegador trate como UTC e converta para o fuso local
+  if (typeof d === 'string' && d.includes('-') && d.includes(':') && !d.includes('Z') && !d.includes('+')) {
+    d = d.replace(' ', 'T') + 'Z';
   }
 
-  // Si ainda assim for inválida, tenta um parse manual rigoroso
-  if (isNaN(data.getTime())) {
-    const p = dataIso.split(/[- :T.]/);
-    if (p.length >= 5) {
-      data = new Date(p[0], p[1] - 1, p[2], p[3], p[4]);
-    }
-  }
-
+  const data = new Date(d);
   if (isNaN(data.getTime())) return 'Data Inválida';
 
   return data.toLocaleString('pt-BR', { 
@@ -1983,17 +2027,14 @@ async function imprimirCupom(pedido, itens) {
 
   const subtotal = itens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
   
-  // Verifica se a taxa está ativa para este pedido no banco ou estado local
+  // Verifica se a taxa está ativa para este pedido (Prioridade para o que está no Banco)
   let cobrarTaxaNoCupom = true;
-  if (pedidosStatusTaxa[pedido.id] !== undefined) {
-    cobrarTaxaNoCupom = pedidosStatusTaxa[pedido.id];
-  } else if (pedido.cobrar_taxa !== undefined) {
-    cobrarTaxaNoCupom = pedido.cobrar_taxa;
-  }
   
-  // Se for uma re-impressão de histórico, pode usar o total para deduzir se houve taxa
-  if (pedido.status === 'entregue' || pedido.status === 'cancelado') {
-    cobrarTaxaNoCupom = (pedido.total > subtotal + 0.01); 
+  if (pedido.cobrar_taxa !== undefined && pedido.cobrar_taxa !== null) {
+    // No SQLite/Postgres vem 1 ou 0, no JS transformamos em boolean
+    cobrarTaxaNoCupom = (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true);
+  } else if (pedidosStatusTaxa[pedido.id] !== undefined) {
+    cobrarTaxaNoCupom = pedidosStatusTaxa[pedido.id];
   }
 
   const acrescimo = pedido.acrescimo || 0;
@@ -2009,82 +2050,161 @@ async function imprimirCupom(pedido, itens) {
   if (pedido.isFracaoPagamento) {
     pagoAgora = pedido.valor_por_pessoa || (totalGeralMesa / (pedido.num_pessoas || 1));
   } else if (pedido.isFechamentoFinal) {
+    pagoAgora = totalGeralMesa - (pagoAnterior - (pedido.isFracaoPagamento ? 0 : 0)); // Ajuste se necessário
+    // Se for fechamento final, o que está sendo pago agora é o total menos o que já foi pago anteriormente
     pagoAgora = totalGeralMesa - pagoAnterior;
-  } else if (pedido.isImpressaoParcialItens) {
-    pagoAgora = totalGeralMesa; // Neste caso, o totalGeralMesa já é a soma apenas dos itens enviados
   }
 
   const mesaNomeCupom = pedido.mesa_numero ? `MESA ${pedido.mesa_numero}` : 'BALCÃO / VENDA DIRETA';
-  const numPessoas = pedido.num_pessoas || 1;
+  
+  const numPessoasNoPedido = pedido.num_pessoas || 1;
+  
+  // Se for uma impressão imediata após pagar, o último item do histórico é o pagamento atual.
+  // Se for uma RE-IMPRESSÃO do histórico, todos os itens já são pagamentos passados.
+  const isImpressaoImediata = !!(pedido.isFracaoPagamento || pedido.isFechamentoFinal);
+  
+  const jaPagosAnteriormente = isImpressaoImediata 
+    ? historicoPagos.slice(0, -1) 
+    : historicoPagos;
+
+  // No fechamento total ou re-impressão, o total de pessoas é exatamente a quantidade de pagamentos.
+  // No pagamento de fração (apenas 1 parte), o total é quem já pagou + quem falta.
+  const numPessoasExibicao = (pedido.isFracaoPagamento) 
+    ? (jaPagosAnteriormente.length + numPessoasNoPedido)
+    : Math.max(numPessoasNoPedido, historicoPagos.length);
+  
+  const isConferencia = !!(pedido.isImpressaoParcialItens || pedido.isImpressaoParcialMesa);
+
+  // Define se é re-impressão do histórico
+  const isReimpressaoHistorico = (pedido.status === 'entregue' && !pedido.isFracaoPagamento);
+
+  // Lógica para exibição da divisão no cupom
+  let htmlDivisao = '';
+  if (numPessoasExibicao > 1) {
+    let linhasDivisao = '';
+    
+    // Se for Re-impressão do histórico ou pagamento de fração única
+    if (isReimpressaoHistorico || pedido.isFracaoPagamento) {
+        // Mostra o que já foi pago no histórico
+        linhasDivisao += jaPagosAnteriormente.map((pag, idx) => `
+          <div style="display:flex; justify-content:space-between; margin-bottom: 2px; opacity: 0.7;">
+            <span>PARTE ${idx + 1} (JÁ PAGO):</span>
+            <span>R$ ${pag.valor.toFixed(2)}</span>
+          </div>
+        `).join('');
+
+        // Se for fração, mostra a parte atual e as restantes a pagar
+        if (pedido.isFracaoPagamento) {
+            Array.from({ length: numPessoasNoPedido }).forEach((_, i) => {
+                const numParte = jaPagosAnteriormente.length + i + 1;
+                const valorParte = totalGeralMesa / numPessoasExibicao;
+                const isSendoPaga = i === 0;
+                
+                linhasDivisao += `
+                  <div style="display:flex; justify-content:space-between; margin-bottom: 2px; ${isSendoPaga ? 'font-weight: bold;' : 'opacity: 0.5;'}">
+                    <span>PARTE ${numParte} ${isSendoPaga ? '(PAGANDO AGORA)' : '(A PAGAR)'}:</span>
+                    <span>R$ ${valorParte.toFixed(2)}</span>
+                  </div>
+                `;
+            });
+        }
+    } else if (pedido.isFechamentoFinal) {
+        // No fechamento final, mostramos a divisão do total atual
+        const valorParte = totalGeralMesa / numPessoasNoPedido;
+        for (let i = 1; i <= numPessoasNoPedido; i++) {
+            linhasDivisao += `
+              <div style="display:flex; justify-content:space-between; margin-bottom: 2px; font-weight: bold;">
+                <span>PARTE ${i} (PAGO):</span>
+                <span>R$ ${valorParte.toFixed(2)}</span>
+              </div>
+            `;
+        }
+    } else if (isConferencia) {
+        // Na nota parcial (conferência), mostramos o que já foi pago e as partes que restam a pagar
+        linhasDivisao += jaPagosAnteriormente.map((pag, idx) => `
+          <div style="display:flex; justify-content:space-between; margin-bottom: 2px; opacity: 0.7;">
+            <span>PARTE ${idx + 1} (JÁ PAGO):</span>
+            <span>R$ ${pag.valor.toFixed(2)}</span>
+          </div>
+        `).join('');
+
+        const valorParte = totalGeralMesa / numPessoasExibicao;
+        const jaPagosCount = jaPagosAnteriormente.length;
+        
+        for (let i = jaPagosCount; i < numPessoasExibicao; i++) {
+            linhasDivisao += `
+              <div style="display:flex; justify-content:space-between; margin-bottom: 2px; opacity: 0.5;">
+                <span>PARTE ${i + 1} (A PAGAR):</span>
+                <span>R$ ${valorParte.toFixed(2)}</span>
+              </div>
+            `;
+        }
+    }
+
+    if (linhasDivisao) {
+        htmlDivisao = `
+          <div style="margin-top: 10px; border: 1px solid #000; padding: 5px; background: #fff; border-style: dashed;">
+            <p style="margin: 0 0 5px 0; font-weight: bold; text-align: center; font-size: 10pt; border-bottom: 1px solid #000; padding-bottom: 3px;">
+              DETALHAMENTO DA DIVISÃO
+            </p>
+            <div style="font-size: 9pt;">
+              ${linhasDivisao}
+            </div>
+          </div>
+        `;
+    }
+  }
 
   const html = `
-    <div class="cupom-header">
-      <h2 style="margin:0; font-size: 12pt; font-weight: 900;">GuGA Bebidas</h2>
-      <p style="margin:2px 0; font-size: 10pt; font-weight: 900; color: #000;">
-        ${pedido.status === 'cancelado' ? '*** PEDIDO CANCELADO ***' : 'Comprovante de Pedido'}
+    <div class="cupom-header" style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px;">
+      <h2 style="margin:0; font-size: 14pt; font-weight: 900;">GuGA Bebidas</h2>
+      <p style="margin:2px 0; font-size: 10pt; font-weight: 700;">
+        ${pedido.status === 'cancelado' ? '*** PEDIDO CANCELADO ***' : (isConferencia ? '*** CONTA PARCIAL ***' : 'Comprovante de Pedido')}
       </p>
-      <p style="margin:2px 0; font-weight: 900; font-size: 11pt;">${mesaNomeCupom}</p>
-      <p style="margin:2px 0; font-size: 8pt; font-weight: 700;">${new Date().toLocaleString('pt-BR')}</p>
-      ${numPessoas > 1 ? `<p style="margin:2px 0; font-size: 9pt; font-weight:900;">DIVIDIDO POR: ${numPessoas} PESSOAS</p>` : ''}
+      <p style="margin:2px 0; font-weight: 900; font-size: 12pt;">${mesaNomeCupom}</p>
+      <p style="margin:2px 0; font-size: 9pt;"><strong>ABERTURA:</strong> ${formatarData(pedido.created_at)}</p>
+      <p style="margin:2px 0; font-size: 8pt;"><strong>EMISSÃO:</strong> ${new Date().toLocaleString('pt-BR')}</p>
+      ${numPessoasExibicao > 1 ? `<p style="margin:2px 0; font-size: 10pt; font-weight:bold;">DIVIDIDO POR: ${numPessoasExibicao} PESSOAS</p>` : ''}
     </div>
     
-    <div style="font-size: 10pt; ${pedido.status === 'cancelado' ? 'text-decoration: line-through; opacity: 0.7;' : ''}">
+    <div style="font-size: 10pt; margin-bottom: 10px; ${pedido.status === 'cancelado' ? 'text-decoration: line-through; opacity: 0.7;' : ''}">
       ${itens.map(i => `
         <div style="display:flex; justify-content:space-between; margin-bottom: 2px;">
-          <span style="flex:1; padding-right:6px; overflow:hidden; text-overflow: ellipsis; white-space:nowrap; font-weight:700;">${i.quantidade}x ${i.nome}</span>
-          <span style="flex:0 0 auto; white-space:nowrap; font-weight:900;">R$ ${(i.preco * i.quantidade).toFixed(2)}</span>
+          <span style="flex:1;">${i.quantidade}x ${i.nome}</span>
+          <span style="font-weight:bold;">R$ ${(i.preco * i.quantidade).toFixed(2)}</span>
         </div>
-        ${i.observacao ? `<div style="font-size:9pt; margin-bottom:4px; font-weight:700;">&nbsp;&nbsp;- ${i.observacao}</div>` : ''}
+        ${i.observacao ? `<div style="font-size:9pt; margin-bottom:4px;">&nbsp;&nbsp;- ${i.observacao}</div>` : ''}
       `).join('')}
     </div>
 
-    <div class="cupom-footer" style="font-size: 10pt;">
-      <div style="display:flex; justify-content:space-between; margin-top:5px; border-top: 1px dashed #000; padding-top: 2px;">
-        <span>SUBTOTAL:</span>
+    <div class="cupom-footer" style="font-size: 10pt; border-top: 1px dashed #000; padding-top: 5px;">
+      <div style="display:flex; justify-content:space-between; opacity: 0.8; font-size: 9pt;">
+        <span>SUBTOTAL CONSUMO:</span>
         <span>R$ ${subtotal.toFixed(2)}</span>
       </div>
-      ${taxa > 0 ? `<div style="display:flex; justify-content:space-between;"><span>TAXA SERV (10%):</span><span>R$ ${taxa.toFixed(2)}</span></div>` : ''}
-      ${acrescimo > 0 ? `<div style="display:flex; justify-content:space-between;"><span>ACRÉSCIMO:</span><span>R$ ${acrescimo.toFixed(2)}</span></div>` : ''}
-      ${desconto > 0 ? `<div style="display:flex; justify-content:space-between;"><span>DESCONTO:</span><span>- R$ ${desconto.toFixed(2)}</span></div>` : ''}
+      <div style="display:flex; justify-content:space-between; opacity: 0.8; font-size: 9pt;">
+        <span>TAXA SERV (${cobrarTaxaNoCupom ? '10%' : 'OFF'}):</span>
+        <span>R$ ${taxa.toFixed(2)}</span>
+      </div>
+      ${acrescimo > 0 ? `<div style="display:flex; justify-content:space-between; opacity: 0.8; font-size: 9pt;"><span>ACRÉSCIMO:</span><span>R$ ${acrescimo.toFixed(2)}</span></div>` : ''}
+      ${desconto > 0 ? `<div style="display:flex; justify-content:space-between; opacity: 0.8; font-size: 9pt;"><span>DESCONTO:</span><span>- R$ ${desconto.toFixed(2)}</span></div>` : ''}
       
-      <div style="display:flex; justify-content:space-between; font-weight: 900; margin-top: 2px; border-top: 1px solid #000;">
-        <span>${pedido.isImpressaoParcialItens ? 'TOTAL DA CONTA PARCIAL:' : 'TOTAL DA CONTA:'}</span>
+      <div style="display:flex; justify-content:space-between; font-weight: bold; margin-top: 2px; border-top: 1px solid #eee; padding-top: 2px; font-size: 9pt; opacity: 0.9;">
+        <span>${isReimpressaoHistorico ? 'VALOR TOTAL DA MESA:' : 'TOTAL DA CONTA:'}</span>
         <span>R$ ${totalGeralMesa.toFixed(2)}</span>
       </div>
 
-      ${historicoPagos.length > 0 && pedido.status !== 'cancelado' ? `
-        <div style="margin-top: 5px; border-top: 1px dashed #000; padding-top: 2px; font-size: 8.5pt;">
-          <p style="margin: 0; font-weight: 900; text-align: center;">HISTÓRICO DE PAGAMENTOS</p>
-          ${historicoPagos.map(pag => `
-            <div style="display:flex; justify-content:space-between; opacity: 0.8;">
-              <span>${new Date(pag.data).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})} - ${pag.forma_pagamento}:</span>
-              <span>R$ ${pag.valor.toFixed(2)}</span>
-            </div>
-          `).join('')}
-        </div>
-      ` : (pagoAnterior > 0 && pedido.status !== 'cancelado' ? `
-        <div style="display:flex; justify-content:space-between; font-size: 9pt; color: #555;">
-          <span>(-) JÁ PAGO ANTERIOR:</span>
-          <span>R$ ${pagoAnterior.toFixed(2)}</span>
-        </div>` : '')}
-
-      ${!pedido.isImpressaoParcialItens ? `
-      <div style="display:flex; justify-content:space-between; font-size: 12pt; font-weight: 900; border: 2px solid #000; padding: 4px; margin-top: 6px; text-align: center;">
-        <span>${pedido.status === 'cancelado' ? 'VALOR CANCELADO:' : 'TOTAL PAGO AGORA:'}</span>
+      <div style="display:flex; justify-content:space-between; font-weight: 900; margin-top: 5px; font-size: 13pt; border-top: 2px solid #000; padding-top: 4px; background: #eee;">
+        <span>${isReimpressaoHistorico ? 'TOTAL PAGO:' : 'TOTAL A PAGAR:'}</span>
         <span>R$ ${pagoAgora.toFixed(2)}</span>
-      </div>` : ''}
+      </div>
 
-      ${numPessoas > 1 ? `
-      <div style="display:flex; justify-content:space-between; font-weight:bold; margin-top:4px; font-size: 9pt;">
-        <span>VALOR POR PESSOA:</span>
-        <span>R$ ${(pedido.valor_por_pessoa || (totalGeralMesa / numPessoas)).toFixed(2)}</span>
-      </div>` : ''}
+      ${htmlDivisao}
     </div>
 
-    <div class="cupom-central">
-      <p style="margin: 5px 0;">OBRIGADO PELA PREFERÊNCIA!</p>
-      <p style="margin: 2px 0; font-size: 7pt;">GuGA Bebidas - Sistema de Gestão</p>
-      <br><br>.
+    <div class="cupom-central" style="text-align: center; margin-top: 15px;">
+      <p style="margin: 5px 0; font-weight: bold;">OBRIGADO PELA PREFERÊNCIA!</p>
+      <p style="margin: 2px 0; font-size: 8pt;">GuGA Bebidas - Sistema de Gestão</p>
     </div>
   `;
 
