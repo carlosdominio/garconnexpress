@@ -1622,6 +1622,9 @@ async function confirmarPagamentoAdmin() {
             desconto: desconto,
             cobrar_taxa: cobrarTaxa,
             pago_parcial: pedidoParaFecharAdmin.pago_parcial || 0,
+            forma_pagamento: forma_pagamento,
+            valor_recebido: valor_recebido,
+            troco: troco,
             isFracaoPagamento: true, // Flag para o cupom mostrar o valor da fração
             total: (subtotalLocal + taxaServico + acrescimo - desconto)
           };
@@ -1705,6 +1708,9 @@ async function confirmarPagamentoAdmin() {
         acrescimo: acrescimo, 
         desconto: desconto, 
         pago_parcial: pagoParcial, 
+        forma_pagamento: forma_pagamento,
+        valor_recebido: valor_recebido,
+        troco: troco,
         isFechamentoFinal: true,
         novosPagamentosCount: novosPagamentosCount
       };
@@ -2260,6 +2266,26 @@ async function imprimirCupom(pedido, itens) {
         <span>${isReimpressaoHistorico ? 'TOTAL PAGO:' : 'TOTAL A PAGAR:'}</span>
         <span>R$ ${pagoAgora.toFixed(2)}</span>
       </div>
+
+      <!-- Detalhes de Pagamento (Forma, Recebido, Troco) -->
+      ${!isConferencia ? `
+        <div style="margin-top: 5px; border-top: 1px dashed #000; padding-top: 5px; font-size: 9pt;">
+          <div style="display:flex; justify-content:space-between;">
+            <span>FORMA DE PAGAMENTO:</span>
+            <span style="font-weight:bold;">${pedido.forma_pagamento || 'N/A'}</span>
+          </div>
+          ${pedido.forma_pagamento === 'Dinheiro' ? `
+            <div style="display:flex; justify-content:space-between;">
+              <span>VALOR RECEBIDO:</span>
+              <span>R$ ${(pedido.valor_recebido || 0).toFixed(2)}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-weight:bold;">
+              <span>TROCO:</span>
+              <span>R$ ${(pedido.troco || 0).toFixed(2)}</span>
+            </div>
+          ` : ''}
+        </div>
+      ` : ''}
 
       ${htmlDivisao}
     </div>
