@@ -73,8 +73,9 @@
     </nav>
 
     <section id="whatsapp-section" class="hidden">
-      <div class="config-card" style="padding: 0; overflow: hidden; height: 80vh;">
-        <iframe src="https://meu-zap-bot.onrender.com" style="width: 100%; height: 100%; border: none;"></iframe>
+      <div class="config-card" style="padding: 2rem; text-align: center;">
+        <h3>🤖 WhatsApp Beta</h3>
+        <p style="color: #7f8c8d;">O serviço de automação está sendo migrado. Em breve novidades!</p>
       </div>
     </section>
 
@@ -301,6 +302,17 @@
         <span class="close" onclick="fecharModalFechamentoAdmin()">&times;</span>
       </div>
       <div class="modal-body" style="display: block;">
+        <!-- HISTÓRICO DE PAGAMENTOS DESTA MESA -->
+        <div id="fechamento-historico-pagamentos-container" style="background: #fff; padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #27ae60; display: none;">
+          <h4 style="margin: 0 0 8px 0; font-size: 0.8rem; color: #27ae60; border-bottom: 1px solid #e8f5e9; padding-bottom: 5px; display: flex; justify-content: space-between;">
+            <span>💳 JÁ PAGO NESTA MESA</span>
+            <span id="fechamento-total-ja-pago" style="font-weight: bold;">R$ 0,00</span>
+          </h4>
+          <div id="fechamento-lista-pagamentos-admin" style="max-height: 80px; overflow-y: auto; font-size: 0.85rem;">
+            <!-- Pagamentos injetados via JS -->
+          </div>
+        </div>
+
         <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
             <label style="margin: 0; color: #2c3e50; font-weight: bold; cursor: pointer;">
@@ -331,7 +343,7 @@
               <input type="number" id="fechamento-desconto-admin" value="0" step="1" min="0" oninput="recalcularTotalFechamentoAdmin()" style="width:100%; padding:8px; border-radius:6px; border:1px solid #ddd; height: 32px; box-sizing: border-box; font-weight: bold; font-size: 0.9rem;">
             </div>
           </div>
-          <p style="margin: 15px 0 0 0; font-size: 1.3rem; color: #2c3e50; font-weight:bold;">Total Final: R$ <span id="fechamento-total-admin">0,00</span></p>
+          <p style="margin: 15px 0 0 0; font-size: 1.3rem; color: #2c3e50; font-weight:bold; border-top: 2px solid #eee; padding-top: 10px;">SALDO RESTANTE: R$ <span id="fechamento-total-admin">0,00</span></p>
         </div>
 
         <!-- SELEÇÃO DE ITENS (SPLIT BILL) -->
@@ -348,12 +360,44 @@
           </div>
         </div>
 
-        <!-- CALCULADORA DE DIVISÃO DE CONTA -->
-        <div style="background: #fff8eb; padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px dashed #e67e22;">
-          <label style="display:block; font-size:0.75rem; font-weight:bold; color:#d35400; margin-bottom:5px;">💸 DIVIDIR CONTA POR PESSOAS:</label>
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <input type="number" id="fechamento-divisao-pessoas" value="1" min="1" oninput="recalcularTotalFechamentoAdmin()" style="width:70px; padding:8px; border-radius:5px; border:1px solid #fab1a0; text-align: center; font-weight: bold;">
-            <strong style="color: #e67e22; font-size: 1rem;">Cada um paga: R$ <span id="fechamento-valor-pessoa-admin">0,00</span></strong>
+        <!-- PAINEL DE DIVISÃO DE CONTA EM DESTAQUE -->
+        <div id="secao-divisao-destaque" style="background: #fff3e0; padding: 18px; border-radius: 15px; border: 2px solid #e67e22; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 10px rgba(230, 126, 34, 0.15);">
+          <p style="margin: 0 0 15px 0; font-size: 0.95rem; font-weight: bold; color: #d35400; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            📊 CONTROLE DE DIVISÃO
+          </p>
+          
+          <div style="display: flex; justify-content: space-around; align-items: center; margin-bottom: 18px;">
+            <div style="flex: 1;">
+              <small style="display: block; color: #7f8c8d; font-weight: bold; margin-bottom: 8px; font-size: 0.75rem;">PESSOAS NA MESA</small>
+              <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                <button type="button" onclick="mudarPessoasFechamento(-1)" style="width: 36px; height: 36px; border-radius: 50%; border: none; background: #e67e22; color: white; cursor: pointer; font-weight: bold; font-size: 1.4rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">-</button>
+                <input type="number" id="fechamento-divisao-pessoas" value="1" min="1" oninput="recalcularTotalFechamentoAdmin()" style="width: 60px; text-align: center; font-size: 1.5rem; font-weight: bold; border: 2px solid #ffcc80; border-radius: 8px; background: white; color: #2c3e50; padding: 5px;">
+                <button type="button" onclick="mudarPessoasFechamento(1)" style="width: 36px; height: 36px; border-radius: 50%; border: none; background: #e67e22; color: white; cursor: pointer; font-weight: bold; font-size: 1.4rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">+</button>
+              </div>
+            </div>
+            
+            <div style="width: 2px; background: #ffcc80; height: 50px; margin: 0 15px; opacity: 0.5;"></div>
+            
+            <div style="flex: 1;">
+              <small style="display: block; color: #7f8c8d; font-weight: bold; margin-bottom: 8px; font-size: 0.75rem;">VALOR POR PESSOA</small>
+              <strong style="font-size: 1.8rem; color: #e67e22; display: block; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.1));">R$ <span id="fechamento-valor-pessoa-admin">0,00</span></strong>
+            </div>
+          </div>
+
+          <!-- Barra de Progresso de Pagamento da Mesa -->
+          <div style="padding: 0 5px; margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: bold; color: #d35400; margin-bottom: 8px;">
+              <span id="txt-progresso-divisao">Progresso da Mesa</span>
+              <span id="perc-progresso-divisao">0%</span>
+            </div>
+            <div style="width: 100%; height: 14px; background: #ffe0b2; border-radius: 7px; overflow: hidden; border: 1px solid #ffcc80; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">
+              <div id="barra-progresso-divisao" style="width: 0%; height: 100%; background: linear-gradient(90deg, #e67e22, #f39c12); transition: 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);"></div>
+            </div>
+          </div>
+
+          <!-- VISUALIZAÇÃO INDIVIDUAL (P1, P2, P3...) -->
+          <div id="fechamento-grid-assentos" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; padding: 10px; background: rgba(255,255,255,0.5); border-radius: 10px; border: 1px dashed #ffcc80;">
+            <!-- Avatares injetados via JS -->
           </div>
         </div>
 

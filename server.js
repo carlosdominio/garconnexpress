@@ -654,12 +654,14 @@ app.post('/api/pedidos/:id/pagamento-fracao', async (req, res) => {
     await query(sqlCreate);
     await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento) VALUES (?, ?, ?)", [id, valor_pago, forma_pagamento]);
 
-    // 4. Atualiza o pedido original: subtrai o valor pago, incrementa o pago_parcial e ajusta o número de pessoas
+    // 4. Atualiza o pedido original: incrementa o pago_parcial e ajusta o número de pessoas
+    const novoPagoParcial = (pOrig.pago_parcial || 0) + valor_pago;
+    // O total do pedido pOrig.total já deve estar atualizado com o valor total bruto (subtotal+taxa+acres-desc)
     const novoTotalMesa = Math.max(0, pOrig.total - valor_pago);
     const novoValorPessoa = num_pessoas_restantes > 0 ? novoTotalMesa / num_pessoas_restantes : 0;
 
-    await query("UPDATE pedidos SET total = ?, pago_parcial = pago_parcial + ?, num_pessoas = ?, valor_por_pessoa = ? WHERE id = ?", 
-      [novoTotalMesa, valor_pago, num_pessoas_restantes, novoValorPessoa, id]);
+    await query("UPDATE pedidos SET total = ?, pago_parcial = ?, num_pessoas = ?, valor_por_pessoa = ? WHERE id = ?", 
+      [novoTotalMesa, novoPagoParcial, num_pessoas_restantes, novoValorPessoa, id]);
 
     await notifyStatus(id, mesa_id, 'itens_atualizados');
     

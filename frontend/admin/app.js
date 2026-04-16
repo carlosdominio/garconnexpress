@@ -1201,6 +1201,29 @@ async function exibirPedidos() {
   if (pedidoAtualizadoId) setTimeout(() => { pedidoAtualizadoId = null; }, 5000);
 }
 
+async function atualizarPessoasPedido(id, numPessoas) {
+  const n = parseInt(numPessoas) || 1;
+  try {
+    const res = await fetch(`/api/pedidos/${id}/pessoas`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ num_pessoas: n })
+    });
+    
+    if (res.ok) {
+      mostrarToast(`👥 Mesa ${id}: Divisão para ${n} pessoas salva.`);
+      // Atualiza o dado local para refletir no subtotal sem precisar de reload completo
+      const pedido = pedidos.find(p => p.id === id);
+      if (pedido) pedido.num_pessoas = n;
+      
+      // Pequeno delay para o usuário ver a mudança e então recarrega para atualizar os cálculos
+      setTimeout(() => carregarPedidos(), 500);
+    }
+  } catch (e) {
+    console.error("Erro ao atualizar pessoas:", e);
+  }
+}
+
 async function alternarTaxaPedido(id, checkboxEl) {
   const estadoAnterior = !!pedidosStatusTaxa[id];
   const novoEstado = !estadoAnterior;
@@ -1515,6 +1538,29 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   const resItens = await fetch(`/api/pedidos/${idPedido}/itens`);
   itensFechamentoAdmin = await resItens.json();
   
+  // Busca pagamentos já realizados para esta mesa
+  try {
+    const resPagos = await fetch(`/api/pedidos/${idPedido}/pagamentos`);
+    const pagamentos = await resPagos.json();
+    const containerPagos = document.getElementById('fechamento-historico-pagamentos-container');
+    const listaPagos = document.getElementById('fechamento-lista-pagamentos-admin');
+    const totalPagoExib = document.getElementById('fechamento-total-ja-pago');
+
+    if (pagamentos && pagamentos.length > 0) {
+      containerPagos.style.display = 'block';
+      const totalJaPago = pagamentos.reduce((s, p) => s + p.valor, 0);
+      totalPagoExib.textContent = `R$ ${totalJaPago.toFixed(2)}`;
+      listaPagos.innerHTML = pagamentos.map((p, i) => `
+        <div style="display:flex; justify-content:space-between; padding:2px 0; border-bottom:1px dashed #eee; color:#27ae60;">
+          <span>${i+1}ª Parte (${p.forma_pagamento})</span>
+          <span style="font-weight:bold;">R$ ${p.valor.toFixed(2)}</span>
+        </div>
+      `).join('');
+    } else {
+      containerPagos.style.display = 'none';
+    }
+  } catch (e) { console.error("Erro ao carregar pagamentos:", e); }
+
   // Marca todos como selecionados por padrão
   itensFechamentoAdmin.forEach(i => i.selecionadoFechamento = true);
   
@@ -1563,6 +1609,11 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   }
 
   recalcularTotalFechamentoAdmin();
+  
+  // RESET DA SELEÇÃO AO ABRIR (Sempre seleciona a próxima pessoa que falta pagar)
+  pessoaSelecionadaFechamento = null; 
+
+  renderizarAssentosFechamento();
   document.getElementById('modal-fechamento-admin').style.display = 'flex';
 }
 
@@ -1571,10 +1622,10 @@ function renderizarListaItensFechamento() {
   if (!container) return;
   
   container.innerHTML = itensFechamentoAdmin.map((item, index) => `
-    <div style="display: flex; align-items: center; gap: 8px; padding: 4px; border-bottom: 1px solid #f0f0f0; font-size: 0.85rem;">
-      <input type="checkbox" ${item.selecionadoFechamento ? 'checked' : ''} onchange="alternarItemFechamento(${index})">
-      <span style="flex-grow: 1;">${item.quantidade}x ${item.nome}</span>
-      <span style="font-weight: bold;">R$ ${(item.preco * item.quantidade).toFixed(2)}</span>
+    <div style="display: flex; align-items: center; gap: 8px; padding: 6px; border-bottom: 1px solid #f0f0f0; font-size: 0.85rem; ${item.status === 'entregue' ? 'background: #f0fff4;' : ''}">
+      <input type="checkbox" ${item.selecionadoFechamento ? 'checked' : ''} onchange="alternarItemFechamento(${index})" style="width:16px; height:16px;">
+      <span style="flex-grow: 1; font-weight: 500;">${item.quantidade}x ${item.nome}</span>
+      <span style="font-weight: bold; color: #2c3e50;">R$ ${(item.preco * item.quantidade).toFixed(2)}</span>
     </div>
   `).join('');
 }
@@ -1587,6 +1638,22 @@ function alternarItemFechamento(index) {
 function selecionarTodosItensFechamento(selecionar) {
   itensFechamentoAdmin.forEach(i => i.selecionadoFechamento = selecionar);
   renderizarListaItensFechamento();
+  recalcularTotalFechamentoAdmin();
+}
+
+function mudarPessoasFechamento(delta) {
+  const input = document.getElementById('fechamento-divisao-pessoas');
+  if (!input) return;
+  let val = parseInt(input.value) || 1;
+  val += delta;
+  if (val < 1) val = 1;
+  input.value = val;
+  
+  // SALVA O NÚMERO DE PESSOAS NO BANCO IMEDIATAMENTE (Sticky)
+  if (pedidoParaFecharAdmin) {
+    atualizarPessoasPedido(pedidoParaFecharAdmin.id, val);
+  }
+  
   recalcularTotalFechamentoAdmin();
 }
 
@@ -1606,17 +1673,101 @@ function recalcularTotalFechamentoAdmin() {
 
   const recebido = parseFloat(document.getElementById('fechamento-recebido-admin').value) || 0;
   const pessoas = parseInt(document.getElementById('fechamento-divisao-pessoas').value) || 1;
+  
+  // BUSCA O VALOR JÁ PAGO SALVO NO OBJETO DO PEDIDO
   const pagoParcial = (pedidoParaFecharAdmin && pedidoParaFecharAdmin.pago_parcial) ? pedidoParaFecharAdmin.pago_parcial : 0;
 
-  const total = (subtotalConsumoAdmin + taxa + acrescimo - desconto) - pagoParcial;
-  const troco = recebido > total ? recebido - total : 0;
-  const valorPessoa = total / pessoas;
+  // O SALDO RESTANTE agora é o Total Bruto (itens+taxa+acres-desc) MENOS o que já foi pago antecipadamente
+  const totalBruto = (subtotalConsumoAdmin + taxa + acrescimo - desconto);
+  const saldoRestante = Math.max(0, totalBruto - pagoParcial);
+  
+  const troco = recebido > saldoRestante ? recebido - saldoRestante : 0;
+  const valorPessoa = saldoRestante / pessoas;
 
   document.getElementById('fechamento-subtotal-admin').textContent = subtotalConsumoAdmin.toFixed(2);
   document.getElementById('fechamento-taxa-valor-admin').textContent = taxa.toFixed(2);
-  document.getElementById('fechamento-total-admin').textContent = total.toFixed(2);
+  
+  // Exibe o Saldo Real que falta pagar
+  document.getElementById('fechamento-total-admin').textContent = saldoRestante.toFixed(2);
   document.getElementById('fechamento-troco-admin').textContent = troco.toFixed(2);
   document.getElementById('fechamento-valor-pessoa-admin').textContent = valorPessoa.toFixed(2);
+
+  // Chama a renderização dos assentos de forma unificada
+  renderizarAssentosFechamento();
+}
+
+let pessoaSelecionadaFechamento = null;
+
+function selecionarPessoaDivisao(index) {
+  console.log("👉 Selecionando pessoa:", index);
+  pessoaSelecionadaFechamento = index;
+  renderizarAssentosFechamento(); // Re-renderiza com o novo destaque
+  mostrarToast(`🎯 Cobrando da PESSOA ${index}`);
+}
+
+async function renderizarAssentosFechamento() {
+  const gridAssentos = document.getElementById('fechamento-grid-assentos');
+  if (!gridAssentos) return;
+
+  const numPessoas = parseInt(document.getElementById('fechamento-divisao-pessoas').value) || 1;
+  const progressoTxt = document.getElementById('txt-progresso-divisao');
+  const progressoPerc = document.getElementById('perc-progresso-divisao');
+  const progressoBarra = document.getElementById('barra-progresso-divisao');
+
+  try {
+    const res = await fetch(`/api/pedidos/${pedidoParaFecharAdmin.id}/pagamentos`);
+    const pagamentos = await res.json();
+    const pagosCount = pagamentos ? pagamentos.length : 0;
+
+    // Atualiza Barra de Progresso
+    if (progressoBarra) {
+      const percentual = Math.min(100, Math.round((pagosCount / numPessoas) * 100));
+      if (progressoTxt) progressoTxt.textContent = `Pagamento: ${pagosCount} de ${numPessoas} ${numPessoas > 1 ? 'pessoas' : 'pessoa'}`;
+      if (progressoPerc) progressoPerc.textContent = `${percentual}%`;
+      progressoBarra.style.width = `${percentual}%`;
+    }
+
+    // Lógica de Seleção: Se nada selecionado, foca no próximo que falta pagar
+    if (pessoaSelecionadaFechamento === null || pessoaSelecionadaFechamento <= pagosCount || pessoaSelecionadaFechamento > numPessoas) {
+      pessoaSelecionadaFechamento = (pagosCount < numPessoas) ? pagosCount + 1 : numPessoas;
+    }
+
+    let html = '';
+    for (let i = 1; i <= numPessoas; i++) {
+      let bg = '#fff';
+      let border = '#ffcc80';
+      let corTexto = '#d35400';
+      let icone = '👤';
+      let cursor = 'pointer';
+      let onclick = `onclick="selecionarPessoaDivisao(${i})"`;
+      let escala = '1';
+      let sombra = 'none';
+
+      if (i <= pagosCount) {
+        bg = '#27ae60';
+        border = '#219150';
+        corTexto = '#fff';
+        icone = '✅';
+        cursor = 'default';
+        onclick = ''; // Já pago não clica
+      } else if (i === pessoaSelecionadaFechamento) {
+        bg = '#e67e22';
+        border = '#d35400';
+        corTexto = '#fff';
+        icone = '🎯';
+        escala = '1.15';
+        sombra = '0 6px 12px rgba(230, 126, 34, 0.4)';
+      }
+
+      html += `
+        <div ${onclick} style="width: 50px; height: 55px; background: ${bg}; border: 3px solid ${border}; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: ${cursor}; transition: 0.2s all; transform: scale(${escala}); box-shadow: ${sombra}; z-index: ${i === pessoaSelecionadaFechamento ? '10' : '1'};">
+          <span style="font-size: 1.1rem;">${icone}</span>
+          <span style="font-size: 0.75rem; font-weight: 900; color: ${corTexto};">P${i}</span>
+        </div>
+      `;
+    }
+    gridAssentos.innerHTML = html;
+  } catch (e) { console.error("Erro ao renderizar:", e); }
 }
 
 async function confirmarPagamentoAdmin() {
@@ -1705,13 +1856,13 @@ async function confirmarPagamentoAdmin() {
             mesa_id: idMesa, 
             valor_pago: valor_por_pessoa,
             forma_pagamento, 
-            num_pessoas_restantes: num_pessoas - 1
+            num_pessoas_restantes: Math.max(1, num_pessoas - 1)
           })
         });
 
         if (resFracao.ok) {
           const dataFracao = await resFracao.json();
-          mostrarToast("✅ 1 Parte paga com sucesso!");
+          mostrarToast(`✅ Parte ${proximaParte} paga com sucesso!`);
           
           // Prepara um "mock" do pedido com flag de pagamento de fração
           const pedidoMock = {
@@ -1733,7 +1884,9 @@ async function confirmarPagamentoAdmin() {
           
           fecharModalFechamentoAdmin();
           await carregarStatusCaixa();
-          carregarPedidos();
+          
+          // Força recarregamento completo para atualizar saldos nos cards
+          setTimeout(() => carregarPedidos(), 300);
           return;
         }
       }
@@ -2013,11 +2166,10 @@ function configurarPusher() {
   
   try {
     console.log('📡 Inicializando Pusher no Admin...');
-    pusherInstancia = new Pusher('5b2b284e309dea9d90fb', { 
-      cluster: 'sa1',
+    pusherInstancia = new Pusher('1cb59799e6345f51b483', {
+      cluster: 'us2',
       forceTLS: true
-    });
-    
+    });    
     pusherInstancia.connection.bind('connected', () => {
       console.log('✅ Admin conectado ao Pusher com sucesso!');
     });
