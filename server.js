@@ -231,9 +231,13 @@ async function initDb() {
       await addCol('menu', 'estoque', 'INTEGER DEFAULT -1');
       await addCol('menu', 'validade', 'DATE');
       await addCol('garcons', 'telefone', 'TEXT');
+      await addCol('pagamentos', 'recebido', 'REAL DEFAULT 0');
+      await addCol('pagamentos', 'troco', 'REAL DEFAULT 0');
     }
     await addCol('pedidos', 'observacao', 'TEXT');
     await addCol('pedidos', 'pago_parcial', 'REAL DEFAULT 0');
+    await addCol('pagamentos', 'recebido', 'REAL DEFAULT 0'); // Repete fora do !isPostgres para garantir no Vercel também se necessário
+    await addCol('pagamentos', 'troco', 'REAL DEFAULT 0');
   } catch (e) { 
     console.error('Erro na migração:', e);
     dbInitError = e;
@@ -688,7 +692,7 @@ app.post('/api/pedidos/:id/pagamento-parcial', async (req, res) => {
       ? `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`
           : `CREATE TABLE IF NOT EXISTS pagamentos (id INTEGER PRIMARY KEY AUTOINCREMENT, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`;
     await query(sqlCreate);
-    await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento) VALUES (?, ?, ?)", [id, total, forma_pagamento]);
+    await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento, recebido, troco) VALUES (?, ?, ?, ?, ?)", [id, total, forma_pagamento, total, 0]);
 
     // 2. Remove os itens do pedido original (já que foram pagos separadamente)
     for (const i of itens) {
@@ -726,9 +730,8 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
       if (p) {
         // Registra o pagamento final na tabela de pagamentos
         const sqlCreate = isPostgres
-          ? `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`
-          : `CREATE TABLE IF NOT EXISTS pagamentos (id INTEGER PRIMARY KEY AUTOINCREMENT, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`;
-        await query(sqlCreate);
+          ? `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`
+          : `CREATE TABLE IF NOT EXISTS pagamentos (id INTEGER PRIMARY KEY AUTOINCREMENT, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`;
 
         if (Array.isArray(pagamentos_detalhados) && pagamentos_detalhados.length > 0) {
           // Cenário Multi-Pagamento (Suporta formato novo de objeto ou antigo de string)
@@ -938,7 +941,7 @@ app.get('/api/diag', async (req, res) => {
         `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, imagem TEXT, estoque INTEGER DEFAULT -1, validade DATE)`,
         `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
         `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
-        `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
         `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT)`,
         `CREATE TABLE IF NOT EXISTS usuarios_admin (id SERIAL PRIMARY KEY, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL)`,
         `CREATE TABLE IF NOT EXISTS fluxo_caixa (id SERIAL PRIMARY KEY, data_abertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, data_fechamento TIMESTAMP, valor_inicial REAL NOT NULL, valor_final REAL, status TEXT DEFAULT 'aberto', total_dinheiro REAL DEFAULT 0, total_pix REAL DEFAULT 0, total_cartao REAL DEFAULT 0, total_vendas REAL DEFAULT 0)`
