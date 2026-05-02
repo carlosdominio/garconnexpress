@@ -1048,22 +1048,28 @@ async function imprimirResumoDiario() {
 
   const dataHoje = new Date().toLocaleDateString('pt-BR');
   
-  let totalDinheiro = 0;
-  let totalPix = 0;
-  let totalCartao = 0;
+  // Se o caixa estiver aberto, usamos os totais REAIS do banco (que consideram divisões)
+  // Caso contrário, usamos o cálculo manual do histórico
+  let totalDinheiro = (caixaAtual && caixaAtual.total_dinheiro) || 0;
+  let totalPix = (caixaAtual && caixaAtual.total_pix) || 0;
+  let totalCartao = (caixaAtual && caixaAtual.total_cartao) || 0;
+  let totalGeral = (caixaAtual && caixaAtual.total_vendas) || 0;
   let totalCancelado = 0;
-  let totalGeral = 0;
   let qtdPedidos = 0;
 
   historico.forEach(p => {
+    const valorTotalPedido = (p.total || 0) + (p.pago_parcial || 0);
     if (p.status === 'entregue') {
       qtdPedidos++;
-      totalGeral += p.total;
-      if (p.forma_pagamento === 'Dinheiro') totalDinheiro += p.total;
-      else if (p.forma_pagamento === 'Pix') totalPix += p.total;
-      else totalCartao += p.total;
+      // Se não temos caixaAtual (caixa fechado), fazemos o cálculo manual aproximado
+      if (!caixaAtual) {
+          totalGeral += valorTotalPedido;
+          if (p.forma_pagamento === 'Dinheiro') totalDinheiro += valorTotalPedido;
+          else if (p.forma_pagamento === 'Pix') totalPix += valorTotalPedido;
+          else if (p.forma_pagamento === 'Cartão') totalCartao += valorTotalPedido;
+      }
     } else if (p.status === 'cancelado') {
-      totalCancelado += p.total;
+      totalCancelado += valorTotalPedido;
     }
   });
 
@@ -1073,6 +1079,7 @@ async function imprimirResumoDiario() {
         <h1 style="margin: 0; font-size: 12pt; font-weight: 900;">GuGA Bebidas</h1>
         <p style="margin: 2px 0; font-weight: bold;">*** RESUMO DE VENDAS ***</p>
         <p style="margin: 2px 0;">DATA: ${dataHoje}</p>
+        ${caixaAtual ? `<p style="margin: 2px 0; font-size: 8pt;">(DADOS SINCRONIZADOS COM O CAIXA)</p>` : ''}
       </div>
       
       <div style="margin-bottom: 10px;">
@@ -1104,7 +1111,7 @@ async function imprimirResumoDiario() {
 
       ${totalCancelado > 0 ? `
       <div style="margin-top: 10px; color: #777; font-size: 8pt; border-top: 1px solid #ddd; padding-top: 5px;">
-        <span>(Cancelados: R$ ${totalCancelado.toFixed(2)})</span>
+        <span>(Cancelados no período: R$ ${totalCancelado.toFixed(2)})</span>
       </div>` : ''}
 
       <div style="text-align: center; margin-top: 30px; border-top: 1px solid #000; padding-top: 10px;">
