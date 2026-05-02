@@ -254,28 +254,9 @@ function calcularMinutos(dataIso) {
   return Math.floor(diffMs / 60000);
 }
 
-function atualizarCronometrosGarcom() {
-  const container = document.getElementById('cronometro-mesa-detalhe');
-  if (!container) return;
-
-  // SÓ MOSTRA se houver pedido aberto E ele não estiver finalizado/entregue
-  if (!pedidoAbertoNaMesa || !pedidoAbertoNaMesa.created_at || pedidoAbertoNaMesa.status === 'entregue' || pedidoAbertoNaMesa.status === 'cancelado') {
-    container.style.display = 'none';
-    return;
-  }
-
-  const minutos = calcularMinutos(pedidoAbertoNaMesa.created_at);
-  container.innerHTML = `⏱️ Mesa aberta há <strong>${minutos}</strong> min`;
-  container.style.display = 'block';
-
-  // Se passar de 10 min, destaca mais
-  container.style.backgroundColor = minutos >= 10 ? '#ffcccc' : '#eee';
-  container.style.color = minutos >= 10 ? '#e74c3c' : '#c0392b';
-}
 // Atualiza a cada 60 segundos
 setInterval(() => {
   exibirMesas();
-  atualizarCronometrosGarcom();
 }, 60000);
 
 function exibirMesas() {
