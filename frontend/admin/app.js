@@ -1,7 +1,23 @@
 window.onerror = function(msg, url, line) {
+    if (msg && typeof msg === 'string' && (msg.includes('WebSocket') || msg.includes('CLOSING') || msg.includes('CLOSED'))) {
+      return true; // Suprime o erro
+    }
     console.error("ERRO GLOBAL:", msg, "em", url, "linha:", line);
-    // Se quiser mostrar um alerta na tela para o usuário saber que deu erro:
-    // alert("Erro no sistema: " + msg);
+  };
+
+  // Suprimir avisos e erros específicos do WebSocket no console vindos do iframe
+  const originalWarn = console.warn;
+  console.warn = function(...args) {
+    const msg = args[0] ? (args[0].message || args[0].toString()) : '';
+    if (typeof msg === 'string' && (msg.includes('WebSocket') || msg.includes('CLOSING') || msg.includes('CLOSED'))) return;
+    originalWarn.apply(console, args);
+  };
+
+  const originalError = console.error;
+  console.error = function(...args) {
+    const msg = args[0] ? (args[0].message || args[0].toString()) : '';
+    if (typeof msg === 'string' && (msg.includes('WebSocket') || msg.includes('CLOSING') || msg.includes('CLOSED'))) return;
+    originalError.apply(console, args);
   };
   
   // Interceptador global para redirecionar ao login se a sessão expirar

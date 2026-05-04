@@ -1,6 +1,28 @@
 let menu = [];
 let mesas = [];
 
+// --- SUPRESSÃO DE ERROS DE WEBSOCKET (Pusher/Socket.io) ---
+window.onerror = function(msg, url, line) {
+  if (msg && typeof msg === 'string' && (msg.includes('WebSocket') || msg.includes('CLOSING') || msg.includes('CLOSED'))) {
+    return true; // Suprime o erro
+  }
+};
+
+const originalWarn = console.warn;
+console.warn = function(...args) {
+  const msg = args[0] ? (args[0].message || args[0].toString()) : '';
+  if (typeof msg === 'string' && (msg.includes('WebSocket') || msg.includes('CLOSING') || msg.includes('CLOSED'))) return;
+  originalWarn.apply(console, args);
+};
+
+const originalError = console.error;
+console.error = function(...args) {
+  const msg = args[0] ? (args[0].message || args[0].toString()) : '';
+  if (typeof msg === 'string' && (msg.includes('WebSocket') || msg.includes('CLOSING') || msg.includes('CLOSED'))) return;
+  originalError.apply(console, args);
+};
+// ---------------------------------------------------------
+
 // Interceptador global para redirecionar ao login se a sessão expirar
   const originalFetch = window.fetch;
   window.fetch = async (...args) => {
