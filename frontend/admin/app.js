@@ -297,12 +297,12 @@ function switchTab(tab) {
   const scrollPos = window.scrollY;
   abaAtiva = tab;
   
-  // BLOQUEIO DE SCROLL GLOBAL: Se estiver lançando, trava a página
+  // BLOQUEIO DE SCROLL GLOBAL: Apenas na aba de lançamento para facilitar o uso do carrinho
   if (tab === 'lancar') {
       document.body.style.overflow = 'hidden';
-      window.scrollTo(0, 0); // Garante que comece do topo
+      window.scrollTo(0, 0); 
   } else {
-      document.body.style.overflow = 'auto';
+      document.body.style.overflow = 'auto'; // Garante que NUNCA trave nos ativos
   }
 
   // Remove classe active de todos os botões
@@ -1298,30 +1298,51 @@ function atualizarSelectMesasAtivas() {
 
 async function exibirPedidos() {
   if (isRenderingPedidos || abaAtiva !== 'ativos') return;
-  const listGarcom = document.getElementById('pedidos-list-garcom');
-  const listBalcao = document.getElementById('pedidos-list-balcao');
-  if (!listGarcom || !listBalcao) return;
+  
+  // Seleciona todos os containers de lista
+  const lists = {
+    garcom: {
+      pendentes: document.getElementById('list-pendentes-garcom'),
+      servidos: document.getElementById('list-servidos-garcom'),
+      fechamento: document.getElementById('list-fechamento-garcom')
+    },
+    balcao: {
+      pendentes: document.getElementById('list-pendentes-balcao'),
+      servidos: document.getElementById('list-servidos-balcao'),
+      fechamento: document.getElementById('list-fechamento-balcao')
+    }
+  };
+
+  if (!lists.garcom.pendentes || !lists.balcao.pendentes) return;
   
   isRenderingPedidos = true;
-  listGarcom.innerHTML = '';
-  listBalcao.innerHTML = '';
 
-  let countGarcom = 0;
-  let countBalcao = 0;
+  // Limpa todas as listas
+  Object.values(lists).forEach(group => {
+    Object.values(group).forEach(list => list.innerHTML = '');
+  });
+
+  const counts = {
+    garcom: { pendentes: 0, servidos: 0, fechamento: 0 },
+    balcao: { pendentes: 0, servidos: 0, fechamento: 0 }
+  };
+
+  // ORDENAÇÃO: Mais antigos primeiro, priorizando quem já pediu a conta (aguardando_fechamento)
+  const pedidosOrdenados = [...pedidos].sort((a, b) => {
+    if (a.status === 'aguardando_fechamento' && b.status !== 'aguardando_fechamento') return -1;
+    if (a.status !== 'aguardando_fechamento' && b.status === 'aguardando_fechamento') return 1;
+    return new Date(a.created_at) - new Date(b.created_at);
+  });
 
   try {
-    for (const pedido of pedidos) {
+    for (const pedido of pedidosOrdenados) {
       const mesaNomeExibicao = pedido.mesa_numero ? `Mesa ${pedido.mesa_numero}` : 'BALCÃO';
       
       // FILTRO DE BUSCA (TEXTO)
-      if (filtroBuscaMesa && !mesaNomeExibicao.toLowerCase().includes(filtroBuscaMesa)) {
-        continue; 
-      }
+      if (filtroBuscaMesa && !mesaNomeExibicao.toLowerCase().includes(filtroBuscaMesa)) continue;
 
       // FILTRO DE SELECT (EXATO)
-      if (filtroSelectMesa && mesaNomeExibicao !== filtroSelectMesa) {
-        continue;
-      }
+      if (filtroSelectMesa && mesaNomeExibicao !== filtroSelectMesa) continue;
 
       if (pedidosStatusTaxa[pedido.id] === undefined) {
         pedidosStatusTaxa[pedido.id] = (pedido.cobrar_taxa !== undefined) ? pedido.cobrar_taxa : true;
@@ -1329,9 +1350,9 @@ async function exibirPedidos() {
       const cobrarTaxaNoPedido = pedidosStatusTaxa[pedido.id];
 
       const itens = await fetch(`/api/pedidos/${pedido.id}/itens`).then(res => res.json());
-      const totalEnt = itens.filter(i => i.status === 'entregue').reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
-      const totalPend = itens.filter(i => i.status === 'pendente').reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
-      const hasPend = itens.some(i => i.status === 'pendente');
+      const itensPendentes = itens.filter(i => i.status === 'pendente');
+      const itensEntregues = itens.filter(i => i.status === 'entregue');
+      const hasPend = itensPendentes.length > 0;
       const statusGeral = hasPend ? 'recebido' : 'servido';
 
       let minutosCronometro = null;
@@ -1341,15 +1362,16 @@ async function exibirPedidos() {
         if (minutosCronometro >= 10) classeAlertaAtraso = 'alerta-borda-pisca';
       }
 
-      const subtotal = totalEnt + totalPend;
+      const subtotal = itens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
       const taxaServico = cobrarTaxaNoPedido ? (subtotal * 0.10) : 0;
       const pagoParcial = pedido.pago_parcial || 0;
       const totalConsumo = (subtotal + taxaServico);
       const totalExibicao = (pedido.status === 'aguardando_fechamento' ? pedido.total : (totalConsumo - pagoParcial)) || 0;
       
       const infoPagamento = (pedido.status === 'aguardando_fechamento' && pedido.forma_pagamento) ? `
-        <div style="background:#f9f9f9; padding:5px; border-radius:4px; margin-top:5px; font-size:0.85rem; border:1px solid #ddd;">
-          <strong>Pagamento:</strong> ${pedido.forma_pagamento}<br>
+        <div style="background:#fff9db; padding:8px; border-radius:8px; margin-top:8px; font-size:0.85rem; border:2px solid #f1c40f;">
+          <strong style="color: #d35400;">💰 SOLICITAÇÃO DE CONTA</strong><br>
+          <strong>Forma:</strong> ${pedido.forma_pagamento}<br>
           ${(pedido.forma_pagamento === 'Dinheiro') ? `<strong>Recebido:</strong> R$ ${(pedido.valor_recebido || 0).toFixed(2)} | <strong>Troco:</strong> R$ ${(pedido.troco || 0).toFixed(2)}` : ''}
           ${(pedido.desconto > 0) ? `<br><span style="color:#e74c3c;"><strong>Desconto:</strong> - R$ ${pedido.desconto.toFixed(2)}</span>` : ''}
           ${(pedido.acrescimo > 0) ? `<br><span style="color:#27ae60;"><strong>Acréscimo:</strong> + R$ ${pedido.acrescimo.toFixed(2)}</span>` : ''}
@@ -1362,15 +1384,20 @@ async function exibirPedidos() {
       card.innerHTML = `
         <div class="pedido-header">
           <div>
-            <h3>${mesaNomeExibicao} <span class="pedido-cronometro" data-created-at="${pedido.created_at || ''}" style="margin-left:10px; font-size:0.9rem; background:#eee; padding:2px 6px; border-radius:4px; color:#333; ${minutosCronometro === null ? 'display:none;' : ''}">⏱️ ${minutosCronometro === null ? '' : `${minutosCronometro} min`}</span></h3>
-            <span class="status-badge ${statusGeral}">${statusGeral === 'servido' ? 'EM ANDAMENTO' : statusGeral.toUpperCase()}</span>
-            <small style="display:block; margin-top:4px;">📅 ${formatarData(pedido.created_at)}</small>
-            <small style="display:block; font-weight:bold; color: #2c3e50;">👤 Garçom: ${pedido.garcom_id || 'N/I'}</small>
+            <h3 style="display:flex; align-items:center; gap:8px;">
+              ${mesaNomeExibicao} 
+              <span class="pedido-cronometro" data-created-at="${pedido.created_at || ''}" style="font-size:0.8rem; background:#2c3e50; padding:2px 8px; border-radius:12px; color:#fff; ${minutosCronometro === null ? 'display:none;' : ''}">
+                ⏱️ ${minutosCronometro === null ? '' : `${minutosCronometro} min`}
+              </span>
+            </h3>
+            <span class="status-badge ${statusGeral}">${statusGeral === 'servido' ? 'EM ANDAMENTO' : 'PENDENTE'}</span>
+            <small style="display:block; margin-top:4px; opacity:0.6;">📅 ${formatarData(pedido.created_at)}</small>
+            <small style="display:block; font-weight:bold; color: #34495e; margin-top:2px;">👤 Garçom: ${pedido.garcom_id || 'Admin'}</small>
           </div>
           <div style="text-align:right">
             <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
-              <button class="btn-imprimir-parcial-rapido" onclick="imprimirParcialMesaRapido(${pedido.id})" title="Imprimir Nota Parcial">
-                🖨️ PARCIAL: R$ ${totalExibicao.toFixed(2)}
+              <button class="btn-imprimir-parcial-rapido" onclick="imprimirParcialMesaRapido(${pedido.id})" title="Imprimir Nota Parcial" style="background:#3498db; color:white; border-radius:8px; padding:6px 12px; font-weight:bold; font-size:0.9rem; border:none; cursor:pointer; box-shadow:0 3px 0 #2980b9;">
+                🖨️ R$ ${totalExibicao.toFixed(2)}
               </button>
               
               <button style="background: #34495e; color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.75rem; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 5px; box-shadow: 0 2px 0 #2c3e50;" 
@@ -1378,82 +1405,103 @@ async function exibirPedidos() {
                 ✏️ EDITAR ITENS
               </button>
 
-              <div class="toggle-container" title="${pagoParcial > 0 ? 'Bloqueado: Mesa com pagamento parcial' : ''}">
-                <span>10%</span>
+              <div class="toggle-container">
+                <span style="font-size:0.7rem;">10% TAXA</span>
                 <label class="switch" style="${pagoParcial > 0 ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
-                  <input type="checkbox" ${cobrarTaxaNoPedido ? 'checked' : ''} 
-                         ${pagoParcial > 0 ? 'disabled' : ''} 
-                         onchange="alternarTaxaPedido(${pedido.id}, this)">
+                  <input type="checkbox" ${cobrarTaxaNoPedido ? 'checked' : ''} ${pagoParcial > 0 ? 'disabled' : ''} onchange="alternarTaxaPedido(${pedido.id}, this)">
                   <span class="slider"></span>
                 </label>
               </div>
-            </div>
-            <div data-role="pedido-subtotais" style="font-size:0.75rem; color:#7f8c8d; border-top:1px solid #eee; margin-top:3px;">
-              Consumo: R$ ${totalConsumo.toFixed(2)} ${pagoParcial > 0 ? `<br><span style="color:#27ae60; font-weight:bold;">(-) Já Pago: R$ ${pagoParcial.toFixed(2)}</span>` : ''}
             </div>
           </div>
         </div>
         
         ${infoPagamento}
         
-        <div class="pedido-itens">
-          ${itens.map(item => `
-            <div class="pedido-item" style="${item.status === 'entregue' ? 'opacity:0.5; background:#f0fff4; text-decoration: line-through;' : 'border-left:3px solid #e74c3c; background:#fff5f5;'} border-radius:4px; padding:4px 8px; margin-bottom:4px;">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <strong>${item.quantidade}x ${item.nome}</strong>
-                <span style="font-size:0.7rem; font-weight:bold; color:${item.status === 'entregue' ? '#27ae60' : '#e74c3c'}; text-decoration: none !important; display: inline-block;">
-                  ${item.status === 'entregue' ? '✓ NA MESA' : '⏳ PENDENTE'}
-                </span>
-              </div>
-              ${item.observacao ? `<small style="text-decoration: none !important; color:#e67e22; display:block;">Obs: ${item.observacao}</small>` : ''}
+        <div class="pedido-itens" style="margin-top:12px;">
+          ${itensPendentes.length > 0 ? `
+            <div style="margin-bottom: 12px;">
+              <small style="color: #e74c3c; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; display:block; margin-bottom:5px;">🔥 PARA ENTREGAR:</small>
+              ${itensPendentes.map(item => `
+                <div class="pedido-item" style="border-left:4px solid #e74c3c; background:#fff5f5; border-radius:6px; padding:6px 10px; margin-bottom:5px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong style="font-size:0.95rem;">${item.quantidade}x ${item.nome}</strong>
+                    <span style="font-size:0.65rem; font-weight:bold; background:#e74c3c; color:white; padding:2px 6px; border-radius:4px;">⏳ PENDENTE</span>
+                  </div>
+                  ${item.observacao ? `<small style="color:#d35400; display:block; margin-top:2px; font-weight:bold;">📝 Obs: ${item.observacao}</small>` : ''}
+                </div>
+              `).join('')}
             </div>
-          `).join('')}
+          ` : ''}
+
+          ${itensEntregues.length > 0 ? `
+            <div style="opacity: 0.7;">
+              <small style="color: #27ae60; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; display:block; margin-bottom:5px;">✅ JÁ NA MESA:</small>
+              ${itensEntregues.map(item => `
+                <div class="pedido-item" style="border-left:4px solid #27ae60; background:#f0fff4; border-radius:6px; padding:4px 10px; margin-bottom:4px; text-decoration: line-through;">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:0.85rem;">${item.quantidade}x ${item.nome}</span>
+                    <span style="font-size:0.6rem; color:#27ae60; font-weight:bold; text-decoration:none !important;">✓</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
         </div>
         
         <div class="pedido-footer">
-          <div class="pedido-actions" style="width: 100%; margin-top: 5px;">
+          <div class="pedido-actions" style="width: 100%; margin-top: 8px;">
             ${pedido.status === 'aguardando_fechamento' ? 
-              `<button style="background:#27ae60; font-size:1rem; border:2px solid #fff; padding: 1rem; width: 100%;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 CONFIRMAR PAGAMENTO E LIBERAR</button>` : 
+              `<button style="background:#27ae60; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #219150; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 CONFIRMAR PAGAMENTO E LIBERAR</button>` : 
               `<div style="display:flex; gap:0.5rem;">
-                ${hasPend ? `<button style="background:#e67e22; flex: 1;" onclick="marcarPedidoEntregue(${pedido.id})">🚚 ENTREGAR TUDO</button>` : ''}
-                <button style="background:#7f8c8d; flex: 1;" onclick="liberarMesa(${pedido.id}, ${pedido.mesa_id}, ${hasPend})">🔓 LIBERAR MESA E FECHAR CONTA</button>
+                ${hasPend ? `<button style="background:#e67e22; flex: 1.5; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #d35400; cursor:pointer;" onclick="marcarPedidoEntregue(${pedido.id})">🚚 ENTREGAR TUDO AGORA</button>` : ''}
+                <button style="background:#7f8c8d; flex: 1; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #707b7c; cursor:pointer; font-size:0.75rem;" onclick="liberarMesa(${pedido.id}, ${pedido.mesa_id}, ${hasPend})">🔓 FECHAR CONTA</button>
               </div>`
             }
           </div>
         </div>`;
       
-      if (pedido.garcom_id === 'ADMIN') {
-        listBalcao.appendChild(card);
-        countBalcao++;
-      } else {
-        listGarcom.appendChild(card);
-        countGarcom++;
-      }
+      const group = (pedido.garcom_id === 'ADMIN') ? 'balcao' : 'garcom';
+      let targetCol = 'pendentes';
+      if (isAguardando) targetCol = 'fechamento';
+      else if (statusGeral === 'servido') targetCol = 'servidos';
+
+      lists[group][targetCol].appendChild(card);
+      counts[group][targetCol]++;
     }
 
+    // Atualiza contadores dos títulos das colunas
+    Object.keys(counts).forEach(group => {
+      Object.keys(counts[group]).forEach(col => {
+        const badge = document.getElementById(`count-${col}-${group}`);
+        if (badge) badge.textContent = counts[group][col];
+      });
+    });
+
+    // Atualiza contadores das sub-tabs
     const bGarcom = document.getElementById('badge-sub-garcom');
     const bBalcao = document.getElementById('badge-sub-balcao');
-    if (bGarcom) bGarcom.textContent = countGarcom;
-    if (bBalcao) bBalcao.textContent = countBalcao;
+    if (bGarcom) bGarcom.textContent = counts.garcom.pendentes + counts.garcom.servidos + counts.garcom.fechamento;
+    if (bBalcao) bBalcao.textContent = counts.balcao.pendentes + counts.balcao.servidos + counts.balcao.fechamento;
 
-    const emptyStateGarcom = `
-      <div class="empty-state-container">
-        <div class="empty-state-icon">🪑</div>
-        <div class="empty-state-title">Nenhuma mesa aberta</div>
-        <div class="empty-state-subtitle">Os pedidos feitos pelos garçons aparecerão aqui.</div>
-      </div>
-    `;
+    // Estados vazios por coluna se necessário
+    const checkEmpty = (group, col, icon, text) => {
+      if (counts[group][col] === 0) {
+        lists[group][col].innerHTML = `
+          <div style="text-align:center; padding: 20px; opacity: 0.3; font-size: 0.8rem;">
+            <div style="font-size: 2rem;">${icon}</div>
+            <div>${text}</div>
+          </div>
+        `;
+      }
+    };
 
-    const emptyStateBalcao = `
-      <div class="empty-state-container">
-        <div class="empty-state-icon">🏪</div>
-        <div class="empty-state-title">Balcão vazio</div>
-        <div class="empty-state-subtitle">As vendas diretas e pedidos de balcão aparecerão aqui.</div>
-      </div>
-    `;
-
-    if (countGarcom === 0) listGarcom.innerHTML = emptyStateGarcom;
-    if (countBalcao === 0) listBalcao.innerHTML = emptyStateBalcao;
+    checkEmpty('garcom', 'pendentes', '🔥', 'Sem pedidos pendentes');
+    checkEmpty('garcom', 'servidos', '🍽️', 'Ninguém consumindo');
+    checkEmpty('garcom', 'fechamento', '💰', 'Sem fechamentos');
+    checkEmpty('balcao', 'pendentes', '🔥', 'Sem pedidos pendentes');
+    checkEmpty('balcao', 'servidos', '🍽️', 'Ninguém consumindo');
+    checkEmpty('balcao', 'fechamento', '💰', 'Sem fechamentos');
 
   } catch (e) { console.error('Erro ao renderizar pedidos:', e); }
   
