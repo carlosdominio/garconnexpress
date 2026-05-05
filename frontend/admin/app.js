@@ -1273,6 +1273,7 @@ async function imprimirParcialMesaRapido(idPedido) {
 }
 
 let isRenderingPedidos = false;
+let expandedPedidoIds = new Set();
 let filtroBuscaMesa = '';
 let filtroSelectMesa = '';
 
@@ -1433,28 +1434,23 @@ async function exibirPedidos() {
 
       const card = document.createElement('div');
       const isAguardando = pedido.status === 'aguardando_fechamento';
-      card.className = `pedido-card minimized status-${statusGeral} ${pedido.id === pedidoAtualizadoId ? 'destaque-atualizacao' : ''} ${classeAlertaAtraso} ${isAguardando ? 'alerta-fechamento' : ''}`;
+      const pedidoIdStr = String(pedido.id);
+      const isExpanded = expandedPedidoIds.has(pedidoIdStr);
+
+      card.className = `pedido-card ${isExpanded ? '' : 'minimized'} status-${statusGeral} ${pedido.id === pedidoAtualizadoId ? 'destaque-atualizacao' : ''} ${classeAlertaAtraso} ${isAguardando ? 'alerta-fechamento' : ''}`;
       card.dataset.pedidoId = pedido.id;
       card.dataset.mesa = mesaNomeExibicao; // Adicionado para facilitar o filtro exato
 
-      // Toggle minimização ao clicar no card (exceto se clicar em botões/inputs)
-      card.addEventListener('click', (e) => {
-        if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('label')) {
-          return;
-        }
-        card.classList.toggle('minimized');
-      });
-
+      // Toggle minimização ao clicar no h3 (número da mesa)
       card.innerHTML = `
         <div class="pedido-header">
           <div>
-            <h3 style="display:flex; align-items:center; gap:8px;">
-              ${mesaNomeExibicao} 
+            <h3 style="display:flex; align-items:center; gap:8px; cursor:pointer;" onclick="event.stopPropagation(); const c = this.closest('.pedido-card'); const id = c.dataset.pedidoId; if(c.classList.contains('minimized')){ c.classList.remove('minimized'); expandedPedidoIds.add(id); } else { c.classList.add('minimized'); expandedPedidoIds.delete(id); }">
+              ${mesaNomeExibicao}
               <span class="pedido-cronometro" data-created-at="${pedido.created_at || ''}" style="font-size:0.8rem; background:#2c3e50; padding:2px 8px; border-radius:12px; color:#fff; ${minutosCronometro === null ? 'display:none;' : ''}">
                 ⏱️ ${minutosCronometro === null ? '' : `${minutosCronometro} min`}
               </span>
-            </h3>
-            <span class="status-badge ${statusGeral}">${statusGeral === 'servido' ? 'EM ANDAMENTO' : 'PENDENTE'}</span>
+            </h3>            <span class="status-badge ${statusGeral}">${statusGeral === 'servido' ? 'EM ANDAMENTO' : 'PENDENTE'}</span>
             <small style="display:block; margin-top:4px; opacity:0.6;">📅 ${formatarData(pedido.created_at)}</small>
             <small style="display:block; font-weight:bold; color: #34495e; margin-top:2px;">👤 Garçom: ${pedido.garcom_id || 'Admin'}</small>
           </div>

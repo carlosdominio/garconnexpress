@@ -273,7 +273,6 @@ main {
   transition: all 0.3s ease;
   cursor: pointer;
   position: relative;
-  overflow: hidden;
 }
 
 .pedido-card.minimized {
