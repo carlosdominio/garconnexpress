@@ -1038,9 +1038,12 @@ async function carregarHistorico() {
 }
 
 async function exibirHistorico() {
-  const container = document.getElementById('historico-list');
-  if (!container) return;
-  container.innerHTML = '';
+  const containerFinalizados = document.getElementById('lista-finalizados');
+  const containerCancelados = document.getElementById('lista-cancelados');
+  if (!containerFinalizados || !containerCancelados) return;
+  
+  containerFinalizados.innerHTML = '';
+  containerCancelados.innerHTML = '';
   
   const dataHoje = new Date().toLocaleDateString('pt-BR');
   document.getElementById('data-historico').innerText = dataHoje;
@@ -1106,8 +1109,28 @@ async function exibirHistorico() {
         </div>`).join('')}</div>
       ${htmlPagamentos}
     `;
-    container.appendChild(card);
+    
+    if (pedido.status === 'cancelado') {
+      containerCancelados.appendChild(card);
+    } else {
+      containerFinalizados.appendChild(card);
+    }
   }
+
+  // Mostrar/ocultar containers se vazios
+  document.getElementById('historico-finalizados').style.display = containerFinalizados.children.length > 0 ? 'block' : 'none';
+  document.getElementById('historico-cancelados').style.display = containerCancelados.children.length > 0 ? 'block' : 'none';
+  
+  if (containerFinalizados.children.length === 0 && containerCancelados.children.length === 0) {
+    const emptyMsg = document.createElement('div');
+    emptyMsg.className = 'empty-state-container';
+    emptyMsg.innerHTML = '<div class="empty-state-icon">📂</div><div class="empty-state-title">Histórico Vazio</div>';
+    document.getElementById('historico-list').prepend(emptyMsg);
+  } else {
+    const emptyStates = document.querySelectorAll('#historico-list .empty-state-container');
+    emptyStates.forEach(e => e.remove());
+  }
+
   document.getElementById('faturamento-total-dia').innerText = `Faturamento Concluído: R$ ${faturamentoTotal.toFixed(2)}`;
 }
 
