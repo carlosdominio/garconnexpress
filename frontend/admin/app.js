@@ -496,14 +496,15 @@ function exibirMenuLancar(categoria) {
         <div style="padding-top: 2px;">
            <p style="margin: 0 0 8px 0; color: #27ae60; font-weight: 900; font-size: 1.05rem;">R$ ${item.preco.toFixed(2)}</p>
            ${temEstoqueDefinido ? `
-             <div style="background: ${disponivelReal <= 0 ? '#fff5f5' : '#f0f9ff'}; padding: 6px; border-radius: 6px; border: 1px solid ${disponivelReal <= 0 ? '#feb2b2' : '#bee3f8'}; width: 100%; box-sizing: border-box; margin-bottom: 5px;">
+             <div style="background: ${disponivelReal <= 0 ? '#fff5f5' : '#f0f9ff'}; padding: 6px; border-radius: 6px; border: 1px solid ${disponivelReal <= 0 ? '#feb2b2' : '#bee3f8'}; width: 100%; box-sizing: border-box; margin-bottom: 5px; min-height: 32px; display: flex; align-items: center; justify-content: center;">
                <small style="display:block; font-size:0.75rem; font-weight: 900; color:${disponivelReal <= 0 ? '#e74c3c' : '#2c3e50'}; text-align: center; text-transform: uppercase;">DISPONÍVEL: ${disponivelReal}</small>
              </div>
            ` : `
-             <div style="background: #f8f9fa; padding: 6px; border-radius: 6px; border: 1px solid #e2e8f0; width: 100%; box-sizing: border-box; margin-bottom: 5px;">
-               <small style="display:block; font-size:0.75rem; color:#718096; text-align: center; font-weight: bold; text-transform: uppercase;">ILIMITADO</small>
+             <div style="background: #f8f9fa; padding: 6px; border-radius: 6px; border: 1px solid #e2e8f0; width: 100%; box-sizing: border-box; margin-bottom: 5px; min-height: 32px; display: flex; align-items: center; justify-content: center;">
+               <small style="display:block; font-size:0.75rem; color:#718096; text-align: center; font-weight: 900; text-transform: uppercase;">ILIMITADO</small>
              </div>
            `}
+
         </div>
       </div>
     </div>
