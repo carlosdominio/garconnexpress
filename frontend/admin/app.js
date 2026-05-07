@@ -1316,6 +1316,16 @@ let expandedPedidoIds = new Set();
 let filtroBuscaMesa = '';
 let filtroSelectMesa = '';
 
+// ESTADO DE PAGINAÇÃO PARA "EM CONSUMO"
+let paginaAtualConsumo = { garcom: 1, balcao: 1 };
+const ITENS_POR_PAGINA_CONSUMO = 3;
+
+function mudarPaginaConsumo(grupo, direcao) {
+  paginaAtualConsumo[grupo] += direcao;
+  if (paginaAtualConsumo[grupo] < 1) paginaAtualConsumo[grupo] = 1;
+  aplicarFiltrosVisuais();
+}
+
 function filtrarMesasAtivas(valor) {
   filtroBuscaMesa = valor.toLowerCase().trim();
   aplicarFiltrosVisuais();
@@ -1333,27 +1343,29 @@ function aplicarFiltrosVisuais() {
     balcao: { pendentes: 0, servidos: 0 }
   };
 
+  // Listas auxiliares para aplicar a paginação apenas nos pedidos "Em Consumo" (servidos)
+  const servidosFiltrados = { garcom: [], balcao: [] };
+
   cards.forEach(card => {
-    // Usa o atributo data-mesa para o filtro exato, evitando conflito com o cronômetro no H3
     const mesaNome = (card.dataset.mesa || '').trim().toLowerCase();
-    
     const matchesBusca = !filtroBuscaMesa || mesaNome.includes(filtroBuscaMesa);
     const matchesSelect = !filtroSelectMesa || mesaNome === filtroSelectMesa.toLowerCase();
     
-    // NOVO: Pedidos pendentes agora ignoram o filtro para você nunca perder um pedido novo!
     const listId = card.parentElement ? card.parentElement.id : '';
     const isPendente = listId.includes('-pendentes-');
-    
-    const isVisible = (matchesBusca && matchesSelect) || isPendente;
-    
-    if (isVisible) {
-      card.style.display = 'block';
-      card.style.opacity = '1';
-      card.style.transform = 'scale(1)';
-      
-      // Incrementa contadores baseado na coluna onde o card está
-      const listId = card.parentElement.id;
-      if (listId) {
+    const isServido = listId.includes('-servidos-');
+    const group = listId.includes('garcom') ? 'garcom' : 'balcao';
+
+    const isVisibleByFilter = (matchesBusca && matchesSelect) || isPendente;
+
+    if (isVisibleByFilter) {
+      if (isServido) {
+        servidosFiltrados[group].push(card);
+      } else {
+        card.style.display = 'block';
+        card.style.opacity = '1';
+        card.style.transform = 'scale(1)';
+        
         const parts = listId.split('-'); // ex: list-pendentes-garcom
         if (parts.length === 3) {
           counts[parts[2]][parts[1]]++;
@@ -1366,11 +1378,55 @@ function aplicarFiltrosVisuais() {
     }
   });
 
-  // Atualiza contadores dos títulos das colunas
+  // APLICAÇÃO DA PAGINAÇÃO NAS LISTAS "EM CONSUMO"
+  Object.keys(servidosFiltrados).forEach(group => {
+    const list = servidosFiltrados[group];
+    const totalItens = list.length;
+    const totalPaginas = Math.ceil(totalItens / ITENS_POR_PAGINA_CONSUMO);
+
+    // Garante que a página atual seja válida
+    if (paginaAtualConsumo[group] > totalPaginas) paginaAtualConsumo[group] = Math.max(1, totalPaginas);
+    
+    const inicio = (paginaAtualConsumo[group] - 1) * ITENS_POR_PAGINA_CONSUMO;
+    const fim = inicio + ITENS_POR_PAGINA_CONSUMO;
+
+    list.forEach((card, index) => {
+      const isNaPagina = index >= inicio && index < fim;
+      if (isNaPagina) {
+        card.style.display = 'block';
+        card.style.opacity = '1';
+        card.style.transform = 'scale(1)';
+        counts[group]['servidos']++; // Incrementa contador de visualização se quiser (opcional)
+      } else {
+        card.style.display = 'none';
+      }
+    });
+
+    // ATUALIZA CONTROLES DE NAVEGAÇÃO
+    const nav = document.getElementById(`nav-servidos-${group}`);
+    const info = document.getElementById(`page-info-${group}`);
+    
+    if (nav && info) {
+      if (totalItens > ITENS_POR_PAGINA_CONSUMO) {
+        nav.style.display = 'flex';
+        info.textContent = `${paginaAtualConsumo[group]} / ${totalPaginas}`;
+      } else {
+        nav.style.display = 'none';
+      }
+    }
+    
+    // ATUALIZA O BADGE DO TÍTULO COM O TOTAL REAL (não apenas os 3 visíveis)
+    const badge = document.getElementById(`count-servidos-${group}`);
+    if (badge) badge.textContent = totalItens;
+  });
+
+  // Atualiza contadores dos títulos das outras colunas
   Object.keys(counts).forEach(group => {
     Object.keys(counts[group]).forEach(col => {
-      const badge = document.getElementById(`count-${col}-${group}`);
-      if (badge) badge.textContent = counts[group][col];
+      if (col !== 'servidos') { // 'servidos' já foi atualizado acima com o total real
+        const badge = document.getElementById(`count-${col}-${group}`);
+        if (badge) badge.textContent = counts[group][col];
+      }
     });
   });
 }
