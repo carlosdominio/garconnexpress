@@ -1316,13 +1316,16 @@ let expandedPedidoIds = new Set();
 let filtroBuscaMesa = '';
 let filtroSelectMesa = '';
 
-// ESTADO DE PAGINAÇÃO PARA "EM CONSUMO"
-let paginaAtualConsumo = { garcom: 1, balcao: 1 };
-const ITENS_POR_PAGINA_CONSUMO = 3;
+// ESTADO DE PAGINAÇÃO PARA COLUNAS
+let paginaAtualAtivos = {
+  garcom: { pendentes: 1, servidos: 1, fechamento: 1 },
+  balcao: { pendentes: 1, servidos: 1, fechamento: 1 }
+};
+const ITENS_POR_PAGINA_ATIVOS = 3;
 
-function mudarPaginaConsumo(grupo, direcao) {
-  paginaAtualConsumo[grupo] += direcao;
-  if (paginaAtualConsumo[grupo] < 1) paginaAtualConsumo[grupo] = 1;
+function mudarPagina(coluna, grupo, direcao) {
+  paginaAtualAtivos[grupo][coluna] += direcao;
+  if (paginaAtualAtivos[grupo][coluna] < 1) paginaAtualAtivos[grupo][coluna] = 1;
   aplicarFiltrosVisuais();
 }
 
@@ -1340,11 +1343,14 @@ function aplicarFiltrosVisuais() {
   const cards = document.querySelectorAll('.pedido-card');
   const counts = {
     garcom: { pendentes: 0, servidos: 0, fechamento: 0 },
-    balcao: { pendentes: 0, servidos: 0 }
+    balcao: { pendentes: 0, servidos: 0, fechamento: 0 }
   };
 
-  // Listas auxiliares para aplicar a paginação apenas nos pedidos "Em Consumo" (servidos)
-  const servidosFiltrados = { garcom: [], balcao: [] };
+  // Listas auxiliares para aplicar a paginação por coluna e grupo
+  const itensFiltrados = {
+    garcom: { pendentes: [], servidos: [], fechamento: [] },
+    balcao: { pendentes: [], servidos: [], fechamento: [] }
+  };
 
   cards.forEach(card => {
     const mesaNome = (card.dataset.mesa || '').trim().toLowerCase();
@@ -1352,25 +1358,19 @@ function aplicarFiltrosVisuais() {
     const matchesSelect = !filtroSelectMesa || mesaNome === filtroSelectMesa.toLowerCase();
     
     const listId = card.parentElement ? card.parentElement.id : '';
-    const isPendente = listId.includes('-pendentes-');
-    const isServido = listId.includes('-servidos-');
     const group = listId.includes('garcom') ? 'garcom' : 'balcao';
+    
+    let col = '';
+    if (listId.includes('-pendentes-')) col = 'pendentes';
+    else if (listId.includes('-servidos-')) col = 'servidos';
+    else if (listId.includes('-fechamento-')) col = 'fechamento';
 
-    const isVisibleByFilter = (matchesBusca && matchesSelect) || isPendente;
+    if (!col) return;
+
+    const isVisibleByFilter = (matchesBusca && matchesSelect);
 
     if (isVisibleByFilter) {
-      if (isServido) {
-        servidosFiltrados[group].push(card);
-      } else {
-        card.style.display = 'block';
-        card.style.opacity = '1';
-        card.style.transform = 'scale(1)';
-        
-        const parts = listId.split('-'); // ex: list-pendentes-garcom
-        if (parts.length === 3) {
-          counts[parts[2]][parts[1]]++;
-        }
-      }
+      itensFiltrados[group][col].push(card);
     } else {
       card.style.display = 'none';
       card.style.opacity = '0';
@@ -1378,55 +1378,46 @@ function aplicarFiltrosVisuais() {
     }
   });
 
-  // APLICAÇÃO DA PAGINAÇÃO NAS LISTAS "EM CONSUMO"
-  Object.keys(servidosFiltrados).forEach(group => {
-    const list = servidosFiltrados[group];
-    const totalItens = list.length;
-    const totalPaginas = Math.ceil(totalItens / ITENS_POR_PAGINA_CONSUMO);
+  // APLICAÇÃO DA PAGINAÇÃO EM TODAS AS COLUNAS
+  Object.keys(itensFiltrados).forEach(group => {
+    Object.keys(itensFiltrados[group]).forEach(col => {
+      const list = itensFiltrados[group][col];
+      const totalItens = list.length;
+      const totalPaginas = Math.ceil(totalItens / ITENS_POR_PAGINA_ATIVOS);
 
-    // Garante que a página atual seja válida
-    if (paginaAtualConsumo[group] > totalPaginas) paginaAtualConsumo[group] = Math.max(1, totalPaginas);
-    
-    const inicio = (paginaAtualConsumo[group] - 1) * ITENS_POR_PAGINA_CONSUMO;
-    const fim = inicio + ITENS_POR_PAGINA_CONSUMO;
+      // Garante que a página atual seja válida
+      if (paginaAtualAtivos[group][col] > totalPaginas) paginaAtualAtivos[group][col] = Math.max(1, totalPaginas);
+      
+      const inicio = (paginaAtualAtivos[group][col] - 1) * ITENS_POR_PAGINA_ATIVOS;
+      const fim = inicio + ITENS_POR_PAGINA_ATIVOS;
 
-    list.forEach((card, index) => {
-      const isNaPagina = index >= inicio && index < fim;
-      if (isNaPagina) {
-        card.style.display = 'block';
-        card.style.opacity = '1';
-        card.style.transform = 'scale(1)';
-        counts[group]['servidos']++; // Incrementa contador de visualização se quiser (opcional)
-      } else {
-        card.style.display = 'none';
+      list.forEach((card, index) => {
+        const isNaPagina = index >= inicio && index < fim;
+        if (isNaPagina) {
+          card.style.display = 'block';
+          card.style.opacity = '1';
+          card.style.transform = 'scale(1)';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+
+      // ATUALIZA CONTROLES DE NAVEGAÇÃO
+      const nav = document.getElementById(`nav-${col}-${group}`);
+      const info = document.getElementById(`page-info-${col}-${group}`);
+      
+      if (nav && info) {
+        if (totalItens > ITENS_POR_PAGINA_ATIVOS) {
+          nav.style.display = 'flex';
+          info.textContent = `${paginaAtualAtivos[group][col]} / ${totalPaginas}`;
+        } else {
+          nav.style.display = 'none';
+        }
       }
-    });
-
-    // ATUALIZA CONTROLES DE NAVEGAÇÃO
-    const nav = document.getElementById(`nav-servidos-${group}`);
-    const info = document.getElementById(`page-info-${group}`);
-    
-    if (nav && info) {
-      if (totalItens > ITENS_POR_PAGINA_CONSUMO) {
-        nav.style.display = 'flex';
-        info.textContent = `${paginaAtualConsumo[group]} / ${totalPaginas}`;
-      } else {
-        nav.style.display = 'none';
-      }
-    }
-    
-    // ATUALIZA O BADGE DO TÍTULO COM O TOTAL REAL (não apenas os 3 visíveis)
-    const badge = document.getElementById(`count-servidos-${group}`);
-    if (badge) badge.textContent = totalItens;
-  });
-
-  // Atualiza contadores dos títulos das outras colunas
-  Object.keys(counts).forEach(group => {
-    Object.keys(counts[group]).forEach(col => {
-      if (col !== 'servidos') { // 'servidos' já foi atualizado acima com o total real
-        const badge = document.getElementById(`count-${col}-${group}`);
-        if (badge) badge.textContent = counts[group][col];
-      }
+      
+      // ATUALIZA O BADGE DO TÍTULO COM O TOTAL REAL
+      const badge = document.getElementById(`count-${col}-${group}`);
+      if (badge) badge.textContent = totalItens;
     });
   });
 }

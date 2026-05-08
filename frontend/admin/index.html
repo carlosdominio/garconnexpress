@@ -286,43 +286,68 @@
         <div class="kanban-board">
           <div class="kanban-col" id="col-pendentes-garcom">
             <h3>🔥 Pendentes <span class="badge-mini" id="count-pendentes-garcom">0</span></h3>
+            <!-- Controles de Paginação Pendentes Garçom -->
+            <div id="nav-pendentes-garcom" style="display:none; justify-content:space-between; align-items:center; margin-bottom:10px; background:#fff; padding:8px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+              <button onclick="mudarPagina('pendentes', 'garcom', -1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">◀</button>
+              <span id="page-info-pendentes-garcom" style="font-weight:bold; font-size:0.85rem; color:#64748b;">1 / 1</span>
+              <button onclick="mudarPagina('pendentes', 'garcom', 1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">▶</button>
+            </div>
             <div id="list-pendentes-garcom" class="pedidos-list"></div>
           </div>
           <div class="kanban-col" id="col-servidos-garcom">
             <h3>🍽️ Em Consumo <span class="badge-mini" id="count-servidos-garcom">0</span></h3>
-            <!-- Controles de Paginação no Topo -->
+            <!-- Controles de Paginação Em Consumo Garçom -->
             <div id="nav-servidos-garcom" style="display:none; justify-content:space-between; align-items:center; margin-bottom:10px; background:#fff; padding:8px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
-              <button onclick="mudarPaginaConsumo('garcom', -1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">◀</button>
-              <span id="page-info-garcom" style="font-weight:bold; font-size:0.85rem; color:#64748b;">1 / 1</span>
-              <button onclick="mudarPaginaConsumo('garcom', 1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">▶</button>
+              <button onclick="mudarPagina('servidos', 'garcom', -1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">◀</button>
+              <span id="page-info-servidos-garcom" style="font-weight:bold; font-size:0.85rem; color:#64748b;">1 / 1</span>
+              <button onclick="mudarPagina('servidos', 'garcom', 1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">▶</button>
             </div>
             <div id="list-servidos-garcom" class="pedidos-list"></div>
           </div>
           <div class="kanban-col" id="col-fechamento-garcom">
             <h3>💰 Fechamento <span class="badge-mini" id="count-fechamento-garcom">0</span></h3>
+            <!-- Controles de Paginação Fechamento Garçom -->
+            <div id="nav-fechamento-garcom" style="display:none; justify-content:space-between; align-items:center; margin-bottom:10px; background:#fff; padding:8px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+              <button onclick="mudarPagina('fechamento', 'garcom', -1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">◀</button>
+              <span id="page-info-fechamento-garcom" style="font-weight:bold; font-size:0.85rem; color:#64748b;">1 / 1</span>
+              <button onclick="mudarPagina('fechamento', 'garcom', 1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">▶</button>
+            </div>
             <div id="list-fechamento-garcom" class="pedidos-list"></div>
           </div>
-        </div>
-      </div>
-      <div id="group-balcao" class="sub-tab-content hidden">
-        <div class="kanban-board">
+          </div>
+          </div>
+          <div id="group-balcao" class="sub-tab-content hidden">
+          <div class="kanban-board">
           <div class="kanban-col" id="col-pendentes-balcao">
             <h3>🔥 Pendentes <span class="badge-mini" id="count-pendentes-balcao">0</span></h3>
+            <!-- Controles de Paginação Pendentes Balcão -->
+            <div id="nav-pendentes-balcao" style="display:none; justify-content:space-between; align-items:center; margin-bottom:10px; background:#fff; padding:8px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+              <button onclick="mudarPagina('pendentes', 'balcao', -1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">◀</button>
+              <span id="page-info-pendentes-balcao" style="font-weight:bold; font-size:0.85rem; color:#64748b;">1 / 1</span>
+              <button onclick="mudarPagina('pendentes', 'balcao', 1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">▶</button>
+            </div>
             <div id="list-pendentes-balcao" class="pedidos-list"></div>
           </div>
           <div class="kanban-col" id="col-servidos-balcao">
             <h3>🍽️ Em Consumo <span class="badge-mini" id="count-servidos-balcao">0</span></h3>
-            <!-- Controles de Paginação Balcão -->
+            <!-- Controles de Paginação Em Consumo Balcão -->
             <div id="nav-servidos-balcao" style="display:none; justify-content:space-between; align-items:center; margin-bottom:10px; background:#fff; padding:8px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
-              <button onclick="mudarPaginaConsumo('balcao', -1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">◀</button>
-              <span id="page-info-balcao" style="font-weight:bold; font-size:0.85rem; color:#64748b;">1 / 1</span>
-              <button onclick="mudarPaginaConsumo('balcao', 1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">▶</button>
+              <button onclick="mudarPagina('servidos', 'balcao', -1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">◀</button>
+              <span id="page-info-servidos-balcao" style="font-weight:bold; font-size:0.85rem; color:#64748b;">1 / 1</span>
+              <button onclick="mudarPagina('servidos', 'balcao', 1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">▶</button>
             </div>
             <div id="list-servidos-balcao" class="pedidos-list"></div>
           </div>
-        </div>
-      </div>
-    </section>
+          <div class="kanban-col" id="col-fechamento-balcao">
+            <h3>💰 Fechamento <span class="badge-mini" id="count-fechamento-balcao">0</span></h3>
+            <!-- Controles de Paginação Fechamento Balcão -->
+            <div id="nav-fechamento-balcao" style="display:none; justify-content:space-between; align-items:center; margin-bottom:10px; background:#fff; padding:8px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+              <button onclick="mudarPagina('fechamento', 'balcao', -1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">◀</button>
+              <span id="page-info-fechamento-balcao" style="font-weight:bold; font-size:0.85rem; color:#64748b;">1 / 1</span>
+              <button onclick="mudarPagina('fechamento', 'balcao', 1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">▶</button>
+            </div>
+            <div id="list-fechamento-balcao" class="pedidos-list"></div>
+          </div>    </section>
 
     <section id="historico-section" class="hidden">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
