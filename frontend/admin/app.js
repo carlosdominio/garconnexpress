@@ -1321,7 +1321,7 @@ let paginaAtualAtivos = {
   garcom: { pendentes: 1, servidos: 1, fechamento: 1 },
   balcao: { pendentes: 1, servidos: 1, fechamento: 1 }
 };
-const ITENS_POR_PAGINA_ATIVOS = 3;
+const ITENS_POR_PAGINA_ATIVOS = 4;
 
 function mudarPagina(coluna, grupo, direcao) {
   paginaAtualAtivos[grupo][coluna] += direcao;
