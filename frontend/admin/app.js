@@ -1903,8 +1903,10 @@ function fecharModal() {
   pedidoEmEdicao = null;
   itensEmEdicao = [];
   
-  // LIBERA O SCROLL SEMPRE: Volta ao normal ao fechar
-  document.body.classList.remove('modal-open');
+  // LIBERA O SCROLL APENAS se não estiver nas abas que exigem trava
+  if (abaAtiva !== 'lancar' && abaAtiva !== 'ativos') {
+      document.body.classList.remove('modal-open');
+  }
 }
 
 function renderizarItensEdicao() {
@@ -2813,7 +2815,11 @@ function imprimirCupomParcialItens(pedido, itensPagos, totalPago, cobrarTaxa) {
 
 function fecharModalFechamentoAdmin() { 
   document.getElementById('modal-fechamento-admin').style.display = 'none'; 
-  document.body.classList.remove('modal-open');
+  
+  // LIBERA O SCROLL APENAS se não estiver nas abas que exigem trava
+  if (abaAtiva !== 'lancar' && abaAtiva !== 'ativos') {
+      document.body.classList.remove('modal-open');
+  }
 }
 
 function fecharModalMultiPagamento() { 
