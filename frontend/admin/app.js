@@ -1086,25 +1086,23 @@ async function exibirHistorico() {
   const containerFinalizados = document.getElementById('lista-finalizados');
   const containerCancelados = document.getElementById('lista-cancelados');
   if (!containerFinalizados || !containerCancelados || !listContainer) return;
-  
+
   // Limpar estados anteriores
   containerFinalizados.innerHTML = '';
   containerCancelados.innerHTML = '';
-  const emptyStates = listContainer.querySelectorAll('.empty-state-container');
-  emptyStates.forEach(e => e.remove());
-  
+
+  // SEMPRE GARANTE QUE OS CONTAINERS ESTEJAM VISÍVEIS PARA MANTER A DIVISÃO
+  document.getElementById('historico-finalizados').style.display = 'block';
+  document.getElementById('historico-cancelados').style.display = 'block';
+
   const dataHoje = new Date().toLocaleDateString('pt-BR');
   document.getElementById('data-historico').innerText = dataHoje;
 
   let faturamentoTotal = 0;
 
   if (historico.length === 0) {
-    const emptyMsg = document.createElement('div');
-    emptyMsg.className = 'empty-state-container';
-    emptyMsg.innerHTML = '<div class="empty-state-icon">📂</div><div class="empty-state-title">Histórico Vazio</div>';
-    listContainer.prepend(emptyMsg);
-    document.getElementById('historico-finalizados').style.display = 'none';
-    document.getElementById('historico-cancelados').style.display = 'none';
+    containerFinalizados.innerHTML = '<p style="text-align:center; padding: 1.5rem; opacity: 0.5; font-weight:bold;">Nenhum pedido finalizado hoje.</p>';
+    containerCancelados.innerHTML = '<p style="text-align:center; padding: 1.5rem; opacity: 0.5; font-weight:bold;">Nenhum pedido cancelado hoje.</p>';
     document.getElementById('faturamento-total-dia').innerText = `Faturamento Concluído: R$ 0,00`;
     return;
   }
@@ -1112,7 +1110,7 @@ async function exibirHistorico() {
   for (const pedido of historico) {
     const valorConsolidado = (pedido.total || 0) + (pedido.pago_parcial || 0);
     if (pedido.status === 'entregue') faturamentoTotal += valorConsolidado;
-    
+
     // Busca itens e pagamentos em paralelo
     const [itens, pagamentos] = await Promise.all([
       fetch(`/api/pedidos/${pedido.id}/itens`).then(res => res.json()),
@@ -1122,7 +1120,7 @@ async function exibirHistorico() {
     const card = document.createElement('div');
     card.className = `pedido-card status-${pedido.status}`;
     const mesaNomeExibicao = pedido.mesa_numero ? `Mesa ${pedido.mesa_numero}` : 'BALCÃO';
-    
+
     // Gerar HTML dos pagamentos se houver
     let htmlPagamentos = '';
     if (pagamentos && pagamentos.length > 0) {
@@ -1168,7 +1166,7 @@ async function exibirHistorico() {
         </div>`).join('')}</div>
       ${htmlPagamentos}
     `;
-    
+
     if (pedido.status === 'cancelado') {
       containerCancelados.appendChild(card);
     } else {
@@ -1176,13 +1174,16 @@ async function exibirHistorico() {
     }
   }
 
-  // Mostrar/ocultar containers se vazios
-  document.getElementById('historico-finalizados').style.display = containerFinalizados.children.length > 0 ? 'block' : 'none';
-  document.getElementById('historico-cancelados').style.display = containerCancelados.children.length > 0 ? 'block' : 'none';
-  
+  // Se uma das colunas estiver vazia (mas a outra não), coloca a mensagem de placeholder
+  if (containerFinalizados.children.length === 0) {
+      containerFinalizados.innerHTML = '<p style="text-align:center; padding: 1rem; opacity: 0.5;">Nenhum pedido finalizado.</p>';
+  }
+  if (containerCancelados.children.length === 0) {
+      containerCancelados.innerHTML = '<p style="text-align:center; padding: 1rem; opacity: 0.5;">Nenhum pedido cancelado.</p>';
+  }
+
   document.getElementById('faturamento-total-dia').innerText = `Faturamento Concluído: R$ ${faturamentoTotal.toFixed(2)}`;
 }
-
 async function limparHistoricoTotal() {
   if (historico.length === 0) return await mostrarAlerta("O histórico já está vazio!", "Aviso");
 
