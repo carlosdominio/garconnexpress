@@ -666,8 +666,22 @@ button.btn-entregue { background-color: #95a5a6; }
 .config-card button { padding: 0.8rem; font-size: 0.9rem; }
 .item-config { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid #f9f9f9; }
 .btn-excluir { background-color: #e74c3c; padding: 4px 8px; font-size: 0.8rem; width: auto; }
-.menu-item-config { background: #f9f9f9; padding: 1rem; border-radius: 8px; display: flex; gap: 1rem; align-items: center; border-bottom: 1px solid #eee; }
-.menu-item-config img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; }
+.menu-item-config { 
+  background: white; 
+  padding: 1.2rem; 
+  border-radius: 12px; 
+  display: flex; 
+  gap: 1.2rem; 
+  align-items: center; 
+  border: 1px solid #e2e8f0; 
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.menu-item-config:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.menu-item-config img { width: 100px; height: 100px; object-fit: cover; border-radius: 10px; background: #f8fafc; }
 .config-card-full { grid-column: 1 / -1; }
 .form-config-menu { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; align-items: flex-end; }
 .form-config-menu input { 

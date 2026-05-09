@@ -913,6 +913,81 @@ async function excluirGarcom(id) {
 // MENU
 let idItemEdicaoMenu = null;
 
+async function abrirModalItemMenu(item = null) {
+  idItemEdicaoMenu = item ? item.id : null;
+  const modal = document.getElementById('modal-item-menu');
+  const titulo = document.getElementById('modal-item-titulo');
+  const btn = document.getElementById('btn-acao-menu');
+
+  if (item) {
+    titulo.innerText = "✏️ Editar Item";
+    btn.innerText = "💾 SALVAR ALTERAÇÕES";
+    btn.style.background = "#e67e22";
+    
+    document.getElementById('menu-nome').value = item.nome;
+    document.getElementById('menu-cat').value = item.categoria;
+    document.getElementById('menu-preco').value = item.preco;
+    document.getElementById('menu-estoque').value = item.estoque;
+    document.getElementById('menu-validade').value = item.validade || '';
+    document.getElementById('menu-img').value = item.imagem;
+  } else {
+    titulo.innerText = "➕ Novo Item no Menu";
+    btn.innerText = "🚀 CADASTRAR NO CARDÁPIO";
+    btn.style.background = "#27ae60";
+    
+    ['menu-nome', 'menu-cat', 'menu-preco', 'menu-img', 'menu-validade'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('menu-estoque').value = '-1';
+  }
+
+  modal.style.display = 'flex';
+  document.body.classList.add('modal-open');
+}
+
+function fecharModalItemMenu() {
+  document.getElementById('modal-item-menu').style.display = 'none';
+  idItemEdicaoMenu = null;
+  // Apenas remove se não estiver nas abas que exigem dashboard fixo
+  if (abaAtiva !== 'lancar' && abaAtiva !== 'ativos') {
+    document.body.classList.remove('modal-open');
+  }
+}
+
+async function processarAcaoMenu() {
+  const nome = document.getElementById('menu-nome').value;
+  const categoria = document.getElementById('menu-cat').value;
+  const preco = parseFloat(document.getElementById('menu-preco').value);
+  const estoque = parseInt(document.getElementById('menu-estoque').value);
+  const validade = document.getElementById('menu-validade').value;
+  const imagem = document.getElementById('menu-img').value || 'https://placehold.co/100';
+
+  if (!nome || !categoria || isNaN(preco) || isNaN(estoque)) {
+    return await mostrarAlerta("Por favor, preencha o nome, categoria e preço corretamente.", "Aviso");
+  }
+
+  const payload = { nome, categoria, preco, imagem, estoque, validade };
+  const method = idItemEdicaoMenu ? 'PUT' : 'POST';
+  const url = idItemEdicaoMenu ? `/api/menu/${idItemEdicaoMenu}` : '/api/menu';
+
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  if (res.ok) {
+    mostrarToast(idItemEdicaoMenu ? "Item atualizado com sucesso!" : "Item cadastrado com sucesso!");
+    fecharModalItemMenu();
+    carregarCardapio();
+  } else {
+    const err = await res.json();
+    mostrarAlerta("Erro ao salvar: " + (err.error || "Desconhecido"), "Erro");
+  }
+}
+
+function prepararEdicaoMenu(item) {
+  abrirModalItemMenu(item);
+}
+
 async function exibirMenuConfig() {
   const container = document.getElementById('lista-menu-config');
   if (!container) return;
@@ -991,40 +1066,6 @@ async function exibirMenuConfig() {
   if (vencidosCount > 0 || proxVencimentoCount > 0) {
     mostrarToast(`🚨 ALERTA: ${vencidosCount} produtos vencidos e ${proxVencimentoCount} próximos da validade!`);
   }
-}
-
-function prepararEdicaoMenu(item) {
-  idItemEdicaoMenu = item.id;
-  document.getElementById('menu-nome').value = item.nome;
-  document.getElementById('menu-cat').value = item.categoria;
-  document.getElementById('menu-preco').value = item.preco;
-  document.getElementById('menu-estoque').value = item.estoque;
-  document.getElementById('menu-validade').value = item.validade || '';
-  document.getElementById('menu-img').value = item.imagem;
-  document.getElementById('btn-acao-menu').textContent = "💾 Salvar";
-  document.getElementById('btn-acao-menu').style.background = "#e67e22";
-  document.getElementById('btn-cancelar-menu').classList.remove('hidden');
-}
-
-function cancelarEdicaoMenu() {
-  idItemEdicaoMenu = null;
-  ['menu-nome', 'menu-cat', 'menu-preco', 'menu-img', 'menu-estoque', 'menu-validade'].forEach(id => { const el = document.getElementById(id); if (el) el.value = (id === 'menu-estoque' ? '-1' : ''); });
-  document.getElementById('btn-acao-menu').textContent = "Adicionar Item";
-  document.getElementById('btn-acao-menu').style.background = "#27ae60";
-  document.getElementById('btn-cancelar-menu').classList.add('hidden');
-}
-
-async function processarAcaoMenu() {
-  const nome = document.getElementById('menu-nome').value;
-  const categoria = document.getElementById('menu-cat').value;
-  const preco = parseFloat(document.getElementById('menu-preco').value);
-  const estoque = parseInt(document.getElementById('menu-estoque').value);
-  const validade = document.getElementById('menu-validade').value;
-  const imagem = document.getElementById('menu-img').value || 'https://placehold.co/100';
-  if (!nome || !categoria || isNaN(preco) || isNaN(estoque)) return await mostrarAlerta("Preencha corretamente", "Aviso");
-  const payload = { nome, categoria, preco, imagem, estoque, validade };
-  const res = await fetch(idItemEdicaoMenu ? `/api/menu/${idItemEdicaoMenu}` : '/api/menu', { method: idItemEdicaoMenu ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-  if (res.ok) { mostrarToast("Menu atualizado!"); cancelarEdicaoMenu(); carregarCardapio(); }
 }
 
 async function excluirDoMenu(id) {
