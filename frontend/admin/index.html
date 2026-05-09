@@ -432,13 +432,15 @@
 
   <!-- Modal de Adicionar/Editar Item do Menu -->
   <div id="modal-item-menu" class="modal">
-    <div class="modal-content" style="max-width: 500px;">
-      <div id="modal-item-header" style="background: #2c3e50; padding: 1.2rem; color: white; display: flex; justify-content: space-between; align-items: center;">
-        <h2 id="modal-item-titulo" style="margin: 0; font-size: 1.3rem; font-weight: 900; text-transform: uppercase; letter-spacing: 1px;">Novo Item</h2>
+    <div class="modal-content" style="max-width: 500px; max-height: 90vh; display: flex; flex-direction: column;">
+      <!-- Header Fixo -->
+      <div id="modal-item-header" style="background: #2c3e50; padding: 1rem 1.5rem; color: white; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+        <h2 id="modal-item-titulo" style="margin: 0; font-size: 1.2rem; font-weight: 900; text-transform: uppercase;">Novo Item</h2>
         <span class="close" onclick="fecharModalItemMenu()" style="color: white; opacity: 0.8; font-size: 2rem;">&times;</span>
       </div>
 
-      <div style="padding: 1.5rem; background: #f8fafc; display: flex; flex-direction: column; gap: 5px;">
+      <!-- Corpo com Scroll -->
+      <div style="padding: 1.2rem 1.5rem; background: #f8fafc; overflow-y: auto; flex: 1;">
         <div class="modal-form-group">
           <label>Nome do Produto</label>
           <input type="text" id="menu-nome" placeholder="Ex: Cerveja Skol 600ml">
@@ -469,11 +471,12 @@
           <label>Link da Imagem (Opcional)</label>
           <input type="text" id="menu-img" placeholder="https://...">
         </div>
+      </div>
 
-        <div style="margin-top: 15px; display: flex; gap: 12px;">
-          <button id="btn-acao-menu" onclick="processarAcaoMenu()" class="modal-btn modal-btn-primary" style="flex: 2;">💾 SALVAR NO CARDÁPIO</button>
-          <button onclick="fecharModalItemMenu()" class="modal-btn modal-btn-outline" style="flex: 1;">CANCELAR</button>
-        </div>
+      <!-- Footer Fixo com Botões (Sempre Visível) -->
+      <div style="padding: 1rem 1.5rem; background: #fff; border-top: 2px solid #e2e8f0; display: flex; gap: 12px; flex-shrink: 0;">
+        <button id="btn-acao-menu" onclick="processarAcaoMenu()" class="modal-btn modal-btn-primary" style="flex: 2;">💾 SALVAR NO CARDÁPIO</button>
+        <button onclick="fecharModalItemMenu()" class="modal-btn modal-btn-outline" style="flex: 1;">CANCELAR</button>
       </div>
     </div>
   </div>
