@@ -319,12 +319,12 @@ function switchTab(tab) {
   const scrollPos = window.scrollY;
   abaAtiva = tab;
   
-  // BLOQUEIO DE SCROLL GLOBAL: Apenas na aba de lançamento para facilitar o uso do carrinho
-  if (tab === 'lancar') {
+  // BLOQUEIO DE SCROLL GLOBAL: Na aba de ativos e lançamento para manter o app fixo
+  if (tab === 'lancar' || tab === 'ativos') {
       document.body.classList.add('modal-open');
       window.scrollTo(0, 0); 
   } else {
-      document.body.classList.remove('modal-open'); // Garante que NUNCA trave nos ativos
+      document.body.classList.remove('modal-open'); // Permite scroll no histórico/config
   }
 
   // Remove classe active de todos os botões

@@ -912,7 +912,7 @@ button.btn-entregue { background-color: #95a5a6; }
   display: flex;
   flex-direction: column;
   gap: 1.2rem;
-  max-height: 70vh; /* Altura máxima para ativar o scroll interno */
+  height: calc(100vh - 280px); /* Altura calculada para preencher a tela sem scroll na página */
   overflow-y: auto; /* Scroll apenas aqui */
   padding-right: 5px;
   
