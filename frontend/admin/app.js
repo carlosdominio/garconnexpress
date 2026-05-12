@@ -1210,6 +1210,13 @@ async function exibirHistorico() {
     containerFinalizados.innerHTML = '<p style="text-align:center; padding: 1.5rem; opacity: 0.5; font-weight:bold;">Nenhum pedido finalizado hoje.</p>';
     containerCancelados.innerHTML = '<p style="text-align:center; padding: 1.5rem; opacity: 0.5; font-weight:bold;">Nenhum pedido cancelado hoje.</p>';
     document.getElementById('faturamento-total-dia').innerText = `Faturamento Concluído: R$ 0,00`;
+    
+    // Limpa o select de filtros quando não há histórico
+    const selectFiltro = document.getElementById('filtro-historico-select');
+    if (selectFiltro) {
+      selectFiltro.innerHTML = '<option value="">Todas as Mesas / Todos os Garçons</option>';
+      selectFiltro.value = '';
+    }
     return;
   }
 
