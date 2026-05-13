@@ -212,6 +212,7 @@ async function notifyStatus(pedidoId, mesaDbId, status) {
     const payload = { pedido_id: pedidoId, mesa_id: mesaNum, mesa_numero: mesaNum, status: status };
     console.log(`🔔 Notificando status: Mesa ${mesaNum}, Status ${status}`);
     await safePusherTrigger('garconnexpress', 'status-atualizado', payload);
+    await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
 
     // NOTIFICAÇÃO WHATSAPP
     if (status === 'aguardando_fechamento') {
