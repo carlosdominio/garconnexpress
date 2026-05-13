@@ -718,6 +718,11 @@ app.put('/api/pedidos/:id/atualizar-itens', async (req, res) => {
     // Se tem pendente, atualizamos o created_at para reiniciar o cronômetro de entrega
     if (temPendente) {
       await query("UPDATE pedidos SET total = ?, status = ?, created_at = ? WHERE id = ?", [total, novoStatusPedido, agora, id]);
+      
+      // Notifica a cozinha que há novos itens para preparar (com som)
+      const resMesa = await query("SELECT m.numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id]);
+      const mesaNum = resMesa.rows[0] ? resMesa.rows[0].numero : 'BALCÃO';
+      await safePusherTrigger('garconnexpress', 'novo-pedido', { pedido: { id: id, mesa_numero: mesaNum, status: 'recebido' } });
     } else {
       await query("UPDATE pedidos SET total = ?, status = ? WHERE id = ?", [total, novoStatusPedido, id]);
     }
@@ -747,8 +752,13 @@ app.put('/api/pedidos/:id/adicionar', async (req, res) => {
     
     // Atualiza o total e reinicia o cronômetro (created_at) para os novos itens adicionados
     await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ? WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, id]);
-    const pMesa = (await query("SELECT mesa_id FROM pedidos WHERE id = ?", [id])).rows[0];
+    const pMesa = (await query("SELECT mesa_id, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
     if (pMesa && pMesa.mesa_id) await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [pMesa.mesa_id]);
+    
+    // Notifica a cozinha que há novos itens para preparar (com som)
+    const mesaNum = pMesa ? pMesa.numero || 'BALCÃO' : 'BALCÃO';
+    await safePusherTrigger('garconnexpress', 'novo-pedido', { pedido: { id: id, mesa_numero: mesaNum, status: 'recebido' } });
+
     await notifyStatus(id, null, 'itens_adicionados');
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
     res.json({ success: true });
