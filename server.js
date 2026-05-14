@@ -587,7 +587,7 @@ app.get('/api/pedidos/cozinha', ensureDbInitialized, async (req, res) => {
 
     // Lógica super restrita: SÓ mostra o que for recebido ou aguardando fechamento
     // Isso exclui automaticamente cancelados, entregues, prontos, etc.
-    let whereClause = `LOWER(pi.status) = 'pendente' AND LOWER(p.status) IN ('recebido', 'aguardando_fechamento')`;
+    let whereClause = `LOWER(pi.status) = 'pendente' AND LOWER(p.status) IN ('recebido', 'aguardando_fechamento', 'pronto')`;
 
     // Filtro por configuração de envio para cozinha ou por categoria
     let filterCozinha = `(m.enviar_cozinha = ${isPostgres ? 'TRUE' : '1'} OR m.enviar_cozinha IS NULL)`;
@@ -608,6 +608,7 @@ app.get('/api/pedidos/cozinha', ensureDbInitialized, async (req, res) => {
         p.id as pedido_id, 
         p.status as pedido_status,
         p.created_at, 
+        p.observacao as pedido_observacao,
         mes.numero as mesa_numero 
       FROM pedido_itens pi 
       JOIN menu m ON pi.menu_id = m.id 
@@ -715,7 +716,7 @@ app.delete('/api/pedidos/:id', async (req, res) => {
 });
 
 app.post('/api/pedidos', async (req, res) => {
-  const { mesa_id, garcom_id, itens, cobrar_taxa } = req.body;
+  const { mesa_id, garcom_id, itens, cobrar_taxa, observacao } = req.body;
   const deveCobrarTaxa = cobrar_taxa !== false;
   try {
     const caixaAberto = (await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'")).rows[0];
@@ -729,10 +730,10 @@ app.post('/api/pedidos', async (req, res) => {
     let pedidoId;
     let resPedido;
     if (isPostgres) {
-      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa) VALUES (?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa]);
+      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '']);
       pedidoId = resPedido.rows[0].id;
     } else {
-      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa) VALUES (?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0]);
+      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao) VALUES (?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '']);
       pedidoId = resPedido.lastInsertRowid;
     }
     if (mesa_id) await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [mesa_id]);
@@ -761,7 +762,7 @@ app.post('/api/pedidos', async (req, res) => {
 
 app.put('/api/pedidos/:id/atualizar-itens', async (req, res) => {
   const { id } = req.params;
-  const { itens } = req.body;
+  const { itens, observacao } = req.body;
   try {
     const itensAtuais = (await query("SELECT id, menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
     for (const item of itensAtuais) await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque + ? END WHERE id = ?", [item.quantidade, item.menu_id]);
@@ -792,14 +793,14 @@ app.put('/api/pedidos/:id/atualizar-itens', async (req, res) => {
     
     // Se tem pendente, atualizamos o created_at para reiniciar o cronômetro de entrega
     if (temPendente) {
-      await query("UPDATE pedidos SET total = ?, status = ?, created_at = ? WHERE id = ?", [total, novoStatusPedido, agora, id]);
+      await query("UPDATE pedidos SET total = ?, status = ?, created_at = ?, observacao = ? WHERE id = ?", [total, novoStatusPedido, agora, observacao || '', id]);
       
       // Notifica a cozinha que há novos itens para preparar (com som)
       const resMesa = await query("SELECT m.numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id]);
       const mesaNum = resMesa.rows[0] ? resMesa.rows[0].numero : 'BALCÃO';
       await safePusherTrigger('garconnexpress', 'novo-pedido', { pedido: { id: id, mesa_numero: mesaNum, status: 'recebido' } });
     } else {
-      await query("UPDATE pedidos SET total = ?, status = ? WHERE id = ?", [total, novoStatusPedido, id]);
+      await query("UPDATE pedidos SET total = ?, status = ?, observacao = ? WHERE id = ?", [total, novoStatusPedido, observacao || '', id]);
     }
     
     await notifyStatus(id, null, 'itens_atualizados');
@@ -1131,7 +1132,13 @@ app.get('/api/pedidos/mesa/:mesaId', async (req, res) => {
 
 app.get('/api/mesas', ensureDbInitialized, async (req, res) => { 
   try {
-    res.json((await query(`SELECT m.*, (SELECT p.created_at FROM pedidos p WHERE p.mesa_id = m.id AND p.status = 'recebido' ORDER BY p.id DESC LIMIT 1) as pedido_created_at, (SELECT p.garcom_id FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado') ORDER BY p.id DESC LIMIT 1) as garcom_id FROM mesas m ORDER BY m.numero`)).rows); 
+    res.json((await query(`
+      SELECT m.*, 
+        (SELECT p.created_at FROM pedidos p WHERE p.mesa_id = m.id AND p.status IN ('recebido', 'pronto') ORDER BY p.id DESC LIMIT 1) as pedido_created_at, 
+        (SELECT p.garcom_id FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado') ORDER BY p.id DESC LIMIT 1) as garcom_id,
+        (SELECT p.status FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado') ORDER BY p.id DESC LIMIT 1) as pedido_status
+      FROM mesas m ORDER BY m.numero
+    `)).rows); 
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
