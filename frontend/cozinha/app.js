@@ -2,10 +2,11 @@ let pusher;
 let canal;
 let timeoutPusher;
 const container = document.getElementById('pedidos-container');
-const audioNotificacao = document.getElementById('audio-notificacao');
+const audioNotificacao = new Audio('/notificacao.mp3');
 const statusConexao = document.getElementById('status-conexao');
 
 let somAtivo = localStorage.getItem('cozinha_som_ativo') !== 'false';
+let audioDesbloqueado = false;
 
 function atualizarIconeSom() {
     const btn = document.getElementById('btn-toggle-som');
