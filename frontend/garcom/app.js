@@ -205,7 +205,7 @@ function alternarSom() {
 
 function tocarCampainha() {
   if (!somAtivo) return;
-  const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/594/594-preview.mp3');
+  const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-home-standard-ding-dong-109.mp3');
   audio.play().catch(e => console.log('Erro som:', e));
 }
 
@@ -953,5 +953,8 @@ function configurarEventos() {
         exibirMenu(cat.dataset.categoria);
       });
     });
+  }
+}
+);
   }
 }

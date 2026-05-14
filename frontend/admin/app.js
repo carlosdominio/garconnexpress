@@ -125,8 +125,18 @@ function switchSubTab(sub) {
 }
 let caixaAtual = null;
 
-const audioNotificacao = new Audio('https://assets.mixkit.co/active_storage/sfx/594/594-preview.mp3');
+const audioNotificacao = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-home-standard-ding-dong-109.mp3');
 let audioDesbloqueado = false;
+document.addEventListener('click', () => {
+  if (!audioDesbloqueado) {
+    audioNotificacao.muted = true;
+    audioNotificacao.play().then(() => {
+      audioDesbloqueado = true;
+      audioNotificacao.muted = false;
+      console.log('🔊 Áudio desbloqueado!');
+    }).catch(e => console.log('Erro ao desbloquear áudio:', e));
+  }
+}, { once: true });
 let intervalPiscaTitulo = null;
 const tituloOriginal = "Admin - GarçomExpress";
 
