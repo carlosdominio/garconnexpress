@@ -1640,7 +1640,7 @@ async function atualizarIndicadoresTopo() {
   const elFat = document.getElementById('faturamento-resumo');
   const elVendas = document.getElementById('vendas-dia-resumo');
 
-  // 1. Busca o status do caixa
+  // 1. Busca o status do caixa (Apenas 1 chamada necessária)
   const resCaixa = await fetch('/api/caixa/status');
   caixaAtual = await resCaixa.json();
 
@@ -1650,13 +1650,15 @@ async function atualizarIndicadoresTopo() {
     return;
   }
 
-  // 2. Calcula o faturamento ativo (itens já entregues em mesas abertas)
-  // Precisamos buscar os itens de cada pedido para saber o que já foi servido
+  // 2. Calcula o faturamento ativo usando os dados que já temos no array 'pedidos'
+  // O endpoint /ativos-detalhado já traz os itens embutidos, então não precisamos de fetch extras!
   let faturamentoRealAtivo = 0;
   for (const p of pedidos) {
-    const resItens = await fetch(`/api/pedidos/${p.id}/itens`);
-    const itens = await resItens.json();
-    faturamentoRealAtivo += itens.filter(i => i.status === 'entregue').reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+    if (p.itens && Array.isArray(p.itens)) {
+      faturamentoRealAtivo += p.itens
+        .filter(i => i.status === 'entregue')
+        .reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+    }
   }
 
   if (elFat) elFat.innerText = `R$ ${faturamentoRealAtivo.toFixed(2)}`;
