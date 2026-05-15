@@ -4172,13 +4172,22 @@ async function abrirModalOpcoes(pedidoId) {
       </button>
     `;
   } else {
-    // SEMPRE MOSTRA OS DOIS BOTÕES SE NÃO ESTIVER AGUARDANDO FECHAMENTO, PARA EVITAR MUDANÇAS REPETINAS
-    htmlFooter = `
-      <div style="display:flex; gap:10px;">
-        <button onclick="fecharModalOpcoes(); marcarPedidoEntregue(${pedidoId})" style="background:#e67e22; flex: 1.5; color:white; border:none; padding:15px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #d35400; cursor:pointer; ${!hasPend ? 'opacity:0.5; pointer-events:none;' : ''}">🚚 ENTREGAR TUDO</button>
-        <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#7f8c8d; flex: 1; color:white; border:none; padding:15px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #707b7c; cursor:pointer; font-size:0.8rem;">🔓 LIBERAR MESA</button>
-      </div>
-    `;
+    if (hasPend) {
+      // Se ainda houver itens pendentes, mostra opção de Entregar Tudo + Fechar Conta (secundário)
+      htmlFooter = `
+        <div style="display:flex; gap:10px;">
+          <button onclick="fecharModalOpcoes(); marcarPedidoEntregue(${pedidoId})" style="background:#e67e22; flex: 1.5; color:white; border:none; padding:15px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #d35400; cursor:pointer;">🚚 ENTREGAR TUDO</button>
+          <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#7f8c8d; flex: 1; color:white; border:none; padding:15px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #707b7c; cursor:pointer; font-size:0.8rem;">🔓 LIBERAR MESA</button>
+        </div>
+      `;
+    } else {
+      // Se tudo já foi entregue, mostra apenas o botão de Liberar Mesa em destaque (Verde)
+      htmlFooter = `
+        <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#27ae60; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #219150; cursor:pointer;">
+          🔓 LIBERAR MESA
+        </button>
+      `;
+    }
   }
   document.getElementById('modal-opcoes-footer-acoes').innerHTML = htmlFooter;
 
