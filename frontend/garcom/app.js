@@ -154,7 +154,7 @@ async function iniciarApp() {
   await carregarMenu();
   await carregarMesas();
   await atualizarStatusCaixa();
-  atualizarIconeSom();
+  atualizarIconesSom();
   configurarEventos();
   configurarPusher();
   
