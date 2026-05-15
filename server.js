@@ -123,15 +123,9 @@ if (isPostgres) {
         rejectUnauthorized: false, // Aceita certificados self-signed do Neon
         require: true 
       },
-      max: 1, // Limite estrito para Serverless
-      min: 0, // Não mantém conexões mínimas
-      idleTimeoutMillis: 10000, // 10 segundos de idle
-      connectionTimeoutMillis: 30000, // 30 segundos para conectar
-      acquireTimeoutMillis: 30000, // 30 segundos para adquirir conexão
-      createTimeoutMillis: 30000, // 30 segundos para criar conexão
-      destroyTimeoutMillis: 5000,
-      reapIntervalMillis: 1000,
-      createRetryIntervalMillis: 200,
+      max: 10, // Aumentado para lidar com múltiplas requisições simultâneas em Serverless
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000, // Timeout rápido para falhar e dar retry se necessário
     });
     
     db.on('error', (err) => {
