@@ -586,8 +586,8 @@
 
   <!-- Modal de Fechamento Admin -->
   <div id="modal-fechamento-admin" class="modal">
-    <div class="modal-content" style="max-width: 850px;">
-      <div class="modal-header">
+    <div class="modal-content" style="max-width: 850px; max-height: 95vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="flex-shrink: 0;">
         <div style="display: flex; flex-direction: column; gap: 5px; width: 100%;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <h2 style="margin:0;">Finalizar e Liberar <span id="fechamento-mesa-admin">--</span></h2>
@@ -597,12 +597,11 @@
         </div>
       </div>
       
-      <div class="modal-body" style="padding: 0; display: block;">
-        <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 0; min-height: 450px;">
+      <div class="modal-body" style="padding: 0; flex: 1; min-height: 400px; position: relative; overflow: hidden;">
           
           <!-- COLUNA ESQUERDA: LISTA DE ITENS -->
-          <div style="padding: 20px; border-right: 1px solid #edf2f7; background: #f8fafc; display: flex; flex-direction: column;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div style="position: absolute; top: 0; left: 0; bottom: 0; width: 45%; padding: 20px; border-right: 1px solid #edf2f7; background: #f8fafc; display: flex; flex-direction: column; box-sizing: border-box;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-shrink: 0;">
               <h4 style="margin:0; color: #2c3e50; font-size: 0.95rem;">📋 Itens do Pedido</h4>
               <div style="display: flex; gap: 8px;">
                 <button onclick="selecionarTodosItensFechamento(true)" style="background: #e2e8f0; color: #475569; padding: 4px 8px; font-size: 0.7rem; border-radius: 4px; border: none; cursor: pointer;">Todos</button>
@@ -610,12 +609,12 @@
               </div>
             </div>
             
-            <div id="fechamento-itens-lista-admin" style="flex: 1; overflow-y: auto; max-height: 350px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 5px;">
+            <div id="fechamento-itens-lista-admin" style="flex: 1; overflow-y: auto; background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 5px;">
               <!-- Preenchido via JS -->
             </div>
 
             <!-- Resumo de Pagamentos já feitos -->
-            <div id="fechamento-historico-pagamentos-container" style="margin-top: 15px; display: none;">
+            <div id="fechamento-historico-pagamentos-container" style="margin-top: 15px; display: none; flex-shrink: 0;">
               <div style="background: #dcfce7; padding: 10px; border-radius: 8px; border: 1px solid #bbf7d0;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                   <strong style="color: #166534; font-size: 0.8rem;">✅ PAGAMENTOS REGISTRADOS:</strong>
@@ -627,7 +626,8 @@
           </div>
 
           <!-- COLUNA DIREITA: FINANCEIRO -->
-          <div style="padding: 20px; display: flex; flex-direction: column; gap: 15px;">
+          <div style="position: absolute; top: 0; right: 0; bottom: 0; width: 55%; box-sizing: border-box; overflow-y: auto; background: white;">
+            <div style="padding: 20px; display: flex; flex-direction: column; gap: 15px;">
             
             <div style="background: #fff; border: 2px solid #e2e8f0; border-radius: 12px; padding: 15px;">
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; font-size: 0.9rem;">
@@ -851,6 +851,6 @@
   <div id="cupom-impressao"></div>
 
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
-  <script src="app.js?v=1.0.2"></script>
+  <script src="app_v3.js"></script>
 </body>
 </html>
