@@ -3485,10 +3485,32 @@ async function configurarPusher() {
 
     pusherInstancia.connection.bind('connected', () => {
       console.log('✅ Admin conectado ao Pusher com sucesso!');
+      const statusLed = document.getElementById('pusher-status');
+      if (statusLed) {
+        statusLed.style.background = '#2ecc71';
+        statusLed.style.boxShadow = '0 0 8px rgba(46, 204, 113, 0.6)';
+        statusLed.title = 'Conectado em tempo real';
+      }
+    });
+
+    pusherInstancia.connection.bind('disconnected', () => {
+      console.warn('⚠️ Admin desconectado do Pusher');
+      const statusLed = document.getElementById('pusher-status');
+      if (statusLed) {
+        statusLed.style.background = '#ff4444';
+        statusLed.style.boxShadow = '0 0 5px rgba(255, 0, 0, 0.5)';
+        statusLed.title = 'Desconectado';
+      }
     });
 
     pusherInstancia.connection.bind('error', function(err) {
       console.warn('❌ Erro de conexão no Pusher (Admin):', err);
+      const statusLed = document.getElementById('pusher-status');
+      if (statusLed) {
+        statusLed.style.background = '#f1c40f';
+        statusLed.style.boxShadow = '0 0 5px rgba(241, 196, 15, 0.5)';
+        statusLed.title = 'Erro de Conexão';
+      }
     });
 
     const channel = pusherInstancia.subscribe('garconnexpress');
@@ -3555,6 +3577,24 @@ async function configurarPusher() {
 
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => carregarPedidos(), 100);
+    });
+
+    // EVENTO: CAIXA ATUALIZADO
+    channel.bind('status-caixa-atualizado', (data) => {
+      console.log('📢 Admin: Status do caixa atualizado', data);
+      tocarNotificacao();
+      carregarStatusCaixa();
+      clearTimeout(timeoutPusher);
+      timeoutPusher = setTimeout(() => carregarPedidos(), 100);
+    });
+
+    // EVENTO: PEDIDO CANCELADO (Fallback)
+    channel.bind('pedido-cancelado', (data) => {
+        console.log('📢 Admin: Pedido cancelado (evento direto)', data);
+        tocarNotificacao();
+        mostrarToast(`❌ Pedido cancelado`);
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarPedidos(), 100);
     });
 
     // EVENTO: MENU ATUALIZADO

@@ -204,10 +204,14 @@ async function safePusherTrigger(channel, event, data) {
     return;
   }
   try {
-    console.log(`📡 Enviando Pusher: Canal=${channel}, Evento=${event}`);
+    console.log(`📡 [Pusher] Enviando: Canal=${channel}, Evento=${event}`);
+    // No Vercel, precisamos de uma confirmação real do envio
     await pusher.trigger(channel, event, data);
+    console.log(`✅ [Pusher] Sucesso: ${event}`);
+    return true;
   } catch (e) {
-    console.error(`❌ Pusher Error (${event}):`, e.message);
+    console.error(`❌ [Pusher] Falha (${event}):`, e.message);
+    return false;
   }
 }
 
@@ -226,19 +230,16 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
     const payload = { pedido_id: pedidoId, mesa_id: mesaNum, mesa_numero: mesaNum, status: status };
     console.log(`🔔 Notificando status: Mesa ${mesaNum}, Status ${status}`);
     
-    const promises = [
-      safePusherTrigger('garconnexpress', 'status-atualizado', payload),
-      safePusherTrigger('garconnexpress', 'menu-atualizado', {})
-    ];
+    // Dispara Pusher IMEDIATAMENTE (Prioridade)
+    await safePusherTrigger('garconnexpress', 'status-atualizado', payload);
 
-    // NOTIFICAÇÃO WHATSAPP (Não bloqueia o fluxo principal mas entra no Promise.all)
+    // Notificação WhatsApp em paralelo/background
     if (status === 'aguardando_fechamento') {
-      promises.push(sendWhatsAppMessage(`🛎️ *SOLICITAÇÃO DE FECHAMENTO*\n📍 Mesa: ${mesaNum}\n💰 O cliente solicitou a conta.`));
+      sendWhatsAppMessage(`🛎️ *SOLICITAÇÃO DE FECHAMENTO*\n📍 Mesa: ${mesaNum}\n💰 O cliente solicitou a conta.`).catch(e => console.error('Erro Wpp:', e.message));
     } else if (status === 'cancelado') {
-      promises.push(sendWhatsAppMessage(`❌ *PEDIDO CANCELADO*\n📍 Mesa: ${mesaNum}\n🗑️ O pedido foi removido do sistema.`));
+      sendWhatsAppMessage(`❌ *PEDIDO CANCELADO*\n📍 Mesa: ${mesaNum}\n🗑️ O pedido foi removido do sistema.`).catch(e => console.error('Erro Wpp:', e.message));
     }
 
-    await Promise.all(promises);
   } catch (e) { console.error('Erro notificar:', e.message); }
 }
 
@@ -848,15 +849,17 @@ app.post('/api/pedidos', async (req, res) => {
       }
     }
 
-    // Dispara notificações (Pusher e NotifyStatus prioritários para a UI)
-    notifyStatus(pedidoId, mesa_id, 'recebido', mesaNum);
-    safePusherTrigger('garconnexpress', 'novo-pedido', { 
-      para_cozinha: temItemCozinha,
-      pedido: { id: pedidoId, mesa_id, mesa_numero: mesaNum, status: 'recebido' } 
-    });
+    // Dispara notificações CRÍTICAS para a UI (Aguardar para garantir envio no Vercel)
+    await Promise.all([
+      notifyStatus(pedidoId, mesa_id, 'recebido', mesaNum),
+      safePusherTrigger('garconnexpress', 'novo-pedido', { 
+        para_cozinha: temItemCozinha,
+        pedido: { id: pedidoId, mesa_id, mesa_numero: mesaNum, status: 'recebido' } 
+      })
+    ]);
 
-    // WhatsApp corre em segundo plano para não atrasar a resposta da API
-    sendWhatsAppMessage(msgWpp);
+    // WhatsApp pode rodar em paralelo/background sem travar a resposta principal
+    sendWhatsAppMessage(msgWpp).catch(e => console.error('Erro WhatsApp:', e.message));
 
     res.json({ id: pedidoId, success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
