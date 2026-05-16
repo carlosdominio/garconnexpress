@@ -848,15 +848,15 @@ app.post('/api/pedidos', async (req, res) => {
       }
     }
 
-    // Dispara notificações em paralelo
-    await Promise.all([
-      notifyStatus(pedidoId, mesa_id, 'recebido', mesaNum),
-      safePusherTrigger('garconnexpress', 'novo-pedido', { 
-        para_cozinha: temItemCozinha,
-        pedido: { id: pedidoId, mesa_id, mesa_numero: mesaNum, status: 'recebido' } 
-      }),
-      sendWhatsAppMessage(msgWpp)
-    ]);
+    // Dispara notificações (Pusher e NotifyStatus prioritários para a UI)
+    notifyStatus(pedidoId, mesa_id, 'recebido', mesaNum);
+    safePusherTrigger('garconnexpress', 'novo-pedido', { 
+      para_cozinha: temItemCozinha,
+      pedido: { id: pedidoId, mesa_id, mesa_numero: mesaNum, status: 'recebido' } 
+    });
+
+    // WhatsApp corre em segundo plano para não atrasar a resposta da API
+    sendWhatsAppMessage(msgWpp);
 
     res.json({ id: pedidoId, success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }

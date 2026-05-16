@@ -1896,7 +1896,8 @@ async function exibirPedidos() {
       }
       const cobrarTaxaNoPedido = pedidosStatusTaxa[pedido.id];
 
-      const itens = await fetch(`/api/pedidos/${pedido.id}/itens`).then(res => res.json());
+      // USAR ITENS QUE JÁ VEM NO OBJETO PEDIDO (ECONOMIZA N FETCHS)
+      const itens = pedido.itens || [];
       const itensPendentes = itens.filter(i => i.status === 'pendente');
       const itensProntos = itens.filter(i => i.status === 'pronto');
       const itensEntregues = itens.filter(i => i.status === 'entregue');
@@ -2649,8 +2650,13 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
     mesa_numero: mesaNomeForcado || 'BALCÃO' 
   };
 
-  const resItens = await fetch(`/api/pedidos/${idPedido}/itens`);
-  itensFechamentoAdmin = await resItens.json();
+  // USAR ITENS QUE JÁ TEMOS SE POSSÍVEL
+  if (pedidoParaFecharAdmin && pedidoParaFecharAdmin.itens) {
+    itensFechamentoAdmin = pedidoParaFecharAdmin.itens;
+  } else {
+    const resItens = await fetch(`/api/pedidos/${idPedido}/itens`);
+    itensFechamentoAdmin = await resItens.json();
+  }
   
   // Busca pagamentos já realizados para esta mesa
   try {
