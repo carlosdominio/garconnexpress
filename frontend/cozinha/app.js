@@ -29,17 +29,18 @@ function alternarSom() {
 function tocarCampainha() {
     if (somAtivo && audioDesbloqueado) {
         audioNotificacao.currentTime = 0;
-        audioNotificacao.play().catch(e => console.warn('Erro ao tocar áudio:', e));
+        audioNotificacao.play().catch(e => {
+            console.warn('Erro ao tocar áudio:', e);
+            // Tenta desbloquear novamente se falhou
+            audioDesbloqueado = false; 
+        });
     }
 }
 
 function tocarSomNotificacao(tipo = 'campainha') {
-    if (tipo === 'campainha') {
-        tocarCampainha();
-    } else if (tipo === 'windows') {
-        const winAudio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-        winAudio.play().catch(e => console.warn('Erro ao tocar som Windows:', e));
-    }
+    // Para simplificar e evitar erros de rede/cache com links externos, 
+    // usamos o mesmo som para tudo na cozinha por enquanto
+    tocarCampainha();
 }
 
 async function carregarPedidos() {
