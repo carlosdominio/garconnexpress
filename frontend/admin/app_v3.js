@@ -345,6 +345,9 @@ function calcularMinutos(dataIso) {
   return Math.floor(diffMs / 60000);
 }
 
+// Controle para não tocar som de atraso repetidamente para o mesmo pedido
+let pedidosAtrasadosNotificados = new Set();
+
 function atualizarCronometrosPedidos() {
   if (abaAtiva !== 'ativos') return;
   
@@ -354,6 +357,8 @@ function atualizarCronometrosPedidos() {
   spans.forEach((span) => {
     const card = span.closest('.pedido-card');
     const createdAt = span.dataset.createdAt;
+    // Pega o ID do pedido para o controle de som
+    const pedidoId = (card && card.id) ? card.id.replace('pedido-card-', '') : null;
     
     // SÓ ATUALIZA se o card existir e o status for 'recebido' (cor verde)
     // Pedidos já servidos (EM ANDAMENTO) ou finalizados não precisam de cronômetro ativo
@@ -361,7 +366,10 @@ function atualizarCronometrosPedidos() {
 
     if (!isRecebido || !createdAt) {
       span.style.display = 'none';
-      if (card) card.classList.remove('alerta-borda-pisca');
+      if (card) {
+        card.classList.remove('alerta-borda-pisca');
+        if (pedidoId) pedidosAtrasadosNotificados.delete(pedidoId);
+      }
       return;
     }
 
@@ -369,8 +377,20 @@ function atualizarCronometrosPedidos() {
     span.textContent = `⏱️ ${minutos} min`;
     span.style.display = '';
     
-    // PISCA SE PASSAR DE 10 MINUTOS
-    card.classList.toggle('alerta-borda-pisca', minutos >= 10);
+    // ALERTA SE PASSAR DE 10 MINUTOS
+    if (minutos >= 10) {
+      card.classList.add('alerta-borda-pisca');
+      
+      // Toca som apenas uma vez por pedido quando atinge o atraso
+      if (pedidoId && !pedidosAtrasadosNotificados.has(pedidoId)) {
+        console.log(`🚨 ALERTA: Pedido #${pedidoId} esperando há ${minutos} min!`);
+        tocarNotificacao('windows'); // Som de alerta curto
+        pedidosAtrasadosNotificados.add(pedidoId);
+      }
+    } else {
+      card.classList.remove('alerta-borda-pisca');
+      if (pedidoId) pedidosAtrasadosNotificados.delete(pedidoId);
+    }
   });
 }
 
