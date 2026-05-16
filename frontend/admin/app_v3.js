@@ -141,22 +141,32 @@ let caixaAtual = null;
 
 const audioNotificacao = new Audio('/notificacao.mp3');
 let audioDesbloqueado = false;
-document.addEventListener('click', () => {
+
+// Função para preparar áudio no primeiro clique do usuário
+function desbloquearAudio() {
   if (audioDesbloqueado) return;
-  audioDesbloqueado = true;
   
+  // Tenta tocar e pausar imediatamente para ganhar permissão do navegador
   audioNotificacao.muted = true;
   audioNotificacao.play().then(() => {
     audioNotificacao.pause();
     audioNotificacao.currentTime = 0;
-    // Só desmuda se o som estiver ativo globalmente no Admin
+    
+    // Agora que temos permissão, verificamos se o som deve estar ativo
     const somMP3 = localStorage.getItem('admin_som_mp3_ativo') !== 'false';
-    if (somMP3) {
-      audioNotificacao.muted = false;
-    }
-    console.log('🔊 Áudio preparado!');
-  }).catch(e => console.log('Erro ao preparar áudio:', e));
-}, { once: true });
+    audioNotificacao.muted = !somMP3;
+    
+    audioDesbloqueado = true;
+    console.log('🔊 Áudio do Admin desbloqueado com sucesso!');
+    mostrarToast("🔊 Notificações sonoras ativadas!");
+  }).catch(e => {
+    console.warn('⚠️ Falha ao desbloquear áudio (clique necessário):', e);
+  });
+}
+
+// Escuta qualquer clique na página para desbloquear o som
+document.addEventListener('click', desbloquearAudio, { once: true });
+document.addEventListener('touchstart', desbloquearAudio, { once: true });
 let intervalPiscaTitulo = null;
 const tituloOriginal = "Admin - GarçomExpress";
 
