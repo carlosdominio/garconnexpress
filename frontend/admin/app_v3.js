@@ -3535,6 +3535,7 @@ async function configurarPusher() {
       tocarNotificacao(); 
       iniciarPiscarTitulo();
       exibirNotificacaoNativa('👨‍🍳 PEDIDO PRONTO', data.mensagem, `mesa-${data.mesa_id}`);
+      mostrarToast(`👨‍🍳 PRONTO: ${data.mensagem}`);
       mostrarAlerta(data.mensagem, "👨‍🍳 Cozinha");
 
       clearTimeout(timeoutPusher);

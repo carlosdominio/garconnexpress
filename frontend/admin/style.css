@@ -698,6 +698,11 @@ button.btn-entregue { background-color: #95a5a6; }
     white-space: nowrap;
 }
 
+.toast-notificacao.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
 /* Estilos de Impressão */
 @media print {
   @page { margin: 0; size: auto; }
