@@ -189,6 +189,7 @@ function atualizarCronometros() {
             if (diffMin >= 15) {
                 span.style.color = '#e74c3c'; // Vermelho
                 span.style.fontWeight = 'bold';
+                if (card) card.classList.add('card-atrasado');
 
                 // NOTIFICAÇÃO DE ATRASO CRÍTICO (15 MIN)
                 if (pedidoId && !pedidosAtrasadosNotificados.has(pedidoId)) {
@@ -199,9 +200,11 @@ function atualizarCronometros() {
             } else if (diffMin >= 10) {
                 span.style.color = '#f39c12'; // Laranja
                 span.style.fontWeight = 'bold';
+                if (card) card.classList.remove('card-atrasado');
             } else {
                 span.style.color = '#2ecc71'; // Verde (Padrão)
                 span.style.fontWeight = 'bold';
+                if (card) card.classList.remove('card-atrasado');
                 if (pedidoId) pedidosAtrasadosNotificados.delete(pedidoId);
             }
         }
