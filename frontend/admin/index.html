@@ -761,6 +761,25 @@
     </div>
   </div>
 
+  <!-- Modal de Renomear Categoria -->
+  <div id="modal-renomear-categoria" class="modal">
+    <div class="modal-content" style="max-width: 400px; padding: 1.5rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h2 style="margin: 0; font-size: 1.2rem; color: #2c3e50;">✏️ Renomear Categoria</h2>
+        <span class="close" onclick="fecharModalRenomearCategoria()">&times;</span>
+      </div>
+      <div class="modal-form-group">
+        <label style="font-weight: bold; color: #64748b; font-size: 0.85rem; margin-bottom: 8px; display: block;">NOVO NOME PARA A CATEGORIA:</label>
+        <input type="text" id="input-novo-nome-categoria" placeholder="Ex: Bebidas Geladas" onkeyup="if(event.key === 'Enter') confirmarRenomearCategoria()" style="width: 100%; padding: 12px; border: 2px solid #3498db; border-radius: 8px; font-weight: bold; font-size: 1rem; box-sizing: border-box;">
+        <input type="hidden" id="input-categoria-antiga">
+      </div>
+      <div style="display: flex; gap: 10px; margin-top: 1.5rem;">
+        <button onclick="confirmarRenomearCategoria()" class="modal-btn modal-btn-primary" style="flex: 2; padding: 12px; font-weight: bold; background: #27ae60;">💾 SALVAR ALTERAÇÃO</button>
+        <button onclick="fecharModalRenomearCategoria()" class="modal-btn modal-btn-outline" style="flex: 1; padding: 12px;">CANCELAR</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal Multi-Pagamento (Seleção de Formas por Pessoa) -->
   <div id="modal-multi-pagamento" class="modal">
     <div class="modal-content" style="max-width: 450px;">

@@ -958,6 +958,7 @@ async function exibirConfigCategoriasCozinha() {
       <div style="display: flex; align-items: center; gap: 10px; background: white; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;">
         <input type="checkbox" id="check-cat-cozinha-${cat}" class="check-cat-cozinha" value="${cat}" ${configuradas.includes(cat) ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer;">
         <label for="check-cat-cozinha-${cat}" style="margin: 0; font-weight: bold; color: #2c3e50; cursor: pointer; flex: 1;">${cat}</label>
+        <button onclick="editarCategoria('${cat}')" style="background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 5px;" title="Editar Nome da Categoria">✏️</button>
       </div>
     `).join('');
   } catch (e) {
@@ -1308,6 +1309,9 @@ async function exibirMenuConfig() {
         <h2 style="background: #2c3e50; color: white; padding: 10px 20px; border-radius: 8px; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center;">
           <div style="display: flex; align-items: center; gap: 10px;">
             <span>📂 ${cat}</span>
+            <button onclick="editarCategoria('${cat}')" style="background: #3498db; border: none; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; display: flex; align-items: center; gap: 3px;">
+              ✏️ Editar
+            </button>
             <small style="font-size: 0.8rem; opacity: 0.8;">${itensDaCat.length} itens</small>
           </div>
           <button onclick="excluirCategoria('${cat}')" style="background: #e74c3c; border: none; color: white; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; font-weight: bold; transition: 0.2s; display: flex; align-items: center; gap: 5px;" onmouseover="this.style.background='#c0392b'" onmouseout="this.style.background='#e74c3c'">
@@ -1381,6 +1385,55 @@ async function excluirCategoria(categoria) {
       const err = await res.json();
       mostrarAlerta("Erro ao excluir categoria: " + (err.error || "Erro desconhecido"), "Erro");
     }
+  }
+}
+
+async function editarCategoria(categoriaAntiga) {
+  const modal = document.getElementById('modal-renomear-categoria');
+  const inputNovo = document.getElementById('input-novo-nome-categoria');
+  const inputAntiga = document.getElementById('input-categoria-antiga');
+
+  if (modal && inputNovo && inputAntiga) {
+    inputAntiga.value = categoriaAntiga;
+    inputNovo.value = categoriaAntiga;
+    modal.style.display = 'flex';
+    inputNovo.focus();
+    inputNovo.select();
+  }
+}
+
+function fecharModalRenomearCategoria() {
+  const modal = document.getElementById('modal-renomear-categoria');
+  if (modal) modal.style.display = 'none';
+}
+
+async function confirmarRenomearCategoria() {
+  const categoriaAntiga = document.getElementById('input-categoria-antiga').value;
+  const novoNome = document.getElementById('input-novo-nome-categoria').value;
+
+  if (!novoNome || novoNome.trim() === "" || novoNome.toUpperCase() === categoriaAntiga.toUpperCase()) {
+    fecharModalRenomearCategoria();
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/menu/categoria/${encodeURIComponent(categoriaAntiga)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ novoNome: novoNome.trim() })
+    });
+
+    if (res.ok) {
+      mostrarToast("✅ Categoria renomeada com sucesso!");
+      fecharModalRenomearCategoria();
+      carregarCardapio();
+    } else {
+      const err = await res.json();
+      mostrarAlerta("❌ Erro ao renomear: " + (err.error || "Desconhecido"), "Erro");
+    }
+  } catch (e) {
+    console.error(e);
+    mostrarAlerta("❌ Erro de conexão", "Erro");
   }
 }
 
@@ -3437,7 +3490,10 @@ async function carregarCardapio() {
   if (select) select.innerHTML = cardapio.map(item => `<option value="${item.id}">${item.nome} - R$ ${item.preco.toFixed(2)}</option>`).join('');
   
   // Atualiza as interfaces que dependem do cardápio/estoque em tempo real
-  if (abaAtiva === 'configuracoes') exibirMenuConfig();
+  if (abaAtiva === 'configuracoes') {
+      exibirMenuConfig();
+      exibirConfigCategoriasCozinha();
+  }
   if (abaAtiva === 'lancar') {
       const catAtiva = document.querySelector('#lancar-menu-categorias .cat-mini.ativa');
       const catNome = catAtiva ? catAtiva.id.replace('cat-lancar-', '') : 'todas';

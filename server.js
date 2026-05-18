@@ -1252,6 +1252,48 @@ app.delete('/api/menu/categoria/:categoria', async (req, res) => {
   }
 });
 
+app.put('/api/menu/categoria/:categoria', async (req, res) => {
+  const { categoria } = req.params;
+  const { novoNome } = req.body;
+  if (!novoNome) return res.status(400).json({ error: 'Novo nome é obrigatório' });
+  const nomeLimpo = novoNome.trim();
+  
+  try {
+    // 1. Atualiza todos os itens do cardápio que pertencem a esta categoria
+    await query('UPDATE menu SET categoria = ? WHERE UPPER(categoria) = UPPER(?)', [nomeLimpo, categoria]);
+
+    // 2. Sincroniza a configuração de categorias da cozinha (se existir)
+    const configRes = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
+    if (configRes.rows.length > 0 && configRes.rows[0].valor) {
+      let categoriasCozinha = JSON.parse(configRes.rows[0].valor);
+      let alterouConfig = false;
+      
+      // Procura o nome antigo na lista (case-insensitive) e substitui pelo novo
+      categoriasCozinha = categoriasCozinha.map(cat => {
+        if (cat.toUpperCase() === categoria.toUpperCase()) {
+          alterouConfig = true;
+          return nomeLimpo;
+        }
+        return cat;
+      });
+
+      if (alterouConfig) {
+        const novoValorConfig = JSON.stringify(categoriasCozinha);
+        if (isPostgres) {
+          await query("UPDATE sistema_config SET valor = ? WHERE chave = 'categorias_cozinha'", [novoValorConfig]);
+        } else {
+          await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('categorias_cozinha', ?)", [novoValorConfig]);
+        }
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erro ao renomear categoria:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/garcons', ensureDbInitialized, async (req, res) => {
   try {
     const result = await query('SELECT id, nome, usuario, telefone FROM garcons ORDER BY nome');
