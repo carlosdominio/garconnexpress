@@ -603,8 +603,8 @@ function exibirMenuLancar(categoria) {
       <!-- Badge de Preço -->
       <div style="position: absolute; top: 6px; right: 6px; background: #27ae60; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.7rem; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">R$ ${item.preco.toFixed(2)}</div>
       
-      <!-- Badge de ESTOQUE (Super Visível) -->
-      <div style="position: absolute; top: 6px; left: 6px; background: ${disponivelReal <= 0 ? '#e74c3c' : '#3498db'}; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.6rem; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2); text-transform: uppercase;">
+      <!-- Badge de ESTOQUE (Abaixo do Preço) -->
+      <div style="position: absolute; top: 30px; right: 6px; background: ${disponivelReal <= 0 ? '#e74c3c' : '#3498db'}; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.6rem; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2); text-transform: uppercase;">
         ${temEstoqueDefinido ? `📦 ${disponivelReal}` : '♾️ ILIMITADO'}
       </div>
 
