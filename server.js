@@ -964,9 +964,9 @@ app.put('/api/pedidos/:id/atualizar-itens', async (req, res) => {
     const novoStatusPedido = temPendente ? 'recebido' : 'servido';
     const agora = new Date().toISOString();
     
-    // Se tem pendente, atualizamos o created_at para reiniciar o cronômetro de entrega
+    // Se tem pendente, atualizamos o status para 'recebido', mas mantemos o created_at original para não resetar o cronômetro
     if (temPendente) {
-      await query("UPDATE pedidos SET total = ?, status = ?, created_at = ?, observacao = ? WHERE id = ?", [total, novoStatusPedido, agora, observacao || '', id]);
+      await query("UPDATE pedidos SET total = ?, status = ?, observacao = ? WHERE id = ?", [total, novoStatusPedido, observacao || '', id]);
       
       const resMesa = await query("SELECT m.numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id]);
       const mesaNum = resMesa.rows[0] ? resMesa.rows[0].numero : 'BALCÃO';
@@ -1002,8 +1002,8 @@ app.put('/api/pedidos/:id/adicionar', async (req, res) => {
     const tot = deveTaxa ? Math.round(sub * 1.10 * 100) / 100 : sub;
     const agora = new Date().toISOString();
     
-    // Atualiza o total e reinicia o cronômetro (created_at) para os novos itens adicionados
-    await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, observacao = ? WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id]);
+    // Atualiza o total e o status, mas mantém o created_at original para não resetar o cronômetro
+    await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', observacao = ? WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), observacao || '', id]);
     const pMesa = (await query("SELECT mesa_id, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
     if (pMesa && pMesa.mesa_id) await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [pMesa.mesa_id]);
     
