@@ -2669,14 +2669,13 @@ async function renderizarMenuEdicao(categoria = 'todas') {
     <div class="item-menu-mini" onclick="adicionarItemNaEdicao(${item.id})" style="position: relative; display: flex; flex-direction: column; opacity: ${estoqueDisponivel === 0 ? '0.6' : '1'}; min-height: 160px !important; height: auto !important; background: white; border-radius: 12px; overflow: hidden; border: 1px solid #eee; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
       <!-- Badge de Preço -->
       <div style="position: absolute; top: 6px; right: 6px; background: #27ae60; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.7rem; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">R$ ${item.preco.toFixed(2)}</div>
-      
-      <!-- Badge de ESTOQUE (Super Visível) -->
-      <div style="position: absolute; top: 6px; left: 6px; background: ${estoqueDisponivel <= 0 ? '#e74c3c' : '#3498db'}; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.6rem; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2); text-transform: uppercase;">
+
+      <!-- Badge de ESTOQUE (Abaixo do Preço) -->
+      <div style="position: absolute; top: 30px; right: 6px; background: ${estoqueDisponivel <= 0 ? '#e74c3c' : '#3498db'}; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.6rem; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2); text-transform: uppercase;">
         ${temEstoqueDefinido ? `📦 ${estoqueDisponivel}` : '♾️ ILIMITADO'}
       </div>
-      
+
       <img src="${item.imagem}" alt="${item.nome}" style="filter: ${estoqueDisponivel === 0 ? 'grayscale(1)' : 'none'}; height: 80px !important; width: 100%; object-fit: cover; display: block; border-bottom: 1px solid #f0f0f0;">
-      
       <div style="padding: 8px !important; display: flex; flex-direction: column; flex-grow: 1; justify-content: flex-start; gap: 4px;">
         <h4 style="margin: 0 !important; font-size: 0.8rem !important; color: #2c3e50 !important; line-height: 1.1 !important; font-weight: 700 !important; min-height: 1.8rem !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: left;">${item.nome}</h4>
         <p style="margin: 0 !important; color: #27ae60 !important; font-weight: 900 !important; font-size: 0.9rem !important;">R$ ${item.preco.toFixed(2)}</p>
