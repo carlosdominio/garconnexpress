@@ -557,6 +557,15 @@ async function carregarMesasLancar() {
 function exibirCategoriasLancar() {
   const container = document.getElementById('lancar-menu-categorias');
   if (!container) return;
+
+  if (!container.dataset.wheelAdded) {
+    container.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      container.scrollLeft += e.deltaY;
+    });
+    container.dataset.wheelAdded = 'true';
+  }
+
   const categoriasUnicas = [...new Set(cardapio.map(item => item.categoria.trim().toLowerCase()))];
   const categorias = ['todas', ...categoriasUnicas];
   container.innerHTML = categorias.map(cat => {
@@ -2537,6 +2546,14 @@ async function renderizarMenuEdicao(categoria = 'todas') {
   const container = document.getElementById('edit-menu-grid');
   const catContainer = document.getElementById('edit-menu-categorias');
   if (!container || !catContainer) return;
+
+  if (!catContainer.dataset.wheelAdded) {
+    catContainer.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      catContainer.scrollLeft += e.deltaY;
+    });
+    catContainer.dataset.wheelAdded = 'true';
+  }
 
   const categoriasUnicas = [...new Set(cardapio.map(i => i.categoria.trim().toLowerCase()))];
   const categorias = ['todas', ...categoriasUnicas];

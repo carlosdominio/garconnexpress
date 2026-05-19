@@ -975,6 +975,13 @@ function configurarEventos() {
   const container = document.getElementById('categorias');
   if (container) {
     container.innerHTML = categorias.map(cat => `<div class="categoria ${cat === 'todas' ? 'ativa' : ''}" data-categoria="${cat}">${cat === 'todas' ? 'Todos' : cat}</div>`).join('');
+    
+    // Habilitar scroll horizontal com a roda do mouse
+    container.addEventListener('wheel', (evt) => {
+        evt.preventDefault();
+        container.scrollLeft += evt.deltaY;
+    });
+
     document.querySelectorAll('.categoria').forEach(cat => {
       cat.addEventListener('click', () => {
         document.querySelectorAll('.categoria').forEach(c => c.classList.remove('ativa'));
