@@ -176,15 +176,15 @@
 
         <!-- Coluna Direita: Seleção de Itens -->
         <div class="edit-col-menu" style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">
-          <div style="display: flex; align-items: center; gap: 5px; margin-bottom: 10px; flex-shrink: 0; background: #f8fafc; padding: 5px; border-radius: 10px; border: 1px solid #e2e8f0;">
+          <div id="lancar-menu-grid" class="menu-grid-mini" style="flex: 1; overflow-y: auto; padding: 5px; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-bottom: 10px;">
+            <!-- Itens rolam verticalmente -->
+          </div>
+          <div style="display: flex; align-items: center; gap: 5px; margin-top: 0px; flex-shrink: 0; background: #f8fafc; padding: 5px; border-radius: 10px; border: 1px solid #e2e8f0;">
             <button onclick="scrollCategoriasLancar(-150)" style="background: white; border: 1px solid #cbd5e0; border-radius: 8px; padding: 10px 5px; cursor: pointer; color: #3498db; font-weight: bold;">❮</button>
-            <div id="lancar-menu-categorias" class="categorias-grid-mini" style="flex: 1; margin-bottom: 0; padding-bottom: 0; overflow-x: auto; scroll-behavior: smooth; display: flex; gap: 8px; scrollbar-width: none; -ms-overflow-style: none;">
+            <div id="lancar-menu-categorias" class="categorias-grid-mini" style="flex: 1; margin-bottom: 0 !important; padding-bottom: 0; overflow-x: auto; scroll-behavior: smooth; display: flex; gap: 8px; scrollbar-width: none; -ms-overflow-style: none;">
               <!-- Categorias injetadas via JS -->
             </div>
             <button onclick="scrollCategoriasLancar(150)" style="background: white; border: 1px solid #cbd5e0; border-radius: 8px; padding: 10px 5px; cursor: pointer; color: #3498db; font-weight: bold;">❯</button>
-          </div>
-          <div id="lancar-menu-grid" class="menu-grid-mini" style="flex: 1; overflow-y: auto; padding: 5px; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px;">
-            <!-- Itens rolam verticalmente -->
           </div>
         </div>
       </div>
@@ -551,14 +551,14 @@
         <!-- Coluna da Direita: Cardápio para Adicionar -->
         <div class="edit-col-menu">
           <h3>Adicionar Itens</h3>
-          <div style="display: flex; align-items: center; gap: 5px; margin-bottom: 10px; flex-shrink: 0; background: #f8fafc; padding: 5px; border-radius: 10px; border: 1px solid #e2e8f0;">
+          <div id="edit-menu-grid" class="menu-grid-mini" style="margin-bottom: 10px;"></div>
+          <div style="display: flex; align-items: center; gap: 5px; margin-top: 0px; flex-shrink: 0; background: #f8fafc; padding: 5px; border-radius: 10px; border: 1px solid #e2e8f0;">
             <button onclick="scrollCategoriasEdicao(-150)" style="background: white; border: 1px solid #cbd5e0; border-radius: 8px; padding: 10px 5px; cursor: pointer; color: #3498db; font-weight: bold;">❮</button>
-            <div id="edit-menu-categorias" class="categorias-grid-mini" style="flex: 1; margin-bottom: 0; padding-bottom: 0; overflow-x: auto; scroll-behavior: smooth; display: flex; gap: 8px; scrollbar-width: none; -ms-overflow-style: none;">
+            <div id="edit-menu-categorias" class="categorias-grid-mini" style="flex: 1; margin-bottom: 0 !important; padding-bottom: 0; overflow-x: auto; scroll-behavior: smooth; display: flex; gap: 8px; scrollbar-width: none; -ms-overflow-style: none;">
               <!-- Categorias injetadas via JS -->
             </div>
             <button onclick="scrollCategoriasEdicao(150)" style="background: white; border: 1px solid #cbd5e0; border-radius: 8px; padding: 10px 5px; cursor: pointer; color: #3498db; font-weight: bold;">❯</button>
           </div>
-          <div id="edit-menu-grid" class="menu-grid-mini"></div>
         </div>
       </div>
       <div class="modal-footer">
