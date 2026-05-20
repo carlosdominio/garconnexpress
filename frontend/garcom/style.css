@@ -554,8 +554,8 @@ main {
 }
 
 .btn-float {
-  width: 60px;
-  height: 60px;
+  width: 65px;
+  height: 65px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -563,6 +563,7 @@ main {
   box-shadow: 0 4px 15px rgba(0,0,0,0.3);
   cursor: pointer;
   transition: transform 0.2s ease;
+  position: relative; /* Essencial para o posicionamento do badge */
 }
 
 .btn-float:active {
@@ -570,23 +571,15 @@ main {
 }
 
 .btn-float .icon {
-  font-size: 28px;
+  font-size: 30px;
 }
 
 .btn-mesas {
   background-color: #3498db;
-  width: 50px;
-  height: 50px;
-}
-
-.btn-mesas .icon {
-  font-size: 22px;
 }
 
 .btn-carrinho {
   background-color: #27ae60;
-  width: 65px;
-  height: 65px;
 }
 
 .btn-carrinho .badge {
