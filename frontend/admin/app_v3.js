@@ -3673,6 +3673,21 @@ async function configurarPusher() {
     const channel = pusherInstancia.subscribe('garconnexpress');
     console.log('📺 Admin inscrito no canal: garconnexpress');
 
+    // EVENTO: CHAMADO DE CLIENTE (🛎️) - PRIORIDADE
+    channel.bind('chamado-garcom', (data) => {
+      console.log('📢 Admin: Chamado de cliente recebido!', data);
+      tocarNotificacao('campainha');
+      iniciarPiscarTitulo();
+
+      const mesaNum = data.mesa_numero || 'X';
+      const msg = data.mensagem || `A Mesa ${mesaNum} está solicitando atendimento agora!`;
+      
+      exibirNotificacaoNativa('🛎️ CHAMADO DE CLIENTE', msg, `chamado-${data.mesa_id}`);
+      mostrarToast(`🛎️ CHAMADO: Mesa ${mesaNum}`, 'erro'); // Usa cor de destaque
+      
+      mostrarAlerta(msg, "🛎️ CHAMADO DE CLIENTE");
+    });
+
     // EVENTO: NOVO PEDIDO
     channel.bind('novo-pedido', (data) => {
       console.log('📢 Admin: Novo pedido recebido!', data);
@@ -3760,6 +3775,19 @@ async function configurarPusher() {
       // Recarrega pedidos também para garantir sincronia de estoque na tela
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => carregarPedidos(), 100);
+    });
+
+    // EVENTO: CHAMADO DE CLIENTE (🛎️)
+    channel.bind('chamado-garcom', (data) => {
+      console.log('📢 Admin: Chamado de cliente recebido!', data);
+      tocarNotificacao('campainha');
+      iniciarPiscarTitulo();
+      
+      const mesaNum = data.mesa_numero || 'X';
+      exibirNotificacaoNativa('🛎️ CHAMADO DE CLIENTE', `Mesa ${mesaNum} solicitou atendimento imediato!`, `chamado-${data.mesa_id}`);
+      mostrarToast(`🛎️ CHAMADO: Mesa ${mesaNum}`, 'erro'); // Usa cor de destaque
+      
+      mostrarAlerta(`A Mesa ${mesaNum} está solicitando atendimento agora!`, "🛎️ CHAMADO DE CLIENTE");
     });
 
   } catch (e) {
