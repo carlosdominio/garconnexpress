@@ -858,6 +858,7 @@ app.delete('/api/pedidos/:id', async (req, res) => {
     if (pedido) {
       if (pedido.status !== 'entregue' && pedido.status !== 'cancelado' && pedido.mesa_id) {
         await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [pedido.mesa_id]);
+        await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [pedido.mesa_id]);
       }
       const mesaNum = pedido.numero || 'BALCÃO';
       await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
@@ -1153,7 +1154,8 @@ app.post('/api/pedidos/:id/pagamento-parcial', async (req, res) => {
     const rest = (await query("SELECT id FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
     if (rest.length === 0) { 
       await query("UPDATE pedidos SET status = 'entregue', pago_parcial = pago_parcial + ?, total = 0 WHERE id = ?", [total, id]); 
-      if (mesa_id) await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [mesa_id]); 
+      await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [mesa_id]);
+      await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [mesa_id]);
       await notifyStatus(null, mesa_id, 'liberada'); 
     } else { 
       // Atualiza o total do pedido original subtraindo o que foi pago
@@ -1232,6 +1234,7 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
 
     if ((status === 'cancelado' || status === 'entregue') && pm && pm.mesa_id) {
         await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [pm.mesa_id]);
+        await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [pm.mesa_id]);
     }
     
     await notifyStatus(id, null, status);
@@ -1412,7 +1415,14 @@ app.post('/api/mesas', async (req, res) => {
     res.json({ success: true }); 
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
-app.put('/api/mesas/:id/liberar', async (req, res) => { try { await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [req.params.id]); await notifyStatus(null, req.params.id, 'liberada'); res.json({ success: true }); } catch (error) { res.status(500).json({ error: error.message }); } });
+app.put('/api/mesas/:id/liberar', async (req, res) => { 
+  try { 
+    await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [req.params.id]); 
+    await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [req.params.id]);
+    await notifyStatus(null, req.params.id, 'liberada'); 
+    res.json({ success: true }); 
+  } catch (error) { res.status(500).json({ error: error.message }); } 
+});
 app.delete('/api/mesas/:id', async (req, res) => { 
   try {
     await query('DELETE FROM mesas WHERE id = ?', [req.params.id]); 
