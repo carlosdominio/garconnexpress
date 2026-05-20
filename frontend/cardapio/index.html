@@ -169,6 +169,13 @@
 
     <div class="loading" id="loading"><i class="fas fa-spinner fa-spin fa-3x" style="color: var(--primary)"></i></div>
 
+    <!-- TELA DE CAIXA FECHADO -->
+    <div id="closed-screen" style="display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; padding: 20px; background: #2f3542; color: white; text-align: center;">
+        <i class="fas fa-store-slash fa-5x" style="margin-bottom: 30px; color: #ff4757;"></i>
+        <h1 style="margin-bottom: 15px;">Ops! Estamos Fechados</h1>
+        <p style="font-size: 16px; opacity: 0.8; max-width: 300px;">No momento o nosso sistema de pedidos está pausado. Por favor, fale com um atendente.</p>
+    </div>
+
     <!-- TELA DE ACESSO -->
     <div id="login-screen">
         <h1 style="margin-bottom: 30px;"><i class="fas fa-utensils"></i> GarconnExpress</h1>
@@ -209,7 +216,10 @@
         let pusher = null;
 
         // Ao carregar, verifica se já tem acesso no LocalStorage (Válido por 6h conforme o JWT)
-        window.onload = () => {
+        window.onload = async () => {
+            const caixaAberto = await verificarCaixa();
+            if (!caixaAberto) return;
+
             const saved = localStorage.getItem('ge_client_session');
             if (saved) {
                 const data = JSON.parse(saved);
@@ -226,14 +236,54 @@
             }
         };
 
-        async function configurarPusher() {
-            if (!sessionMesa) return;
+        async function verificarCaixa() {
+            try {
+                const res = await fetch('/api/caixa/status');
+                const caixa = await res.json();
+                
+                if (!caixa) {
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('menu-screen').style.display = 'none';
+                    document.getElementById('closed-screen').style.display = 'flex';
+                    if (!pusher) configurarPusherPublico();
+                    return false;
+                }
+                
+                document.getElementById('closed-screen').style.display = 'none';
+                return true;
+            } catch (err) {
+                console.error('Erro ao verificar caixa:', err);
+                return true; 
+            }
+        }
+
+        async function configurarPusherPublico() {
             try {
                 const configRes = await fetch('/api/pusher-config');
                 const config = await configRes.json();
-                
                 pusher = new Pusher(config.key, { cluster: config.cluster });
                 const channel = pusher.subscribe('garconnexpress');
+                channel.bind('status-caixa-atualizado', () => location.reload());
+            } catch (err) { console.error('Erro Pusher Publico:', err); }
+        }
+
+        async function configurarPusher() {
+            if (!sessionMesa) return;
+            try {
+                if (!pusher) {
+                    const configRes = await fetch('/api/pusher-config');
+                    const config = await configRes.json();
+                    pusher = new Pusher(config.key, { cluster: config.cluster });
+                }
+                
+                const channel = pusher.subscribe('garconnexpress');
+
+                // Escuta atualizações de caixa para o cliente logado
+                channel.bind('status-caixa-atualizado', (data) => {
+                    if (data.status === 'fechado') {
+                        location.reload();
+                    }
+                });
 
                 // Escuta evento de deslogar específico para esta mesa
                 channel.bind(`deslogar-mesa-${sessionMesa.mesa_id}`, (data) => {
@@ -241,7 +291,10 @@
                         title: 'Acesso Encerrado',
                         text: data.mensagem || 'Seu acesso a este cardápio foi encerrado.',
                         icon: 'info',
-                        confirmButtonText: 'OK'
+                        confirmButtonText: 'OK',
+                        allowOutsideClick: false, // Não deixa fechar clicando fora
+                        allowEscapeKey: false,     // Não deixa fechar com o teclado (ESC)
+                        allowEnterKey: true
                     }).then(() => {
                         localStorage.removeItem('ge_client_session');
                         location.reload();
