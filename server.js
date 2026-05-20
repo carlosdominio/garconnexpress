@@ -281,15 +281,9 @@ async function initDb() {
   
   // Executa queries sequencialmente para evitar sobrecarga de conexões
   try {
-    const tableCheck = isPostgres 
-      ? await db.query("SELECT to_regclass('public.usuarios_admin') as exists") 
-      : { rows: [{ exists: true }] }; 
-
-    if (!isPostgres || !tableCheck.rows[0].exists) {
-      for (let tableSql of tables) {
-        if (isPostgres) await db.query(tableSql);
-        else db.exec(tableSql.replace(/SERIAL PRIMARY KEY/g, 'INTEGER PRIMARY KEY AUTOINCREMENT'));
-      }
+    for (let tableSql of tables) {
+      if (isPostgres) await db.query(tableSql);
+      else db.exec(tableSql.replace(/SERIAL PRIMARY KEY/g, 'INTEGER PRIMARY KEY AUTOINCREMENT'));
     }
 
     // GARANTE QUE SISTEMA_CONFIG EXISTA (Caso tenha sido adicionada depois)
