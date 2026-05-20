@@ -894,7 +894,18 @@ app.post('/api/pedidos', async (req, res) => {
       resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao) VALUES (?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '']);
       pedidoId = resPedido.lastInsertRowid;
     }
-    if (mesa_id) await query("UPDATE mesas SET status = 'ocupada', garcom_id = ? WHERE id = ?", [garcom_id, mesa_id]);
+    if (mesa_id) {
+      await query("UPDATE mesas SET status = 'ocupada', garcom_id = ? WHERE id = ?", [garcom_id, mesa_id]);
+      
+      // GERAÇÃO AUTOMÁTICA DE CÓDIGO DE ACESSO
+      const caracteres = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let novoCodigo = '';
+      for (let i = 0; i < 4; i++) novoCodigo += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+      
+      await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [mesa_id]);
+      await query("INSERT INTO codigos_acesso (mesa_id, codigo) VALUES (?, ?)", [mesa_id, novoCodigo]);
+      console.log(`🔑 Código automático gerado para Mesa ${mesa_id}: ${novoCodigo}`);
+    }
     for (const item of itens) {
       await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES (?, ?, ?, ?, ?)', [pedidoId, item.menu_id, item.quantidade, item.observacao || '', 'pendente']);
       await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?", [item.quantidade, item.menu_id]);
