@@ -263,10 +263,14 @@
             // Verifica periodicamente se a sessão continua válida (ex: a cada 1 min)
             setInterval(async () => {
                 if (sessionMesa) {
+                    console.log(`[Sessão] Verificando validade para Mesa ${sessionMesa.mesa_numero}...`);
                     const aindaValida = await verificarSessaoAtiva();
                     if (!aindaValida) {
+                        console.warn(`[Sessão] Acesso inválido detectado para Mesa ${sessionMesa.mesa_numero}. Deslogando...`);
                         localStorage.removeItem('ge_client_session');
                         location.reload();
+                    } else {
+                        console.log(`[Sessão] Mesa ${sessionMesa.mesa_numero} continua ativa.`);
                     }
                 }
             }, 60000);

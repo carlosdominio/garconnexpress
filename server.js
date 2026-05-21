@@ -901,18 +901,25 @@ app.post('/api/pedidos', async (req, res) => {
       pedidoId = resPedido.lastInsertRowid;
     }
     if (mesa_id) {
-      await query("UPDATE mesas SET status = 'ocupada', garcom_id = ? WHERE id = ?", [garcom_id, mesa_id]);
+      const mesaIdNum = Number(mesa_id);
+      console.log(`[Pedido] Processando mesa ${mesaIdNum}. Garçom: ${garcom_id}`);
       
-      // GERAÇÃO AUTOMÁTICA DE CÓDIGO DE ACESSO
-      const caracteres = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      let novoCodigo = '';
-      for (let i = 0; i < 4; i++) novoCodigo += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
-      
-      await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [mesa_id]);
-      await query("INSERT INTO codigos_acesso (mesa_id, codigo) VALUES (?, ?)", [mesa_id, novoCodigo]);
-      console.log(`🔑 Código automático gerado para Mesa ${mesa_id}: ${novoCodigo}`);
-    }
-    for (const item of itens) {
+      await query("UPDATE mesas SET status = 'ocupada', garcom_id = ? WHERE id = ?", [garcom_id, mesaIdNum]);
+
+      // GERAÇÃO AUTOMÁTICA DE CÓDIGO DE ACESSO (Só se não houver um ativo)
+      const acessoExistente = (await query("SELECT id, codigo FROM codigos_acesso WHERE mesa_id = ? AND status = 'ativo' LIMIT 1", [mesaIdNum])).rows[0];
+
+      if (!acessoExistente) {
+        const caracteres = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let novoCodigo = '';
+        for (let i = 0; i < 4; i++) novoCodigo += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+
+        await query("INSERT INTO codigos_acesso (mesa_id, codigo, status) VALUES (?, ?, 'ativo')", [mesaIdNum, novoCodigo]);
+        console.log(`🔑 Código automático gerado para Mesa ${mesaIdNum}: ${novoCodigo}`);
+      } else {
+        console.log(`ℹ️ Mesa ${mesaIdNum} já possui código de acesso ativo (ID: ${acessoExistente.id}, Código: ${acessoExistente.codigo}). Mantendo sessão.`);
+      }
+    }    for (const item of itens) {
       await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES (?, ?, ?, ?, ?)', [pedidoId, item.menu_id, item.quantidade, item.observacao || '', 'pendente']);
       await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?", [item.quantidade, item.menu_id]);
       await verificarEstoqueBaixo(item.menu_id);
