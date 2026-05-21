@@ -714,12 +714,14 @@ function toggleCarrinho() {
   
   if (modal.style.display === 'flex') {
     modal.style.display = 'none';
+    document.body.style.overflow = ''; // Destrava o scroll
   } else {
     if (pedidoAtual.length === 0) {
       mostrarAlerta("O carrinho está vazio!", "Aviso");
       return;
     }
     modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden'; // Trava o scroll
     exibirResumoPedido();
   }
 }
@@ -895,18 +897,24 @@ async function exibirMenu(categoria) {
     const emPromocao = item.em_promocao === 1 || item.em_promocao === true;
 
     return `
-      <div class="item-menu ${esgotado ? 'esgotado' : ''}" data-id="${item.id}">
-        ${qtdBadge}
+      <div class="item-menu ${esgotado ? 'esgotado' : ''}" data-id="${item.id}" style="position: relative;">
+        <!-- Badge de Quantidade (TOPO ESQUERDO) -->
+        ${itemNoPedido ? `<div class="badge-qtd" style="position: absolute; top: 5px; left: 5px; right: auto;">${itemNoPedido.quantidade}</div>` : ''}
+        
+        <!-- Container de Info (TOPO DIREITO) -->
+        <div style="position: absolute; top: 6px; right: 6px; z-index: 10; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+          <!-- Preço -->
+          <div style="background: #27ae60; color: white; padding: 4px 8px; border-radius: 6px; font-weight: 900; font-size: 1.0rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">R$ ${item.preco.toFixed(2)}</div>
+          
+          <!-- Info de ESTOQUE -->
+          <div style="background: ${esgotado ? '#e74c3c' : '#3498db'}; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+            ${temEstoqueDefinido ? `<span>📦</span> ${estoqueNum}` : '<span>♾️</span> Ilimitado'}
+          </div>
+        </div>
+
         ${emPromocao ? '<div class="promo-badge">PROMOÇÃO</div>' : ''}
         <img src="${item.imagem}" alt="${item.nome}">
-        <h3>${item.nome}</h3>
-        <p>R$ ${item.preco.toFixed(2)}</p>        ${temEstoqueDefinido ? `
-          <div class="info-estoque ${esgotado ? 'zero' : ''}" style="font-weight: bold; padding: 2px 5px; border-radius: 4px; display: inline-block; font-size: 0.75rem;">
-            Estoque: ${estoqueNum}
-          </div>
-        ` : `
-          <div class="info-estoque" style="opacity: 0.6; font-size: 0.7rem;">Estoque: Ilimitado</div>
-        `}
+        <h3 style="font-size: 1.0rem !important;">${item.nome}</h3>
       </div>
     `;
   }).join('');
@@ -949,6 +957,12 @@ function exibirResumoPedido() {
     setTimeout(() => badge.style.transform = 'scale(1)', 200);
   }
 
+  // Verifica se há pelo menos um item que vai para a cozinha
+  const temItemCozinha = pedidoAtual.some(itemNoPedido => {
+    const itemInfo = menu.find(m => m.id === itemNoPedido.menu_id);
+    return itemInfo && (itemInfo.enviar_cozinha === 1 || itemInfo.enviar_cozinha === true);
+  });
+
   container.innerHTML = pedidoAtual.map((item, index) => `
     <div class="item-pedido">
       <div class="item-pedido-info">
@@ -980,32 +994,38 @@ function exibirResumoPedido() {
   const total = pedidoAtual.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
   document.getElementById('total-pedido').textContent = `Total: R$ ${total.toFixed(2)}`;
 
-  // Campo de Observação Geral do Pedido
+  // Campo de Observação Geral do Pedido (Só aparece se houver item para a cozinha)
   let containerObs = document.getElementById('container-obs-geral');
-  if (!containerObs) {
-    const totalEl = document.getElementById('total-pedido');
-    const obsHtml = `
-      <div id="container-obs-geral" style="margin-top:15px; background:#fdf9f3; padding:12px; border-radius:10px; border:1px solid #f3e5ab;">
-        <label style="display:block; font-size:0.9rem; font-weight:bold; color:#d35400; margin-bottom:6px;">📝 Observação p/ Cozinha (Geral):</label>
-        <textarea id="obs-geral-pedido" 
-                  placeholder="Ex: Capricha no tempero, cliente com pressa..." 
-                  style="width:100%; border:1px solid #f3e5ab; border-radius:8px; padding:10px; font-size:0.95rem; font-family:inherit; min-height:60px; resize:none;"
-                  oninput="window.pedidoObservacaoGeral = this.value"></textarea>
-      </div>
-    `;
-    totalEl.insertAdjacentHTML('afterend', obsHtml);
-    containerObs = document.getElementById('container-obs-geral');
-  }
-  
-  const textareaObs = document.getElementById('obs-geral-pedido');
-  if (textareaObs) {
-    textareaObs.value = window.pedidoObservacaoGeral || '';
+  if (temItemCozinha) {
+    if (!containerObs) {
+      const totalEl = document.getElementById('total-pedido');
+      const obsHtml = `
+        <div id="container-obs-geral" style="margin-top:15px; background:#fdf9f3; padding:12px; border-radius:10px; border:1px solid #f3e5ab;">
+          <label style="display:block; font-size:0.9rem; font-weight:bold; color:#d35400; margin-bottom:6px;">📝 Observação p/ Cozinha (Geral):</label>
+          <textarea id="obs-geral-pedido" 
+                    placeholder="Ex: Capricha no tempero, cliente com pressa..." 
+                    style="width:100%; border:1px solid #f3e5ab; border-radius:8px; padding:10px; font-size:0.95rem; font-family:inherit; min-height:60px; resize:none;"
+                    oninput="window.pedidoObservacaoGeral = this.value"></textarea>
+        </div>
+      `;
+      totalEl.insertAdjacentHTML('afterend', obsHtml);
+      containerObs = document.getElementById('container-obs-geral');
+    }
+    const textareaObs = document.getElementById('obs-geral-pedido');
+    if (textareaObs) {
+      textareaObs.value = window.pedidoObservacaoGeral || '';
+    }
+  } else if (containerObs) {
+    containerObs.remove();
   }
 
   // Se o carrinho ficar vazio, fecha o modal automaticamente
   if (totalItens === 0) {
     const modal = document.getElementById('modal-carrinho');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+      modal.style.display = 'none';
+      document.body.style.overflow = ''; // Destrava o scroll
+    }
   }
 }
 
@@ -1083,6 +1103,7 @@ async function enviarPedido() {
 
       document.getElementById('pedido').classList.add('hidden');
       document.getElementById('mesas').classList.remove('hidden');
+      document.getElementById('btn-header-mesas').style.display = 'none';
       carregarMesas();
     } else {
       const errorData = await res.json();
@@ -1146,10 +1167,7 @@ async function cancelarCodigoAcesso() {
 
 function configurarEventos() {
   document.getElementById('enviar-pedido').addEventListener('click', enviarPedido);
-  document.getElementById('voltar-mesas').addEventListener('click', () => {
-    document.getElementById('pedido').classList.add('hidden');
-    document.getElementById('mesas').classList.remove('hidden');
-  });
+  document.getElementById('voltar-mesas').addEventListener('click', voltarParaMesas);
   const categorias = ['todas', ...new Set(menu.map(item => item.categoria))];
   const container = document.getElementById('categorias');
   if (container) {

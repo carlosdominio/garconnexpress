@@ -159,7 +159,6 @@ function desbloquearAudio() {
     
     audioDesbloqueado = true;
     console.log('🔊 Áudio do Admin desbloqueado com sucesso!');
-    mostrarToast("🔊 Notificações sonoras ativadas!");
   }).catch(e => {
     console.warn('⚠️ Falha ao desbloquear áudio (clique necessário):', e);
   });
@@ -601,19 +600,23 @@ function exibirMenuLancar(categoria) {
 
     return `
     <div class="item-menu-mini" onclick="adicionarAoCarrinhoLancar(${item.id})" style="position: relative; display: flex; flex-direction: column; opacity: ${disponivelReal === 0 ? '0.6' : '1'}; min-height: 160px !important; height: auto !important; background: white; border-radius: 12px; overflow: hidden; border: 1px solid #eee; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-      <!-- Badge de Preço -->
-      <div style="position: absolute; top: 6px; right: 6px; background: #27ae60; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.7rem; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">R$ ${item.preco.toFixed(2)}</div>
-      
-      <!-- Badge de ESTOQUE (Abaixo do Preço) -->
-      <div style="position: absolute; top: 30px; right: 6px; background: ${disponivelReal <= 0 ? '#e74c3c' : '#3498db'}; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.6rem; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2); text-transform: uppercase;">
-        ${temEstoqueDefinido ? `📦 ${disponivelReal}` : '♾️ ILIMITADO'}
+      <!-- Container de Info (TOPO DIREITO) -->
+      <div style="position: absolute; top: 6px; right: 6px; z-index: 10; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+        <!-- Preço -->
+        <div style="background: #27ae60; color: white; padding: 4px 8px; border-radius: 6px; font-weight: 900; font-size: 1.0rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">R$ ${item.preco.toFixed(2)}</div>
+        
+        <!-- Info de ESTOQUE -->
+        <div style="background: ${disponivelReal <= 0 ? '#e74c3c' : '#3498db'}; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+          ${temEstoqueDefinido ? `<span>📦</span> ${disponivelReal}` : '<span>♾️</span> Ilimitado'}
+        </div>
       </div>
 
       <img src="${item.imagem}" alt="${item.nome}" style="filter: ${disponivelReal === 0 ? 'grayscale(1)' : 'none'}; height: 80px !important; width: 100%; object-fit: cover; display: block; border-bottom: 1px solid #f0f0f0;">
 
-      <div style="padding: 8px !important; display: flex; flex-direction: column; flex-grow: 1; justify-content: flex-start; gap: 4px;">
-        <h4 style="margin: 0 !important; font-size: 0.8rem !important; color: #2c3e50 !important; line-height: 1.1 !important; font-weight: 700 !important; min-height: 1.8rem !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: left;">${item.nome}</h4>
-        <p style="margin: 0 !important; color: #27ae60 !important; font-weight: 900 !important; font-size: 0.9rem !important;">R$ ${item.preco.toFixed(2)}</p>
+      <div style="padding: 8px !important; display: flex; flex-direction: column; flex-grow: 1; justify-content: space-between; gap: 4px;">
+        <div>
+          <h4 style="margin: 0 !important; font-size: 1.0rem !important; color: #2c3e50 !important; line-height: 1.1 !important; font-weight: 700 !important; min-height: 1.8rem !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: left;">${item.nome}</h4>
+        </div>
       </div>
     </div>
     `}).join('');}
@@ -1106,17 +1109,27 @@ async function exibirGarconsConfig() {
   const garcons = await res.json();
   const container = document.getElementById('lista-garcons-config');
   if (!container) return;
-  container.innerHTML = garcons.map(g => `
+  
+  window.listaGarconsAtual = garcons; // Salva globalmente para acesso fácil
+
+  container.innerHTML = garcons.map((g, index) => `
     <div class="item-config">
       <div>
         <strong>${g.nome}</strong> (@${g.usuario})
         ${g.telefone ? `<br><small style="color:#25D366; cursor:pointer;" onclick="window.open('https://wa.me/${g.telefone.replace(/\D/g, '')}', '_blank')">📱 WhatsApp: ${g.telefone}</small>` : ''}
+        <br><small style="color:#64748b; font-weight: bold;">💰 Comissão: ${g.comissao !== undefined ? g.comissao : 0}%</small>
       </div>
       <div style="display:flex; gap:0.5rem">
-        <button style="background:#3498db; padding:4px 8px; font-size:0.8rem; width:auto;" onclick='prepararEdicaoGarcom(${JSON.stringify(g)})'>✏️</button>
+        <button style="background:#3498db; padding:4px 8px; font-size:0.8rem; width:auto;" onclick="prepararEdicaoGarcomByIndex(${index})">✏️</button>
         <button class="btn-excluir" style="width:auto;" onclick="excluirGarcom(${g.id})">X</button>
       </div>
     </div>`).join('');
+}
+
+function prepararEdicaoGarcomByIndex(index) {
+  const g = window.listaGarconsAtual[index];
+  if (!g) return;
+  prepararEdicaoGarcom(g);
 }
 
 function prepararEdicaoGarcom(g) {
@@ -1124,6 +1137,7 @@ function prepararEdicaoGarcom(g) {
   document.getElementById('garcom-nome').value = g.nome;
   document.getElementById('garcom-usuario').value = g.usuario;
   document.getElementById('garcom-telefone').value = g.telefone || '';
+  document.getElementById('garcom-comissao').value = g.comissao || 0;
   document.getElementById('garcom-senha').value = '';
   document.getElementById('garcom-senha').placeholder = 'Deixe em branco para manter';
   const btn = document.getElementById('btn-acao-garcom');
@@ -1137,8 +1151,8 @@ function prepararEdicaoGarcom(g) {
 
 function cancelarEdicaoGarcom() {
   idGarcomEdicao = null;
-  ['garcom-nome', 'garcom-usuario', 'garcom-telefone', 'garcom-senha'].forEach(id => {
-    const el = document.getElementById(id); 
+  ['garcom-nome', 'garcom-usuario', 'garcom-telefone', 'garcom-comissao', 'garcom-senha'].forEach(id => {
+    const el = document.getElementById(id);
     if (el) { el.value = ''; el.placeholder = ''; }
   });
   const btn = document.getElementById('btn-acao-garcom');
@@ -1154,11 +1168,12 @@ async function processarAcaoGarcom() {
   const nome = document.getElementById('garcom-nome').value;
   const usuario = document.getElementById('garcom-usuario').value;
   const telefone = document.getElementById('garcom-telefone').value;
+  const comissao = parseFloat(document.getElementById('garcom-comissao').value) || 0;
   const senha = document.getElementById('garcom-senha').value;
-  
+
   if (!nome || !usuario) return await mostrarAlerta("Nome e usuário são obrigatórios", "Aviso");
-  
-  const payload = { nome, usuario, telefone, senha };
+
+  const payload = { nome, usuario, telefone, comissao, senha };
   const url = idGarcomEdicao ? `/api/garcons/${idGarcomEdicao}` : '/api/garcons';
   const method = idGarcomEdicao ? 'PUT' : 'POST';
 
@@ -1174,7 +1189,6 @@ async function processarAcaoGarcom() {
     exibirGarconsConfig();
   }
 }
-
 async function excluirGarcom(id) {
   if (await mostrarConfirmacao("Excluir este garçom?", "Configuração")) {
     const res = await fetch(`/api/garcons/${id}`, { method: 'DELETE' });
@@ -1440,7 +1454,7 @@ async function exibirMenuConfig() {
                 <small>${validadeHtml}</small>
               </div>
               <div style="display:flex; flex-direction:column; gap:0.2rem">
-                <button style="background:#3498db; padding:4px 8px; font-size:0.8rem" onclick='prepararEdicaoMenu(${JSON.stringify(m)})'>✏️ Editar</button>
+                <button style="background:#3498db; padding:4px 8px; font-size:0.8rem" onclick="prepararEdicaoMenuById(${m.id})">✏️ Editar</button>
                 <button class="btn-excluir" onclick="excluirDoMenu(${m.id})">Excluir</button>
               </div>
             </div>`;
@@ -1454,12 +1468,17 @@ async function exibirMenuConfig() {
 
   if (vencidosCount > 0 || proxVencimentoCount > 0) {
     const agora = Date.now();
-    // Debounce de 30 segundos para evitar que o alerta apareça várias vezes seguidas (ex: ao ocultar vários itens ou via Pusher)
+    // Debounce de 30 segundos para evitar que o alerta apareça várias vezes seguidas
     if (agora - ultimoAlertaValidadeMostrado > 30000) {
       mostrarToast(`🚨 ALERTA: ${vencidosCount} produtos vencidos e ${proxVencimentoCount} próximos da validade!`);
       ultimoAlertaValidadeMostrado = agora;
     }
   }
+}
+
+function prepararEdicaoMenuById(id) {
+  const item = cardapio.find(m => m.id === id);
+  if (item) prepararEdicaoMenu(item);
 }
 
 async function excluirDoMenu(id) {
@@ -1585,7 +1604,7 @@ async function exibirHistorico() {
           ${pagamentos.map((pag, idx) => `
             <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 2px;">
               <span>Parte ${idx + 1} (${pag.forma_pagamento}):</span>
-              <span style="font-weight: bold;">R$ ${pag.valor.toFixed(2)}</span>
+              <span style="font-weight: bold;">R$ ${(pag.valor || 0).toFixed(2)}</span>
             </div>
           `).join('')}
           <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-top: 5px; padding-top: 3px; border-top: 1px dashed #ced4da; font-weight: bold; color: #212529;">
@@ -1609,7 +1628,7 @@ async function exibirHistorico() {
         <div style="text-align: right;">
           <div class="pedido-valor">R$ ${valorConsolidado.toFixed(2)}</div>
           <div style="display:flex; flex-direction:column; gap:5px; margin-top:5px;">
-            <button style="background:#2c3e50; border:1px solid #34495e; font-size: 0.75rem; width: 100%; padding: 5px 10px;" onclick='imprimirCupom(${JSON.stringify(pedido)}, ${JSON.stringify(itens)})'>🖨️ Re-imprimir</button>
+            <button style="background:#2c3e50; border:1px solid #34495e; font-size: 0.75rem; width: 100%; padding: 5px 10px;" onclick="reimprimirCupomById(${pedido.id})">🖨️ Re-imprimir</button>
             <button style="background:#e74c3c; font-size: 0.75rem; width: 100%; padding: 5px 10px;" onclick="excluirPedido(${pedido.id})">🗑️ Excluir</button>
           </div>
         </div>
@@ -1661,15 +1680,19 @@ async function exibirHistorico() {
 
 function filtrarHistorico(valor) {
   const busca = valor.toLowerCase().trim();
-  const listContainer = document.getElementById('historico-list');
-  if (!listContainer) return;
+  const containerFinalizados = document.getElementById('lista-finalizados');
+  const containerCancelados = document.getElementById('lista-cancelados');
+  if (!containerFinalizados || !containerCancelados) return;
 
-  const cards = listContainer.querySelectorAll('.pedido-card');
+  const cards = document.querySelectorAll('.pedido-card');
 
   let finalizadosVisiveis = 0;
   let canceladosVisiveis = 0;
 
   cards.forEach(card => {
+    // Só filtra cards que estão dentro dos containers do histórico
+    if (!containerFinalizados.contains(card) && !containerCancelados.contains(card)) return;
+
     const h3 = card.querySelector('h3');
     const mesaTexto = h3 ? h3.innerText.toLowerCase() : '';
     const textoCompleto = card.innerText.toLowerCase();
@@ -1696,8 +1719,8 @@ function filtrarHistorico(valor) {
     }
   });
 
-  const msgFin = document.getElementById('lista-finalizados').querySelector('p');
-  const msgCan = document.getElementById('lista-cancelados').querySelector('p');
+  const msgFin = containerFinalizados.querySelector('p');
+  const msgCan = containerCancelados.querySelector('p');
 
   if (msgFin) {
     msgFin.style.display = (finalizadosVisiveis === 0) ? 'block' : 'none';
@@ -1736,8 +1759,31 @@ async function imprimirResumoDiario() {
   let totalCancelado = 0;
   let qtdPedidos = 0;
 
+  // Busca dados dos garçons para calcular comissões
+  let garconsLista = [];
+  try {
+    const resG = await fetch('/api/garcons');
+    if (resG.ok) {
+      garconsLista = await resG.json();
+    } else {
+      console.warn('⚠️ Não foi possível carregar a lista de garçons para o relatório.');
+    }
+  } catch (err) {
+    console.error('❌ Erro ao buscar garçons:', err);
+  }
+
+  const performanceGarcons = {};
+
+  if (!Array.isArray(garconsLista)) {
+    console.warn('⚠️ Lista de garçons não é um array válido.', garconsLista);
+    garconsLista = [];
+  }
+
   historico.forEach(p => {
     const valorTotalPedido = (p.total || 0) + (p.pago_parcial || 0);
+    const garcomId = p.garcom_id || 'SISTEMA';
+    const garcomNome = p.garcom_nome || p.garcom_id || 'Administrador';
+
     if (p.status === 'entregue') {
       qtdPedidos++;
       // Se não temos caixaAtual (caixa fechado), fazemos o cálculo manual aproximado
@@ -1747,10 +1793,43 @@ async function imprimirResumoDiario() {
           else if (p.forma_pagamento === 'Pix') totalPix += valorTotalPedido;
           else if (p.forma_pagamento === 'Cartão') totalCartao += valorTotalPedido;
       }
+
+      // Calcula performance do garçom
+      if (!performanceGarcons[garcomId]) {
+        const infoG = garconsLista.find(g => g && g.usuario === garcomId) || { comissao: 0 };
+        performanceGarcons[garcomId] = {
+          nome: garcomNome,
+          vendas: 0,
+          atendimentos: 0,
+          percComissao: infoG.comissao || 0
+        };
+      }
+      performanceGarcons[garcomId].vendas += valorTotalPedido;
+      performanceGarcons[garcomId].atendimentos++;
     } else if (p.status === 'cancelado') {
       totalCancelado += valorTotalPedido;
     }
   });
+
+  const htmlPerformance = Object.values(performanceGarcons).map(g => {
+    const vComissao = g.vendas * (g.percComissao / 100);
+    return `
+      <div style="border-bottom: 1px dotted #ccc; padding: 5px 0;">
+        <div style="display:flex; justify-content:space-between; font-weight: bold;">
+          <span>👤 ${g.nome.toUpperCase()}</span>
+          <span>${g.atendimentos} atend.</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size: 9pt; opacity: 0.8;">
+          <span>Total Vendido:</span>
+          <span>R$ ${g.vendas.toFixed(2)}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size: 9pt; color: #27ae60; font-weight: bold;">
+          <span>Comissão (${g.percComissao}%):</span>
+          <span>R$ ${vComissao.toFixed(2)}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
 
   const html = `
     <div style="width: 100%; font-size: 10pt; line-height: 1.3; color: #000; background: #fff; padding: 0; font-weight: 600;">
@@ -1779,6 +1858,11 @@ async function imprimirResumoDiario() {
           <span>💳 CARTÃO:</span>
           <span>R$ ${totalCartao.toFixed(2)}</span>
         </div>
+      </div>
+
+      <div style="border-top: 1px solid #000; padding-top: 8px; margin-bottom: 10px;">
+        <p style="font-weight: bold; border-bottom: 1px solid #000; margin-bottom: 5px;">DESEMPENHO POR GARÇOM:</p>
+        ${htmlPerformance || '<p style="text-align:center; opacity:0.5;">Sem atendimentos registrados.</p>'}
       </div>
 
       <div style="border-top: 1px dashed #000; padding-top: 8px; margin-top: 10px;">
@@ -2166,7 +2250,7 @@ async function exibirPedidos() {
               </button>
               
               <button style="background: #34495e; color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.75rem; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 5px; box-shadow: 0 2px 0 #2c3e50;" 
-                      onclick='abrirModalEdicao(${JSON.stringify(pedido)}, ${JSON.stringify(itens)})'>
+                      onclick="abrirModalEdicaoById(${pedido.id})">
                 ✏️ EDITAR ITENS
               </button>
 
@@ -2675,18 +2759,20 @@ async function renderizarMenuEdicao(categoria = 'todas') {
     
     return `
     <div class="item-menu-mini" onclick="adicionarItemNaEdicao(${item.id})" style="position: relative; display: flex; flex-direction: column; opacity: ${estoqueDisponivel === 0 ? '0.6' : '1'}; min-height: 160px !important; height: auto !important; background: white; border-radius: 12px; overflow: hidden; border: 1px solid #eee; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-      <!-- Badge de Preço -->
-      <div style="position: absolute; top: 6px; right: 6px; background: #27ae60; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.7rem; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">R$ ${item.preco.toFixed(2)}</div>
-
-      <!-- Badge de ESTOQUE (Abaixo do Preço) -->
-      <div style="position: absolute; top: 30px; right: 6px; background: ${estoqueDisponivel <= 0 ? '#e74c3c' : '#3498db'}; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.6rem; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2); text-transform: uppercase;">
-        ${temEstoqueDefinido ? `📦 ${estoqueDisponivel}` : '♾️ ILIMITADO'}
+      <!-- Container de Info (TOPO DIREITO) -->
+      <div style="position: absolute; top: 6px; right: 6px; z-index: 10; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+        <!-- Preço -->
+        <div style="background: #27ae60; color: white; padding: 4px 8px; border-radius: 6px; font-weight: 900; font-size: 1.0rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">R$ ${item.preco.toFixed(2)}</div>
+        
+        <!-- Info de ESTOQUE -->
+        <div style="background: ${estoqueDisponivel <= 0 ? '#e74c3c' : '#3498db'}; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+          ${temEstoqueDefinido ? `<span>📦</span> ${estoqueDisponivel}` : '<span>♾️</span> Ilimitado'}
+        </div>
       </div>
 
       <img src="${item.imagem}" alt="${item.nome}" style="filter: ${estoqueDisponivel === 0 ? 'grayscale(1)' : 'none'}; height: 80px !important; width: 100%; object-fit: cover; display: block; border-bottom: 1px solid #f0f0f0;">
       <div style="padding: 8px !important; display: flex; flex-direction: column; flex-grow: 1; justify-content: flex-start; gap: 4px;">
-        <h4 style="margin: 0 !important; font-size: 0.8rem !important; color: #2c3e50 !important; line-height: 1.1 !important; font-weight: 700 !important; min-height: 1.8rem !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: left;">${item.nome}</h4>
-        <p style="margin: 0 !important; color: #27ae60 !important; font-weight: 900 !important; font-size: 0.9rem !important;">R$ ${item.preco.toFixed(2)}</p>
+        <h4 style="margin: 0 !important; font-size: 1.0rem !important; color: #2c3e50 !important; line-height: 1.1 !important; font-weight: 700 !important; min-height: 1.8rem !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: left;">${item.nome}</h4>
       </div>
     </div>
   `}).join('');
@@ -4256,6 +4342,53 @@ async function imprimirRelatorioCaixa() {
   const totalEsperadoDinheiro = caixaAtual.valor_inicial + caixaAtual.total_dinheiro;
   const totalGeral = caixaAtual.total_vendas;
 
+  // Busca dados dos garçons para calcular comissões no relatório parcial
+  let garconsLista = [];
+  try {
+    const resG = await fetch('/api/garcons');
+    if (resG.ok) garconsLista = await resG.json();
+  } catch (err) { console.error(err); }
+
+  const performanceGarcons = {};
+  
+  // No relatório de caixa, o ideal é basear-se no histórico carregado (que deve ser o do dia)
+  // ou buscar do banco. Para manter consistência com o imprimirResumoDiario:
+  historico.forEach(p => {
+    if (p.status === 'entregue') {
+      const valorTotalPedido = (p.total || 0) + (p.pago_parcial || 0);
+      const garcomId = p.garcom_id || 'SISTEMA';
+      const garcomNome = p.garcom_nome || p.garcom_id || 'Administrador';
+
+      if (!performanceGarcons[garcomId]) {
+        const infoG = (Array.isArray(garconsLista) ? garconsLista : []).find(g => g && g.usuario === garcomId) || { comissao: 0 };
+        performanceGarcons[garcomId] = {
+          nome: garcomNome,
+          vendas: 0,
+          atendimentos: 0,
+          percComissao: infoG.comissao || 0
+        };
+      }
+      performanceGarcons[garcomId].vendas += valorTotalPedido;
+      performanceGarcons[garcomId].atendimentos++;
+    }
+  });
+
+  const htmlPerformance = Object.values(performanceGarcons).map(g => {
+    const vComissao = g.vendas * (g.percComissao / 100);
+    return `
+      <div style="border-bottom: 1px dotted #ccc; padding: 4px 0; font-size: 9pt;">
+        <div style="display:flex; justify-content:space-between; font-weight: bold;">
+          <span>👤 ${g.nome.toUpperCase()}</span>
+          <span>${g.atendimentos} atend.</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; opacity: 0.8;">
+          <span>Vendas: R$ ${g.vendas.toFixed(2)}</span>
+          <span style="color: #27ae60;">Comissão: R$ ${vComissao.toFixed(2)}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
   const html = `
     <div style="width: 100%; font-size: 10pt; line-height: 1.3; color: #000; background: #fff; padding: 0; font-weight: 600;">
       <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 8px; margin-bottom: 8px;">
@@ -4291,6 +4424,11 @@ async function imprimirRelatorioCaixa() {
           <span>💳 CARTÃO:</span>
           <span>R$ ${caixaAtual.total_cartao.toFixed(2)}</span>
         </div>
+      </div>
+
+      <div style="border-top: 1px solid #000; padding-top: 5px; margin-bottom: 10px;">
+        <p style="font-weight: bold; border-bottom: 1px solid #000; margin-bottom: 5px;">DESEMPENHO GARÇONS:</p>
+        ${htmlPerformance || '<p style="text-align:center; opacity:0.5;">Sem vendas registradas.</p>'}
       </div>
 
       <div style="border-top: 1px dashed #000; padding-top: 8px; margin-top: 10px;">
