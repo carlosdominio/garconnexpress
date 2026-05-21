@@ -81,6 +81,10 @@ function mostrarToast(mensagem, tipo = 'sucesso') {
 }
 
 async function carregarPedidos() {
+    // Se o caixa estiver fechado, não carregamos pedidos
+    const caixaAberto = await verificarCaixa();
+    if (!caixaAberto) return;
+
     try {
         const res = await fetch('/api/pedidos/cozinha');        
         if (!res.ok) throw new Error('Erro na resposta da API');
@@ -89,6 +93,29 @@ async function carregarPedidos() {
     } catch (e) {
         console.error('❌ Erro ao carregar pedidos:', e);        
         setTimeout(carregarPedidos, 5000);
+    }
+}
+
+async function verificarCaixa() {
+    try {
+        const res = await fetch('/api/caixa/status');
+        const caixa = await res.json();
+        
+        const container = document.getElementById('pedidos-container');
+        const closedScreen = document.getElementById('closed-screen');
+        
+        if (!caixa) {
+            if (container) container.style.display = 'none';
+            if (closedScreen) closedScreen.style.display = 'flex';
+            return false;
+        }
+        
+        if (container) container.style.display = 'grid';
+        if (closedScreen) closedScreen.style.display = 'none';
+        return true;
+    } catch (err) {
+        console.error('Erro ao verificar caixa:', err);
+        return true; 
     }
 }
 
@@ -314,6 +341,14 @@ async function configurarPusher() {
             mostrarToast('🔄 Cardápio atualizado');
             clearTimeout(timeoutPusher);
             timeoutPusher = setTimeout(carregarPedidos, 50);
+        });
+
+        canal.bind('status-caixa-atualizado', (data) => {
+            console.log('📢 Status do Caixa atualizado:', data);
+            verificarCaixa();
+            if (data.status === 'aberto') {
+                carregarPedidos();
+            }
         });
 
         canal.bind('status-atualizado', (data) => {

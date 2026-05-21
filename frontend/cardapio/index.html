@@ -249,7 +249,11 @@
                 } else {
                     localStorage.removeItem('ge_client_session');
                     // Permanece na tela de login
+                    if (!pusher) configurarPusherPublico();
                 }
+            } else {
+                // Se não tem sessão salva, garante que o Pusher está ouvindo o status do caixa
+                if (!pusher) configurarPusherPublico();
             }
 
             // Tenta pegar código via URL para facilitar via QR Code (ex: ?c=A5B2)
