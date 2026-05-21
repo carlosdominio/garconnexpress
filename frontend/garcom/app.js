@@ -67,6 +67,7 @@ let pedidoAtual = [];
 let pedidoAbertoNaMesa = null;
 let garcomLogado = null;
 let caixaAberto = false;
+let categoriaAtual = sessionStorage.getItem('garcom_categoria_atual') || 'todas';
 
 document.addEventListener('DOMContentLoaded', async () => {
   verificarSessao();
@@ -343,7 +344,20 @@ async function carregarMenu() {
   const res = await fetch('/api/menu');
   if (!res.ok) return; // Evita crash se não autenticado
   menu = await res.json();
-  if (Array.isArray(menu)) exibirMenu('todas');
+  if (Array.isArray(menu)) {
+    // Verifica se a categoria atual ainda existe
+    const categoriasExistentes = ['todas', ...new Set(menu.map(i => i.categoria))];
+    if (!categoriasExistentes.includes(categoriaAtual)) {
+      categoriaAtual = 'todas';
+      sessionStorage.setItem('garcom_categoria_atual', 'todas');
+    }
+    exibirMenu(categoriaAtual);
+    // Se as categorias já foram renderizadas, atualiza o visual
+    const container = document.getElementById('categorias');
+    if (container && container.innerHTML !== '') {
+        configurarEventos(); 
+    }
+  }
 }
 
 async function carregarMesas() {
@@ -1137,7 +1151,7 @@ function configurarEventos() {
   const categorias = ['todas', ...new Set(menu.map(item => item.categoria))];
   const container = document.getElementById('categorias');
   if (container) {
-    container.innerHTML = categorias.map(cat => `<div class="categoria ${cat === 'todas' ? 'ativa' : ''}" data-categoria="${cat}">${cat === 'todas' ? 'Todos' : cat}</div>`).join('');
+    container.innerHTML = categorias.map(cat => `<div class="categoria ${cat === categoriaAtual ? 'ativa' : ''}" data-categoria="${cat}">${cat === 'todas' ? 'Todos' : cat}</div>`).join('');
     
     // Habilitar scroll horizontal com a roda do mouse
     container.addEventListener('wheel', (evt) => {
@@ -1147,9 +1161,11 @@ function configurarEventos() {
 
     document.querySelectorAll('.categoria').forEach(cat => {
       cat.addEventListener('click', () => {
+        categoriaAtual = cat.dataset.categoria;
+        sessionStorage.setItem('garcom_categoria_atual', categoriaAtual);
         document.querySelectorAll('.categoria').forEach(c => c.classList.remove('ativa'));
         cat.classList.add('ativa');
-        exibirMenu(cat.dataset.categoria);
+        exibirMenu(categoriaAtual);
       });
     });
   }

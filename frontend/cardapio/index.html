@@ -216,6 +216,7 @@
         let sessionMesa = null;
         let pusher = null;
         let modalAberto = false; // Flag para evitar duplicidade de modais
+        let categoriaAtual = sessionStorage.getItem('ge_categoria_atual') || 'TODOS';
 
         // Ao carregar, verifica se já tem acesso no LocalStorage (Válido por 6h conforme o JWT)
         window.onload = async () => {
@@ -354,7 +355,7 @@
                 const res = await fetch('/api/menu');
                 menuData = await res.json();
                 renderCategorias();
-                renderItens();
+                renderItens(categoriaAtual);
             } catch (err) {
                 console.error('Erro ao carregar menu:', err);
             }
@@ -364,9 +365,14 @@
             const nav = document.getElementById('category-nav');
             const categorias = [...new Set(menuData.map(i => i.categoria))];
             
-            nav.innerHTML = `<button class="cat-btn active" onclick="filtrarCategoria('TODOS', this)">Todos</button>`;
+            // Verifica se a categoria atual ainda existe, se não, volta para TODOS
+            if (categoriaAtual !== 'TODOS' && !categorias.includes(categoriaAtual)) {
+                categoriaAtual = 'TODOS';
+            }
+
+            nav.innerHTML = `<button class="cat-btn ${categoriaAtual === 'TODOS' ? 'active' : ''}" onclick="filtrarCategoria('TODOS', this)">Todos</button>`;
             categorias.forEach(cat => {
-                nav.innerHTML += `<button class="cat-btn" onclick="filtrarCategoria('${cat}', this)">${cat}</button>`;
+                nav.innerHTML += `<button class="cat-btn ${categoriaAtual === cat ? 'active' : ''}" onclick="filtrarCategoria('${cat}', this)">${cat}</button>`;
             });
         }
 
@@ -403,6 +409,8 @@
         }
 
         function filtrarCategoria(cat, btn) {
+            categoriaAtual = cat;
+            sessionStorage.setItem('ge_categoria_atual', cat);
             document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             renderItens(cat);
