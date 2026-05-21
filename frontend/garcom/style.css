@@ -404,9 +404,12 @@ main {
   font-size: 0.95rem;
   padding: 0.6rem 0.6rem 0.2rem 0.6rem;
   color: #2c3e50;
-  white-space: nowrap;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  min-height: 2.8rem;
 }
 
 .item-menu p {
