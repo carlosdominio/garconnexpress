@@ -698,8 +698,7 @@ function abrirCardapio() {
 
   document.getElementById('mesas').classList.add('hidden');
   document.getElementById('pedido').classList.remove('hidden');
-  document.getElementById('btn-header-mesas').style.display = 'block';
-
+  document.getElementById('btn-header-mesas').style.display = 'flex';
   // Esconde o modal do carrinho caso esteja aberto
   const modalCarrinho = document.getElementById('modal-carrinho');
   if (modalCarrinho) modalCarrinho.style.display = 'none';
