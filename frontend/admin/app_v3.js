@@ -2721,23 +2721,23 @@ function renderizarItensEdicao() {
     const urlImagem = infoMenu.imagem || 'https://placehold.co/50';
 
     return `
-    <div class="item-edicao" style="${isEntregue ? 'background: #f0fff4; border-left: 4px solid #27ae60;' : (item.status === 'pronto' ? 'background: #e8f8f5; border-left: 4px solid #2ecc71;' : 'border-left: 4px solid #e67e22;')} padding: 12px; margin-bottom: 10px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #edf2f7; display: flex; flex-direction: column; gap: 10px;">
+    <div class="item-edicao" style="${isEntregue ? 'background: #f0fff4; border-left: 4px solid #27ae60;' : (item.status === 'pronto' ? 'background: #e8f8f5; border-left: 4px solid #2ecc71;' : 'border-left: 4px solid #e67e22;')} padding: 8px 12px; margin-bottom: 8px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #edf2f7; display: flex; flex-direction: column; gap: 6px;">
 
       <!-- LINHA 1: CHECKBOX + IMAGEM + NOME + STATUS -->
       <div style="display: flex; align-items: flex-start; gap: 10px;">
-        <input type="checkbox" ${item.selecionado ? 'checked' : ''} onchange="alternarSelecaoItemEdicao(${index})" style="width: 22px; height: 22px; cursor: pointer; flex-shrink: 0; margin-top: 2px;">
+        <input type="checkbox" ${item.selecionado ? 'checked' : ''} onchange="alternarSelecaoItemEdicao(${index})" style="width: 20px; height: 20px; cursor: pointer; flex-shrink: 0; margin-top: 2px;">
 
         <!-- ÍCONE DA IMAGEM -->
-        <img src="${urlImagem}" alt="${item.nome}" style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover; border: 1px solid #eee; flex-shrink: 0;">
+        <img src="${urlImagem}" alt="${item.nome}" style="width: 45px; height: 45px; border-radius: 8px; object-fit: cover; border: 1px solid #eee; flex-shrink: 0;">
 
         <div style="flex: 1; min-width: 0;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 5px;">
-            <div style="font-size: 1rem; color: #1e293b; font-weight: 800; line-height: 1.3; margin-bottom: 2px;">${item.nome}</div>
+            <div style="font-size: 0.95rem; color: #1e293b; font-weight: 800; line-height: 1.2; margin-bottom: 2px;">${item.nome}</div>
             <!-- BOTÃO REMOVER -->
             <button onclick="removerItemEdicao(${index})" 
-                    style="background: #fef2f2; color: #ef4444; border: none; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.8rem;">✕</button>
+                    style="background: #fef2f2; color: #ef4444; border: none; width: 24px; height: 24px; border-radius: 6px; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.75rem;">✕</button>
           </div>
-          <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 900; text-transform: uppercase; background: ${isEntregue ? '#dcfce7' : (item.status === 'pronto' ? '#e8f8f5' : '#fef3c7')}; color: ${isEntregue ? '#166534' : (item.status === 'pronto' ? '#27ae60' : '#92400e')};">
+          <span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 900; text-transform: uppercase; background: ${isEntregue ? '#dcfce7' : (item.status === 'pronto' ? '#e8f8f5' : '#fef3c7')}; color: ${isEntregue ? '#166534' : (item.status === 'pronto' ? '#27ae60' : '#92400e')};">
             ${isEntregue ? '✅ Entregue' : (item.status === 'pronto' ? '🔥 Pronto' : '⏳ Pendente')}
           </span>
         </div>
@@ -2748,28 +2748,28 @@ function renderizarItensEdicao() {
                placeholder="📝 Observação..." 
                value="${item.observacao || ''}" 
                oninput="itensEmEdicao[${index}].observacao = this.value"
-               style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid #edf2f7; font-size: 0.85rem; background: #f8fafc;">
+               style="width: 100%; padding: 6px 10px; border-radius: 8px; border: 1px solid #edf2f7; font-size: 0.8rem; background: #f8fafc;">
       </div>
 
       <!-- LINHA 2: CONTROLES + PREÇO TOTAL -->
-      <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 8px; border-top: 1px solid #f1f5f9;">
-        <div style="display: flex; align-items: center; gap: 12px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 6px; border-top: 1px solid #f1f5f9;">
+        <div style="display: flex; align-items: center; gap: 10px;">
           <!-- SELETOR DE QTD -->
-          <div style="display: flex; align-items: center; border: 2px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: #fff; height: 38px;">
+          <div style="display: flex; align-items: center; border: 2px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: #fff; height: 32px;">
             <button onclick="mudarQtdItem(${index}, ${item.quantidade - 1})" 
-                    style="width: 38px; height: 100%; border: none; background: #fff; color: #ef4444; font-size: 1.4rem; font-weight: bold; cursor: pointer; border-right: 2px solid #e2e8f0;">-</button>
+                    style="width: 32px; height: 100%; border: none; background: #fff; color: #ef4444; font-size: 1.2rem; font-weight: bold; cursor: pointer; border-right: 2px solid #e2e8f0;">-</button>
             
-            <span style="min-width: 40px; text-align: center; font-weight: 900; font-size: 1.1rem; color: #0f172a;">${item.quantidade}</span>
+            <span style="min-width: 30px; text-align: center; font-weight: 900; font-size: 1rem; color: #0f172a;">${item.quantidade}</span>
             
             <button onclick="mudarQtdItem(${index}, ${item.quantidade + 1})" 
-                    style="width: 38px; height: 100%; border: none; background: #fff; color: #22c55e; font-size: 1.4rem; font-weight: bold; cursor: pointer; border-left: 2px solid #e2e8f0;">+</button>
+                    style="width: 32px; height: 100%; border: none; background: #fff; color: #22c55e; font-size: 1.2rem; font-weight: bold; cursor: pointer; border-left: 2px solid #e2e8f0;">+</button>
           </div>
         </div>
 
         <!-- PREÇO TOTAL DO ITEM -->
         <div style="text-align: right;">
-          <small style="display: block; font-size: 0.7rem; color: #64748b; font-weight: bold; margin-bottom: -2px;">TOTAL ITEM</small>
-          <strong style="color: #166534; font-size: 1.2rem; font-weight: 900;">R$ ${(item.preco * item.quantidade).toFixed(2)}</strong>
+          <small style="display: block; font-size: 0.65rem; color: #64748b; font-weight: bold; margin-bottom: -3px;">TOTAL ITEM</small>
+          <strong style="color: #166534; font-size: 1.1rem; font-weight: 900;">R$ ${(item.preco * item.quantidade).toFixed(2)}</strong>
         </div>
       </div>
 
