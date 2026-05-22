@@ -358,7 +358,7 @@ async function mudarQtdItem(index, qtd) {
         itemNoPedido.quantidade = novaQtd;
     }
     renderizarItensEdicao(); 
-    renderizarMenuEdicao(); // Re-renderiza cardápio para atualizar estoque disponível
+    renderizarMenuEdicao(categoriaEdicaoAtual); // Re-renderiza cardápio para atualizar estoque disponível
   }
 }
 
@@ -367,7 +367,7 @@ async function removerItemEdicao(index) {
   
   itensEmEdicao.splice(index, 1); 
   renderizarItensEdicao(); 
-  renderizarMenuEdicao(); // Re-renderiza cardápio para atualizar estoque disponível
+  renderizarMenuEdicao(categoriaEdicaoAtual); // Re-renderiza cardápio para atualizar estoque disponível
 }
 
 function calcularMinutos(dataIso) {
@@ -2693,9 +2693,10 @@ async function irParaEdicaoDestePedido() {
 function abrirModalEdicao(pedido, itens) {
   pedidoEmEdicao = pedido;
   itensEmEdicao = itens.map(i => ({ ...i, selecionado: false }));
+  categoriaEdicaoAtual = 'todas';
   document.getElementById('modal-titulo').innerText = `Editar Pedido: ${pedido.mesa_numero ? 'Mesa ' + pedido.mesa_numero : 'Balcão'}`;
   renderizarItensEdicao();
-  renderizarMenuEdicao();
+  renderizarMenuEdicao(categoriaEdicaoAtual);
   document.getElementById('modal-edicao').style.display = 'flex';
   
   // TRAVA DE SCROLL: Congela o fundo
@@ -2800,6 +2801,7 @@ function removerItensSelecionados() {
 }
 
 async function renderizarMenuEdicao(categoria = 'todas') {
+  categoriaEdicaoAtual = categoria;
   const container = document.getElementById('edit-menu-grid');
   const catContainer = document.getElementById('edit-menu-categorias');
   if (!container || !catContainer) return;
@@ -2817,7 +2819,7 @@ async function renderizarMenuEdicao(categoria = 'todas') {
   
   catContainer.innerHTML = categorias.map(cat => {
     const nomeExibicao = cat === 'todas' ? 'Todos' : cat.charAt(0).toUpperCase() + cat.slice(1);
-    const isAtiva = cat === categoria.trim().toLowerCase();
+    const isAtiva = cat.trim().toLowerCase() === categoriaEdicaoAtual.trim().toLowerCase();
     return `
       <div class="cat-mini ${isAtiva ? 'ativa' : ''}" 
            onclick="renderizarMenuEdicao('${cat}')">
@@ -2826,7 +2828,7 @@ async function renderizarMenuEdicao(categoria = 'todas') {
     `;
   }).join('');
 
-  const itens = categoria === 'todas' ? cardapio : cardapio.filter(i => i.categoria.trim().toLowerCase() === categoria.trim().toLowerCase());
+  const itens = categoriaEdicaoAtual === 'todas' ? cardapio : cardapio.filter(i => i.categoria.trim().toLowerCase() === categoriaEdicaoAtual.trim().toLowerCase());
   container.innerHTML = itens.map(item => {
     let estoqueNum = -1;
     if (item.estoque !== null && item.estoque !== undefined && item.estoque !== '') {
@@ -2843,7 +2845,7 @@ async function renderizarMenuEdicao(categoria = 'todas') {
     const temEstoqueDefinido = estoqueNum !== -1;
     
     return `
-    <div class="item-menu-mini" onclick="adicionarItemNaEdicao(${item.id})" style="position: relative; display: flex; flex-direction: column; opacity: ${estoqueDisponivel === 0 ? '0.6' : '1'}; min-height: 160px !important; height: auto !important; background: white; border-radius: 12px; overflow: hidden; border: 1px solid #eee; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+    <div class="item-menu-mini" onclick="adicionarItemNaEdicao(${item.id})" style="position: relative; display: flex; flex-direction: column; opacity: ${estoqueDisponivel === 0 ? '0.6' : '1'}; min-height: 125px !important; height: auto !important; background: white; border-radius: 12px; overflow: hidden; border: 1px solid #eee; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
       <!-- Container de Info (TOPO DIREITO) -->
       <div style="position: absolute; top: 6px; right: 6px; z-index: 10; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
         <!-- Preço -->
@@ -2856,8 +2858,8 @@ async function renderizarMenuEdicao(categoria = 'todas') {
       </div>
 
       <img src="${item.imagem}" alt="${item.nome}" style="filter: ${estoqueDisponivel === 0 ? 'grayscale(1)' : 'none'}; height: 80px !important; width: 100%; object-fit: cover; display: block; border-bottom: 1px solid #f0f0f0;">
-      <div style="padding: 8px !important; display: flex; flex-direction: column; flex-grow: 1; justify-content: flex-start; gap: 4px;">
-        <h4 style="margin: 0 !important; font-size: 1.0rem !important; color: #2c3e50 !important; line-height: 1.1 !important; font-weight: 700 !important; min-height: 1.8rem !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: left;">${item.nome}</h4>
+      <div style="padding: 4px 8px !important; display: flex; flex-direction: column; flex-grow: 1; justify-content: flex-start;">
+        <h4 style="margin: 0 !important; font-size: 0.85rem !important; color: #2c3e50 !important; line-height: 1.1 !important; font-weight: 700 !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: left;">${item.nome}</h4>
       </div>
     </div>
   `}).join('');
@@ -2888,6 +2890,7 @@ async function adicionarItemNaEdicao(itemId) {
         };
       });
       renderizarItensEdicao();
+      renderizarMenuEdicao(categoriaEdicaoAtual);
       mostrarToast("🔄 Itens substituídos com sucesso!");
       return;
     }
@@ -2913,7 +2916,7 @@ async function adicionarItemNaEdicao(itemId) {
     });
   }
   renderizarItensEdicao();
-  renderizarMenuEdicao(); // ATUALIZAÇÃO EM TEMPO REAL DO ESTOQUE NO CARDÁPIO
+  renderizarMenuEdicao(categoriaEdicaoAtual); // ATUALIZAÇÃO EM TEMPO REAL DO ESTOQUE NO CARDÁPIO
 }
 
 async function salvarAlteracoes() {
