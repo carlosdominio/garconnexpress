@@ -386,11 +386,39 @@
         </div>
     </div>
 
+    <!-- Modal Meus Pedidos -->
+    <div class="modal-cart" id="modal-pedidos">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Meus Pedidos</h2>
+                <i class="fas fa-times close-modal" onclick="togglePedidosModal(false)"></i>
+            </div>
+            
+            <div id="pedidos-lista" style="margin-bottom: 20px;">
+                <!-- Lista de itens pedidos -->
+            </div>
+
+            <div class="cart-footer" id="pedidos-footer">
+                <div class="cart-total">
+                    <span>Total Consumido</span>
+                    <span id="pedidos-total">R$ 0,00</span>
+                </div>
+                <button class="btn-send" style="background: #27ae60;" onclick="carregarMeusPedidos()">
+                    <i class="fas fa-sync"></i> ATUALIZAR STATUS
+                </button>
+                <p style="text-align: center; font-size: 0.75rem; color: var(--text-light); margin-top: 15px;">
+                    Os valores acima refletem o que já foi confirmado e lançado pelo garçom.
+                </p>
+            </div>
+        </div>
+    </div>
+
     <script>
         let fullMenu = [];
         let cart = [];
         let sessionMesa = JSON.parse(localStorage.getItem('sessionMesa'));
         let pusher;
+        let currentCategory = null;
 
         document.addEventListener('DOMContentLoaded', () => {
             if (!sessionMesa) {
@@ -489,23 +517,25 @@
             const container = document.getElementById('categories-container');
             const cats = [...new Set(fullMenu.map(i => i.categoria))];
             
-            container.innerHTML = `
-                <div class="category-pill active" onclick="filterCategory('Tudo', this)">Tudo</div>
-                ${cats.map(c => `<div class="category-pill" onclick="filterCategory('${c}', this)">${c}</div>`).join('')}
-            `;
+            const allCats = ['Tudo', ...cats];
+            container.innerHTML = allCats.map(cat => {
+                const label = cat === 'Tudo' ? 'Tudo' : cat;
+                const isActive = (currentCategory === null && cat === 'Tudo') || (currentCategory === cat);
+                return `<div class="category-pill ${isActive ? 'active' : ''}" onclick="filterCategory('${cat}')">${label}</div>`;
+            }).join('');
         }
 
-        function filterCategory(cat, el) {
-            document.querySelectorAll('.category-pill').forEach(p => p.classList.remove('active'));
-            el.classList.add('active');
-            renderMenu(cat === 'Tudo' ? null : cat);
+        function filterCategory(cat) {
+            currentCategory = cat === 'Tudo' ? null : cat;
+            renderCategories();
+            renderMenu();
         }
 
-        function renderMenu(filterCat = null) {
+        function renderMenu() {
             const container = document.getElementById('menu-container');
             container.innerHTML = '';
 
-            const menuToShow = filterCat ? fullMenu.filter(i => i.categoria === filterCat) : fullMenu;
+            const menuToShow = currentCategory ? fullMenu.filter(i => i.categoria === currentCategory) : fullMenu;
             const groups = menuToShow.reduce((acc, item) => {
                 if (!acc[item.categoria]) acc[item.categoria] = [];
                 acc[item.categoria].push(item);
@@ -646,7 +676,7 @@
                     cart = [];
                     updateCartBar();
                     toggleCartModal(false);
-                    renderMenu();
+                    renderMenu(currentCategory);
                 } else {
                     throw new Error();
                 }
@@ -690,8 +720,75 @@
             }
         }
 
-        function verMeusPedidos() {
-            Swal.fire('Em Breve', 'Histórico de pedidos em desenvolvimento.', 'info');
+        async function verMeusPedidos() {
+            togglePedidosModal(true);
+        }
+
+        function togglePedidosModal(show) {
+            const modal = document.getElementById('modal-pedidos');
+            modal.style.display = show ? 'flex' : 'none';
+            if (show) carregarMeusPedidos();
+        }
+
+        async function carregarMeusPedidos() {
+            const container = document.getElementById('pedidos-lista');
+            const totalSpan = document.getElementById('pedidos-total');
+            
+            container.innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner" style="width:30px;height:30px;margin:0 auto;"></div><p>Buscando seus pedidos...</p></div>';
+
+            try {
+                const res = await fetch('/api/cliente/meus-pedidos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: sessionMesa.token })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    if (!data.pedido || data.itens.length === 0) {
+                        container.innerHTML = '<div class="empty-state"><i class="fas fa-receipt"></i><p>Você ainda não tem pedidos confirmados nesta mesa.</p></div>';
+                        totalSpan.innerText = 'R$ 0,00';
+                        return;
+                    }
+
+                    container.innerHTML = data.itens.map(item => {
+                        let statusColor = '#f39c12'; // Preparando (pendente)
+                        let statusText = 'Preparando';
+
+                        if (item.status === 'pronto') { 
+                            statusColor = '#27ae60'; 
+                            statusText = 'Pronto!'; 
+                        } else if (item.status === 'servido' || item.status === 'entregue') { 
+                            statusColor = '#2980b9'; 
+                            statusText = 'Entregue'; 
+                        } else if (item.status === 'cancelado') {
+                            statusColor = '#e74c3c';
+                            statusText = 'Cancelado';
+                        }
+
+                        const precoUnitario = item.preco || item.menu_preco || 0;
+
+                        return `
+                            <div class="cart-item">
+                                <div class="cart-item-info">
+                                    <h4 style="display:flex; align-items:center; gap:8px;">
+                                        ${item.quantidade}x ${item.menu_nome}
+                                        <span style="font-size:0.65rem; padding:2px 6px; border-radius:10px; background:${statusColor}; color:white; font-weight:bold;">${statusText.toUpperCase()}</span>
+                                    </h4>
+                                    <p>R$ ${(item.quantidade * precoUnitario).toFixed(2)}</p>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                    totalSpan.innerText = `R$ ${data.pedido.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (err) {
+                container.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Erro ao carregar pedidos: ${err.message}</p></div>`;
+            }
         }
 
         function showLoading(show) {

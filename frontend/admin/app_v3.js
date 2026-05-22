@@ -69,6 +69,33 @@ let ultimoAlertaValidadeMostrado = 0; // Debounce para o alerta de produtos venc
 let subAbaAtiva = 'garcom';
 let adminLogado = null;
 let configCozinhaCategorias = []; // Estado global das categorias da cozinha
+let configCozinhaLoaded = false; // Flag para saber se já carregou do servidor
+
+// Helper para verificar se um item deve ir para a cozinha (Sincronizado com Backend)
+function isItemParaCozinha(item) {
+    if (!item) return false;
+    const envCozinha = item.enviar_cozinha;
+    const cat = (item.categoria || '').trim().toUpperCase();
+    
+    // 1. Override Manual: Se for explicitamente 0/false, NÃO VAI.
+    if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') {
+        return false;
+    }
+    
+    // 2. Override Manual: Se for explicitamente 1/true, VAI.
+    if (envCozinha === 1 || envCozinha === true || envCozinha === '1' || envCozinha === 'true') {
+        return true;
+    }
+    
+    // 3. Se for NULL (Default), segue a regra das categorias
+    // Se a config já foi carregada, seguimos a lista rigorosamente.
+    if (configCozinhaLoaded) {
+        return configCozinhaCategorias.includes(cat);
+    }
+    
+    // 4. Fallback de segurança antes de carregar a config: Assume Sim
+    return true;
+}
 
 // Busca as categorias configuradas para a cozinha e salva no estado global
 async function carregarConfigCategoriasCozinha() {
@@ -77,6 +104,7 @@ async function carregarConfigCategoriasCozinha() {
     if (resConfig.ok) {
       const configuradas = await resConfig.json();
       configCozinhaCategorias = (configuradas || []).map(c => String(c).trim().toUpperCase());
+      configCozinhaLoaded = true; // SINALIZA QUE A CONFIG FOI CARREGADA
     }
   } catch (e) {
     console.error('Erro ao buscar config de cozinha:', e);
@@ -1279,7 +1307,9 @@ async function abrirModalItemMenu(item = null) {
     if (document.getElementById('menu-estoque')) document.getElementById('menu-estoque').value = item.estoque;
     if (document.getElementById('menu-validade')) document.getElementById('menu-validade').value = item.validade || '';
     if (document.getElementById('menu-img')) document.getElementById('menu-img').value = item.imagem;
-    if (document.getElementById('menu-enviar-cozinha')) document.getElementById('menu-enviar-cozinha').checked = (item.enviar_cozinha === true || item.enviar_cozinha === 1 || item.enviar_cozinha === null);
+    if (document.getElementById('menu-enviar-cozinha')) {
+        document.getElementById('menu-enviar-cozinha').checked = isItemParaCozinha(item);
+    }
     if (document.getElementById('menu-visivel')) document.getElementById('menu-visivel').checked = (item.visivel === true || item.visivel === 1 || item.visivel === null || item.visivel === undefined);
     if (document.getElementById('menu-promocao')) document.getElementById('menu-promocao').checked = (item.em_promocao === true || item.em_promocao === 1);
 
@@ -1448,11 +1478,11 @@ async function exibirMenuConfig() {
               }
             }
 
-            const hasStatus = m.em_promocao || m.enviar_cozinha || (m.visivel === false || m.visivel === 0);
+            const hasStatus = m.em_promocao || isItemParaCozinha(m) || (m.visivel === false || m.visivel === 0);
             const statusHeader = hasStatus ? `
               <div style="display: flex; width: 100%; height: 22px;">
                 ${m.em_promocao ? '<div style="flex: 1; background: #f1c40f; color: #2c3e50; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🔥 PROMOÇÃO</div>' : ''}
-                ${m.enviar_cozinha ? '<div style="flex: 1; background: #3498db; color: white; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">👨‍🍳 COZINHA</div>' : ''}
+                ${isItemParaCozinha(m) ? '<div style="flex: 1; background: #3498db; color: white; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">👨‍🍳 COZINHA</div>' : ''}
                 ${(m.visivel === false || m.visivel === 0) ? '<div style="flex: 1; background: #e74c3c; color: white; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🚫 OCULTO</div>' : ''}
               </div>` : '';
 
@@ -2535,7 +2565,7 @@ async function marcarPedidoEntregue(id) {
     const resItens = await fetch(`/api/pedidos/${id}/itens`);
     const itens = await resItens.json();
     
-    const emPreparo = itens.filter(i => i.status === 'pendente' && i.enviar_cozinha);
+    const emPreparo = itens.filter(i => i.status === 'pendente' && isItemParaCozinha(i));
     
     if (emPreparo.length > 0) {
       const confirm = await mostrarConfirmacao(

@@ -325,7 +325,7 @@ async function initDb() {
     await addCol('pedidos', 'valor_por_pessoa', 'REAL');
     await addCol('menu', 'estoque', 'INTEGER DEFAULT -1');
     await addCol('menu', 'validade', 'DATE');
-    await addCol('menu', 'enviar_cozinha', 'BOOLEAN DEFAULT TRUE');
+    await addCol('menu', 'enviar_cozinha', 'BOOLEAN DEFAULT NULL');
     await addCol('menu', 'visivel', 'BOOLEAN DEFAULT TRUE');
     await addCol('menu', 'em_promocao', 'BOOLEAN DEFAULT FALSE');
     await addCol('menu', 'preco_original', 'REAL');
@@ -471,6 +471,36 @@ app.post('/api/logout', (req, res) => {
   res.json({ success: true });
 });
 
+// Helper para verificar se uma lista de IDs de menu contém itens para a cozinha (JS)
+async function checkTemItemCozinha(itensIds) {
+  const configK = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
+  const catsCozinha = configK.rows[0]?.valor ? JSON.parse(configK.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
+  
+  for (const menuId of itensIds) {
+    const m = (await query("SELECT enviar_cozinha, categoria FROM menu WHERE id = ?", [menuId])).rows[0];
+    if (m) {
+      const envCozinha = m.enviar_cozinha;
+      const categoria = (m.categoria || '').trim().toUpperCase();
+      
+      // Lógica consistente com getFilterCozinha (Prioridade):
+      // 1. Override manual (0 ou 1) ganha sempre.
+      // 2. Se nulo ou não definido, segue a categoria.
+      let vaiCozinha = false;
+      if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') {
+        vaiCozinha = false;
+      } else if (envCozinha === 1 || envCozinha === true || envCozinha === '1' || envCozinha === 'true') {
+        vaiCozinha = true;
+      } else if (catsCozinha.length > 0) {
+        vaiCozinha = catsCozinha.includes(categoria);
+      } else {
+        vaiCozinha = true; // Default
+      }
+      if (vaiCozinha) return true;
+    }
+  }
+  return false;
+}
+
 app.put('/api/pedidos/:id/cozinha-pronto', async (req, res) => {
   const { id } = req.params;
   try {
@@ -500,17 +530,48 @@ app.put('/api/pedidos/:id/cozinha-pronto', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// Helper para gerar a cláusula WHERE de itens da cozinha de forma consistente
+async function getFilterCozinha() {
+  const config = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
+  const categoriasCozinha = config.rows[0]?.valor ? JSON.parse(config.rows[0].valor) : [];
+  
+  const sqlTrue = isPostgres ? 'TRUE' : '1';
+  const sqlFalse = isPostgres ? 'FALSE' : '0';
+
+  // Lógica de Prioridade (Três Estados):
+  // 1. Override manual (0 ou 1) ganha sempre.
+  // 2. Se nulo (NULL), segue a categoria.
+  
+  if (categoriasCozinha.length > 0) {
+    const catList = categoriasCozinha.map(c => `'${c.trim().toUpperCase().replace(/'/g, "''")}'`).join(',');
+    return `(
+      CASE 
+        WHEN m.enviar_cozinha = ${sqlFalse} THEN 0
+        WHEN m.enviar_cozinha = ${sqlTrue} THEN 1
+        WHEN UPPER(TRIM(m.categoria)) IN (${catList}) THEN 1
+        ELSE 0 
+      END = 1
+    )`;
+  } else {
+    // Se NENHUMA categoria estiver selecionada, apenas o que for explicitamente 1 vai para a cozinha.
+    // O que for NULL não vai (pois não tem categoria habilitada).
+    return `m.enviar_cozinha = ${sqlTrue}`;
+  }
+}
+
 app.put('/api/pedidos/:id/marcar-entregue', async (req, res) => {
   const { id } = req.params;
   const { apenasProntos } = req.body;
   try {
     if (apenasProntos) {
+      const filterCozinha = await getFilterCozinha();
       // Marca como entregue apenas os itens que já estão PRONTOS ou que NÃO vão para a cozinha (bebidas etc)
+      // Note que invertemos a lógica do filtro para pegar o que NÃO é cozinha
       await query(`
         UPDATE pedido_itens 
         SET status = 'entregue' 
         WHERE pedido_id = ? 
-        AND (status = 'pronto' OR (status = 'pendente' AND menu_id IN (SELECT id FROM menu WHERE enviar_cozinha = ${isPostgres ? 'FALSE' : '0'})))
+        AND (status = 'pronto' OR (status = 'pendente' AND menu_id IN (SELECT id FROM menu m WHERE NOT (${filterCozinha}))))
       `, [id]);
     } else {
       await query("UPDATE pedido_itens SET status = 'entregue' WHERE pedido_id = ?", [id]);
@@ -682,23 +743,15 @@ app.get('/api/pedidos', ensureDbInitialized, async (req, res) => {
 });
 
 app.get('/api/pedidos/cozinha', ensureDbInitialized, async (req, res) => {
-  res.setHeader('X-Debug-Version', '1.0.2');
+  res.setHeader('X-Debug-Version', '1.0.3');
   try {
-    // Busca as categorias configuradas para a cozinha
-    const config = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
-    const categoriasCozinha = config.rows[0]?.valor ? JSON.parse(config.rows[0].valor) : [];
-
+    const filterCozinha = await getFilterCozinha();
+    
     // Lógica super restrita: SÓ mostra o que for recebido ou aguardando fechamento
     // Isso exclui automaticamente cancelados, entregues, prontos, etc.
     let whereClause = `LOWER(pi.status) = 'pendente' AND LOWER(p.status) IN ('recebido', 'aguardando_fechamento', 'pronto')`;
 
-    // Filtro por configuração de envio para cozinha ou por categoria
-    let filterCozinha = `(m.enviar_cozinha = ${isPostgres ? 'TRUE' : '1'} OR m.enviar_cozinha IS NULL)`;
-    
-    if (categoriasCozinha.length > 0) {
-      const catList = categoriasCozinha.map(c => `'${c.replace(/'/g, "''")}'`).join(',');
-      filterCozinha = `(${filterCozinha} OR m.categoria IN (${catList}))`;
-    }
+    console.log(`🔍 [Cozinha] Filtro SQL: ${filterCozinha}`);
 
     const result = await query(`
       SELECT 
@@ -941,13 +994,31 @@ app.post('/api/pedidos', async (req, res) => {
     }
     const msgWpp = `🚀 *NOVO PEDIDO #${pedidoId}*\n📍 Mesa: ${mesaNum}\n📝 Itens:\n${itensNomes.join('\n')}\n💰 Total: R$ ${total.toFixed(2)}`;
 
-    // Verifica se o pedido tem itens para a cozinha
+    // Verifica se o pedido tem itens para a cozinha (respeitando as categorias configuradas)
+    const configK = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
+    const catsCozinha = configK.rows[0]?.valor ? JSON.parse(configK.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
+    
     let temItemCozinha = false;
     for (const item of itens) {
-      const m = (await query("SELECT enviar_cozinha FROM menu WHERE id = ?", [item.menu_id])).rows[0];
-      if (m && (m.enviar_cozinha === true || m.enviar_cozinha === 1 || m.enviar_cozinha === 'true')) {
-        temItemCozinha = true;
-        break;
+      const m = (await query("SELECT enviar_cozinha, categoria FROM menu WHERE id = ?", [item.menu_id])).rows[0];
+      if (m) {
+        const envCozinha = m.enviar_cozinha;
+        const categoria = (m.categoria || '').trim().toUpperCase();
+        
+        // Lógica consistente com getFilterCozinha:
+        let vaiCozinha = false;
+        if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') {
+          vaiCozinha = false; // Manualmente fora
+        } else if (catsCozinha.length > 0) {
+          vaiCozinha = catsCozinha.includes(categoria); // Segue filtro de categorias
+        } else {
+          vaiCozinha = (envCozinha === 1 || envCozinha === true || envCozinha === '1' || envCozinha === 'true');
+        }
+
+        if (vaiCozinha) {
+          temItemCozinha = true;
+          break;
+        }
       }
     }
 
@@ -1013,10 +1084,16 @@ app.put('/api/pedidos/:id/atualizar-itens', async (req, res) => {
       const resMesa = await query("SELECT m.numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id]);
       const mesaNum = resMesa.rows[0] ? resMesa.rows[0].numero : 'BALCÃO';
       
+      // Verifica se há itens para a cozinha
+      const temItemCozinha = await checkTemItemCozinha(itens.map(i => i.menu_id));
+      
       // Notifica em paralelo
       await Promise.all([
         notifyStatus(id, null, 'itens_atualizados'),
-        safePusherTrigger('garconnexpress', 'novo-pedido', { pedido: { id: id, mesa_numero: mesaNum, status: 'recebido' } })
+        safePusherTrigger('garconnexpress', 'novo-pedido', { 
+          para_cozinha: temItemCozinha,
+          pedido: { id: id, mesa_numero: mesaNum, status: 'recebido' } 
+        })
       ]);
     } else {
       await query("UPDATE pedidos SET total = ?, status = ?, observacao = ? WHERE id = ?", [total, novoStatusPedido, observacao || '', id]);
@@ -1061,10 +1138,16 @@ app.put('/api/pedidos/:id/adicionar', async (req, res) => {
     // Notifica a cozinha que há novos itens para preparar (com som)
     const mesaNum = pMesa ? pMesa.numero || 'BALCÃO' : 'BALCÃO';
     
+    // Verifica se os NOVOS itens vão para a cozinha
+    const temItemCozinha = await checkTemItemCozinha(itens.map(i => i.menu_id));
+
     // Notifica em paralelo
     await Promise.all([
       notifyStatus(id, null, 'itens_adicionados'),
-      safePusherTrigger('garconnexpress', 'novo-pedido', { pedido: { id: id, mesa_numero: mesaNum, status: 'recebido' } })
+      safePusherTrigger('garconnexpress', 'novo-pedido', { 
+        para_cozinha: temItemCozinha,
+        pedido: { id: id, mesa_numero: mesaNum, status: 'recebido' } 
+      })
     ]);
 
     res.json({ success: true });
@@ -1334,7 +1417,7 @@ app.post('/api/config/ordem-categorias', async (req, res) => {
 app.put('/api/menu/:id', async (req, res) => {
   const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao } = req.body;
   const dataValidade = validade && validade.trim() !== "" ? validade : null;
-  const envCozinha = enviar_cozinha !== undefined ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : (isPostgres ? true : 1);
+  const envCozinha = enviar_cozinha !== undefined ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
   const isVisivel = visivel !== undefined ? (isPostgres ? visivel : (visivel ? 1 : 0)) : (isPostgres ? true : 1);
   const emPromocao = em_promocao !== undefined ? (isPostgres ? em_promocao : (em_promocao ? 1 : 0)) : (isPostgres ? false : 0);
   try {
@@ -1348,7 +1431,7 @@ app.put('/api/menu/:id', async (req, res) => {
 
 app.post('/api/menu', async (req, res) => {
   const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao } = req.body;
-  const envCozinha = enviar_cozinha !== undefined ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : (isPostgres ? true : 1);
+  const envCozinha = enviar_cozinha !== undefined ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
   const isVisivel = visivel !== undefined ? (isPostgres ? visivel : (visivel ? 1 : 0)) : (isPostgres ? true : 1);
   const emPromocao = em_promocao !== undefined ? (isPostgres ? em_promocao : (em_promocao ? 1 : 0)) : (isPostgres ? false : 0);
   try { 
@@ -1496,6 +1579,59 @@ app.get('/api/mesas', ensureDbInitialized, async (req, res) => {
     `)).rows); 
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
+// Cliente busca seus próprios pedidos ativos
+app.post('/api/cliente/meus-pedidos', async (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: 'Token é obrigatório.' });
+
+  try {
+    // 1. Valida o JWT token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (e) {
+      return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
+    }
+
+    if (decoded.role !== 'cliente') {
+      return res.status(403).json({ error: 'Acesso negado.' });
+    }
+
+    const mesaId = decoded.mesa_id;
+    const acessoId = decoded.acesso_id;
+
+    // 2. Verifica se o código de acesso ainda é válido (ativo)
+    const acesso = (await query("SELECT id FROM codigos_acesso WHERE id = ? AND status = 'ativo'", [acessoId])).rows[0];
+    if (!acesso) return res.status(401).json({ error: 'Sessão encerrada pelo estabelecimento.' });
+
+    // 3. Busca o pedido ativo da mesa
+    const pedido = (await query("SELECT id, total, status, cobrar_taxa, desconto, acrescimo FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado') ORDER BY id DESC LIMIT 1", [mesaId])).rows[0];
+    
+    if (!pedido) {
+      return res.json({ success: true, pedido: null, itens: [] });
+    }
+
+    // 4. Busca os itens desse pedido (Pegando o preço do menu caso não tenha no item)
+    const itens = (await query(`
+      SELECT pi.*, m.nome as menu_nome, m.imagem as menu_imagem, m.preco as menu_preco
+      FROM pedido_itens pi
+      JOIN menu m ON pi.menu_id = m.id
+      WHERE pi.pedido_id = ?
+      ORDER BY pi.id DESC
+    `, [pedido.id])).rows;
+
+    res.json({
+      success: true,
+      pedido,
+      itens
+    });
+
+  } catch (error) {
+    console.error('❌ ERRO EM /api/cliente/meus-pedidos:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/admin/login', async (req, res) => {
   try {
     const { usuario, senha } = req.body;
@@ -1763,28 +1899,16 @@ app.post('/api/config/categorias-cozinha', async (req, res) => {
     const valor = JSON.stringify(categorias);
     if (isPostgres) {
       await query("INSERT INTO sistema_config (chave, valor) VALUES ('categorias_cozinha', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [valor]);
-      // Sincroniza itens: marca como enviar_cozinha=true se a categoria estiver na lista
-      if (categorias && categorias.length > 0) {
-        // Marcamos todos na lista como TRUE
-        const placeholders = categorias.map((_, i) => `$${i + 1}`).join(',');
-        await query(`UPDATE menu SET enviar_cozinha = TRUE WHERE UPPER(TRIM(categoria)) IN (${placeholders})`, categorias.map(c => c.trim().toUpperCase()));
-        // Marcamos todos fora da lista como FALSE
-        await query(`UPDATE menu SET enviar_cozinha = FALSE WHERE UPPER(TRIM(categoria)) NOT IN (${placeholders})`, categorias.map(c => c.trim().toUpperCase()));
-      } else {
-        // Se a lista for vazia, ninguém envia para a cozinha por padrão
-        await query("UPDATE menu SET enviar_cozinha = FALSE");
-      }
     } else {
       await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('categorias_cozinha', ?)", [valor]);
-      // Sincroniza itens no SQLite
-      if (categorias && categorias.length > 0) {
-        const placeholders = categorias.map(() => '?').join(',');
-        await query(`UPDATE menu SET enviar_cozinha = 1 WHERE UPPER(TRIM(categoria)) IN (${placeholders})`, categorias.map(c => c.trim().toUpperCase()));
-        await query(`UPDATE menu SET enviar_cozinha = 0 WHERE UPPER(TRIM(categoria)) NOT IN (${placeholders})`, categorias.map(c => c.trim().toUpperCase()));
-      } else {
-        await query("UPDATE menu SET enviar_cozinha = 0");
-      }
     }
+    
+    // SINCRONIZAÇÃO COMPLETA: 
+    // Define todos os itens como NULL para que passem a seguir a nova regra de categorias global.
+    // Isso garante que o "Salvar" da configuração realmente aplique a mudança em todo o cardápio.
+    // Marcações manuais anteriores serão resetadas para seguir a nova configuração global.
+    await query(`UPDATE menu SET enviar_cozinha = NULL`);
+
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
