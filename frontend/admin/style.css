@@ -975,14 +975,8 @@ button.btn-entregue { background-color: #95a5a6; }
   font-weight: 700 !important;
   margin: 0 !important;
   text-align: left !important;
-  display: -webkit-box !important;
-  -webkit-line-clamp: 2 !important;
-  -webkit-box-orient: vertical !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
   white-space: normal !important;
   line-height: 1.1 !important;
-  min-height: 2.2rem !important; /* Ajustado para acomodar 2 linhas compactas */
 }
 
 .item-menu-mini p {
