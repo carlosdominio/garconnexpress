@@ -862,6 +862,18 @@ app.delete('/api/pedidos/limpar', async (req, res) => {
   } catch (error) { res.status(500).json({ error: "Erro ao limpar: " + error.message }); }
 });
 
+app.get('/api/pedidos/:id', ensureDbInitialized, async (req, res) => {
+  try {
+    const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Pedido não encontrado' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/pedidos/:id/itens', ensureDbInitialized, async (req, res) => { 
   try {
     const result = await query(`SELECT pi.*, m.nome, m.preco, m.enviar_cozinha FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [req.params.id]);
