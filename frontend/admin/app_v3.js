@@ -64,6 +64,7 @@ let historico = [];
 let mesaAtual = null;
 let pedidoEmEdicao = null;
 let itensEmEdicao = [];
+let categoriaEdicaoAtual = 'todas';
 let abaAtiva = 'ativos';
 let ultimoAlertaValidadeMostrado = 0; // Debounce para o alerta de produtos vencidos
 let subAbaAtiva = 'garcom';
