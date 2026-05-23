@@ -3864,6 +3864,24 @@ async function configurarPusher() {
       mostrarAlerta(msg, "🛎️ CHAMADO DE CLIENTE");
     });
 
+    // EVENTO: SOLICITAÇÃO DE FECHAMENTO PELO CLIENTE (💰)
+    channel.bind('solicitacao-fechamento-cliente', (data) => {
+      console.log('📢 Admin: Solicitação de fechamento recebida!', data);
+      tocarNotificacao('campainha');
+      iniciarPiscarTitulo();
+
+      const mesaNum = data.mesa_numero || 'X';
+      const msg = data.mensagem || `💰 MESA ${mesaNum} solicitou o fechamento da conta!`;
+      
+      exibirNotificacaoNativa('💰 SOLICITAÇÃO DE CONTA', msg, `fechamento-${data.mesa_id}`);
+      mostrarToast(`💰 CONTA: Mesa ${mesaNum}`, 'sucesso');
+      
+      mostrarAlerta(msg, "💰 FECHAMENTO DE CONTA");
+      
+      clearTimeout(timeoutPusher);
+      timeoutPusher = setTimeout(() => carregarPedidos(), 100);
+    });
+
     // EVENTO: NOVO PEDIDO
     channel.bind('novo-pedido', (data) => {
       console.log('📢 Admin: Novo pedido recebido!', data);

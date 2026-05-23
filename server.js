@@ -1683,19 +1683,26 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
     const acessoId = decoded.acesso_id;
     const pedidoIdSessao = decoded.pedido_id; // ID do pedido vinculado no login
 
-    // 2. Verifica se o código de acesso ainda é válido (ativo)
-    const acesso = (await query("SELECT id FROM codigos_acesso WHERE id = ? AND status = 'ativo'", [acessoId])).rows[0];
-    if (!acesso) return res.status(401).json({ error: 'Sessão encerrada pelo estabelecimento.' });
+    // 2. Verifica se o código de acesso existe.
+    // Buscamos o status e a data de criação para garantir isolamento entre sessões.
+    const acesso = (await query("SELECT id, status, criado_at FROM codigos_acesso WHERE id = ?", [acessoId])).rows[0];
+    if (!acesso) return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
 
     // 3. Busca o pedido vinculado à SESSÃO do cliente
-    // Se não tiver pedido_id no token (mesa nova), tenta buscar o ativo atual
+    // Se não tiver pedido_id no token (mesa nova), tenta buscar o pedido desta sessão
     let pedido;
     if (pedidoIdSessao) {
       pedido = (await query("SELECT id, total, status, cobrar_taxa, desconto, acrescimo, solicitou_fechamento, fechamento_liberado FROM pedidos WHERE id = ?", [pedidoIdSessao])).rows[0];
     } else {
-      pedido = (await query("SELECT id, total, status, cobrar_taxa, desconto, acrescimo, solicitou_fechamento, fechamento_liberado FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado') ORDER BY id DESC LIMIT 1", [mesaId])).rows[0];
-    }
-    
+      // Isolamento: Só buscamos pedidos criados APÓS a geração deste código de acesso
+      // Usamos DATETIME() para garantir que a comparação funcione mesmo com formatos diferentes (ISO vs SQLite default)
+      if (acesso.status === 'ativo') {
+        pedido = (await query("SELECT id, total, status, cobrar_taxa, desconto, acrescimo, solicitou_fechamento, fechamento_liberado FROM pedidos WHERE mesa_id = ? AND DATETIME(created_at) >= DATETIME(?) AND status NOT IN ('entregue', 'cancelado') ORDER BY id DESC LIMIT 1", [mesaId, acesso.criado_at])).rows[0];
+      } else {
+        // Se a sessão expirou (mesa fechada), permitimos ver o último pedido daquela sessão para a nota
+        pedido = (await query("SELECT id, total, status, cobrar_taxa, desconto, acrescimo, solicitou_fechamento, fechamento_liberado FROM pedidos WHERE mesa_id = ? AND DATETIME(created_at) >= DATETIME(?) ORDER BY id DESC LIMIT 1", [mesaId, acesso.criado_at])).rows[0];
+      }
+    }    
     if (!pedido) {
       return res.json({ success: true, pedido: null, itens: [] });
     }
