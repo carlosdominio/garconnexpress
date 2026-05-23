@@ -4491,13 +4491,19 @@ async function imprimirRelatorioCaixa() {
     if (resG.ok) garconsLista = await resG.json();
   } catch (err) { console.error(err); }
 
-  const performanceGarcons = {};
-  
-  // No relatório de caixa, o ideal é basear-se no histórico carregado (que deve ser o do dia)
-  // ou buscar do banco. Para manter consistência com o imprimirResumoDiario:
+  // No relatório de caixa, buscamos os dados mais recentes do servidor para garantir precisão total
+  let historicoAtualizado = [];
+  const performanceGarcons = {}; // Declare o objeto aqui para evitar erro de referência
+  try {
+    const resH = await fetch('/api/pedidos/historico-detalhado');
+    if (resH.ok) historicoAtualizado = await resH.json();
+  } catch (err) { 
+    console.error("Erro ao buscar histórico para relatório:", err);
+    historicoAtualizado = historico; // Fallback para o estado local se a rede falhar
+  }
+
   let totalTaxasRelatorio = 0;
-  historico.forEach(p => {
-    if (p.status === 'entregue') {
+  historicoAtualizado.forEach(p => {    if (p.status === 'entregue') {
       const valorTotalPedido = (p.total || 0) + (p.pago_parcial || 0);
       const garcomId = p.garcom_id || 'SISTEMA';
       const garcomNome = p.garcom_nome || p.garcom_id || 'Administrador';
