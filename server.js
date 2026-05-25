@@ -82,9 +82,9 @@ async function sendWhatsAppMessage(text) {
       console.log(`📤 [WhatsApp] Bot CONECTADO. Enviando para: ${uniqueNumbers.join(', ')}`);
 
       uniqueNumbers.forEach(num => {
-        // Envia para o bot tentando dois formatos comuns (com e sem @c.us)
+        // Envia para o bot usando apenas os dígitos (formato que funcionou nos testes)
+        // O bot cuidará do roteamento interno.
         whatsappSocket.emit('send_msg', { number: num, text: text });
-        whatsappSocket.emit('send_msg', { number: `${num}@c.us`, text: text });
       });
     } else {
       console.log('⚠️ [WhatsApp] FALHA NO ENVIO: Bot desconectado ou lista de números vazia.');
@@ -314,7 +314,7 @@ async function initDb() {
     await query("INSERT INTO sistema_config (chave, valor) SELECT 'whatsapp_enabled', 'true' WHERE NOT EXISTS (SELECT 1 FROM sistema_config WHERE chave = 'whatsapp_enabled')");
 
     // LIMPEZA E REGISTRO DO NÚMERO DE WHATSAPP (CONSOLIDADO)
-    const notificationNumbers = '5582993157048'; 
+    const notificationNumbers = '558293157048'; 
     try {
       // Remove a chave antiga (singular) se existir para evitar confusão
       await query("DELETE FROM sistema_config WHERE chave = 'whatsapp_notify_number'");
