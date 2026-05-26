@@ -109,9 +109,9 @@
       <button class="tab-btn" onclick="switchTab('configuracoes')">⚙️ Configurações</button>
     </nav>
 
-    <section id="whatsapp-section" class="hidden">
-      <div class="config-card" style="padding: 1.5rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 2px solid #eee; padding-bottom: 10px;">
+    <section id="whatsapp-section" class="hidden" style="height: calc(100vh - 160px); display: flex; flex-direction: column; overflow: hidden; padding-bottom: 10px;">
+      <div class="config-card" style="flex: 1; display: flex; flex-direction: column; padding: 1rem; overflow: hidden; margin-bottom: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 2px solid #eee; padding-bottom: 10px; flex-shrink: 0;">
           <h3 style="margin:0;">🤖 Automação WhatsApp (Beta)</h3>
           <div style="display: flex; align-items: center; gap: 12px;">
             <div id="whatsapp-info-container" style="background: #f8fafc; padding: 4px 12px; border-radius: 20px; border: 1px solid #e2e8f0; font-size: 0.75rem;">
@@ -129,7 +129,7 @@
           </div>
         </div>
 
-        <div style="height: 450px; border-radius: 12px; overflow: hidden; border: 1px solid #eee; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        <div style="flex: 1; min-height: 0; border-radius: 12px; overflow: hidden; border: 1px solid #eee; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
           <iframe id="whatsapp-iframe" src="https://meu-zap-bot.onrender.com/" style="width: 100%; height: 100%; border: none;"></iframe>
         </div>
       </div>
