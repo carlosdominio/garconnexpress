@@ -1143,6 +1143,7 @@ app.post('/api/pedidos', async (req, res) => {
     // Dispara notificações CRÍTICAS para a UI (Aguardar para garantir envio no Vercel)
     await Promise.all([
       notifyStatus(pedidoId, mesa_id, 'recebido', mesaNum),
+      safePusherTrigger('garconnexpress', 'menu-atualizado', {}),
       safePusherTrigger('garconnexpress', 'novo-pedido', { 
         para_cozinha: temItemCozinha,
         pedido: { id: pedidoId, mesa_id, mesa_numero: mesaNum, status: 'recebido' } 
@@ -1208,6 +1209,7 @@ app.put('/api/pedidos/:id/atualizar-itens', async (req, res) => {
       // Notifica em paralelo
       await Promise.all([
         notifyStatus(id, null, 'itens_atualizados'),
+        safePusherTrigger('garconnexpress', 'menu-atualizado', {}),
         safePusherTrigger('garconnexpress', 'novo-pedido', { 
           para_cozinha: temItemCozinha,
           pedido: { id: id, mesa_numero: mesaNum, status: 'recebido' } 
@@ -1215,7 +1217,10 @@ app.put('/api/pedidos/:id/atualizar-itens', async (req, res) => {
       ]);
     } else {
       await query("UPDATE pedidos SET total = ?, status = ?, observacao = ? WHERE id = ?", [total, novoStatusPedido, observacao || '', id]);
-      await notifyStatus(id, null, 'itens_atualizados');
+      await Promise.all([
+        notifyStatus(id, null, 'itens_atualizados'),
+        safePusherTrigger('garconnexpress', 'menu-atualizado', {})
+      ]);
     }
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
@@ -1262,6 +1267,7 @@ app.put('/api/pedidos/:id/adicionar', async (req, res) => {
     // Notifica em paralelo
     await Promise.all([
       notifyStatus(id, null, 'itens_adicionados'),
+      safePusherTrigger('garconnexpress', 'menu-atualizado', {}),
       safePusherTrigger('garconnexpress', 'novo-pedido', { 
         para_cozinha: temItemCozinha,
         pedido: { id: id, mesa_numero: mesaNum, status: 'recebido' } 
