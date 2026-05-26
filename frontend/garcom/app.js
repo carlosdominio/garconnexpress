@@ -781,25 +781,56 @@ async function marcarComoServido(idPedido) {
     const resItens = await fetch(`/api/pedidos/${idPedido}/itens`);
     const itens = await resItens.json();
 
-    const emPreparo = itens.filter(i => i.status === 'pendente' && isItemParaCozinha(i));
+    const emPreparoCozinha = itens.filter(i => i.status === 'pendente' && isItemParaCozinha(i));
+    const prontosOuForaCozinha = itens.filter(i => i.status === 'pronto' || (i.status === 'pendente' && !isItemParaCozinha(i)));
 
-    if (emPreparo.length > 0) {
-      // MODAL ESPECÍFICO PARA COZINHA (SOLICITADO PELO USUÁRIO) - BLOQUEIO TOTAL
-      const msgHtml = `
-        <div style="text-align: center;">
-          <div style="font-size: 3rem; margin-bottom: 1rem;">👨‍🍳</div>
-          <p style="font-weight: bold; color: #e74c3c; font-size: 1.1rem; margin-bottom: 10px;">COZINHA AINDA EM PREPARO!</p>
-          <p style="color: #2c3e50; margin-bottom: 15px;">Você não pode confirmar a entrega total enquanto existirem <strong>${emPreparo.length} itens</strong> sendo feitos na cozinha.</p>
-          <div style="background: #fff5f5; padding: 10px; border-radius: 8px; border: 1px solid #feb2b2; text-align: left; font-size: 0.9rem;">
-            ${emPreparo.map(i => `• ${i.quantidade}x ${i.nome}`).join('<br>')}
+    if (emPreparoCozinha.length > 0) {
+      // Se houver itens fora da cozinha ou prontos para entregar...
+      if (prontosOuForaCozinha.length > 0) {
+        const confirmParcial = await mostrarConfirmacao(
+          `<div style="text-align: center;">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🚚</div>
+            <p style="font-weight: bold; color: #e67e22;">ENTREGA PARCIAL</p>
+            <p style="font-size: 0.95rem; margin-bottom: 10px;">Existem <strong>${emPreparoCozinha.length} itens</strong> ainda na cozinha. Deseja entregar apenas as bebidas e itens prontos agora?</p>
+            <p style="font-size: 0.8rem; color: #7f8c8d;">O cronômetro continuará rodando para os itens que ficarem.</p>
+          </div>`,
+          "Cozinha em Andamento",
+          "Sim, Entregar Prontos",
+          "Não, Cancelar"
+        );
+
+        if (!confirmParcial) return;
+
+        const res = await fetch(`/api/pedidos/${idPedido}/marcar-entregue`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apenasProntos: true })
+        });
+
+        if (res.ok) {
+          await mostrarAlerta("Itens prontos marcados como entregues! Os demais continuam em preparo.", "Entrega Realizada");
+          verItensDaMesa();
+          carregarMesas();
+        }
+      } else {
+        // Se SÓ houver itens de cozinha em preparo, bloqueio total
+        const msgHtml = `
+          <div style="text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">👨‍🍳</div>
+            <p style="font-weight: bold; color: #e74c3c; font-size: 1.1rem; margin-bottom: 10px;">AGUARDANDO COZINHA!</p>
+            <p style="color: #2c3e50; margin-bottom: 15px;">Todos os itens deste pedido estão sendo feitos na cozinha agora.</p>
+            <div style="background: #fff5f5; padding: 10px; border-radius: 8px; border: 1px solid #feb2b2; text-align: left; font-size: 0.9rem;">
+              ${emPreparoCozinha.map(i => `• ${i.quantidade}x ${i.nome}`).join('<br>')}
+            </div>
+            <p style="font-size: 0.8rem; color: #666; margin-top: 15px;">Você só poderá confirmar a entrega quando a cozinha finalizar ou quando houver bebidas prontas.</p>
           </div>
-          <p style="font-size: 0.8rem; color: #666; margin-top: 15px;">Aguarde a cozinha finalizar para poder entregar.</p>
-        </div>
-      `;
-      return await mostrarAlerta(msgHtml, "Atenção: Cozinha Ativa");
+        `;
+        return await mostrarAlerta(msgHtml, "Cozinha Ativa");
+      }
+      return;
     }
 
-    // Se não tem nada em preparo, confirmação normal
+    // Se não tem nada em preparo na cozinha, confirmação normal de tudo
     if (!await mostrarConfirmacao("Deseja marcar todos os itens como entregues?", "Entregar Pedido")) return;
 
     const res = await fetch(`/api/pedidos/${idPedido}/marcar-entregue`, {
@@ -809,7 +840,6 @@ async function marcarComoServido(idPedido) {
     });
 
     if (res.ok) {
-      const data = await res.json();
       await mostrarAlerta("Sucesso! Todos os itens foram entregues.", "Sucesso");
       document.getElementById('modal-resumo-mesa').style.display = 'none';
       carregarMesas();

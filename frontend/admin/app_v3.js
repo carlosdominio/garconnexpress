@@ -2994,18 +2994,32 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   const itensForaCozinhaPend = itensFechamentoAdmin.filter(i => i.status === 'pendente' && !isItemParaCozinha(i));
 
   if (itensCozinhaEmPreparo.length > 0) {
-    // MODAL ESPECÍFICO PARA COZINHA (BLOQUEIO)
-    const listaHtml = itensCozinhaEmPreparo.map(i => `• ${i.quantidade}x ${i.nome}`).join('<br>');
-    if (!await mostrarConfirmacao(`
-      <div style="text-align: center;">
-        <div style="font-size: 3rem; margin-bottom: 1rem;">👨‍🍳</div>
-        <p style="font-weight: bold; color: #e74c3c; font-size: 1.1rem; margin-bottom: 10px;">PEDIDO EM PREPARO NA COZINHA!</p>
-        <p style="color: #2c3e50; margin-bottom: 15px;">Ainda existem <strong>${itensCozinhaEmPreparo.length} itens</strong> sendo feitos. Deseja prosseguir e fechar a conta mesmo com o pedido incompleto?</p>
-        <div style="background: #fff5f5; padding: 10px; border-radius: 8px; border: 1px solid #feb2b2; text-align: left; font-size: 0.9rem; max-height: 100px; overflow-y: auto;">
+    // MODAL ESPECÍFICO PARA COZINHA (BLOQUEIO VISUAL MELHORADO)
+    const listaHtml = itensCozinhaEmPreparo.map(i => `
+      <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(231, 76, 60, 0.1);">
+        <span style="font-weight: 600; color: #2c3e50;">• ${i.nome}</span>
+        <span style="background: #e74c3c; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;">${i.quantidade}x</span>
+      </div>
+    `).join('');
+
+    const msgHtml = `
+      <div style="text-align: center; padding: 10px;">
+        <div style="background: #fff5f5; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px;">
+          <span style="font-size: 2.5rem;">👨‍🍳</span>
+        </div>
+        <h3 style="color: #e74c3c; margin: 0 0 10px 0; font-size: 1.2rem;">COZINHA EM ANDAMENTO</h3>
+        <p style="color: #636e72; font-size: 0.95rem; margin-bottom: 20px;">
+          Existem <strong>${itensCozinhaEmPreparo.length} itens</strong> sendo preparados agora. <br>
+          Deseja fechar a conta mesmo assim?
+        </p>
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 12px; border-left: 4px solid #e74c3c; text-align: left; margin-bottom: 20px; max-height: 150px; overflow-y: auto;">
+          <p style="font-size: 0.8rem; font-weight: bold; color: #e74c3c; margin-bottom: 8px; text-transform: uppercase;">Pendentes:</p>
           ${listaHtml}
         </div>
       </div>
-    `, "Cozinha em Andamento", "Sim, Fechar mesmo assim", "Não, Esperar Cozinha")) {
+    `;
+
+    if (!await mostrarConfirmacao(msgHtml, "Atenção: Pedido Incompleto", "Sim, Fechar Conta", "Não, Esperar Cozinha")) {
       return;
     }
   } else if (itensProntosNaoEntregues.length > 0 || itensForaCozinhaPend.length > 0) {
