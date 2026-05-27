@@ -1,22 +1,24 @@
 window.onerror = function(msg, url, line) {
-    if (msg && typeof msg === 'string' && (msg.includes('WebSocket') || msg.includes('CLOSING') || msg.includes('CLOSED'))) {
-      return true; // Suprime o erro
-    }
+  console.log('🚀 Admin v1.2.0 Iniciado');
+  const msgStr = String(msg || '');
+  if (msgStr.includes('WebSocket') || msgStr.includes('Pusher') || msgStr.includes('connection')) {
+    return true; // Suprime erros de rede poluindo o console
+  }
     console.error("ERRO GLOBAL:", msg, "em", url, "linha:", line);
   };
 
-  // Suprimir avisos e erros específicos do WebSocket no console vindos do iframe
+  // Suprimir avisos e erros específicos do WebSocket/Pusher no console
   const originalWarn = console.warn;
   console.warn = function(...args) {
-    const msg = args[0] ? (args[0].message || args[0].toString()) : '';
-    if (typeof msg === 'string' && (msg.includes('WebSocket') || msg.includes('CLOSING') || msg.includes('CLOSED'))) return;
+    const str = String(args[0] || '');
+    if (str.includes('Pusher') || str.includes('WebSocket') || str.includes('desconectado')) return;
     originalWarn.apply(console, args);
   };
 
   const originalError = console.error;
   console.error = function(...args) {
-    const msg = args[0] ? (args[0].message || args[0].toString()) : '';
-    if (typeof msg === 'string' && (msg.includes('WebSocket') || msg.includes('CLOSING') || msg.includes('CLOSED'))) return;
+    const str = String(args[0] || '');
+    if (str.includes('Pusher') || str.includes('WebSocket') || str.includes('connection')) return;
     originalError.apply(console, args);
   };
   
@@ -1146,10 +1148,22 @@ async function exibirGarconsConfig() {
   
   window.listaGarconsAtual = garcons; // Salva globalmente para acesso fácil
 
-  container.innerHTML = garcons.map((g, index) => `
+  container.innerHTML = garcons.map((g, index) => {
+    const isOnline = !!g.is_online;
+    const statusLabel = isOnline ? '🟢 DISPONÍVEL' : '🔴 PAUSADO';
+    const statusColor = isOnline ? '#27ae60' : '#e74c3c';
+
+    return `
     <div class="item-config">
       <div>
-        <strong>${g.nome}</strong> (@${g.usuario})
+        <div style="display:flex; align-items:center; gap:8px;">
+          <strong>${g.nome}</strong> 
+          <span style="font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; background: ${statusColor}22; color: ${statusColor}; font-weight: bold; border: 1px solid ${statusColor}44; cursor: pointer;" 
+                onclick="toggleStatusGarcom(${g.id}, ${isOnline})" title="Clique para forçar alteração">
+            ${statusLabel}
+          </span>
+        </div>
+        <small style="color:#7f8c8d;">@${g.usuario}</small>
         ${g.telefone ? `<br><small style="color:#25D366; cursor:pointer;" onclick="window.open('https://wa.me/${g.telefone.replace(/\D/g, '')}', '_blank')">📱 WhatsApp: ${g.telefone}</small>` : ''}
         <br><small style="color:#64748b; font-weight: bold;">💰 Comissão: ${g.comissao !== undefined ? g.comissao : 0}%</small>
       </div>
@@ -1157,7 +1171,25 @@ async function exibirGarconsConfig() {
         <button style="background:#3498db; padding:4px 8px; font-size:0.8rem; width:auto;" onclick="prepararEdicaoGarcomByIndex(${index})">✏️</button>
         <button class="btn-excluir" style="width:auto;" onclick="excluirGarcom(${g.id})">X</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+}
+
+async function toggleStatusGarcom(id, currentStatus) {
+  const acao = currentStatus ? "PAUSAR" : "ATIVAR";
+  const confirm = await mostrarConfirmacao(`Deseja realmente ${acao} este garçom na fila de atendimento?`, "Controle de Fila");
+  if (!confirm) return;
+
+  try {
+    const res = await fetch(`/api/admin/garcons/${id}/toggle-status`, { method: 'POST' });
+    if (res.ok) {
+      exibirGarconsConfig(); // Recarrega a lista
+    } else {
+      mostrarAlerta("Erro ao alterar status do garçom.", "Erro");
+    }
+  } catch (e) {
+    mostrarAlerta("Erro de conexão.", "Erro");
+  }
 }
 
 function prepararEdicaoGarcomByIndex(index) {
@@ -3895,7 +3927,9 @@ async function configurarPusher() {
     console.log('📡 Inicializando Pusher no Admin...', pusherConfig.key);
     pusherInstancia = new Pusher(pusherConfig.key, {
       cluster: pusherConfig.cluster,
-      forceTLS: true
+      forceTLS: true,
+      enabledTransports: ['ws', 'wss', 'xhr_streaming', 'xhr_polling'],
+      disableStats: true
     });
 
     pusherInstancia.connection.bind('connected', () => {
@@ -4051,6 +4085,14 @@ async function configurarPusher() {
       // Recarrega pedidos também para garantir sincronia de estoque na tela
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => carregarPedidos(), 100);
+    });
+
+    // EVENTO: STATUS DO GARÇOM ALTERADO (RODÍZIO)
+    channel.bind('garcom-status-alterado', (data) => {
+      console.log('📢 Admin: Status de garçom alterado!', data);
+      if (abaAtiva === 'configuracoes') {
+        exibirGarconsConfig();
+      }
     });
 
     } catch (e) {

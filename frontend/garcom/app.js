@@ -90,10 +90,57 @@ let pedidoAbertoNaMesa = null;
 let garcomLogado = null;
 let caixaAberto = false;
 let categoriaAtual = sessionStorage.getItem('garcom_categoria_atual') || 'todas';
+let garcomPausado = localStorage.getItem('garcom_pausado') === 'true';
 
 document.addEventListener('DOMContentLoaded', async () => {
   verificarSessao();
+  atualizarInterfacePausa();
 });
+
+async function togglePausa() {
+  if (!garcomLogado) return;
+  
+  const check = document.getElementById('check-pausa');
+  // Se o checkbox está marcado, o garçom está ONLINE (Disponível na fila)
+  // Se desmarcado, está PAUSADO.
+  garcomPausado = !check.checked;
+  localStorage.setItem('garcom_pausado', garcomPausado);
+  
+  try {
+    await fetch('/api/garcom/pausar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pausado: garcomPausado })
+    });
+    
+    atualizarInterfacePausa();
+    const status = garcomPausado ? "PAUSADO" : "DISPONÍVEL";
+    console.log(`👤 Status do garçom: ${status}`);
+  } catch (e) {
+    console.error("Erro ao sincronizar pausa:", e);
+  }
+}
+
+function atualizarInterfacePausa() {
+  const check = document.getElementById('check-pausa');
+  const label = document.getElementById('label-pausa');
+  const slider = document.getElementById('slider-pausa');
+  
+  if (!check || !label) return;
+  
+  // check.checked = true significa que ele está NA FILA (Disponível)
+  check.checked = !garcomPausado;
+  
+  if (garcomPausado) {
+    label.textContent = 'PAUSADO';
+    label.style.color = '#e67e22'; // Laranja
+    if (slider) slider.style.backgroundColor = '#ccc';
+  } else {
+    label.textContent = 'NA FILA';
+    label.style.color = '#2ecc71'; // Verde
+    if (slider) slider.style.backgroundColor = '#27ae60';
+  }
+}
 
 function verificarSessao() {
   const salvo = localStorage.getItem('garcom_logado');
@@ -328,6 +375,18 @@ async function configurarPusher() {
       atualizarStatusCaixa();
     });
 
+    channel.bind('garcom-status-alterado', (data) => {
+      console.log('📢 Status do garçom alterado remotamente:', data);
+      if (garcomLogado && parseInt(data.garcom_id) === parseInt(garcomLogado.id)) {
+        garcomPausado = !!data.pausado;
+        localStorage.setItem('garcom_pausado', garcomPausado);
+        atualizarInterfacePausa();
+        
+        const statusTxt = garcomPausado ? 'PAUSADO' : 'DISPONÍVEL (NA FILA)';
+        mostrarToast(`Status alterado pelo Admin: ${statusTxt}`);
+      }
+    });
+
     channel.bind('chamado-garcom', (data) => {
       console.log('📢 Evento recebido: chamado-garcom', data);
       tocarCampainha();
@@ -552,6 +611,10 @@ function exibirMesas() {
       if (mesa.solicitou_fechamento && mesa.status !== 'fechando') {
         classeAlerta = 'solicitacao-fechamento';
         statusTexto = '🙋‍♂️ CLIENTE SOLICITA FECHAMENTO';
+      } else if (!eMeuPedido && mesa.garcom_id) {
+        // SE NÃO É MEU E TEM GARÇOM, BLOQUEIA IMEDIATAMENTE (Independente de pedido_created_at)
+        classeBloqueada = 'bloqueada';
+        statusTexto = `OCUPADA (${mesa.garcom_id})`;
       } else if (!mesa.pedido_created_at && !mesa.pedido_status && mesa.status === 'ocupada') {
         statusTexto = '📱 AGUARDANDO CLIENTE';
         classeAlerta = 'cliente-acessando';
@@ -560,9 +623,6 @@ function exibirMesas() {
         classeAlerta = 'aguardando-fechamento';
       } else if (mesa.pedido_status === 'servido') {
         statusTexto = 'OCUPADA';
-      } else if (!eMeuPedido && mesa.garcom_id) {
-        classeBloqueada = 'bloqueada';
-        statusTexto = `OCUPADA (${mesa.garcom_id})`;
       }
       
       // DESTAQUE PARA PEDIDO PRONTO NA COZINHA (Se não estiver solicitando fechamento)
@@ -599,8 +659,8 @@ function exibirMesas() {
       
       if (mesaSelecionada.status === 'ocupada' || mesaSelecionada.status === 'fechando') {
         const eMeuPedido = mesaSelecionada.garcom_id === garcomLogado.usuario;
-        // Permite acesso se for o meu pedido OU se for uma mesa recém-aberta via código (sem garcom_id ainda no pedido)
-        if (!eMeuPedido && mesaSelecionada.garcom_id && mesaSelecionada.pedido_created_at) {
+        // BLOQUEIO REFORÇADO: Se a mesa tem um garçom e não é você, bloqueia o clique
+        if (!eMeuPedido && mesaSelecionada.garcom_id) {
           await mostrarAlerta(`Atendida por: ${mesaSelecionada.garcom_id}`, "Mesa Ocupada");
           return;
         }
@@ -1412,4 +1472,28 @@ function configurarEventos() {
       });
     });
   }
+}
+
+function verQRCodeMesa() {
+  if (!mesaAtual) return;
+  // URL absoluta para o cardápio da mesa específica
+  // Corrigido: Removido /frontend/ pois a pasta frontend já é a raiz do servidor estático
+  const urlMesa = window.location.origin + '/cardapio/index.html?mesa=' + mesaAtual.id;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(urlMesa)}`;
+  
+  const html = `
+    <div style="text-align: center; padding: 10px;">
+      <p style="margin-bottom: 15px; font-weight: bold; color: #2c3e50; font-size: 1.2rem;">Acesso Digital - Mesa ${mesaAtual.numero}</p>
+      <div style="background: white; padding: 15px; border-radius: 15px; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 15px;">
+        <img src="${qrUrl}" style="width: 220px; height: 220px; display: block;">
+      </div>
+      <p style="font-size: 0.8rem; color: #7f8c8d; margin-bottom: 15px; word-break: break-all; background: #f8f9fa; padding: 8px; border-radius: 5px;">${urlMesa}</p>
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <button onclick="window.open('${qrUrl}', '_blank')" style="background: #3498db; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%;">Baixar QR Code</button>
+      </div>
+    </div>
+  `;
+  
+  fecharOpcoes();
+  mostrarAlerta(html, "📱 QR CODE DA MESA");
 }

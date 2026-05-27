@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GarçomExpress - Garçom</title>
   <link rel="icon" type="image/svg+xml" href="/garcom/favicon.svg">
-  <link rel="stylesheet" href="/garcom/style.css?v=1.0.6">
+  <link rel="stylesheet" href="/garcom/style.css?v=1.0.7">
 </head>
 <body>
   <!-- Tela de Login -->
@@ -41,6 +41,15 @@
           <label class="switch">
             <input type="checkbox" id="check-som" onchange="alternarSom()">
             <span class="slider"></span>
+          </label>
+        </div>
+
+        <!-- Botão Pausar Atendimento (Toggle Style) -->
+        <div class="toggle-container" style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2);">
+          <span id="label-pausa" style="color: white; font-size: 0.75rem; font-weight: bold;">FILA</span>
+          <label class="switch">
+            <input type="checkbox" id="check-pausa" onchange="togglePausa()">
+            <span class="slider" id="slider-pausa"></span>
           </label>
         </div>
 
@@ -102,6 +111,7 @@
     
     <button class="btn-opcoes btn-ver-itens" onclick="verItensDaMesa()" style="background-color: #f1c40f; color: #2c3e50;">📋 Ver Itens Pedidos</button>
     <button class="btn-opcoes btn-adicionar" onclick="abrirCardapioAdicionar()">➕ Adicionar mais itens</button>
+    <button class="btn-opcoes btn-gerar-qr" onclick="verQRCodeMesa()" style="background-color: #9b59b6; color: white;">📱 Ver QR Code da Mesa</button>
     <button class="btn-opcoes btn-gerar-codigo" onclick="gerarCodigoAcesso()" style="background-color: #3498db; color: white;">🔑 Gerar Código p/ Cliente</button>
     <button class="btn-opcoes btn-cancelar-codigo" onclick="cancelarCodigoAcesso()" style="background-color: #e67e22; color: white; display: none;">🚫 Cancelar Código/Acesso</button>
     <button class="btn-opcoes btn-fechar-conta" onclick="finalizarEDesocupar()">💰 Fechar Conta (Liberar)</button>
@@ -170,6 +180,6 @@
   </div>
 
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
-  <script src="/garcom/app.js?v=1.0.8"></script>
+  <script src="/garcom/app.js?v=1.1.0"></script>
 </body>
 </html>
