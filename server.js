@@ -1,12 +1,12 @@
 ﻿const express = require('express');
-// v1.0.1 - Deploy forÃ§ado para ativaÃ§Ã£o do menu bot
+// v1.0.1 - Deploy forÃ§ado para ativaÃ§ão do menu bot
 const path = require('path');
 // Carregamento condicional do SQLite para evitar erros no Vercel
 let Database = null;
 try {
   Database = require('better-sqlite3');
 } catch (e) {
-  console.log("âš ï¸ SQLite nÃ£o carregado (provavelmente ambiente Vercel/Postgres)");
+  console.log("⚠️ SQLite não carregado (provavelmente ambiente Vercel/Postgres)");
 }
 const { Pool } = require('pg');
 const Pusher = require('pusher');
@@ -16,7 +16,7 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const ioClient = require('socket.io-client');
 
-// ConfiguraÃ§Ã£o de ambiente
+// Configuração de ambiente
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
@@ -26,30 +26,30 @@ app.use(cookieParser());
 // INTEGRAÃ‡ÃƒO WHATSAPP (BOT EXTERNO)
 let whatsappSocket = null;
 if (process.env.WHATSAPP_BOT_URL) {
-  console.log('ðŸ“¡ Iniciando conexÃ£o com Bot WhatsApp:', process.env.WHATSAPP_BOT_URL);
+  console.log('📡 Iniciando conexão com Bot WhatsApp:', process.env.WHATSAPP_BOT_URL);
   whatsappSocket = ioClient(process.env.WHATSAPP_BOT_URL, {
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 2000,
   });
   
-  whatsappSocket.on('connect', () => console.log('âœ… Conectado ao Bot do WhatsApp (Render)'));
-  whatsappSocket.on('connect_error', (err) => console.log('âŒ Erro de conexÃ£o com Bot WhatsApp:', err.message));
-  whatsappSocket.on('disconnect', () => console.log('âš ï¸ Desconectado do Bot WhatsApp'));
+  whatsappSocket.on('connect', () => console.log('✅ Conectado ao Bot do WhatsApp (Render)'));
+  whatsappSocket.on('connect_error', (err) => console.log('❌ Erro de conexão com Bot WhatsApp:', err.message));
+  whatsappSocket.on('disconnect', () => console.log('⚠️ Desconectado do Bot WhatsApp'));
 
   // --- LÃ“GICA DO MENU INTERATIVO ---
   whatsappSocket.on('new_msg', async (data) => {
     try {
       if (!data || !data.from || !data.body) return;
       
-      const from = data.from.split('@')[0].replace(/\D/g, ''); // Pega apenas os nÃºmeros
+      const from = data.from.split('@')[0].replace(/\D/g, ''); // Pega apenas os números
       const msg = data.body.trim();
       const nome = data.notifyName || 'Cliente';
 
-      // Ignora mensagens enviadas pelo prÃ³prio robÃ´ para evitar loop
+      // Ignora mensagens enviadas pelo próprio robÃ´ para evitar loop
       if (data.fromMe) return;
 
-      console.log(`ðŸ“© [WhatsApp] Mensagem de ${nome} (${from}): ${msg}`);
+      console.log(`📩 [WhatsApp] Mensagem de ${nome} (${from}): ${msg}`);
 
       // Processa as opções do menu
       if (msg === '1') {
@@ -59,35 +59,35 @@ if (process.env.WHATSAPP_BOT_URL) {
       } else if (msg === '3') {
         const promoVal = isPostgres ? true : 1;
         const promos = await query("SELECT nome, preco, preco_original FROM menu WHERE em_promocao = ? AND visivel = ?", [promoVal, promoVal]);
-        let promoMsg = "ðŸ”¥ *PROMOÃ‡Ã•ES DO DIA*\n\nConfira nossas ofertas de hoje:\n\n";
+        let promoMsg = "🔥 *PROMOÃ‡Ã•ES DO DIA*\n\nConfira nossas ofertas de hoje:\n\n";
         if (promos.rows && promos.rows.length > 0) {
           promos.rows.forEach(p => {
             const precoOriginal = p.preco_original ? `~R$ ${p.preco_original.toFixed(2)}~ ` : "";
-            promoMsg += `âœ… *${p.nome}*\nðŸ’° ${precoOriginal}*R$ ${p.preco.toFixed(2)}*\n\n`;
+            promoMsg += `✅ *${p.nome}*\n💰 ${precoOriginal}*R$ ${p.preco.toFixed(2)}*\n\n`;
           });
-          promoMsg += "_Aproveite que Ã© por tempo limitado!_";
+          promoMsg += "_Aproveite que é por tempo limitado!_";
         } else {
-          promoMsg = "ðŸ”¥ *PROMOÃ‡Ã•ES DO DIA*\n\nNo momento nÃ£o temos promoÃ§Ãµes ativas, mas fique de olho no nosso cardÃ¡pio! ðŸ˜‰";
+          promoMsg = "🔥 *PROMOÃ‡Ã•ES DO DIA*\n\nNo momento não temos promoções ativas, mas fique de olho no nosso cardápio! 😉";
         }
         await sendWhatsAppMessage(promoMsg, from);
       } else if (msg === '4') {
-        await sendWhatsAppMessage(`ðŸ“ *ENDEREÃ‡O E HORÃRIO*\n\nðŸ  EndereÃ§o: rua democrito gracindo 132 ponta grossa\nâ° HorÃ¡rio: Diariamente das 18h Ã s 02:00`, from);
+        await sendWhatsAppMessage(`📍 *ENDEREÃ‡O E HORÃRIO*\n\n🏠 Endereço: rua democrito gracindo 132 ponta grossa\n⏰ Horário: Diariamente das 18h às 02:00`, from);
       } else if (msg === '5') {
-        await sendWhatsAppMessage(`ðŸ‘¨â€ðŸ’» *ATENDIMENTO*\n\nUm momento, ${nome}. JÃ¡ avisei a nossa equipe e alguÃ©m falarÃ¡ com vocÃª em instantes!`, from);
+        await sendWhatsAppMessage(`ðŸ‘¨â€ðŸ’» *ATENDIMENTO*\n\nUm momento, ${nome}. Já avisei a nossa equipe e alguém falará com você em instantes!`, from);
         // Notifica o painel admin via Pusher
         await safePusherTrigger('garconnexpress', 'atendimento-whatsapp', { number: from, name: nome, mensagem: 'O cliente solicitou atendimento humano.' });
       } else {
         // Envia o Menu Principal para qualquer outra mensagem
-        const menu = `OlÃ¡ ${nome}! ðŸ‘‹ Seja bem-vindo ao *GuGA Bebidas*.\nComo posso te ajudar hoje?\n\n1ï¸âƒ£ - Ver CardÃ¡pio Digital ðŸ“–\n2ï¸âƒ£ - Fazer um Pedido ðŸ›’\n3ï¸âƒ£ - PromoÃ§Ãµes do Dia ðŸ”¥\n4ï¸âƒ£ - EndereÃ§o e HorÃ¡rio ðŸ“\n5ï¸âƒ£ - Falar com o Atendente ðŸ‘¨â€ðŸ’»\n\n_Digite apenas o nÃºmero da opÃ§Ã£o desejada._`;
+        const menu = `Olá ${nome}! 👋 Seja bem-vindo ao *GuGA Bebidas*.\nComo posso te ajudar hoje?\n\n1️⃣ - Ver Cardápio Digital 📖\n2️⃣ - Fazer um Pedido 🛒\n3️⃣ - Promoções do Dia 🔥\n4️⃣ - Endereço e Horário 📍\n5️⃣ - Falar com o Atendente ðŸ‘¨â€ðŸ’»\n\n_Digite apenas o número da opÃ§ão desejada._`;
         await sendWhatsAppMessage(menu, from);
       }
     } catch (err) {
-      console.error('âŒ Erro ao processar mensagem do WhatsApp:', err.message);
+      console.error('❌ Erro ao processar mensagem do WhatsApp:', err.message);
     }
   });
 }
 
-// Cache simples para configuraÃ§Ãµes
+// Cache simples para configuraÃ§ões
 let configCache = {
   whatsapp_enabled: null,
   lastUpdate: 0
@@ -109,20 +109,20 @@ async function isWhatsAppEnabled() {
 }
 
 async function sendWhatsAppMessage(text, targetNumber = null) {
-  console.log(`ðŸ” [WhatsApp] Tentando disparar notificaÃ§Ã£o: "${text.substring(0, 50)}..."`);
+  console.log(`🔎 [WhatsApp] Tentando disparar notificação: "${text.substring(0, 50)}..."`);
   try {
     if (!await isWhatsAppEnabled()) {
-      console.log('ðŸš« [WhatsApp] AutomaÃ§Ã£o desativada nas configuraÃ§Ãµes do sistema');
+      console.log('ðŸš« [WhatsApp] AutomaÃ§ão desativada nas configuraÃ§ões do sistema');
       return;
     }
 
     let numbersList = [];
     
     if (targetNumber) {
-      // Se um nÃºmero especÃ­fico foi passado (ex: resposta ao cliente), usa ele
+      // Se um número específico foi passado (ex: resposta ao cliente), usa ele
       numbersList = [targetNumber];
     } else {
-      // Caso contrÃ¡rio, busca a lista de nÃºmeros de notificaÃ§Ã£o no banco/env
+      // Caso contrário, busca a lista de números de notificação no banco/env
       const configNums = await query("SELECT valor FROM sistema_config WHERE chave = 'whatsapp_notify_numbers'");
       if (configNums.rows && configNums.rows.length > 0 && configNums.rows[0].valor) {
         numbersList = configNums.rows[0].valor.split(',').map(n => n.trim());
@@ -132,32 +132,32 @@ async function sendWhatsAppMessage(text, targetNumber = null) {
     }
 
     if (whatsappSocket && whatsappSocket.connected && numbersList.length > 0) {
-      // Remove duplicados e limpa os nÃºmeros
+      // Remove duplicados e limpa os números
       const uniqueNumbers = [...new Set(numbersList.map(n => n.replace(/\D/g, '')))];
-      console.log(`ðŸ“¤ [WhatsApp] Bot CONECTADO. Enviando para: ${uniqueNumbers.join(', ')}`);
+      console.log(`📤 [WhatsApp] Bot CONECTADO. Enviando para: ${uniqueNumbers.join(', ')}`);
 
       uniqueNumbers.forEach(num => {
-        // Envia para o bot usando apenas os dÃ­gitos (formato que funcionou nos testes)
-        // O bot cuidarÃ¡ do roteamento interno.
+        // Envia para o bot usando apenas os dígitos (formato que funcionou nos testes)
+        // O bot cuidará do roteamento interno.
         whatsappSocket.emit('send_msg', { number: num, text: text });
       });
     } else {
-      console.log('âš ï¸ [WhatsApp] FALHA NO ENVIO: Bot desconectado ou lista de nÃºmeros vazia.');
+      console.log('⚠️ [WhatsApp] FALHA NO ENVIO: Bot desconectado ou lista de números vazia.');
       console.log(`   - Socket conectado: ${whatsappSocket ? whatsappSocket.connected : 'null'}`);
-      console.log(`   - NÃºmeros encontrados: ${numbersList.length}`);
+      console.log(`   - Números encontrados: ${numbersList.length}`);
     }
   } catch (e) {
-    console.error('âŒ Erro interno ao enviar WhatsApp:', e.message);
+    console.error('❌ Erro interno ao enviar WhatsApp:', e.message);
   }
 }
 
-// Log global de todas as requisiÃ§Ãµes
+// Log global de todas as requisiÃ§ões
 app.use((req, res, next) => {
-  console.log(`ðŸ“¡ [${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+  console.log(`📡 [${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
   next();
 });
 
-// ConfiguraÃ§Ã£o de CORS dinÃ¢mica baseada em ALLOWED_ORIGINS
+// Configuração de CORS dinÃ¢mica baseada em ALLOWED_ORIGINS
 const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['*'];
 app.use(require('cors')({
   origin: (origin, callback) => {
@@ -176,7 +176,7 @@ app.use(require('cors')({
 const JWT_SECRET = process.env.JWT_SECRET || 'seusegredomuitolouco123';
 const saltRounds = 10;
 
-// INICIALIZAÃ‡ÃƒO DO PUSHER (Com as novas chaves do usuÃ¡rio)
+// INICIALIZAÃ‡ÃƒO DO PUSHER (Com as novas chaves do usuário)
 const pusherConfig = {
   appId: (process.env.PUSHER_APP_ID || "2122978").trim(),
   key: (process.env.PUSHER_APP_KEY || "5b2b284e309dea9d90fb").trim(),
@@ -192,7 +192,7 @@ const isPostgres = !!(process.env.DATABASE_URL || process.env.POSTGRES_URL);
 let db;
 
 if (isPostgres) {
-    // ConfiguraÃ§Ã£o OTIMIZADA para Vercel/Neon
+    // Configuração OTIMIZADA para Vercel/Neon
     let connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
     
     // Remove sslmode da string para evitar conflito/aviso e deixar o objeto ssl controlar
@@ -202,7 +202,7 @@ if (isPostgres) {
         url.searchParams.delete('sslmode');
         connectionString = url.toString();
       } catch (e) {
-        // Se falhar o parse, usa como estÃ¡
+        // Se falhar o parse, usa como está
       }
     }
     
@@ -212,17 +212,17 @@ if (isPostgres) {
         rejectUnauthorized: false, // Aceita certificados self-signed do Neon
         require: true 
       },
-      max: 10, // Aumentado para lidar com mÃºltiplas requisiÃ§Ãµes simultÃ¢neas em Serverless
+      max: 10, // Aumentado para lidar com múltiplas requisiÃ§ões simultÃ¢neas em Serverless
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000, // Timeout rÃ¡pido para falhar e dar retry se necessÃ¡rio
+      connectionTimeoutMillis: 5000, // Timeout rápido para falhar e dar retry se necessário
     });
     
     db.on('error', (err) => {
-      console.error('âš ï¸ Erro no Pool do Postgres (recuperÃ¡vel):', err.message);
+      console.error('⚠️ Erro no Pool do Postgres (recuperável):', err.message);
     });
   } else {
   if (!Database) {
-    console.error("âŒ ERRO CRÃTICO: SQLite nÃ£o disponÃ­vel e Postgres nÃ£o configurado.");
+    console.error("❌ ERRO CRÃTICO: SQLite não disponível e Postgres não configurado.");
     process.exit(1);
   }
   db = new Database(path.join(__dirname, 'garconnexpress.db'));
@@ -261,7 +261,7 @@ async function query(text, params) {
     }
   };
 
-  // Para Postgres, usa retry automÃ¡tico em caso de timeout
+  // Para Postgres, usa retry automático em caso de timeout
   if (isPostgres) {
     return retryWithDelay(executeQuery, 3, 500);
   } else {
@@ -271,17 +271,17 @@ async function query(text, params) {
 
 async function safePusherTrigger(channel, event, data) {
   if (!pusher) {
-    console.log(`âš ï¸ Pusher nÃ£o configurado. Ignorando evento: ${event}`);
+    console.log(`⚠️ Pusher não configurado. Ignorando evento: ${event}`);
     return;
   }
   try {
-    console.log(`ðŸ“¡ [Pusher] Enviando: Canal=${channel}, Evento=${event}`);
-    // No Vercel, precisamos de uma confirmaÃ§Ã£o real do envio
+    console.log(`📡 [Pusher] Enviando: Canal=${channel}, Evento=${event}`);
+    // No Vercel, precisamos de uma confirmaÃ§ão real do envio
     await pusher.trigger(channel, event, data);
-    console.log(`âœ… [Pusher] Sucesso: ${event}`);
+    console.log(`✅ [Pusher] Sucesso: ${event}`);
     return true;
   } catch (e) {
-    console.error(`âŒ [Pusher] Falha (${event}):`, e.message);
+    console.error(`❌ [Pusher] Falha (${event}):`, e.message);
     return false;
   }
 }
@@ -290,12 +290,12 @@ async function verificarEstoqueBaixo(menuId) {
   try {
     const item = (await query("SELECT id, nome, estoque FROM menu WHERE id = ?", [menuId])).rows[0];
     if (item && item.estoque !== -1 && item.estoque <= 5) {
-      console.log(`âš ï¸ [Estoque] Baixo: ${item.nome} (${item.estoque})`);
+      console.log(`⚠️ [Estoque] Baixo: ${item.nome} (${item.estoque})`);
       await safePusherTrigger('garconnexpress', 'estoque-baixo', {
         id: item.id,
         nome: item.nome,
         estoque: item.estoque,
-        mensagem: `âš ï¸ ESTOQUE BAIXO: ${item.nome} restam apenas ${item.estoque} un.`
+        mensagem: `⚠️ ESTOQUE BAIXO: ${item.nome} restam apenas ${item.estoque} un.`
       });
     }
   } catch (e) {
@@ -321,15 +321,15 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
       }
     }
     const payload = { pedido_id: pedidoId, mesa_id: finalMesaId, mesa_numero: mesaNum, status: status };
-    console.log(`ðŸ”” Notificando status: Mesa ${mesaNum} (ID: ${finalMesaId}), Status ${status}`);
+    console.log(`🔔 Notificando status: Mesa ${mesaNum} (ID: ${finalMesaId}), Status ${status}`);
 
     // Dispara Pusher IMEDIATAMENTE (Prioridade)
     await safePusherTrigger('garconnexpress', 'status-atualizado', payload);
-    // NotificaÃ§Ã£o WhatsApp em paralelo/background
+    // Notificação WhatsApp em paralelo/background
     if (status === 'aguardando_fechamento') {
-      sendWhatsAppMessage(`ðŸ›Žï¸ *SOLICITAÃ‡ÃƒO DE FECHAMENTO*\nðŸ“ Mesa: ${mesaNum}\nðŸ’° O cliente solicitou a conta.`).catch(e => console.error('Erro Wpp:', e.message));
+      sendWhatsAppMessage(`🛎️ *SOLICITAÃ‡ÃƒO DE FECHAMENTO*\n📍 Mesa: ${mesaNum}\n💰 O cliente solicitou a conta.`).catch(e => console.error('Erro Wpp:', e.message));
     } else if (status === 'cancelado') {
-      sendWhatsAppMessage(`âŒ *PEDIDO CANCELADO*\nðŸ“ Mesa: ${mesaNum}\nðŸ—‘ï¸ O pedido foi removido do sistema.`).catch(e => console.error('Erro Wpp:', e.message));
+      sendWhatsAppMessage(`❌ *PEDIDO CANCELADO*\n📍 Mesa: ${mesaNum}\n🗑️ O pedido foi removido do sistema.`).catch(e => console.error('Erro Wpp:', e.message));
     }
 
   } catch (e) { console.error('Erro notificar:', e.message); }
@@ -354,7 +354,7 @@ async function initDb() {
     `CREATE INDEX IF NOT EXISTS idx_pedidos_status ON pedidos(status)`
   ];
   
-  // Executa queries sequencialmente para evitar sobrecarga de conexÃµes
+  // Executa queries sequencialmente para evitar sobrecarga de conexões
   try {
     for (let tableSql of tables) {
       if (isPostgres) await db.query(tableSql);
@@ -371,7 +371,7 @@ async function initDb() {
     // LIMPEZA E REGISTRO DO NÃšMERO DE WHATSAPP (CONSOLIDADO)
     const notificationNumbers = '558293157048'; 
     try {
-      // Remove a chave antiga (singular) se existir para evitar confusÃ£o
+      // Remove a chave antiga (singular) se existir para evitar confusão
       await query("DELETE FROM sistema_config WHERE chave = 'whatsapp_notify_number'");
       
       if (isPostgres) {
@@ -392,7 +392,7 @@ async function initDb() {
       try { 
         if (isPostgres) await db.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS ${c} ${type}`); 
         else {
-          // Verifica se a coluna jÃ¡ existe no SQLite antes de adicionar
+          // Verifica se a coluna já existe no SQLite antes de adicionar
           const info = db.prepare(`PRAGMA table_info(${t})`).all();
           if (!info.some(col => col.name === c)) {
             db.prepare(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`).run();
@@ -403,7 +403,7 @@ async function initDb() {
       } 
     };
     
-    // MigraÃ§Ãµes garantidas para todos os bancos
+    // MigraÃ§ões garantidas para todos os bancos
     await addCol('mesas', 'garcom_id', 'TEXT');
     await addCol('pedidos', 'forma_pagamento', 'TEXT');
     await addCol('pedidos', 'desconto', 'REAL DEFAULT 0');
@@ -429,19 +429,19 @@ async function initDb() {
     await addCol('garcons', 'is_online', 'BOOLEAN DEFAULT FALSE');
     await addCol('garcons', 'last_assigned_at', 'TIMESTAMP');
     
-    // Garante que a tabela pagamentos tenha as colunas necessÃ¡rias
+    // Garante que a tabela pagamentos tenha as colunas necessárias
     await addCol('pagamentos', 'recebido', 'REAL DEFAULT 0');
     await addCol('pagamentos', 'troco', 'REAL DEFAULT 0');
   } catch (e) { 
-    console.error('Erro na migraÃ§Ã£o:', e);
+    console.error('Erro na migraÃ§ão:', e);
     dbInitError = e;
   }
 
   try {
     const hashedPass = await bcrypt.hash(process.env.ADMIN_INITIAL_PASSWORD || 'Admin#2026', saltRounds);
-    // OtimizaÃ§Ã£o: SÃ³ tenta inserir admin se nÃ£o detectou existÃªncia da tabela no passo anterior (ou seja, criaÃ§Ã£o nova)
-    // OU se a verificaÃ§Ã£o inicial falhou.
-    // Para seguranÃ§a, tenta SELECT rÃ¡pido
+    // OtimizaÃ§ão: Só tenta inserir admin se não detectou existência da tabela no passo anterior (ou seja, criaÃ§ão nova)
+    // OU se a verificaÃ§ão inicial falhou.
+    // Para seguranÃ§a, tenta SELECT rápido
     const adminExists = await query('SELECT id FROM usuarios_admin WHERE usuario = ?', ['admin']);
     if (adminExists.rows.length === 0) await query('INSERT INTO usuarios_admin (usuario, senha) VALUES (?, ?)', ['admin', hashedPass]);
   } catch (e) {
@@ -449,7 +449,7 @@ async function initDb() {
   }
 }
 
-// FunÃ§Ã£o de retry com delay exponencial
+// FunÃ§ão de retry com delay exponencial
 async function retryWithDelay(fn, maxRetries = 3, delay = 1000) {
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -465,14 +465,14 @@ async function retryWithDelay(fn, maxRetries = 3, delay = 1000) {
 let dbInitialized = false;
 let dbInitializationPromise = null;
 
-// FunÃ§Ã£o para inicializar banco de forma lazy
+// FunÃ§ão para inicializar banco de forma lazy
 async function lazyInitDb() {
   if (dbInitialized) return true;
   if (dbInitializationPromise) return dbInitializationPromise;
 
   dbInitializationPromise = (async () => {
     try {
-      console.log('ðŸ”„ Inicializando banco de dados (lazy)...');
+      console.log('🔄 Inicializando banco de dados (lazy)...');
       await retryWithDelay(async () => {
         if (isPostgres) await db.query('SELECT 1');
       }, 5, 2000);
@@ -482,19 +482,19 @@ async function lazyInitDb() {
       }, 3, 1000);
 
       dbInitialized = true;
-      console.log('âœ… Banco de dados inicializado com sucesso (lazy)');
+      console.log('✅ Banco de dados inicializado com sucesso (lazy)');
       return true;
     } catch (e) {
-      console.error('âŒ Erro ao inicializar banco (lazy):', e.message);
+      console.error('❌ Erro ao inicializar banco (lazy):', e.message);
       dbInitError = e;
-      dbInitializationPromise = null; // Permite tentar novamente em prÃ³xima requisiÃ§Ã£o
+      dbInitializationPromise = null; // Permite tentar novamente em próxima requisiÃ§ão
       return false;
     }
   })();
 
   return dbInitializationPromise;
 }
-// Middleware para garantir que o banco estÃ¡ inicializado
+// Middleware para garantir que o banco está inicializado
 async function ensureDbInitialized(req, res, next) {
   if (!isPostgres) {
     next();
@@ -505,16 +505,16 @@ async function ensureDbInitialized(req, res, next) {
   if (initialized) {
     next();
   } else {
-    res.status(503).json({ error: 'Banco de dados nÃ£o disponÃ­vel. Tente novamente em alguns segundos.' });
+    res.status(503).json({ error: 'Banco de dados não disponível. Tente novamente em alguns segundos.' });
   }
 }
 
-// InicializaÃ§Ã£o segura do banco de dados (evita timeout no cold start)
+// Inicialização segura do banco de dados (evita timeout no cold start)
 if (!isPostgres) {
   initDb().catch(console.error);
 } else {
-  // Adia a inicializaÃ§Ã£o para evitar timeout no startup
-  console.log('â³ InicializaÃ§Ã£o do banco adiada (lazy loading)');
+  // Adia a inicializaÃ§ão para evitar timeout no startup
+  console.log('â³ Inicialização do banco adiada (lazy loading)');
 }
 
 app.use(express.static(path.join(__dirname, 'frontend'), {
@@ -592,16 +592,16 @@ app.post('/api/logout', async (req, res) => {
   res.json({ success: true });
 });
 
-// Pausar/Retomar atendimento (RodÃ­zio)
+// Pausar/Retomar atendimento (Rodízio)
 app.post('/api/garcom/pausar', isAuthenticated, async (req, res) => {
   const { pausado } = req.body;
-  if (req.user.role !== 'garcom') return res.status(403).json({ error: 'Apenas garÃ§ons podem pausar atendimento.' });
+  if (req.user.role !== 'garcom') return res.status(403).json({ error: 'Apenas garçons podem pausar atendimento.' });
 
   try {
     const isOnline = pausado ? (isPostgres ? false : 0) : (isPostgres ? true : 1);
     await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isOnline, req.user.id]);
     
-    console.log(`ðŸ‘¤ GarÃ§om ${req.user.usuario} agora estÃ¡ ${pausado ? 'PAUSADO' : 'DISPONÃVEL'}.`);
+    console.log(`ðŸ‘¤ Garçom ${req.user.usuario} agora está ${pausado ? 'PAUSADO' : 'DISPONÃVEL'}.`);
     
     // Notifica o Admin em tempo real
     await safePusherTrigger('garconnexpress', 'garcom-status-alterado', {
@@ -615,12 +615,12 @@ app.post('/api/garcom/pausar', isAuthenticated, async (req, res) => {
   }
 });
 
-// Admin forÃ§a pausa/disponibilidade do garÃ§om
+// Admin forÃ§a pausa/disponibilidade do garçom
 app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     const garcom = (await query("SELECT id, is_online FROM garcons WHERE id = ?", [id])).rows[0];
-    if (!garcom) return res.status(404).json({ error: 'GarÃ§om nÃ£o encontrado' });
+    if (!garcom) return res.status(404).json({ error: 'Garçom não encontrado' });
 
     const novoStatus = garcom.is_online ? (isPostgres ? false : 0) : (isPostgres ? true : 1);
     await query("UPDATE garcons SET is_online = ? WHERE id = ?", [novoStatus, id]);
@@ -639,7 +639,7 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
   }
 });
 
-// Helper para verificar se uma lista de IDs de menu contÃ©m itens para a cozinha (JS)
+// Helper para verificar se uma lista de IDs de menu contém itens para a cozinha (JS)
 async function checkTemItemCozinha(itensIds) {
   const configK = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
   const catsCozinha = configK.rows[0]?.valor ? JSON.parse(configK.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
@@ -650,9 +650,9 @@ async function checkTemItemCozinha(itensIds) {
       const envCozinha = m.enviar_cozinha;
       const categoria = (m.categoria || '').trim().toUpperCase();
       
-      // LÃ³gica consistente com getFilterCozinha (Prioridade):
+      // Lógica consistente com getFilterCozinha (Prioridade):
       // 1. Override manual (0 ou 1) ganha sempre.
-      // 2. Se nulo ou nÃ£o definido, segue a categoria.
+      // 2. Se nulo ou não definido, segue a categoria.
       let vaiCozinha = false;
       if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') {
         vaiCozinha = false;
@@ -675,7 +675,7 @@ app.put('/api/pedidos/:id/cozinha-pronto', async (req, res) => {
     // Marca todos os itens pendentes como 'pronto'
     await query("UPDATE pedido_itens SET status = 'pronto' WHERE pedido_id = ? AND status = 'pendente'", [id]);
     
-    // Verifica se todos os itens estÃ£o pelo menos como 'pronto' ou 'entregue'
+    // Verifica se todos os itens estão pelo menos como 'pronto' ou 'entregue'
     const itens = (await query("SELECT status FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
     const todosProntos = itens.every(i => i.status === 'pronto' || i.status === 'entregue');
     
@@ -683,14 +683,14 @@ app.put('/api/pedidos/:id/cozinha-pronto', async (req, res) => {
       await query("UPDATE pedidos SET status = 'pronto' WHERE id = ?", [id]);
     }
 
-    // Notifica admin e garÃ§om
+    // Notifica admin e garçom
     const pedido = (await query("SELECT m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
     const mesaNum = pedido ? pedido.mesa_numero || 'BALCÃƒO' : 'BALCÃƒO';
     
     await safePusherTrigger('garconnexpress', 'pedido-pronto', { 
       pedido_id: id, 
       mesa_numero: mesaNum,
-      mensagem: `ðŸ‘¨â€ðŸ³ Pedido da Mesa ${mesaNum} estÃ¡ pronto!` 
+      mensagem: `ðŸ‘¨â€👨‍🍳 Pedido da Mesa ${mesaNum} está pronto!` 
     });
 
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
@@ -698,7 +698,7 @@ app.put('/api/pedidos/:id/cozinha-pronto', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// Helper para gerar a clÃ¡usula WHERE de itens da cozinha de forma consistente
+// Helper para gerar a cláusula WHERE de itens da cozinha de forma consistente
 async function getFilterCozinha() {
   const config = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
   const categoriasCozinha = config.rows[0]?.valor ? JSON.parse(config.rows[0].valor) : [];
@@ -706,7 +706,7 @@ async function getFilterCozinha() {
   const sqlTrue = isPostgres ? 'TRUE' : '1';
   const sqlFalse = isPostgres ? 'FALSE' : '0';
 
-  // LÃ³gica de Prioridade (TrÃªs Estados):
+  // Lógica de Prioridade (Três Estados):
   // 1. Override manual (0 ou 1) ganha sempre.
   // 2. Se nulo (NULL), segue a categoria.
   
@@ -722,7 +722,7 @@ async function getFilterCozinha() {
     )`;
   } else {
     // Se NENHUMA categoria estiver selecionada, apenas o que for explicitamente 1 vai para a cozinha.
-    // O que for NULL nÃ£o vai (pois nÃ£o tem categoria habilitada).
+    // O que for NULL não vai (pois não tem categoria habilitada).
     return `m.enviar_cozinha = ${sqlTrue}`;
   }
 }
@@ -734,8 +734,8 @@ app.put('/api/pedidos/:id/marcar-entregue', async (req, res) => {
     const filterCozinha = await getFilterCozinha();
 
     if (apenasProntos) {
-      // Marca como entregue apenas os itens que jÃ¡ estÃ£o PRONTOS ou que NÃƒO vÃ£o para a cozinha (bebidas etc)
-      // Note que invertemos a lÃ³gica do filtro para pegar o que NÃƒO Ã© cozinha
+      // Marca como entregue apenas os itens que já estão PRONTOS ou que NÃƒO vão para a cozinha (bebidas etc)
+      // Note que invertemos a lógica do filtro para pegar o que NÃƒO é cozinha
       await query(`
         UPDATE pedido_itens 
         SET status = 'entregue' 
@@ -743,7 +743,7 @@ app.put('/api/pedidos/:id/marcar-entregue', async (req, res) => {
         AND (status = 'pronto' OR (status = 'pendente' AND menu_id IN (SELECT id FROM menu m WHERE NOT (${filterCozinha}))))
       `, [id]);
     } else {
-      // BLOQUEIO SERVER-SIDE: Verifica se hÃ¡ itens SENDO FEITOS na cozinha
+      // BLOQUEIO SERVER-SIDE: Verifica se há itens SENDO FEITOS na cozinha
       const prep = await query(`
         SELECT pi.id 
         FROM pedido_itens pi 
@@ -756,14 +756,14 @@ app.put('/api/pedidos/:id/marcar-entregue', async (req, res) => {
       if (prep.rows.length > 0) {
         return res.status(400).json({ 
           error: 'COZINHA_ATIVA', 
-          mensagem: `NÃ£o Ã© possÃ­vel entregar tudo! Existem ${prep.rows.length} itens ainda em preparo na cozinha.` 
+          mensagem: `Não é possível entregar tudo! Existem ${prep.rows.length} itens ainda em preparo na cozinha.` 
         });
       }
 
       await query("UPDATE pedido_itens SET status = 'entregue' WHERE pedido_id = ?", [id]);
     }
     
-    // ConsolidaÃ§Ã£o de itens duplicados (mesmo menu_id e observaÃ§Ã£o)
+    // ConsolidaÃ§ão de itens duplicados (mesmo menu_id e observaÃ§ão)
     const itensEntregues = (await query("SELECT id, menu_id, quantidade, observacao FROM pedido_itens WHERE pedido_id = ? AND status = 'entregue'", [id])).rows;
     const vistos = {};
     for (const item of itensEntregues) {
@@ -777,7 +777,7 @@ app.put('/api/pedidos/:id/marcar-entregue', async (req, res) => {
       }
     }
 
-    // SÃ³ muda status do pedido para 'servido' se TODOS os itens foram entregues
+    // Só muda status do pedido para 'servido' se TODOS os itens foram entregues
     const pendentesCount = (await query("SELECT COUNT(*) as total FROM pedido_itens WHERE pedido_id = ? AND status IN ('pendente', 'pronto')", [id])).rows[0].total;
     
     if (parseInt(pendentesCount) === 0) {
@@ -799,9 +799,9 @@ app.put('/api/itens/:id/pronto', async (req, res) => {
   const { id } = req.params;
   try {
     const item = (await query("SELECT pedido_id, menu_id, quantidade, observacao FROM pedido_itens WHERE id = ?", [id])).rows[0];
-    if (!item) return res.status(404).json({ error: 'Item nÃ£o encontrado' });
+    if (!item) return res.status(404).json({ error: 'Item não encontrado' });
 
-    // Tenta encontrar um item idÃªntico que jÃ¡ foi entregue para mesclar
+    // Tenta encontrar um item idêntico que já foi entregue para mesclar
     const itemExistente = (await query(
       "SELECT id, quantidade FROM pedido_itens WHERE pedido_id = ? AND menu_id = ? AND status = 'entregue' AND (observacao = ? OR (observacao IS NULL AND ? IS NULL)) AND id != ?", 
       [item.pedido_id, item.menu_id, item.observacao, item.observacao, id]
@@ -812,9 +812,9 @@ app.put('/api/itens/:id/pronto', async (req, res) => {
       await query("UPDATE pedido_itens SET quantidade = quantidade + ? WHERE id = ?", [item.quantidade, itemExistente.id]);
       await query("DELETE FROM pedido_itens WHERE id = ?", [id]);
     } else {
-      // Apenas marca como entregue (OU PRONTO? A funÃ§Ã£o chama /pronto mas o cÃ³digo original marca como entregue?)
-      // Na verdade, cozinha marca como pronto, garÃ§om marca como entregue.
-      // Vou manter a lÃ³gica de marcar como entregue se for essa a intenÃ§Ã£o da rota original
+      // Apenas marca como entregue (OU PRONTO? A funÃ§ão chama /pronto mas o código original marca como entregue?)
+      // Na verdade, cozinha marca como pronto, garçom marca como entregue.
+      // Vou manter a lógica de marcar como entregue se for essa a intenÃ§ão da rota original
       await query("UPDATE pedido_itens SET status = 'entregue' WHERE id = ?", [id]);
     }
 
@@ -858,7 +858,7 @@ app.post('/api/caixa/abrir', async (req, res) => {
   const { valor_inicial } = req.body;
   try {
     const aberto = await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'");
-    if (aberto.rows.length > 0) return res.status(400).json({ error: 'JÃ¡ existe um caixa aberto' });
+    if (aberto.rows.length > 0) return res.status(400).json({ error: 'Já existe um caixa aberto' });
     const agora = new Date();
     const dataLocal = agora.getFullYear() + '-' + String(agora.getMonth() + 1).padStart(2, '0') + '-' + String(agora.getDate()).padStart(2, '0') + ' ' + String(agora.getHours()).padStart(2, '0') + ':' + String(agora.getMinutes()).padStart(2, '0') + ':' + String(agora.getSeconds()).padStart(2, '0');
     await query("INSERT INTO fluxo_caixa (valor_inicial, status, data_abertura) VALUES (?, 'aberto', ?)", [valor_inicial || 0, dataLocal]);
@@ -876,7 +876,7 @@ app.post('/api/caixa/fechar', async (req, res) => {
     const dataLocal = agora.getFullYear() + '-' + String(agora.getMonth() + 1).padStart(2, '0') + '-' + String(agora.getDate()).padStart(2, '0') + ' ' + String(agora.getHours()).padStart(2, '0') + ':' + String(agora.getMinutes()).padStart(2, '0') + ':' + String(agora.getSeconds()).padStart(2, '0');
     await query("UPDATE fluxo_caixa SET valor_final = ?, status = 'fechado', data_fechamento = ? WHERE id = ?", [valor_final, dataLocal, id]);
     
-    // Expira todos os cÃ³digos de acesso ativos ao fechar o caixa
+    // Expira todos os códigos de acesso ativos ao fechar o caixa
     await query("UPDATE codigos_acesso SET status = 'expirado' WHERE status = 'ativo'");
     
     await safePusherTrigger('garconnexpress', 'status-caixa-atualizado', { status: 'fechado' });
@@ -937,11 +937,11 @@ app.get('/api/pedidos/cozinha', ensureDbInitialized, async (req, res) => {
   try {
     const filterCozinha = await getFilterCozinha();
     
-    // LÃ³gica super restrita: SÃ“ mostra o que for recebido ou aguardando fechamento
+    // Lógica super restrita: SÃ“ mostra o que for recebido ou aguardando fechamento
     // Isso exclui automaticamente cancelados, entregues, prontos, etc.
     let whereClause = `LOWER(pi.status) = 'pendente' AND LOWER(p.status) IN ('recebido', 'aguardando_fechamento', 'pronto')`;
 
-    console.log(`ðŸ” [Cozinha] Filtro SQL: ${filterCozinha}`);
+    console.log(`🔎 [Cozinha] Filtro SQL: ${filterCozinha}`);
 
     const result = await query(`
       SELECT 
@@ -965,7 +965,7 @@ app.get('/api/pedidos/cozinha', ensureDbInitialized, async (req, res) => {
     `);
     
     if (result.rows.length > 0) {
-      console.log(`ðŸ³ [Cozinha] Enviando ${result.rows.length} itens. IDs de pedidos:`, [...new Set(result.rows.map(r => r.pedido_id))]);
+      console.log(`👨‍🍳 [Cozinha] Enviando ${result.rows.length} itens. IDs de pedidos:`, [...new Set(result.rows.map(r => r.pedido_id))]);
     }
     
     res.json(result.rows);
@@ -977,12 +977,12 @@ app.get('/api/pedidos/cozinha', ensureDbInitialized, async (req, res) => {
 app.get('/api/pedidos/:id/pagamentos', async (req, res) => {
   try {
     const { id } = req.params;
-    // Se a tabela nÃ£o existir, retorna array vazio em vez de erro 500
+    // Se a tabela não existir, retorna array vazio em vez de erro 500
     try {
       const pagamentos = (await query("SELECT * FROM pagamentos WHERE pedido_id = ? ORDER BY data ASC", [id])).rows;
       res.json(pagamentos || []);
     } catch (e) {
-      console.warn("âš ï¸ Tabela 'pagamentos' pode nÃ£o existir ainda:", e.message);
+      console.warn("⚠️ Tabela 'pagamentos' pode não existir ainda:", e.message);
       res.json([]);
     }
   } catch (error) { res.status(500).json({ error: error.message }); }
@@ -1056,7 +1056,7 @@ app.get('/api/pedidos/:id', ensureDbInitialized, async (req, res) => {
   try {
     const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Pedido nÃ£o encontrado' });
+      return res.status(404).json({ error: 'Pedido não encontrado' });
     }
     res.json(result.rows[0]);
   } catch (error) {
@@ -1078,7 +1078,7 @@ app.delete('/api/pedidos/itens/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const item = (await query("SELECT pedido_id, menu_id, quantidade FROM pedido_itens WHERE id = ?", [id])).rows[0];
-    if (!item) return res.status(404).json({ error: 'Item nÃ£o encontrado' });
+    if (!item) return res.status(404).json({ error: 'Item não encontrado' });
     await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque + ? END WHERE id = ?", [item.quantidade, item.menu_id]);
     await query("DELETE FROM pedido_itens WHERE id = ?", [id]);
     const itensRestantes = (await query("SELECT status FROM pedido_itens WHERE pedido_id = ?", [item.pedido_id])).rows;
@@ -1100,7 +1100,7 @@ app.delete('/api/pedidos/itens/:id', async (req, res) => {
       await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
         pedido_id: item.pedido_id, 
         mesa_numero: mesaNum,
-        mensagem: `ðŸš¨ O Pedido #${item.pedido_id} (Mesa ${mesaNum}) foi CANCELADO.` 
+        mensagem: `🚨 O Pedido #${item.pedido_id} (Mesa ${mesaNum}) foi CANCELADO.` 
       });
 
       await notifyStatus(item.pedido_id, pedido ? pedido.mesa_id : null, 'cancelado');
@@ -1138,7 +1138,7 @@ app.delete('/api/pedidos/:id', async (req, res) => {
       await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
         pedido_id: id, 
         mesa_numero: mesaNum,
-        mensagem: `ðŸš¨ O Pedido #${id} (Mesa ${mesaNum}) foi REMOVIDO pelo Admin.` 
+        mensagem: `🚨 O Pedido #${id} (Mesa ${mesaNum}) foi REMOVIDO pelo Admin.` 
       });
     }
 
@@ -1170,11 +1170,11 @@ app.post('/api/pedidos', async (req, res) => {
     }
     if (mesa_id) {
       const mesaIdNum = Number(mesa_id);
-      console.log(`[Pedido] Processando mesa ${mesaIdNum}. GarÃ§om: ${garcom_id}`);
+      console.log(`[Pedido] Processando mesa ${mesaIdNum}. Garçom: ${garcom_id}`);
       
       await query("UPDATE mesas SET status = 'ocupada', garcom_id = ? WHERE id = ?", [garcom_id, mesaIdNum]);
 
-      // GERAÃ‡ÃƒO AUTOMÃTICA DE CÃ“DIGO DE ACESSO (SÃ³ se nÃ£o houver um ativo)
+      // GERAÃ‡ÃƒO AUTOMÃTICA DE CÃ“DIGO DE ACESSO (Só se não houver um ativo)
       const acessoExistente = (await query("SELECT id, codigo FROM codigos_acesso WHERE mesa_id = ? AND status = 'ativo' LIMIT 1", [mesaIdNum])).rows[0];
 
       if (!acessoExistente) {
@@ -1183,9 +1183,9 @@ app.post('/api/pedidos', async (req, res) => {
         for (let i = 0; i < 4; i++) novoCodigo += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
 
         await query("INSERT INTO codigos_acesso (mesa_id, codigo, status) VALUES (?, ?, 'ativo')", [mesaIdNum, novoCodigo]);
-        console.log(`ðŸ”‘ CÃ³digo automÃ¡tico gerado para Mesa ${mesaIdNum}: ${novoCodigo}`);
+        console.log(`🔑 Código automático gerado para Mesa ${mesaIdNum}: ${novoCodigo}`);
       } else {
-        console.log(`â„¹ï¸ Mesa ${mesaIdNum} jÃ¡ possui cÃ³digo de acesso ativo (ID: ${acessoExistente.id}, CÃ³digo: ${acessoExistente.codigo}). Mantendo sessÃ£o.`);
+        console.log(`ℹ️ Mesa ${mesaIdNum} já possui código de acesso ativo (ID: ${acessoExistente.id}, Código: ${acessoExistente.codigo}). Mantendo sessão.`);
       }
     }    for (const item of itens) {
       await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES (?, ?, ?, ?, ?)', [pedidoId, item.menu_id, item.quantidade, item.observacao || '', 'pendente']);
@@ -1204,7 +1204,7 @@ app.post('/api/pedidos', async (req, res) => {
       const p = (await query("SELECT nome FROM menu WHERE id = ?", [item.menu_id])).rows[0];
       itensNomes.push(`${item.quantidade}x ${p ? p.nome : 'Item'}`);
     }
-    const msgWpp = `ðŸš€ *NOVO PEDIDO #${pedidoId}*\nðŸ“ Mesa: ${mesaNum}\nðŸ“ Itens:\n${itensNomes.join('\n')}\nðŸ’° Total: R$ ${total.toFixed(2)}`;
+    const msgWpp = `🚀 *NOVO PEDIDO #${pedidoId}*\n📍 Mesa: ${mesaNum}\n📝 Itens:\n${itensNomes.join('\n')}\n💰 Total: R$ ${total.toFixed(2)}`;
 
     // Verifica se o pedido tem itens para a cozinha (respeitando as categorias configuradas)
     const configK = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
@@ -1217,7 +1217,7 @@ app.post('/api/pedidos', async (req, res) => {
         const envCozinha = m.enviar_cozinha;
         const categoria = (m.categoria || '').trim().toUpperCase();
         
-        // LÃ³gica consistente com getFilterCozinha:
+        // Lógica consistente com getFilterCozinha:
         let vaiCozinha = false;
         if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') {
           vaiCozinha = false; // Manualmente fora
@@ -1234,7 +1234,7 @@ app.post('/api/pedidos', async (req, res) => {
       }
     }
 
-    // Dispara notificaÃ§Ãµes CRÃTICAS para a UI (Aguardar para garantir envio no Vercel)
+    // Dispara notificaÃ§ões CRÃTICAS para a UI (Aguardar para garantir envio no Vercel)
     await Promise.all([
       notifyStatus(pedidoId, mesa_id, 'recebido', mesaNum),
       safePusherTrigger('garconnexpress', 'menu-atualizado', {}),
@@ -1285,8 +1285,8 @@ app.put('/api/pedidos/:id/atualizar-itens', async (req, res) => {
     const statusAtualRes = await query("SELECT status FROM pedidos WHERE id = ?", [id]);
     const statusAnterior = statusAtualRes.rows[0] ? statusAtualRes.rows[0].status : '';
 
-    // Se estÃ¡ voltando para 'recebido' vindo de um status diferente de 'recebido', reinicia o cronÃ´metro
-    // Se jÃ¡ estava em 'recebido', mantÃ©m o original.
+    // Se está voltando para 'recebido' vindo de um status diferente de 'recebido', reinicia o cronÃ´metro
+    // Se já estava em 'recebido', mantém o original.
     if (temPendente) {
       if (statusAnterior !== 'recebido') {
         await query("UPDATE pedidos SET total = ?, status = ?, created_at = ?, observacao = ? WHERE id = ?", [total, novoStatusPedido, agora, observacao || '', id]);
@@ -1297,7 +1297,7 @@ app.put('/api/pedidos/:id/atualizar-itens', async (req, res) => {
       const resMesa = await query("SELECT m.numero FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id]);
       const mesaNum = resMesa.rows[0] ? resMesa.rows[0].numero : 'BALCÃƒO';
       
-      // Verifica se hÃ¡ itens para a cozinha
+      // Verifica se há itens para a cozinha
       const temItemCozinha = await checkTemItemCozinha(itens.map(i => i.menu_id));
       
       // Notifica em paralelo
@@ -1342,8 +1342,8 @@ app.put('/api/pedidos/:id/adicionar', async (req, res) => {
     const statusAtualRes = await query("SELECT status FROM pedidos WHERE id = ?", [id]);
     const statusAnterior = statusAtualRes.rows[0] ? statusAtualRes.rows[0].status : '';
 
-    // Se estÃ¡ voltando para 'recebido' vindo de um status diferente, reinicia o cronÃ´metro (novo ciclo de preparo)
-    // Se jÃ¡ estava em 'recebido', mantÃ©m o original.
+    // Se está voltando para 'recebido' vindo de um status diferente, reinicia o cronÃ´metro (novo ciclo de preparo)
+    // Se já estava em 'recebido', mantém o original.
     if (statusAnterior !== 'recebido') {
       await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, observacao = ? WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id]);
     } else {
@@ -1352,10 +1352,10 @@ app.put('/api/pedidos/:id/adicionar', async (req, res) => {
     const pMesa = (await query("SELECT mesa_id, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
     if (pMesa && pMesa.mesa_id) await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [pMesa.mesa_id]);
     
-    // Notifica a cozinha que hÃ¡ novos itens para preparar (com som)
+    // Notifica a cozinha que há novos itens para preparar (com som)
     const mesaNum = pMesa ? pMesa.numero || 'BALCÃƒO' : 'BALCÃƒO';
     
-    // Verifica se os NOVOS itens vÃ£o para a cozinha
+    // Verifica se os NOVOS itens vão para a cozinha
     const temItemCozinha = await checkTemItemCozinha(itens.map(i => i.menu_id));
 
     // Notifica em paralelo
@@ -1372,10 +1372,10 @@ app.put('/api/pedidos/:id/adicionar', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// Cliente solicita o fechamento da conta (avisar garÃ§om)
+// Cliente solicita o fechamento da conta (avisar garçom)
 app.post('/api/cliente/solicitar-conta', async (req, res) => {
   const { token } = req.body;
-  if (!token) return res.status(400).json({ error: 'Token Ã© obrigatÃ³rio.' });
+  if (!token) return res.status(400).json({ error: 'Token é obrigatório.' });
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
@@ -1391,21 +1391,21 @@ app.post('/api/cliente/solicitar-conta', async (req, res) => {
     // 1. Atualiza o banco de dados
     await query("UPDATE pedidos SET solicitou_fechamento = TRUE WHERE id = ?", [pedido.id]);
     
-    // 2. Busca nÃºmero da mesa para a notificaÃ§Ã£o
+    // 2. Busca número da mesa para a notificação
     const mesaRes = await query("SELECT numero FROM mesas WHERE id = ?", [mesaId]);
     const mesaNum = mesaRes.rows[0]?.numero || '??';
 
-    // 3. Notifica GarÃ§om e Admin via Pusher (Som + Modal + Visual Pulsante)
+    // 3. Notifica Garçom e Admin via Pusher (Som + Modal + Visual Pulsante)
     await safePusherTrigger('garconnexpress', 'solicitacao-fechamento-cliente', {
       pedido_id: pedido.id,
       mesa_id: mesaId,
       mesa_numero: mesaNum,
-      mensagem: `ðŸ™‹â€â™‚ï¸ MESA ${mesaNum} solicitou o fechamento da conta!`
+      mensagem: `🙋‍♂️ MESA ${mesaNum} solicitou o fechamento da conta!`
     });
 
     res.json({ success: true });
   } catch (error) {
-    console.error('âŒ ERRO EM /api/cliente/solicitar-conta:', error);
+    console.error('❌ ERRO EM /api/cliente/solicitar-conta:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1416,7 +1416,7 @@ app.put('/api/pedidos/:id/solicitar-fechamento', async (req, res) => {
   try {
     let totalFinal = total;
     
-    // Se o total nÃ£o for enviado (solicitaÃ§Ã£o do garÃ§om), calcula com base nos itens
+    // Se o total não for enviado (solicitaÃ§ão do garçom), calcula com base nos itens
     if (totalFinal === undefined || totalFinal === null || totalFinal === 0) {
       const pOrig = (await query("SELECT cobrar_taxa FROM pedidos WHERE id = ?", [id])).rows[0];
       const deveTaxa = pOrig ? pOrig.cobrar_taxa : true;
@@ -1425,17 +1425,17 @@ app.put('/api/pedidos/:id/solicitar-fechamento', async (req, res) => {
       totalFinal = deveTaxa ? Math.round(sub * 1.10 * 100) / 100 : sub;
     }
 
-    // Ativa fechamento_liberado quando o garÃ§om processa a solicitaÃ§Ã£o
+    // Ativa fechamento_liberado quando o garçom processa a solicitaÃ§ão
     await query(`UPDATE pedidos SET status = 'aguardando_fechamento', forma_pagamento = ?, desconto = ?, acrescimo = ?, valor_recebido = ?, troco = ?, total = ?, num_pessoas = ?, valor_por_pessoa = ?, cobrar_taxa = ?, fechamento_liberado = TRUE WHERE id = ?`, 
       [forma_pagamento || 'Dinheiro', desconto || 0, acrescimo || 0, valor_recebido || 0, troco || 0, totalFinal, num_pessoas || 1, valor_por_pessoa || totalFinal, (req.body.cobrar_taxa !== undefined ? (req.body.cobrar_taxa ? 1 : 0) : 1), id]);
     
     if (mesa_id) await query("UPDATE mesas SET status = 'fechando' WHERE id = ?", [mesa_id]);
     await notifyStatus(id, mesa_id, 'aguardando_fechamento');
 
-    // Notifica o cliente que o cupom de conferÃªncia foi liberado
+    // Notifica o cliente que o cupom de conferência foi liberado
     await safePusherTrigger('garconnexpress', `fechamento-liberado-mesa-${mesa_id}`, {
         pedido_id: id,
-        mensagem: "Seu cupom de conferÃªncia estÃ¡ disponÃ­vel!"
+        mensagem: "Seu cupom de conferência está disponível!"
     });
 
     res.json({ success: true });
@@ -1470,7 +1470,7 @@ app.post('/api/pedidos/:id/pagamento-fracao', async (req, res) => {
     if (!pOrig) return res.status(404).json({ error: 'PEDIDO NÃƒO ENCONTRADO' });
 
     // 2. Registra o valor no fluxo de caixa
-    const col = forma_pagamento === 'CartÃ£o' ? 'total_cartao' : (forma_pagamento === 'Pix' ? 'total_pix' : 'total_dinheiro');
+    const col = forma_pagamento === 'Cartão' ? 'total_cartao' : (forma_pagamento === 'Pix' ? 'total_pix' : 'total_dinheiro');
     await query(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [valor_pago, valor_pago, cx.id]);
 
     // 3. Garante que a tabela existe e registra o pagamento
@@ -1481,9 +1481,9 @@ app.post('/api/pedidos/:id/pagamento-fracao', async (req, res) => {
     await query(sqlCreate);
     await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento, recebido, troco) VALUES (?, ?, ?, ?, ?)", [id, valor_pago, forma_pagamento, rec, trc]);
 
-    // 4. Atualiza o pedido original: incrementa o pago_parcial e ajusta o nÃºmero de pessoas
+    // 4. Atualiza o pedido original: incrementa o pago_parcial e ajusta o número de pessoas
     const novoPagoParcial = (pOrig.pago_parcial || 0) + valor_pago;
-    // O total do pedido pOrig.total jÃ¡ deve estar atualizado com o valor total bruto (subtotal+taxa+acres-desc)
+    // O total do pedido pOrig.total já deve estar atualizado com o valor total bruto (subtotal+taxa+acres-desc)
     const novoTotalMesa = Math.max(0, pOrig.total - valor_pago);
     const novoValorPessoa = num_pessoas_restantes > 0 ? novoTotalMesa / num_pessoas_restantes : 0;
 
@@ -1515,13 +1515,13 @@ app.post('/api/pedidos/:id/pagamento-parcial', async (req, res) => {
     await query(sqlCreate);
     await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento, recebido, troco) VALUES (?, ?, ?, ?, ?)", [id, total, forma_pagamento, total, 0]);
 
-    // 2. Remove os itens do pedido original (jÃ¡ que foram pagos separadamente)
+    // 2. Remove os itens do pedido original (já que foram pagos separadamente)
     for (const i of itens) {
       await query('DELETE FROM pedido_itens WHERE id = ?', [i.id]);
     }
 
     // 3. Registra o valor no fluxo de caixa
-    const col = forma_pagamento === 'CartÃ£o' ? 'total_cartao' : (forma_pagamento === 'Pix' ? 'total_pix' : 'total_dinheiro');
+    const col = forma_pagamento === 'Cartão' ? 'total_cartao' : (forma_pagamento === 'Pix' ? 'total_pix' : 'total_dinheiro');
     await query(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [total, total, cx.id]);
 
     // 4. Verifica se restam itens no pedido original
@@ -1533,7 +1533,7 @@ app.post('/api/pedidos/:id/pagamento-parcial', async (req, res) => {
       
       // Notifica o cliente para encerrar o acesso
       await safePusherTrigger('garconnexpress', `deslogar-mesa-${mesa_id}`, { 
-        mensagem: "Sua conta foi finalizada. Obrigado pela preferÃªncia!" 
+        mensagem: "Sua conta foi finalizada. Obrigado pela preferência!" 
       });
 
       await notifyStatus(null, mesa_id, 'liberada'); 
@@ -1562,7 +1562,7 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
           : `CREATE TABLE IF NOT EXISTS pagamentos (id INTEGER PRIMARY KEY AUTOINCREMENT, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`;
 
         if (Array.isArray(pagamentos_detalhados) && pagamentos_detalhados.length > 0) {
-          // CenÃ¡rio Multi-Pagamento (Suporta formato novo de objeto ou antigo de string)
+          // Cenário Multi-Pagamento (Suporta formato novo de objeto ou antigo de string)
           for (const pag of pagamentos_detalhados) {
             let forma = (pag && typeof pag === 'object') ? pag.forma_pagamento : pag;
             let valorParte = (pag && typeof pag === 'object') ? pag.valor : (p.total / pagamentos_detalhados.length);
@@ -1572,13 +1572,13 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
             if (!forma) forma = 'Dinheiro';
             if (!valorParte || isNaN(valorParte)) valorParte = 0;
 
-            const col = forma === 'CartÃ£o' ? 'total_cartao' : (forma === 'Pix' ? 'total_pix' : 'total_dinheiro');
+            const col = forma === 'Cartão' ? 'total_cartao' : (forma === 'Pix' ? 'total_pix' : 'total_dinheiro');
             await query(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [valorParte, valorParte, cx.id]);
             await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento, recebido, troco) VALUES (?, ?, ?, ?, ?)", [id, valorParte, forma, recebido, troco]);
           }
         } else {
-          // CenÃ¡rio Normal (Um Ãºnico pagamento para o saldo restante)
-          const col = p.forma_pagamento === 'CartÃ£o' ? 'total_cartao' : (p.forma_pagamento === 'Pix' ? 'total_pix' : 'total_dinheiro');
+          // Cenário Normal (Um único pagamento para o saldo restante)
+          const col = p.forma_pagamento === 'Cartão' ? 'total_cartao' : (p.forma_pagamento === 'Pix' ? 'total_pix' : 'total_dinheiro');
           const valorFinal = p.total;
           
           // Busca dados de recebido/troco do pedido original (salvos no solicitar-fechamento)
@@ -1590,7 +1590,7 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
           await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento, recebido, troco) VALUES (?, ?, ?, ?, ?)", [id, valorFinal, p.forma_pagamento, rec, trc]);
         }
 
-        // Atualiza o pedido: limpa o saldo e soma ao pago_parcial para consolidar o histÃ³rico
+        // Atualiza o pedido: limpa o saldo e soma ao pago_parcial para consolidar o histórico
         await query("UPDATE pedidos SET pago_parcial = pago_parcial + total, total = 0 WHERE id = ?", [id]);
       }
     }
@@ -1602,13 +1602,13 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
     const pm = (await query("SELECT p.mesa_id, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
     const mesaNum = pm ? pm.numero || 'BALCÃƒO' : 'BALCÃƒO';
 
-    // Se o status for cancelado ou entregue, libera a mesa e o cÃ³digo
+    // Se o status for cancelado ou entregue, libera a mesa e o código
     if ((status === 'cancelado' || status === 'entregue') && pm && pm.mesa_id) {
         await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [pm.mesa_id]);
         await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [pm.mesa_id]);
 
         // Notifica o cliente logado para encerrar o acesso
-        const msgLogout = status === 'entregue' ? "Sua conta foi finalizada. Obrigado pela preferÃªncia!" : "Este pedido foi cancelado pelo estabelecimento. Seu acesso foi encerrado.";
+        const msgLogout = status === 'entregue' ? "Sua conta foi finalizada. Obrigado pela preferência!" : "Este pedido foi cancelado pelo estabelecimento. Seu acesso foi encerrado.";
         await safePusherTrigger('garconnexpress', `deslogar-mesa-${pm.mesa_id}`, { 
           mensagem: msgLogout,
           status: status, // envia 'cancelado' ou 'entregue'
@@ -1616,12 +1616,12 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
         });
         
         if (status === 'cancelado') {
-          console.log(`âŒ Pedido ${id} cancelado pelo Admin. Notificando globalmente...`);
+          console.log(`❌ Pedido ${id} cancelado pelo Admin. Notificando globalmente...`);
           await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
             id: id,
             pedido_id: id, 
             mesa_numero: mesaNum,
-            mensagem: `ðŸš¨ O Pedido #${id} (Mesa ${mesaNum}) foi CANCELADO pelo Admin.` 
+            mensagem: `🚨 O Pedido #${id} (Mesa ${mesaNum}) foi CANCELADO pelo Admin.` 
           });
         }
     }
@@ -1651,16 +1651,16 @@ app.get('/api/menu', ensureDbInitialized, async (req, res) => {
         const indexA = ordem.indexOf(catA);
         const indexB = ordem.indexOf(catB);
         
-        // Se ambos estÃ£o na lista de ordem, segue a ordem
+        // Se ambos estão na lista de ordem, segue a ordem
         if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-        // Se apenas um estÃ¡, ele vem primeiro
+        // Se apenas um está, ele vem primeiro
         if (indexA !== -1) return -1;
         if (indexB !== -1) return 1;
-        // Se nenhum estÃ¡, mantÃ©m ordem alfabÃ©tica original ou id
+        // Se nenhum está, mantém ordem alfabética original ou id
         return catA.localeCompare(catB);
       });
     } else {
-      // PadrÃ£o: Ordenar por validade como estava ou alfabÃ©tico
+      // Padrão: Ordenar por validade como estava ou alfabético
       menu.sort((a, b) => (a.validade || '').localeCompare(b.validade || ''));
     }
 
@@ -1714,7 +1714,7 @@ app.delete('/api/menu/:id', async (req, res) => { try { await query('DELETE FROM
 app.delete('/api/menu/categoria/:categoria', async (req, res) => {
   const { categoria } = req.params;
   try {
-    // Usamos UPPER para garantir que pegue variaÃ§Ãµes de caixa se houver (ex: Bebidas vs bebidas)
+    // Usamos UPPER para garantir que pegue variaÃ§ões de caixa se houver (ex: Bebidas vs bebidas)
     await query('DELETE FROM menu WHERE UPPER(categoria) = UPPER(?)', [categoria]);
     res.json({ success: true });
   } catch (error) {
@@ -1725,14 +1725,14 @@ app.delete('/api/menu/categoria/:categoria', async (req, res) => {
 app.put('/api/menu/categoria/:categoria', async (req, res) => {
   const { categoria } = req.params;
   const { novoNome } = req.body;
-  if (!novoNome) return res.status(400).json({ error: 'Novo nome Ã© obrigatÃ³rio' });
+  if (!novoNome) return res.status(400).json({ error: 'Novo nome é obrigatório' });
   const nomeLimpo = novoNome.trim();
   
   try {
-    // 1. Atualiza todos os itens do cardÃ¡pio que pertencem a esta categoria
+    // 1. Atualiza todos os itens do cardápio que pertencem a esta categoria
     await query('UPDATE menu SET categoria = ? WHERE UPPER(categoria) = UPPER(?)', [nomeLimpo, categoria]);
 
-    // 2. Sincroniza a configuraÃ§Ã£o de categorias da cozinha (se existir)
+    // 2. Sincroniza a configuração de categorias da cozinha (se existir)
     const configRes = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
     if (configRes.rows.length > 0 && configRes.rows[0].valor) {
       let categoriasCozinha = JSON.parse(configRes.rows[0].valor);
@@ -1769,7 +1769,7 @@ app.get('/api/garcons', ensureDbInitialized, async (req, res) => {
     const result = await query('SELECT id, nome, usuario, telefone, comissao, is_online FROM garcons ORDER BY nome');
     res.json(result.rows);
   } catch (error) { 
-    console.error('âŒ ERRO NA ROTA /api/garcons:', error);
+    console.error('❌ ERRO NA ROTA /api/garcons:', error);
     res.status(500).json({ error: error.message, stack: error.stack }); 
   }
 });
@@ -1853,10 +1853,10 @@ app.get('/api/mesas', ensureDbInitialized, async (req, res) => {
     `)).rows); 
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
-// Cliente busca seus prÃ³prios pedidos ativos
+// Cliente busca seus próprios pedidos ativos
 app.post('/api/cliente/meus-pedidos', async (req, res) => {
   const { token } = req.body;
-  if (!token) return res.status(400).json({ error: 'Token Ã© obrigatÃ³rio.' });
+  if (!token) return res.status(400).json({ error: 'Token é obrigatório.' });
 
   try {
     // 1. Valida o JWT token
@@ -1864,7 +1864,7 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
     try {
       decoded = jwt.verify(token, JWT_SECRET);
     } catch (e) {
-      return res.status(401).json({ error: 'SessÃ£o invÃ¡lida ou expirada.' });
+      return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
     }
 
     if (decoded.role !== 'cliente') {
@@ -1875,13 +1875,13 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
     const acessoId = decoded.acesso_id;
     const pedidoIdSessao = decoded.pedido_id; // ID do pedido vinculado no login
 
-    // 2. Verifica se o cÃ³digo de acesso existe.
-    // Buscamos o status e a data de criaÃ§Ã£o para garantir isolamento entre sessÃµes.
+    // 2. Verifica se o código de acesso existe.
+    // Buscamos o status e a data de criaÃ§ão para garantir isolamento entre sessões.
     const acesso = (await query("SELECT id, status, criado_at FROM codigos_acesso WHERE id = ?", [acessoId])).rows[0];
-    if (!acesso) return res.status(401).json({ error: 'SessÃ£o invÃ¡lida ou expirada.' });
+    if (!acesso) return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
 
-    // 3. Busca todos os pedidos vinculados a esta sessÃ£o (Isolamento de SessÃ£o)
-    // Buscamos todos os pedidos criados APÃ“S a geraÃ§Ã£o do cÃ³digo de acesso.
+    // 3. Busca todos os pedidos vinculados a esta sessão (Isolamento de Sessão)
+    // Buscamos todos os pedidos criados APÃ“S a geraÃ§ão do código de acesso.
     const pedidosSessao = (await query(`
       SELECT id, total, status, cobrar_taxa, desconto, acrescimo, solicitou_fechamento, fechamento_liberado 
       FROM pedidos 
@@ -1895,7 +1895,7 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
       return res.json({ success: true, pedido: null, itens: [] });
     }
 
-    // 4. Busca todos os itens de todos os pedidos da sessÃ£o
+    // 4. Busca todos os itens de todos os pedidos da sessão
     const pedidoIds = pedidosSessao.map(p => p.id);
     const placeholders = pedidoIds.map(() => '?').join(',');
     const itens = (await query(`
@@ -1908,7 +1908,7 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
     `, pedidoIds)).rows;
 
     // 5. Consolida os dados e calcula o total real
-    // Usamos o Ãºltimo pedido da lista para as flags de status (fechamento, etc)
+    // Usamos o último pedido da lista para as flags de status (fechamento, etc)
     const ultimoPedido = pedidosSessao[pedidosSessao.length - 1];
     
     let totalReal = 0;
@@ -1917,7 +1917,7 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
       totalReal += (i.quantidade * preco);
     });
 
-    // Aplica taxa de serviÃ§o (baseada na preferÃªncia do Ãºltimo pedido ou se algum deles cobrar)
+    // Aplica taxa de serviÃ§o (baseada na preferência do último pedido ou se algum deles cobrar)
     const cobrarTaxa = pedidosSessao.some(p => p.cobrar_taxa === 1 || p.cobrar_taxa === true);
     if (cobrarTaxa) totalReal = Math.round(totalReal * 1.10 * 100) / 100;
 
@@ -1934,7 +1934,7 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('âŒ ERRO EM /api/cliente/meus-pedidos:', error);
+    console.error('❌ ERRO EM /api/cliente/meus-pedidos:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -2000,33 +2000,33 @@ app.get('/api/pusher-config', (req, res) => {
 
 // --- ROTAS DO CARDÃPIO DIGITAL (CLIENTE) ---
 
-// Gera um novo cÃ³digo de acesso para uma mesa (Usado pelo GarÃ§om/Admin)
+// Gera um novo código de acesso para uma mesa (Usado pelo Garçom/Admin)
 app.post('/api/acesso/gerar', isAuthenticated, async (req, res) => {
   const { mesa_id } = req.body;
-  console.log(`ðŸ”‘ GERAR CÃ“DIGO: Mesa ID=${mesa_id}`);
-  if (!mesa_id) return res.status(400).json({ error: 'Mesa Ã© obrigatÃ³ria' });
+  console.log(`🔑 GERAR CÃ“DIGO: Mesa ID=${mesa_id}`);
+  if (!mesa_id) return res.status(400).json({ error: 'Mesa é obrigatória' });
   
   try {
-    // 1. Desativa cÃ³digos anteriores desta mesa
+    // 1. Desativa códigos anteriores desta mesa
     const resDesativa = await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [mesa_id]);
     console.log(`   - Desativados: ${resDesativa.changes}`);
     
-    // 2. Gera cÃ³digo aleatÃ³rio de 4 dÃ­gitos
+    // 2. Gera código aleatório de 4 dígitos
     const caracteres = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let codigo = '';
     for (let i = 0; i < 4; i++) {
       codigo += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
     }
     
-    // 3. Insere o novo cÃ³digo
+    // 3. Insere o novo código
     const resInsert = await query("INSERT INTO codigos_acesso (mesa_id, codigo) VALUES (?, ?)", [mesa_id, codigo]);
-    console.log(`   - Novo cÃ³digo: ${codigo} (ID: ${resInsert.lastInsertRowid})`);
+    console.log(`   - Novo código: ${codigo} (ID: ${resInsert.lastInsertRowid})`);
     
-    // 4. Marca a mesa como ocupada e associa ao garÃ§om que gerou o cÃ³digo
+    // 4. Marca a mesa como ocupada e associa ao garçom que gerou o código
     const garcom_id = req.user ? (req.user.usuario || req.user.nome) : 'Sistema';
     
     const resUpdateMesa = await query("UPDATE mesas SET status = 'ocupada', garcom_id = ? WHERE id = ?", [garcom_id, mesa_id]);
-    console.log(`   - Status Mesa ${mesa_id} atualizado para 'ocupada' (GarÃ§om: ${garcom_id}): ${resUpdateMesa.changes} linha(s) afetada(s)`);
+    console.log(`   - Status Mesa ${mesa_id} atualizado para 'ocupada' (Garçom: ${garcom_id}): ${resUpdateMesa.changes} linha(s) afetada(s)`);
     
     // Notifica via Pusher para atualizar as mesas de todos
     await safePusherTrigger('garconnexpress', 'status-atualizado', { 
@@ -2038,7 +2038,7 @@ app.post('/api/acesso/gerar', isAuthenticated, async (req, res) => {
     
     res.json({ success: true, codigo });
   } catch (error) {
-    console.error(`âŒ ERRO AO GERAR CÃ“DIGO:`, error);
+    console.error(`❌ ERRO AO GERAR CÃ“DIGO:`, error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -2046,10 +2046,10 @@ app.post('/api/acesso/gerar', isAuthenticated, async (req, res) => {
 // Cancela o acesso de uma mesa (Cliente desistiu ou saiu antes de pedir)
 app.post('/api/acesso/cancelar', isAuthenticated, async (req, res) => {
   const { mesa_id } = req.body;
-  if (!mesa_id) return res.status(400).json({ error: 'Mesa Ã© obrigatÃ³ria' });
+  if (!mesa_id) return res.status(400).json({ error: 'Mesa é obrigatória' });
 
   try {
-    // 1. Invalida os cÃ³digos ativos da mesa
+    // 1. Invalida os códigos ativos da mesa
     await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [mesa_id]);
 
     // 2. Libera a mesa no sistema
@@ -2058,10 +2058,10 @@ app.post('/api/acesso/cancelar', isAuthenticated, async (req, res) => {
     // 3. Notifica o cliente para deslogar (via Pusher)
     await safePusherTrigger('garconnexpress', `deslogar-mesa-${mesa_id}`, { 
       status: 'cancelado',
-      mensagem: "Este acesso foi cancelado pelo garÃ§om." 
+      mensagem: "Este acesso foi cancelado pelo garçom." 
     });
 
-    // 4. Notifica todos os garÃ§ons/admin para atualizar o grid de mesas
+    // 4. Notifica todos os garçons/admin para atualizar o grid de mesas
     await safePusherTrigger('garconnexpress', 'status-atualizado', { 
       mesa_id, 
       status: 'liberada',
@@ -2074,25 +2074,25 @@ app.post('/api/acesso/cancelar', isAuthenticated, async (req, res) => {
   }
 });
 
-// Acesso via QR Code (Abre a mesa automaticamente e atribui garÃ§om por rodÃ­zio)
+// Acesso via QR Code (Abre a mesa automaticamente e atribui garçom por rodízio)
 app.post('/api/acesso/qr', async (req, res) => {
   const { mesa_id } = req.body;
-  if (!mesa_id) return res.status(400).json({ error: 'Mesa Ã© obrigatÃ³ria' });
+  if (!mesa_id) return res.status(400).json({ error: 'Mesa é obrigatória' });
 
   try {
     const caixa = (await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'")).rows[0];
-    if (!caixa) return res.status(403).json({ error: 'ESTABELECIMENTO FECHADO: O cardÃ¡pio digital sÃ³ funciona com o caixa aberto.' });
+    if (!caixa) return res.status(403).json({ error: 'ESTABELECIMENTO FECHADO: O cardápio digital só funciona com o caixa aberto.' });
 
     const mesa = (await query("SELECT * FROM mesas WHERE id = ?", [mesa_id])).rows[0];
-    if (!mesa) return res.status(404).json({ error: 'Mesa nÃ£o encontrada' });
+    if (!mesa) return res.status(404).json({ error: 'Mesa não encontrada' });
 
     let acesso;
     if (mesa.status === 'livre') {
-      // LÃ“GICA DE RODÃZIO (Round-Robin): Pega o garÃ§om online que estÃ¡ hÃ¡ mais tempo sem atender
+      // LÃ“GICA DE RODÃZIO (Round-Robin): Pega o garçom online que está há mais tempo sem atender
       const proximoGarcom = (await query("SELECT id, usuario, nome FROM garcons WHERE is_online = ? ORDER BY last_assigned_at ASC LIMIT 1", [isPostgres ? true : 1])).rows[0];
       
       if (!proximoGarcom) {
-        return res.status(503).json({ error: 'Nenhum garÃ§om online no momento para te atender. Por favor, chame um atendente no balcÃ£o.' });
+        return res.status(503).json({ error: 'Nenhum garçom online no momento para te atender. Por favor, chame um atendente no balcão.' });
       }
 
       const garcom_id = proximoGarcom.usuario;
@@ -2103,12 +2103,12 @@ app.post('/api/acesso/qr', async (req, res) => {
       await query("INSERT INTO codigos_acesso (mesa_id, codigo) VALUES (?, ?)", [mesa_id, codigo]);
       await query("UPDATE mesas SET status = 'ocupada', garcom_id = ? WHERE id = ?", [garcom_id, mesa_id]);
       
-      // Atualiza o timestamp para mover o garÃ§om para o fim da fila
+      // Atualiza o timestamp para mover o garçom para o fim da fila
       await query("UPDATE garcons SET last_assigned_at = ? WHERE id = ?", [new Date().toISOString(), proximoGarcom.id]);
 
       acesso = (await query("SELECT ca.*, m.numero as mesa_numero FROM codigos_acesso ca JOIN mesas m ON ca.mesa_id = m.id WHERE ca.mesa_id = ? AND ca.status = 'ativo' ORDER BY ca.id DESC LIMIT 1", [mesa_id])).rows[0];
       
-      console.log(`ðŸ¤– [RodÃ­zio] Mesa ${mesa.numero} atribuÃ­da a: ${proximoGarcom.nome}`);
+      console.log(`🤖 [Rodízio] Mesa ${mesa.numero} atribuída a: ${proximoGarcom.nome}`);
       
       await safePusherTrigger('garconnexpress', 'status-atualizado', { 
         mesa_id, 
@@ -2117,9 +2117,9 @@ app.post('/api/acesso/qr', async (req, res) => {
         origem: 'qr_code'
       });
     } else {
-      // TRAVA DE SEGURANÃ‡A: Se a mesa nÃ£o estiver livre, bloqueia o novo escaneamento
+      // TRAVA DE SEGURANÃ‡A: Se a mesa não estiver livre, bloqueia o novo escaneamento
       return res.status(403).json({ 
-        error: 'MESA OCUPADA: Esta mesa jÃ¡ possui um atendimento em andamento. Se vocÃª jÃ¡ estava nesta mesa, use o menu anterior ou peÃ§a ajuda ao garÃ§om.' 
+        error: 'MESA OCUPADA: Esta mesa já possui um atendimento em andamento. Se você já estava nesta mesa, use o menu anterior ou peÃ§a ajuda ao garçom.' 
       });
     }
 
@@ -2147,32 +2147,32 @@ app.post('/api/acesso/qr', async (req, res) => {
 // Valida o acesso do cliente
 app.post('/api/acesso/validar', async (req, res) => {
   const { codigo } = req.body;
-  if (!codigo) return res.status(400).json({ error: 'CÃ³digo Ã© obrigatÃ³rio' });
+  if (!codigo) return res.status(400).json({ error: 'Código é obrigatório' });
 
   try {
-    // 1. Verifica se o caixa estÃ¡ aberto
+    // 1. Verifica se o caixa está aberto
     const caixa = (await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'")).rows[0];
-    if (!caixa) return res.status(403).json({ error: 'ESTABELECIMENTO FECHADO: O cardÃ¡pio digital sÃ³ funciona com o caixa aberto.' });
+    if (!caixa) return res.status(403).json({ error: 'ESTABELECIMENTO FECHADO: O cardápio digital só funciona com o caixa aberto.' });
 
-    // 2. Verifica se o cÃ³digo Ã© vÃ¡lido e ativo
+    // 2. Verifica se o código é válido e ativo
     const acesso = (await query("SELECT ca.*, m.numero as mesa_numero FROM codigos_acesso ca JOIN mesas m ON ca.mesa_id = m.id WHERE UPPER(ca.codigo) = UPPER(?) AND ca.status = 'ativo'", [codigo])).rows[0];
 
-    if (!acesso) return res.status(401).json({ error: 'CÃ³digo invÃ¡lido ou jÃ¡ expirado.' });
+    if (!acesso) return res.status(401).json({ error: 'Código inválido ou já expirado.' });
 
-    // 3. VerificaÃ§Ã£o de SeguranÃ§a: A mesa estÃ¡ realmente ocupada?
-    // Isso evita que cÃ³digos de sessÃµes anteriores permitam acesso a mesas jÃ¡ liberadas.
+    // 3. VerificaÃ§ão de SeguranÃ§a: A mesa está realmente ocupada?
+    // Isso evita que códigos de sessões anteriores permitam acesso a mesas já liberadas.
     const mesaStatus = (await query("SELECT status FROM mesas WHERE id = ?", [acesso.mesa_id])).rows[0];
     
     if (!mesaStatus || mesaStatus.status === 'livre') {
-      // Se a mesa estÃ¡ livre, o cÃ³digo deve ser invalidado por seguranÃ§a (Ghost Session Prevention)
+      // Se a mesa está livre, o código deve ser invalidado por seguranÃ§a (Ghost Session Prevention)
       await query("UPDATE codigos_acesso SET status = 'expirado' WHERE id = ?", [acesso.id]);
-      return res.status(403).json({ error: 'ESTA MESA NÃƒO ESTÃ ATIVA: PeÃ§a ao garÃ§om para abrir sua mesa novamente.' });
+      return res.status(403).json({ error: 'ESTA MESA NÃƒO ESTÃ ATIVA: PeÃ§a ao garçom para abrir sua mesa novamente.' });
     }
 
     // 4. Busca pedido_id se existir (opcional nesta fase)
     const pedidoAtivo = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado') ORDER BY id DESC LIMIT 1", [acesso.mesa_id])).rows[0];
 
-    // 5. Gera o token de acesso (pedido_id pode ser null se for mesa recÃ©m aberta)
+    // 5. Gera o token de acesso (pedido_id pode ser null se for mesa recém aberta)
     const token = jwt.sign({ 
       mesa_id: acesso.mesa_id, 
       mesa_numero: acesso.mesa_numero, 
@@ -2194,15 +2194,15 @@ app.post('/api/acesso/validar', async (req, res) => {
   }
 });
 
-// Verifica se a sessÃ£o do cliente ainda Ã© vÃ¡lida (cÃ³digo ainda ativo)
+// Verifica se a sessão do cliente ainda é válida (código ainda ativo)
 app.get('/api/acesso/check', async (req, res) => {
   const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'NÃ£o autorizado' });
+  if (!token) return res.status(401).json({ error: 'Não autorizado' });
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     if (decoded.role !== 'cliente' || !decoded.acesso_id) {
-        return res.status(403).json({ error: 'Token invÃ¡lido para esta operaÃ§Ã£o' });
+        return res.status(403).json({ error: 'Token inválido para esta operaÃ§ão' });
     }
 
     const acesso = (await query("SELECT status, mesa_id FROM codigos_acesso WHERE id = ?", [decoded.acesso_id])).rows[0];
@@ -2210,7 +2210,7 @@ app.get('/api/acesso/check', async (req, res) => {
         return res.json({ valid: false, error: 'Acesso expirado' });
     }
 
-    // Verifica se a mesa ainda estÃ¡ ativa (ocupada ou em fechamento)
+    // Verifica se a mesa ainda está ativa (ocupada ou em fechamento)
     const mesa = (await query("SELECT status FROM mesas WHERE id = ?", [acesso.mesa_id])).rows[0];
     if (!mesa || mesa.status === 'livre') {
         // Se a mesa foi liberada, invalida o acesso por seguranÃ§a
@@ -2220,21 +2220,21 @@ app.get('/api/acesso/check', async (req, res) => {
 
     res.json({ valid: true });
   } catch (err) {
-    res.status(401).json({ error: 'SessÃ£o expirada' });
+    res.status(401).json({ error: 'Sessão expirada' });
   }
 });
-// Cliente solicita atendimento do garÃ§om
+// Cliente solicita atendimento do garçom
 app.post('/api/cliente/chamar-garcom', async (req, res) => {
   const { mesa_id, mesa_numero } = req.body;
   try {
     await safePusherTrigger('garconnexpress', 'chamado-garcom', {
       mesa_id,
       mesa_numero,
-      mensagem: `ðŸ›Žï¸ MESA ${mesa_numero} solicitou atendimento!`
+      mensagem: `🛎️ MESA ${mesa_numero} solicitou atendimento!`
     });
     
-    // Notifica via WhatsApp tambÃ©m se configurado
-    sendWhatsAppMessage(`ðŸ›Žï¸ *CHAMADO DE MESA*\nðŸ“ Mesa: ${mesa_numero}\nðŸ™‹â€â™‚ï¸ O cliente solicitou atendimento imediato.`).catch(e => console.error('Erro Wpp Chamado:', e.message));
+    // Notifica via WhatsApp também se configurado
+    sendWhatsAppMessage(`🛎️ *CHAMADO DE MESA*\n📍 Mesa: ${mesa_numero}\n🙋‍♂️ O cliente solicitou atendimento imediato.`).catch(e => console.error('Erro Wpp Chamado:', e.message));
     
     res.json({ success: true });
   } catch (error) {
@@ -2242,12 +2242,12 @@ app.post('/api/cliente/chamar-garcom', async (req, res) => {
   }
 });
 
-// Cliente envia rascunho do pedido (prÃ©-seleÃ§Ã£o)
+// Cliente envia rascunho do pedido (pré-seleÃ§ão)
 app.post('/api/cliente/enviar-rascunho', async (req, res) => {
   const { mesa_id, mesa_numero, itens } = req.body;
   try {
     const itensFormatados = itens.map(i => `${i.quantidade}x ${i.nome}`).join('\n');
-    const msg = `ðŸ“ RASCUNHO RECEBIDO - MESA ${mesa_numero}\n${itensFormatados}`;
+    const msg = `📝 RASCUNHO RECEBIDO - MESA ${mesa_numero}\n${itensFormatados}`;
     
     await safePusherTrigger('garconnexpress', 'rascunho-recebido', {
       mesa_id,
@@ -2256,8 +2256,8 @@ app.post('/api/cliente/enviar-rascunho', async (req, res) => {
       mensagem: msg
     });
     
-    // Notifica via WhatsApp tambÃ©m
-    sendWhatsAppMessage(`ðŸ“ *RASCUNHO DE PEDIDO*\nðŸ“ Mesa: ${mesa_numero}\n\n${itensFormatados}\n\nâš ï¸ _Aguardando confirmaÃ§Ã£o do garÃ§om._`).catch(e => console.error('Erro Wpp Rascunho:', e.message));
+    // Notifica via WhatsApp também
+    sendWhatsAppMessage(`📝 *RASCUNHO DE PEDIDO*\n📍 Mesa: ${mesa_numero}\n\n${itensFormatados}\n\n⚠️ _Aguardando confirmaÃ§ão do garçom._`).catch(e => console.error('Erro Wpp Rascunho:', e.message));
     
     res.json({ success: true });
   } catch (error) {
@@ -2270,9 +2270,9 @@ app.get('/api/whatsapp-status', async (req, res) => {
     const configRes = await query("SELECT valor FROM sistema_config WHERE chave = 'whatsapp_enabled'");
     const isEnabled = configRes.rows && configRes.rows.length > 0 ? configRes.rows[0].valor === 'true' : true;
 
-    // Busca a lista de nÃºmeros no banco de dados (chave correta: plural)
+    // Busca a lista de números no banco de dados (chave correta: plural)
     const configNums = await query("SELECT valor FROM sistema_config WHERE chave = 'whatsapp_notify_numbers'");
-    let numbersDisplay = 'NÃ£o configurado';
+    let numbersDisplay = 'Não configurado';
     
     if (configNums.rows && configNums.rows.length > 0 && configNums.rows[0].valor) {
       numbersDisplay = configNums.rows[0].valor;
@@ -2288,8 +2288,8 @@ app.get('/api/whatsapp-status', async (req, res) => {
       botUrl: process.env.WHATSAPP_BOT_URL || ''
     });
   } catch (error) {
-    console.error('âŒ Erro ao buscar status do WhatsApp:', error.message);
-    // Retorna um objeto vÃ¡lido em vez de 500 para evitar o selo de ERRO no frontend
+    console.error('❌ Erro ao buscar status do WhatsApp:', error.message);
+    // Retorna um objeto válido em vez de 500 para evitar o selo de ERRO no frontend
     res.json({
       configured: !!process.env.WHATSAPP_BOT_URL,
       connected: false,
@@ -2330,8 +2330,8 @@ app.post('/api/config/categorias-cozinha', async (req, res) => {
     
     // SINCRONIZAÃ‡ÃƒO COMPLETA: 
     // Define todos os itens como NULL para que passem a seguir a nova regra de categorias global.
-    // Isso garante que o "Salvar" da configuraÃ§Ã£o realmente aplique a mudanÃ§a em todo o cardÃ¡pio.
-    // MarcaÃ§Ãµes manuais anteriores serÃ£o resetadas para seguir a nova configuraÃ§Ã£o global.
+    // Isso garante que o "Salvar" da configuração realmente aplique a mudanÃ§a em todo o cardápio.
+    // MarcaÃ§ões manuais anteriores serão resetadas para seguir a nova configuração global.
     await query(`UPDATE menu SET enviar_cozinha = NULL`);
 
     res.json({ success: true });
@@ -2360,7 +2360,7 @@ app.get('/api/diag', async (req, res) => {
         HAS_POSTGRES_URL: !!process.env.POSTGRES_URL,
         HAS_DATABASE_URL: !!process.env.DATABASE_URL,
         PUSHER_CONFIGURED: !!(process.env.PUSHER_APP_ID && process.env.PUSHER_APP_KEY && process.env.PUSHER_APP_SECRET),
-        PUSHER_CLUSTER: process.env.PUSHER_CLUSTER || 'nÃ£o definido',
+        PUSHER_CLUSTER: process.env.PUSHER_CLUSTER || 'não definido',
         JWT_SECRET_DEFINED: !!process.env.JWT_SECRET
       }
     });
@@ -2375,7 +2375,7 @@ app.get('/api/diag', async (req, res) => {
   }
 });
 
-// Endpoint para forÃ§ar inicializaÃ§Ã£o do DB (Ãºtil se as tabelas nÃ£o existirem)
+// Endpoint para forÃ§ar inicializaÃ§ão do DB (útil se as tabelas não existirem)
   app.post('/api/init-db-force', async (req, res) => {
     try {
       const tables = [
