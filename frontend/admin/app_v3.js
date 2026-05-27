@@ -4905,3 +4905,18 @@ async function acaoOpcoesMesa(acao) {
   // Mantido para compatibilidade se houver algum listener direto, mas o abrirModalOpcoes agora é autossuficiente
   fecharModalOpcoes();
 }
+
+// Escuta mensagens do iframe do WhatsApp para atualizar o contador de não lidas
+window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'whatsapp_unread') {
+        const badge = document.getElementById('badge-whatsapp-contador');
+        if (badge) {
+            badge.innerText = event.data.count;
+            if (event.data.count > 0) {
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+    }
+});
