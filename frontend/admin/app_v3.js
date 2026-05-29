@@ -4783,22 +4783,15 @@ async function abrirModalOpcoes(pedidoId) {
   const headerBg = document.getElementById('modal-opcoes-header-bg');
   const itens = await fetch(`/api/pedidos/${pedidoId}/itens`).then(res => res.json());
   const hasPend = itens.some(i => i.status === 'pendente' || i.status === 'pronto');
-  const hasCozinha = itens.some(i => (i.status === 'pendente' || i.status === 'pronto') && isItemParaCozinha(i));
   const isAguardando = pedido.status === 'aguardando_fechamento';
   
-  // Exibir banner de cozinha se houver itens pendentes na cozinha
-  const bannerCozinha = hasCozinha ? `
-    <div style="background: #e74c3c; color: white; padding: 10px; border-radius: 12px; margin-bottom: 12px; font-weight: 900; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; gap: 10px; border: 2px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.1); animation: alerta-borda-pisca 1.5s infinite;">
-      <span style="font-size: 1.2rem;">👨‍🍳</span> PEDIDO EM PREPARO NA COZINHA
-    </div>` : '';
-
   document.getElementById('modal-opcoes-titulo').innerText = mesaNome;
   document.getElementById('modal-opcoes-info').innerText = `Pedido #${pedido.id} | Garçom: ${pedido.garcom_id || 'Admin'}`;
 
   // Exibir observação do pedido se existir
   const infoExtra = document.getElementById('modal-opcoes-info-extra');
   if (infoExtra) {
-    infoExtra.innerHTML = bannerCozinha + (pedido.observacao ? `<div style="background:#fff3cd; color:#856404; padding:8px 12px; border-radius:8px; margin-top:10px; font-weight:bold; font-size:0.9rem; border:1px solid #ffeeba;">📝 OBS: ${pedido.observacao}</div>` : '');
+    infoExtra.innerHTML = (pedido.observacao ? `<div style="background:#fff3cd; color:#856404; padding:8px 12px; border-radius:8px; margin-top:10px; font-weight:bold; font-size:0.9rem; border:1px solid #ffeeba;">📝 OBS: ${pedido.observacao}</div>` : '');
   }
   
   // Cores dinâmicas conforme status
