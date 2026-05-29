@@ -103,15 +103,23 @@
             <div id="delivery-form">
                 <div class="form-group"><label>Seu Nome</label><input type="text" id="cust-name" placeholder="Como te chamamos?"></div>
                 <div class="form-group"><label>WhatsApp / Telefone</label><input type="tel" id="cust-phone" placeholder="(00) 00000-0000"></div>
+                
                 <div class="form-group">
-                    <label>CEP (Busca automática)</label>
-                    <div style="display: flex; gap: 10px;">
-                        <input type="number" id="cust-cep" placeholder="Ex: 57000000" maxlength="8">
-                        <button onclick="buscarCEP()" style="width: auto; padding: 0 20px; background: #3498db; margin-bottom: 0;">BUSCAR</button>
+                    <label>CEP</label>
+                    <div style="position: relative; display: flex; align-items: center;">
+                        <input type="number" id="cust-cep" placeholder="Ex: 57000000" style="padding-right: 100px;">
+                        <button onclick="buscarCEP()" style="position: absolute; right: 5px; width: auto; padding: 8px 15px; background: var(--primary); margin-bottom: 0; font-size: 0.8rem; border-radius: 8px;">BUSCAR</button>
                     </div>
                 </div>
-                <div class="form-group"><label>Endereço de Entrega</label><textarea id="cust-address" rows="2" placeholder="Rua, número, bairro e ponto de referência"></textarea></div>
+
+                <div style="display: flex; gap: 10px;">
+                    <div class="form-group" style="flex: 3;"><label>Endereço</label><input type="text" id="cust-address" placeholder="Rua / Avenida"></div>
+                    <div class="form-group" style="flex: 1;"><label>Nº</label><input type="text" id="cust-number" placeholder="123"></div>
+                </div>
+
+                <div class="form-group"><label>Bairro / Complemento / Ref</label><input type="text" id="cust-bairro" placeholder="Ex: Centro - Próximo ao mercado"></div>
                 <div class="form-group"><label>Observações do Pedido</label><textarea id="cust-obs" rows="2" placeholder="Alguma preferência? (Ex: sem cebola, ponto da carne...)"></textarea></div>
+                
                 <div class="form-group">
                     <label>Forma de Pagamento</label>
                     <select id="cust-payment" onchange="toggleChangeField(this.value)">
@@ -148,13 +156,11 @@
                 if (data.erro) {
                     Swal.fire('Erro', 'CEP não encontrado.', 'error');
                 } else {
-                    const addressField = document.getElementById('cust-address');
-                    addressField.value = `${data.logradouro}, , ${data.bairro} - ${data.localidade}/${data.uf}`;
-                    addressField.focus();
-                    // Coloca o cursor após a primeira vírgula para facilitar digitar o número
-                    const pos = data.logradouro.length + 2;
-                    addressField.setSelectionRange(pos, pos);
-                    mostrarToast("Endereço preenchido! Não esqueça do número.");
+                    document.getElementById('cust-address').value = data.logradouro;
+                    document.getElementById('cust-bairro').value = data.bairro;
+                    const numField = document.getElementById('cust-number');
+                    numField.focus();
+                    mostrarToast("Endereço preenchido! Digite o número.");
                 }
             } catch (error) {
                 Swal.fire('Erro', 'Falha ao buscar CEP. Tente digitar manualmente.', 'error');
@@ -296,10 +302,13 @@
             const name = document.getElementById('cust-name').value.trim();
             const phone = document.getElementById('cust-phone').value.trim();
             const address = document.getElementById('cust-address').value.trim();
+            const number = document.getElementById('cust-number').value.trim();
+            const bairro = document.getElementById('cust-bairro').value.trim();
+            const obs = document.getElementById('cust-obs').value.trim();
             const payment = document.getElementById('cust-payment').value;
             const change = document.getElementById('cust-change').value;
 
-            if (!name || !address) return Swal.fire('Aviso', 'Por favor, preencha seu nome e endereço.', 'warning');
+            if (!name || !address || !number) return Swal.fire('Aviso', 'Preencha Nome, Endereço e Número.', 'warning');
             if (cart.length === 0) return Swal.fire('Aviso', 'Seu carrinho está vazio.', 'warning');
 
             const total = cart.reduce((s, x) => s + (x.qty*x.preco), 0);
@@ -308,7 +317,9 @@
             msg += `------------------------------\n`;
             msg += `👤 *Cliente:* ${name}\n`;
             if(phone) msg += `📞 *Tel:* ${phone}\n`;
-            msg += `🏠 *Endereço:* ${address}\n\n`;
+            msg += `🏠 *Endereço:* ${address}, ${number}\n`;
+            if(bairro) msg += `📍 *Bairro/Ref:* ${bairro}\n`;
+            if(obs) msg += `📝 *Obs:* ${obs}\n\n`;
             
             msg += `🛒 *ITENS:*\n`;
             cart.forEach(i => {
