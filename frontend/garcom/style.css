@@ -851,6 +851,29 @@ button:hover { background-color: #2ecc71; }
   color: #e74c3c;
 }
 
+/* Títulos de categoria no cardápio do garçom */
+.section-title-garcom {
+  grid-column: 1 / -1;
+  background: #2c3e50;
+  color: white;
+  padding: 10px 15px;
+  margin: 15px 0 5px 0;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-title-garcom::before {
+  content: '🍴';
+  font-size: 1rem;
+}
+
 
 /* Estilos para o Modal de Sistema (Alert/Confirm) */
 .modal {

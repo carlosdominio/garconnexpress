@@ -1151,47 +1151,64 @@ async function exibirMenu(categoria) {
   }
 
   const itens = categoria === 'todas' ? menu : menu.filter(item => item.categoria === categoria);
-  grid.innerHTML = itens.map(item => {
-    const itemNoPedido = pedidoAtual.find(p => p.menu_id === item.id);
-    const qtdNoCarrinho = itemNoPedido ? itemNoPedido.quantidade : 0;
+  
+  // Agrupa os itens por categoria para exibir os títulos
+  const grupos = itens.reduce((acc, i) => {
+    const n = (i.categoria || 'Sem Categoria').trim().toUpperCase();
+    if(!acc[n]) acc[n]=[];
+    acc[n].push(i);
+    return acc;
+  }, {});
 
-    // Lógica de estoque: subtrai o que já está no carrinho local para mostrar o real disponível
-    const estoqueBase = (item.estoque !== null && item.estoque !== undefined) ? parseInt(item.estoque) : -1;
-    const temEstoqueDefinido = estoqueBase !== -1;
-    const estoqueExibido = temEstoqueDefinido ? (estoqueBase - qtdNoCarrinho) : -1;
-    
-    const esgotado = temEstoqueDefinido && estoqueExibido <= 0;
-    const emPromocao = item.em_promocao === 1 || item.em_promocao === true;
+  let html = '';
+  for (const catName in grupos) {
+    // Adiciona o título da categoria (ocupa a largura toda do grid)
+    html += `<div class="section-title-garcom">${catName}</div>`;
 
-    return `
-      <div class="item-menu ${esgotado ? 'esgotado' : ''} ${emPromocao ? 'com-promo' : ''}" data-id="${item.id}" style="position: relative; ${esgotado ? 'opacity: 0.6; filter: grayscale(1);' : ''}">
-        <!-- Badge de Quantidade (TOPO ESQUERDO) -->
-        ${qtdNoCarrinho > 0 ? `<div class="badge-qtd" style="position: absolute; top: 5px; left: 5px; right: auto;">${qtdNoCarrinho}</div>` : ''}
-        
-        <!-- Container de Info (TOPO DIREITO) -->
-        <div style="position: absolute; top: 6px; right: 6px; z-index: 10; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
-          <!-- Preço -->
-          <div style="background: #27ae60; color: white; padding: 4px 8px; border-radius: 6px; font-weight: 900; font-size: 1.0rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: flex-end;">
-            ${item.preco_original ? `<span style="text-decoration: line-through; opacity: 0.7; font-size: 0.7rem; line-height: 1;">R$ ${item.preco_original.toFixed(2)}</span>` : ''}
-            <span>R$ ${item.preco.toFixed(2)}</span>
-          </div>          
-          <!-- Info de ESTOQUE (Mostra o que resta tirando o carrinho) -->
-          <div style="background: ${esgotado ? '#e74c3c' : '#3498db'}; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-            ${temEstoqueDefinido ? `<span>📦</span> ${estoqueExibido}` : '<span>♾️</span> Ilimitado'}
+    html += grupos[catName].map(item => {
+      const itemNoPedido = pedidoAtual.find(p => p.menu_id === item.id);
+      const qtdNoCarrinho = itemNoPedido ? itemNoPedido.quantidade : 0;
+
+      // Lógica de estoque: subtrai o que já está no carrinho local para mostrar o real disponível
+      const estoqueBase = (item.estoque !== null && item.estoque !== undefined) ? parseInt(item.estoque) : -1;
+      const temEstoqueDefinido = estoqueBase !== -1;
+      const estoqueExibido = temEstoqueDefinido ? (estoqueBase - qtdNoCarrinho) : -1;
+      
+      const esgotado = temEstoqueDefinido && estoqueExibido <= 0;
+      const emPromocao = item.em_promocao === 1 || item.em_promocao === true;
+
+      return `
+        <div class="item-menu ${esgotado ? 'esgotado' : ''} ${emPromocao ? 'com-promo' : ''}" data-id="${item.id}" style="position: relative; ${esgotado ? 'opacity: 0.6; filter: grayscale(1);' : ''}">
+          <!-- Badge de Quantidade (TOPO ESQUERDO) -->
+          ${qtdNoCarrinho > 0 ? `<div class="badge-qtd" style="position: absolute; top: 5px; left: 5px; right: auto;">${qtdNoCarrinho}</div>` : ''}
+          
+          <!-- Container de Info (TOPO DIREITO) -->
+          <div style="position: absolute; top: 6px; right: 6px; z-index: 10; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+            <!-- Preço -->
+            <div style="background: #27ae60; color: white; padding: 4px 8px; border-radius: 6px; font-weight: 900; font-size: 1.0rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: flex-end;">
+              ${item.preco_original ? `<span style="text-decoration: line-through; opacity: 0.7; font-size: 0.7rem; line-height: 1;">R$ ${item.preco_original.toFixed(2)}</span>` : ''}
+              <span>R$ ${item.preco.toFixed(2)}</span>
+            </div>          
+            <!-- Info de ESTOQUE (Mostra o que resta tirando o carrinho) -->
+            <div style="background: ${esgotado ? '#e74c3c' : '#3498db'}; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+              ${temEstoqueDefinido ? `<span>📦</span> ${estoqueExibido}` : '<span>♾️</span> Ilimitado'}
+            </div>
+
+            <!-- PROMOÇÃO -->
+            ${emPromocao ? '<div class="promo-badge">PROMOÇÃO</div>' : ''}
+            
+            <!-- COZINHA -->
+            ${item.enviar_cozinha ? '<div style="background: #3498db; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.75rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin-top: 2px;">🍳 COZINHA</div>' : ''}
           </div>
 
-          <!-- PROMOÇÃO -->
-          ${emPromocao ? '<div class="promo-badge">PROMOÇÃO</div>' : ''}
-          
-          <!-- COZINHA -->
-          ${item.enviar_cozinha ? '<div style="background: #3498db; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.75rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin-top: 2px;">🍳 COZINHA</div>' : ''}
+          <img src="${item.imagem}" alt="${item.nome}" onerror="this.onerror=null;this.src='https://placehold.co/150x120?text=${item.nome[0]}'">
+          <h3 style="font-size: 1.0rem !important;">${item.nome}</h3>
         </div>
+      `;
+    }).join('');
+  }
 
-        <img src="${item.imagem}" alt="${item.nome}">
-        <h3 style="font-size: 1.0rem !important;">${item.nome}</h3>
-      </div>
-    `;
-  }).join('');
+  grid.innerHTML = html;
 
   document.querySelectorAll('.item-menu').forEach(itemEl => {
     itemEl.addEventListener('click', async () => {
