@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delivery - GuGA Bebidas</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        :root { --primary: #27ae60; --primary-dark: #1e8449; --bg: #f1f2f6; --card-bg: #ffffff; --text: #2f3542; --text-light: #747d8c; --shadow: 0 4px 12px rgba(0,0,0,0.08); --radius: 16px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: var(--bg); color: var(--text); padding-bottom: 100px; }
+        body.modal-open { overflow: hidden; height: 100vh; overscroll-behavior: none; }
+        #sticky-header-group { position: sticky; top: 0; z-index: 100; background: var(--bg); box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        header { background: var(--card-bg); padding: 25px 20px; text-align: center; border-bottom: 1px solid #eee; }
+        header h1 { font-size: 1rem; color: var(--text-light); text-transform: uppercase; letter-spacing: 2px; }
+        header p { font-size: 2.2rem; color: var(--primary); font-weight: 900; }
+        .categories { display: flex; overflow-x: auto; padding: 15px 20px; gap: 12px; background: var(--bg); scrollbar-width: none; }
+        .categories::-webkit-scrollbar { display: none; }
+        .category-pill { background: var(--card-bg); padding: 10px 20px; border-radius: 25px; font-size: 0.9rem; white-space: nowrap; box-shadow: var(--shadow); cursor: pointer; font-weight: 600; color: var(--text-light); border: 2px solid transparent; }
+        .category-pill.active { background: var(--primary); color: white; transform: translateY(-2px); box-shadow: 0 6px 15px rgba(39, 174, 96, 0.3); }
+        .container { padding: 20px; max-width: 600px; margin: 0 auto; }
+        .section-title { margin: 25px 0 15px; font-size: 1.4rem; color: var(--text); font-weight: 800; border-left: 5px solid var(--primary); padding-left: 12px; }
+        .menu-item { background: var(--card-bg); border-radius: var(--radius); padding: 18px; margin-bottom: 20px; display: flex; gap: 15px; box-shadow: var(--shadow); }
+        .item-img { width: 90px; height: 90px; background: #f8f9fa; border-radius: 14px; object-fit: cover; }
+        .item-placeholder { width: 90px; height: 90px; background: #f1f2f6; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #ccc; font-size: 2rem; font-weight: bold; }
+        .item-info { flex: 1; }
+        .item-info h3 { font-size: 1.15rem; margin-bottom: 6px; }
+        .item-info .desc { font-size: 0.85rem; color: var(--text-light); line-height: 1.4; }
+        .item-info .price { font-weight: 800; color: var(--primary); font-size: 1.2rem; margin-top: 8px; }
+        .controls { display: flex; align-items: center; gap: 15px; margin-top: 10px; }
+        .btn-qty { width: 32px; height: 32px; border-radius: 10px; border: none; background: #f1f2f6; cursor: pointer; font-weight: bold; font-size: 1.2rem; }
+        .qty { font-weight: 800; font-size: 1.1rem; width: 25px; text-align: center; }
+        .btn-add-initial { background: var(--primary); color: white; border: none; padding: 8px 20px; border-radius: 20px; font-size: 0.9rem; font-weight: 700; cursor: pointer; }
+        .cart-bar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: calc(100% - 40px); max-width: 500px; background: #2f3542; color: white; padding: 18px 25px; border-radius: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); z-index: 200; cursor: pointer; display: none; }
+
+        .modal-cart { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; z-index: 1000; justify-content: flex-end; flex-direction: column; }
+        .modal-content { background: white; border-radius: 40px 40px 0 0; padding: 40px 25px; max-height: 94vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-header h2 { font-size: 1.8rem; font-weight: 900; }
+        .close-modal { font-size: 2rem; color: #ddd; cursor: pointer; padding: 5px; }
+
+        .form-group { margin-bottom: 15px; text-align: left; }
+        .form-group label { display: block; font-size: 0.85rem; font-weight: 700; color: var(--text-light); margin-bottom: 8px; text-transform: uppercase; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 15px; border-radius: 12px; border: 2px solid #f1f2f6; font-size: 1rem; outline: none; background: #f8f9fa; }
+        .form-group input:focus { border-color: var(--primary); background: white; }
+
+        .item-row { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #f8f9fa; }
+        .item-row h4 { font-size: 1.05rem; font-weight: 800; }
+        
+        .value-card { background: #f8f9fa; padding: 20px; border-radius: 18px; margin: 20px 0; display: flex; justify-content: space-between; align-items: center; }
+        .value-card span { font-weight: 700; color: var(--text-light); }
+        .value-card h3 { font-size: 1.4rem; font-weight: 900; color: var(--primary); }
+
+        .btn-finish { width: 100%; background: var(--primary); color: white; border: none; padding: 20px; border-radius: 20px; font-size: 1.1rem; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: 0.3s; }
+        .btn-finish:active { transform: scale(0.98); }
+        
+        #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; display: flex; align-items: center; justify-content: center; z-index: 9999; flex-direction: column; gap: 20px; }
+        .spinner { width: 50px; height: 50px; border: 6px solid #f3f3f3; border-top: 6px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #closed-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; background: white; z-index: 3000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="loading"><div class="spinner"></div><p style="font-weight: 700; color: #999;">CARREGANDO DELIVERY...</p></div>
+
+    <div id="closed-screen">
+        <div style="width:100%; max-width:450px; background:white; padding:60px 40px; border-radius:40px; box-shadow: 0 25px 60px rgba(0,0,0,0.1); display:flex; flex-direction:column; align-items:center;">
+            <div style="width: 120px; height: 120px; background: #e8f8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 30px; font-size: 4rem;">🛵</div>
+            <h1 style="font-weight: 900; font-size: 2rem; color: #2f3542; margin-bottom: 15px;">Delivery Fechado</h1>
+            <p style="color: #747d8c; line-height: 1.6; font-size: 1.1rem; margin-bottom: 35px;">
+                No momento não estamos aceitando pedidos para entrega.<br>
+                Agradecemos a compreensão!
+            </p>
+            <div style="width: 100%; border-top: 1px solid #f1f2f6; padding-top: 30px;">
+                <p style="font-size: 0.9rem; color: #a4b0be; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Horário de Funcionamento</p>
+                <p style="font-size: 1rem; color: #2f3542; margin-top: 5px; font-weight: 700;">Diariamente das 18h às 02:00 de Terça a Domingo</p>
+            </div>
+            <button onclick="location.reload()" class="btn-finish" style="margin-top: 40px; background: #2f3542;">TENTAR NOVAMENTE</button>
+        </div>
+    </div>
+
+    <div id="main-content" style="display: none;">
+        <div id="sticky-header-group">
+            <header><h1>GuGA Bebidas</h1><p>Delivery</p></header>
+            <div class="categories" id="categories-container"></div>
+        </div>
+        <div class="container" id="menu-container"></div>
+        <div class="cart-bar" id="cart-bar" onclick="toggleCartModal(true)">
+            <div class="info"><span id="cart-qty">0 itens</span><span id="cart-total" style="display: block; font-weight: 900; font-size: 1.2rem;">R$ 0,00</span></div>
+            <div style="font-weight: 800; font-size: 0.9rem;">VER CARRINHO <i class="fas fa-shopping-cart"></i></div>
+        </div>
+    </div>
+
+    <div class="modal-cart" id="modal-cart">
+        <div class="modal-content">
+            <div class="modal-header"><h2>Carrinho</h2><i class="fas fa-times close-modal" onclick="toggleCartModal(false)"></i></div>
+            <div id="modal-cart-items" style="margin-bottom: 20px;"></div>
+            
+            <div id="delivery-form">
+                <div class="form-group"><label>Seu Nome</label><input type="text" id="cust-name" placeholder="Como te chamamos?"></div>
+                <div class="form-group"><label>WhatsApp / Telefone</label><input type="tel" id="cust-phone" placeholder="(00) 00000-0000"></div>
+                <div class="form-group"><label>Endereço de Entrega</label><textarea id="cust-address" rows="2" placeholder="Rua, número, bairro e ponto de referência"></textarea></div>
+                <div class="form-group">
+                    <label>Forma de Pagamento</label>
+                    <select id="cust-payment" onchange="toggleChangeField(this.value)">
+                        <option value="Pix">PIX</option>
+                        <option value="Cartão">Cartão (Maquininha)</option>
+                        <option value="Dinheiro">Dinheiro</option>
+                    </select>
+                </div>
+                <div id="change-group" class="form-group" style="display: none;"><label>Troco para quanto?</label><input type="number" id="cust-change" placeholder="Ex: 100"></div>
+            </div>
+
+            <div class="value-card"><span>Total do Pedido</span><h3 id="modal-cart-total">R$ 0,00</h3></div>
+            <button class="btn-finish" onclick="enviarWhatsApp()"><i class="fab fa-whatsapp"></i> ENVIAR PEDIDO NO ZAP</button>
+        </div>
+    </div>
+
+    <script>
+        let fullMenu = [], cart = [], currentCategory = null;
+        const ADMIN_NUMBER = '558293157048'; // Número padrão para receber pedidos
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await verificarCaixa();
+            loadMenu();
+        });
+
+        async function verificarCaixa() {
+            try {
+                const res = await fetch('/api/caixa/status');
+                const cx = await res.json();
+                if(!cx) {
+                    document.getElementById('closed-screen').style.display = 'flex';
+                    document.getElementById('loading').style.display = 'none';
+                    return false;
+                }
+                return true;
+            } catch(e) { return true; }
+        }
+
+        async function loadMenu() {
+            try {
+                const res = await fetch('/api/menu');
+                fullMenu = await res.json();
+                renderCategories();
+                renderMenu();
+                document.getElementById('main-content').style.display = 'block';
+                document.getElementById('loading').style.display = 'none';
+            } catch(e) { console.error(e); }
+        }
+
+        function renderCategories() {
+            const cats = ['Tudo', ...new Set(fullMenu.map(i => i.categoria.trim().toUpperCase()))];
+            document.getElementById('categories-container').innerHTML = cats.map(c => `<div class="category-pill ${(currentCategory===null && c==='Tudo')||currentCategory===c?'active':''}" onclick="filterCategory('${c}')">${c}</div>`).join('');
+        }
+
+        function filterCategory(c) {
+            currentCategory = c === 'Tudo' ? null : c;
+            renderCategories();
+            renderMenu();
+        }
+
+        function renderMenu() {
+            const container = document.getElementById('menu-container');
+            container.innerHTML = '';
+            const menuToShow = currentCategory ? fullMenu.filter(i => i.categoria.trim().toUpperCase() === currentCategory) : fullMenu;
+            const groups = menuToShow.reduce((acc, i) => { const n = i.categoria.trim().toUpperCase(); if(!acc[n]) acc[n]=[]; acc[n].push(i); return acc; }, {});
+            
+            for (const cat in groups) {
+                const section = document.createElement('div');
+                section.innerHTML = `<h2 class="section-title">${cat}</h2>`;
+                groups[cat].forEach(i => {
+                    const cartI = cart.find(c => c.id === i.id);
+                    const qty = cartI ? cartI.qty : 0;
+                    section.innerHTML += `
+                        <div class="menu-item">
+                            ${i.imagem ? `<img src="${i.imagem}" class="item-img" onerror="this.onerror=null;this.src='https://placehold.co/100x100?text=${i.nome[0]}'">` : `<div class="item-placeholder">${i.nome[0]}</div>`}
+                            <div class="item-info">
+                                <h3>${i.nome}</h3>
+                                <p class="desc">${i.descricao||''}</p>
+                                <div class="price">R$ ${i.preco.toFixed(2)}</div>
+                                <div class="controls">
+                                    ${qty>0 ? `<button class="btn-qty" onclick="updateCart(${i.id},-1)">-</button><span class="qty">${qty}</span><button class="btn-qty" onclick="updateCart(${i.id},1)">+</button>` : `<button class="btn-add-initial" onclick="updateCart(${i.id},1)">Adicionar</button>`}
+                                </div>
+                            </div>
+                        </div>`;
+                });
+                container.appendChild(section);
+            }
+        }
+
+        function updateCart(id, delta) {
+            const i = fullMenu.find(x => x.id === id);
+            const cI = cart.find(x => x.id === id);
+            if (cI) {
+                cI.qty += delta;
+                if (cI.qty <= 0) cart = cart.filter(x => x.id !== id);
+            } else if (delta > 0) {
+                cart.push({ ...i, qty: 1 });
+            }
+            renderMenu();
+            updateCartBar();
+            renderCartModal();
+        }
+
+        function updateCartBar() {
+            const bar = document.getElementById('cart-bar');
+            const q = cart.reduce((s, x) => s + x.qty, 0);
+            const v = cart.reduce((s, x) => s + (x.qty*x.preco), 0);
+            if (q > 0) {
+                bar.style.display = 'flex';
+                document.getElementById('cart-qty').innerText = `${q} itens`;
+                document.getElementById('cart-total').innerText = `R$ ${v.toFixed(2)}`;
+            } else {
+                bar.style.display = 'none';
+            }
+        }
+
+        function toggleCartModal(s) {
+            document.getElementById('modal-cart').style.display=s?'flex':'none';
+            if(s) document.body.classList.add('modal-open');
+            else document.body.classList.remove('modal-open');
+        }
+
+        function toggleChangeField(val) {
+            document.getElementById('change-group').style.display = val === 'Dinheiro' ? 'block' : 'none';
+        }
+
+        function renderCartModal() {
+            const c = document.getElementById('modal-cart-items');
+            if (cart.length === 0) {
+                c.innerHTML = '<p style="text-align:center; padding:20px; color:#999;">Carrinho vazio.</p>';
+                return;
+            }
+            c.innerHTML = cart.map(i => `<div class="item-row"><div><h4>${i.qty}x ${i.nome}</h4></div><div><b>R$ ${(i.qty*i.preco).toFixed(2)}</b></div></div>`).join('');
+            const total = cart.reduce((s, x) => s + (x.qty*x.preco), 0);
+            document.getElementById('modal-cart-total').innerText = `R$ ${total.toFixed(2)}`;
+        }
+
+        function enviarWhatsApp() {
+            const name = document.getElementById('cust-name').value.trim();
+            const phone = document.getElementById('cust-phone').value.trim();
+            const address = document.getElementById('cust-address').value.trim();
+            const payment = document.getElementById('cust-payment').value;
+            const change = document.getElementById('cust-change').value;
+
+            if (!name || !address) return Swal.fire('Aviso', 'Por favor, preencha seu nome e endereço.', 'warning');
+            if (cart.length === 0) return Swal.fire('Aviso', 'Seu carrinho está vazio.', 'warning');
+
+            const total = cart.reduce((s, x) => s + (x.qty*x.preco), 0);
+            
+            let msg = `🛍️ *NOVO PEDIDO - DELIVERY*\n`;
+            msg += `------------------------------\n`;
+            msg += `👤 *Cliente:* ${name}\n`;
+            if(phone) msg += `📞 *Tel:* ${phone}\n`;
+            msg += `🏠 *Endereço:* ${address}\n\n`;
+            
+            msg += `🛒 *ITENS:*\n`;
+            cart.forEach(i => {
+                msg += `- ${i.qty}x ${i.nome} (R$ ${(i.qty*i.preco).toFixed(2)})\n`;
+            });
+            
+            msg += `\n💰 *TOTAL: R$ ${total.toFixed(2)}*\n`;
+            msg += `💳 *Pagamento:* ${payment}`;
+            if(payment === 'Dinheiro' && change) msg += ` (Troco para R$ ${parseFloat(change).toFixed(2)})`;
+            msg += `\n------------------------------\n`;
+            msg += `_Enviado via Cardápio Digital_`;
+
+            const encoded = encodeURIComponent(msg);
+            window.open(`https://wa.me/${ADMIN_NUMBER}?text=${encoded}`, '_blank');
+            
+            // Limpa o carrinho após enviar
+            cart = [];
+            updateCartBar();
+            toggleCartModal(false);
+            renderMenu();
+            
+            Swal.fire('Sucesso!', 'Seu pedido foi formatado e enviado para o WhatsApp!', 'success');
+        }
+    </script>
+</body>
+</html>
