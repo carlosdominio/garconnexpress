@@ -103,7 +103,15 @@
             <div id="delivery-form">
                 <div class="form-group"><label>Seu Nome</label><input type="text" id="cust-name" placeholder="Como te chamamos?"></div>
                 <div class="form-group"><label>WhatsApp / Telefone</label><input type="tel" id="cust-phone" placeholder="(00) 00000-0000"></div>
+                <div class="form-group">
+                    <label>CEP (Busca automática)</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="number" id="cust-cep" placeholder="Ex: 57000000" maxlength="8">
+                        <button onclick="buscarCEP()" style="width: auto; padding: 0 20px; background: #3498db; margin-bottom: 0;">BUSCAR</button>
+                    </div>
+                </div>
                 <div class="form-group"><label>Endereço de Entrega</label><textarea id="cust-address" rows="2" placeholder="Rua, número, bairro e ponto de referência"></textarea></div>
+                <div class="form-group"><label>Observações do Pedido</label><textarea id="cust-obs" rows="2" placeholder="Alguma preferência? (Ex: sem cebola, ponto da carne...)"></textarea></div>
                 <div class="form-group">
                     <label>Forma de Pagamento</label>
                     <select id="cust-payment" onchange="toggleChangeField(this.value)">
@@ -128,6 +136,41 @@
             await verificarCaixa();
             loadMenu();
         });
+
+        async function buscarCEP() {
+            const cep = document.getElementById('cust-cep').value.replace(/\D/g, '');
+            if (cep.length !== 8) return Swal.fire('Aviso', 'Digite um CEP válido com 8 dígitos.', 'warning');
+
+            try {
+                const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+                const data = await response.json();
+                
+                if (data.erro) {
+                    Swal.fire('Erro', 'CEP não encontrado.', 'error');
+                } else {
+                    const addressField = document.getElementById('cust-address');
+                    addressField.value = `${data.logradouro}, , ${data.bairro} - ${data.localidade}/${data.uf}`;
+                    addressField.focus();
+                    // Coloca o cursor após a primeira vírgula para facilitar digitar o número
+                    const pos = data.logradouro.length + 2;
+                    addressField.setSelectionRange(pos, pos);
+                    mostrarToast("Endereço preenchido! Não esqueça do número.");
+                }
+            } catch (error) {
+                Swal.fire('Erro', 'Falha ao buscar CEP. Tente digitar manualmente.', 'error');
+            }
+        }
+
+        function mostrarToast(msg) {
+            const Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true
+            });
+            Toast.fire({ icon: 'success', title: msg });
+        }
 
         async function verificarCaixa() {
             try {
