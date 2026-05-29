@@ -4968,4 +4968,32 @@ window.addEventListener('message', (event) => {
             }
         }
     }
+
+    if (event.data && event.data.type === 'open_image_fullscreen') {
+        console.log('🖼️ Solicitada visualização em tela cheia:', event.data.url);
+        abrirVisualizadorGlobal(event.data.url);
+    }
 });
+
+// Funções do Visualizador de Imagem Global
+function abrirVisualizadorGlobal(url) {
+    const viewer = document.getElementById('global-image-viewer');
+    const target = document.getElementById('global-image-target');
+    if (viewer && target) {
+        target.src = url;
+        viewer.style.display = 'flex';
+        document.body.classList.add('modal-open');
+    }
+}
+
+function fecharVisualizadorGlobal() {
+    const viewer = document.getElementById('global-image-viewer');
+    const target = document.getElementById('global-image-target');
+    if (viewer && target) {
+        viewer.style.display = 'none';
+        target.src = '';
+        if (abaAtiva !== 'lancar' && abaAtiva !== 'ativos' && abaAtiva !== 'whatsapp') {
+            document.body.classList.remove('modal-open');
+        }
+    }
+}
