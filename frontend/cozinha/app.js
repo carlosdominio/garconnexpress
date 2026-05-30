@@ -147,9 +147,14 @@ function renderizarPedidos(itens) {
     itensValidos.forEach(item => {
         if (!pedidosMap[item.pedido_id]) {
             console.log(`📦 [Render] Agrupando Pedido #${item.pedido_id}`);
+            
+            const isDelivery = item.garcom_id === 'DELIVERY';
+            const mesaNome = isDelivery ? `DELIVERY #${item.pedido_id}` : (item.mesa_numero ? `Mesa ${item.mesa_numero}` : 'BALCÃO');
+
             pedidosMap[item.pedido_id] = {
                 id: item.pedido_id,
-                mesa: item.mesa_numero || 'BALCÃO',
+                mesa: mesaNome,
+                is_delivery: isDelivery,
                 created_at: item.created_at,
                 pedido_observacao: item.pedido_observacao,
                 itens: []
@@ -169,8 +174,8 @@ function renderizarPedidos(itens) {
         card.dataset.mesa = pedido.mesa;
 
         card.innerHTML = `
-            <div class="card-header">
-                <span class="mesa-num">Mesa ${pedido.mesa}</span>
+            <div class="card-header" style="${pedido.is_delivery ? 'background: #e67e22;' : ''}">
+                <span class="mesa-num">${pedido.mesa}</span>
                 <span class="pedido-id">#${pedido.id} - <span class="pedido-tempo" data-created-at="${pedido.created_at}">${calcularTempo(pedido.created_at)}</span></span>
             </div>
             <div class="card-body">

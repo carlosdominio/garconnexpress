@@ -960,10 +960,11 @@ app.get('/api/pedidos/cozinha', ensureDbInitialized, async (req, res) => {
         m.categoria, 
         p.id as pedido_id, 
         p.status as pedido_status,
-        p.created_at, 
+        p.created_at,
         p.observacao as pedido_observacao,
-        mes.numero as mesa_numero 
-      FROM pedido_itens pi 
+        p.garcom_id,
+        mes.numero as mesa_numero
+        FROM pedido_itens pi
       JOIN menu m ON pi.menu_id = m.id 
       JOIN pedidos p ON pi.pedido_id = p.id 
       LEFT JOIN mesas mes ON p.mesa_id = mes.id 
