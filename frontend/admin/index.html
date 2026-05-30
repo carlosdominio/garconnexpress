@@ -392,14 +392,32 @@
             <div class="kanban-board">
               <div class="kanban-col" id="col-pendentes-delivery">
                 <h3>🔥 Pendentes <span class="badge-mini" id="count-pendentes-delivery">0</span></h3>
+                <!-- Controles de Paginação Pendentes Delivery -->
+                <div id="nav-pendentes-delivery" style="display:none; justify-content:space-between; align-items:center; margin-bottom:10px; background:#fff; padding:8px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+                  <button onclick="mudarPagina('pendentes', 'delivery', -1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">◀</button>
+                  <span id="page-info-pendentes-delivery" style="font-weight:bold; font-size:0.85rem; color:#64748b;">1 / 1</span>
+                  <button onclick="mudarPagina('pendentes', 'delivery', 1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">▶</button>
+                </div>
                 <div id="list-pendentes-delivery" class="pedidos-list"></div>
               </div>
               <div class="kanban-col" id="col-servidos-delivery">
                 <h3>🛵 A Caminho <span class="badge-mini" id="count-servidos-delivery">0</span></h3>
+                <!-- Controles de Paginação A Caminho Delivery -->
+                <div id="nav-servidos-delivery" style="display:none; justify-content:space-between; align-items:center; margin-bottom:10px; background:#fff; padding:8px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+                  <button onclick="mudarPagina('servidos', 'delivery', -1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">◀</button>
+                  <span id="page-info-servidos-delivery" style="font-weight:bold; font-size:0.85rem; color:#64748b;">1 / 1</span>
+                  <button onclick="mudarPagina('servidos', 'delivery', 1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">▶</button>
+                </div>
                 <div id="list-servidos-delivery" class="pedidos-list"></div>
               </div>
               <div class="kanban-col" id="col-fechamento-delivery">
                 <h3>✅ Entregue <span class="badge-mini" id="count-fechamento-delivery">0</span></h3>
+                <!-- Controles de Paginação Entregue Delivery -->
+                <div id="nav-fechamento-delivery" style="display:none; justify-content:space-between; align-items:center; margin-bottom:10px; background:#fff; padding:8px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+                  <button onclick="mudarPagina('fechamento', 'delivery', -1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">◀</button>
+                  <span id="page-info-fechamento-delivery" style="font-weight:bold; font-size:0.85rem; color:#64748b;">1 / 1</span>
+                  <button onclick="mudarPagina('fechamento', 'delivery', 1)" style="background:#f1f2f6; color:#2c3e50; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">▶</button>
+                </div>
                 <div id="list-fechamento-delivery" class="pedidos-list"></div>
               </div>
             </div>

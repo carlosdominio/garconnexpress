@@ -2142,7 +2142,8 @@ let filtroSelectMesa = '';
 // ESTADO DE PAGINAÇÃO PARA COLUNAS
 let paginaAtualAtivos = {
   garcom: { pendentes: 1, servidos: 1, fechamento: 1 },
-  balcao: { pendentes: 1, servidos: 1, fechamento: 1 }
+  balcao: { pendentes: 1, servidos: 1, fechamento: 1 },
+  delivery: { pendentes: 1, servidos: 1, fechamento: 1 }
 };
 const ITENS_POR_PAGINA_ATIVOS = 4;
 
@@ -2164,25 +2165,24 @@ function filtrarPorSelect(valor) {
 
 function aplicarFiltrosVisuais() {
   const cards = document.querySelectorAll('.pedido-card');
-  const counts = {
-    garcom: { pendentes: 0, servidos: 0, fechamento: 0 },
-    balcao: { pendentes: 0, servidos: 0, fechamento: 0 }
-  };
 
   // Listas auxiliares para aplicar a paginação por coluna e grupo
   const itensFiltrados = {
     garcom: { pendentes: [], servidos: [], fechamento: [] },
-    balcao: { pendentes: [], servidos: [], fechamento: [] }
+    balcao: { pendentes: [], servidos: [], fechamento: [] },
+    delivery: { pendentes: [], servidos: [], fechamento: [] }
   };
 
   cards.forEach(card => {
     const mesaNome = (card.dataset.mesa || '').trim().toLowerCase();
     const matchesBusca = !filtroBuscaMesa || mesaNome.includes(filtroBuscaMesa);
     const matchesSelect = !filtroSelectMesa || mesaNome === filtroSelectMesa.toLowerCase();
-    
+
     const listId = card.parentElement ? card.parentElement.id : '';
-    const group = listId.includes('garcom') ? 'garcom' : 'balcao';
-    
+    let group = 'garcom';
+    if (listId.includes('balcao')) group = 'balcao';
+    else if (listId.includes('delivery')) group = 'delivery';
+
     let col = '';
     if (listId.includes('-pendentes-')) col = 'pendentes';
     else if (listId.includes('-servidos-')) col = 'servidos';
