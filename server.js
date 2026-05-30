@@ -25,20 +25,9 @@ app.use(cookieParser());
 
 // INTEGRAÇÃO WHATSAPP (BOT EXTERNO)
 let whatsappSocket = null;
-if (process.env.WHATSAPP_BOT_URL) {
-  console.log('📡 Iniciando conexão com Bot WhatsApp:', process.env.WHATSAPP_BOT_URL);
-  whatsappSocket = ioClient(process.env.WHATSAPP_BOT_URL, {
-    reconnection: true,
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 2000,
-  });
-  
-  whatsappSocket.on('connect', () => console.log('✅ Conectado ao Bot do WhatsApp (Render)'));
-  whatsappSocket.on('connect_error', (err) => console.log('❌ Erro de conexão com Bot WhatsApp:', err.message));
-  whatsappSocket.on('disconnect', () => console.log('⚠️ Desconectado do Bot WhatsApp'));
+const clientesEmAtendimento = new Map(); // Armazena { numero: timestamp } - ESCOPO GLOBAL
 
-// --- LÃ“GICA DO MENU INTERATIVO ---
-  const clientesEmAtendimento = new Map(); // Armazena { numero: timestamp }
+if (process.env.WHATSAPP_BOT_URL) {
 
   whatsappSocket.on('new_msg', async (data) => {
     try {
@@ -59,6 +48,11 @@ if (process.env.WHATSAPP_BOT_URL) {
         
         // Coloca o cliente em modo "Atendimento Humano" por 4 horas
         clientesEmAtendimento.set(from, Date.now() + (4 * 60 * 60 * 1000));
+        
+        // Sincroniza com o Bot Externo (UI e bloqueio de resposta)
+        if (whatsappSocket && whatsappSocket.connected) {
+          whatsappSocket.emit('toggle_atendimento', { jid: data.from, status: true });
+        }
         
         // Envia confirmação automática
         await sendWhatsAppMessage(`Obrigado, *${nome}*! 🙌\n\nSeu pedido já foi recebido no nosso sistema e está sendo preparado! 🚀\n\nUm atendente humano irá te responder aqui em breve caso precise de algo.`, from);
@@ -353,9 +347,13 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
       } else if (pedidoId) {
         const res = await query("SELECT m.id, m.numero, p.garcom_id FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [pedidoId]);
         if (res.rows[0]) {
-          mesaNum = res.rows[0].numero || 'BALCÃO';
-          finalMesaId = res.rows[0].id || null;
           garcomId = res.rows[0].garcom_id;
+          if (garcomId === 'DELIVERY') {
+            mesaNum = `DELIVERY #${pedidoId}`;
+          } else {
+            mesaNum = res.rows[0].numero || 'BALCÃO';
+          }
+          finalMesaId = res.rows[0].id || null;
         }
       }
     } else if (pedidoId) {
@@ -1198,7 +1196,7 @@ app.delete('/api/pedidos/:id', async (req, res) => {
 });
 
 app.post('/api/pedidos', async (req, res) => {
-  const { mesa_id, garcom_id, itens, cobrar_taxa, observacao } = req.body;
+  const { mesa_id, garcom_id, itens, cobrar_taxa, observacao, cliente_telefone } = req.body;
   const deveCobrarTaxa = cobrar_taxa !== false;
   try {
     const caixaAberto = (await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'")).rows[0];
@@ -1217,6 +1215,26 @@ app.post('/api/pedidos', async (req, res) => {
     } else {
       resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao) VALUES (?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '']);
       pedidoId = resPedido.lastInsertRowid;
+    }
+
+    // LÓGICA DE ATENDIMENTO MANUAL AUTOMÁTICO PARA DELIVERY
+    if (garcom_id === 'DELIVERY' && cliente_telefone) {
+      const numClean = cliente_telefone.replace(/\D/g, '');
+      if (numClean) {
+        console.log(`🚀 [Delivery] Ativando modo humano para ${numClean} via API`);
+        // Adiciona ao mapa local (para parar de responder o menu)
+        // Nota: A variável clientesEmAtendimento está definida dentro do escopo do bot no server.js original.
+        // Se ela não estiver acessível aqui, precisamos movê-la para o escopo global do arquivo.
+        if (typeof clientesEmAtendimento !== 'undefined') {
+          clientesEmAtendimento.set(numClean, Date.now() + (4 * 60 * 60 * 1000));
+        }
+
+        // Sincroniza com o Bot Externo
+        if (whatsappSocket && whatsappSocket.connected) {
+          const jid = numClean.includes('@') ? numClean : `${numClean}@s.whatsapp.net`;
+          whatsappSocket.emit('toggle_atendimento', { jid, status: true });
+        }
+      }
     }
     if (mesa_id) {
       const mesaIdNum = Number(mesa_id);

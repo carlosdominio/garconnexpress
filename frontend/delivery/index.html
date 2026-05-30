@@ -380,6 +380,7 @@
                     body: JSON.stringify({
                         mesa_id: null,
                         garcom_id: 'DELIVERY',
+                        cliente_telefone: phone.replace(/\D/g, ''), // Envia apenas números
                         itens: itemsPayload,
                         cobrar_taxa: true, // Ativa a taxa para ser usada como taxa de entrega de R$ 3,00 no Admin
                         observacao: orderObs
