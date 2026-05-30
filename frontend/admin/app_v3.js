@@ -406,7 +406,12 @@ function atualizarCronometrosPedidos() {
     
     // ATUALIZA se o card existir e o status for 'recebido' (verde) ou 'fechamento' (amarelo)
     const isRecebido = card.classList.contains('status-recebido');
-    const isFechamento = card.classList.contains('alerta-fechamento');
+    let isFechamento = card.classList.contains('alerta-fechamento');
+
+    // Para delivery, "fechamento" significa "Entregue", não queremos cronômetro contando nessa fase
+    if (card.dataset.mesa && card.dataset.mesa.includes('DELIVERY') && isFechamento) {
+        isFechamento = false;
+    }
 
     if ((!isRecebido && !isFechamento) || !createdAt) {
       span.style.display = 'none';
@@ -2357,7 +2362,7 @@ async function exibirPedidos() {
       let classeAlertaAtraso = '';
 
       // ALERTA DE ATRASO: Para pedidos recebidos ou mesas aguardando fechamento (pendências)
-      if ((statusGeral === 'recebido' || isAguardando) && pedido.created_at) {
+      if ((statusGeral === 'recebido' || (isAguardando && !isDelivery)) && pedido.created_at) {
         minutosCronometro = calcularMinutos(pedido.created_at);
         if (minutosCronometro >= 10) classeAlertaAtraso = 'alerta-borda-pisca';
       }
@@ -2366,7 +2371,7 @@ async function exibirPedidos() {
       const taxaServico = cobrarTaxaNoPedido ? (isDelivery ? 3.00 : (subtotal * 0.10)) : 0;
       const pagoParcial = pedido.pago_parcial || 0;
       const totalConsumo = (subtotal + taxaServico);
-      const totalExibicao = (isAguardando ? pedido.total : (totalConsumo - pagoParcial)) || 0;
+      const totalExibicao = ((isAguardando && !isDelivery) ? pedido.total : (totalConsumo - pagoParcial)) || 0;
       
       const infoPagamento = (isAguardando && pedido.forma_pagamento) ? `
         <div style="background:#fff9db; padding:8px; border-radius:8px; margin-top:8px; font-size:0.85rem; border:2px solid #f1c40f;">
@@ -2454,7 +2459,7 @@ async function exibirPedidos() {
 
           ${itensEntregues.length > 0 ? `
             <div style="opacity: 0.7;">
-              <small style="color: #27ae60; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; display:block; margin-bottom:5px;">${isDelivery ? '✅ JÁ ENTREGUE:' : '✅ JÁ NA MESA:'}</small>
+              <small style="color: #27ae60; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; display:block; margin-bottom:5px;">${isDelivery ? (isAguardando ? '✅ JÁ ENTREGUE:' : '🛵 A CAMINHO:') : '✅ JÁ NA MESA:'}</small>
               ${itensEntregues.map(item => `
                 <div class="pedido-item" style="border-left:4px solid #27ae60; background:#f0fff4; border-radius:6px; padding:4px 10px; margin-bottom:4px; text-decoration: line-through;">
                   <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -4897,7 +4902,8 @@ async function abrirModalOpcoes(pedidoId) {
   const subtotal = itens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
   const taxaServico = cobrarTaxaNoPedido ? (isDelivery ? 3.00 : (subtotal * 0.10)) : 0;
   const pagoParcial = pedido.pago_parcial || 0;
-  const totalExibicao = (pedido.status === 'aguardando_fechamento' ? pedido.total : (subtotal + taxaServico - pagoParcial)) || 0;
+  const isAguardandoReal = isAguardando && !isDelivery;
+  const totalExibicao = (isAguardandoReal ? pedido.total : (subtotal + taxaServico - pagoParcial)) || 0;
 
   // DETALHES DA SOLICITAÇÃO DE CONTA
   let htmlPagamentoModal = '';
@@ -4966,7 +4972,12 @@ async function abrirModalOpcoes(pedidoId) {
     });
   }
   if (itensEntregues.length > 0) {
-    htmlItens += `<small style="color: #27ae60; font-weight: 900; display:block; margin: 10px 0 5px 0;">✅ NA MESA:</small>`;
+    let tituloEntregues = '✅ NA MESA:';
+    if (isDelivery) {
+        tituloEntregues = isAguardando ? '✅ ENTREGUE:' : '🛵 A CAMINHO:';
+    }
+    
+    htmlItens += `<small style="color: #27ae60; font-weight: 900; display:block; margin: 10px 0 5px 0;">${tituloEntregues}</small>`;
     itensEntregues.forEach(i => {
       htmlItens += `
         <div style="border-left:4px solid #27ae60; background:white; border-radius:8px; padding:8px 12px; margin-bottom:6px; border:1px solid #dcfce7; display:flex; align-items:center; gap: 10px; opacity: 0.85;">
