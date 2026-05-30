@@ -470,6 +470,7 @@ async function initDb() {
     await addCol('garcons', 'comissao', 'REAL DEFAULT 0');
     await addCol('garcons', 'is_online', 'BOOLEAN DEFAULT FALSE');
     await addCol('garcons', 'last_assigned_at', 'TIMESTAMP');
+    await addCol('pedidos', 'cliente_telefone', 'TEXT');
     
     // Garante que a tabela pagamentos tenha as colunas necessárias
     await addCol('pagamentos', 'recebido', 'REAL DEFAULT 0');
@@ -711,6 +712,21 @@ async function checkTemItemCozinha(itensIds) {
   return false;
 }
 
+async function notifyDeliveryStatusToBot(number, status, pedidoId, tempo = null) {
+  if (!process.env.WHATSAPP_BOT_URL) return;
+  try {
+    const botUrl = process.env.WHATSAPP_BOT_URL.endsWith('/') ? process.env.WHATSAPP_BOT_URL : `${process.env.WHATSAPP_BOT_URL}/`;
+    await fetch(`${botUrl}api/notify-delivery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ number, status, pedidoId, tempo })
+    });
+    console.log(`✅ [Notificação Bot] Status '${status}' enviado para ${number}`);
+  } catch (e) {
+    console.error(`❌ Erro ao notificar bot sobre status delivery:`, e.message);
+  }
+}
+
 app.put('/api/pedidos/:id/cozinha-pronto', async (req, res) => {
   const { id } = req.params;
   try {
@@ -726,10 +742,16 @@ app.put('/api/pedidos/:id/cozinha-pronto', async (req, res) => {
     }
 
     // Notifica admin e garçom
-    const pedido = (await query("SELECT p.garcom_id, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
+    const pedido = (await query("SELECT p.garcom_id, p.cliente_telefone, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
     let mesaExibicao = 'BALCÃO';
     if (pedido) {
-      if (pedido.garcom_id === 'DELIVERY') mesaExibicao = `DELIVERY #${id}`;
+      if (pedido.garcom_id === 'DELIVERY') {
+        mesaExibicao = `DELIVERY #${id}`;
+        // NOTIFICA CLIENTE QUE ESTÁ PREPARANDO (PRONTO NA COZINHA)
+        if (pedido.cliente_telefone) {
+          notifyDeliveryStatusToBot(pedido.cliente_telefone, 'preparando', id).catch(console.error);
+        }
+      }
       else mesaExibicao = pedido.mesa_numero ? `Mesa ${pedido.mesa_numero}` : 'BALCÃO';
     }
     
@@ -1210,29 +1232,29 @@ app.post('/api/pedidos', async (req, res) => {
     let pedidoId;
     let resPedido;
     if (isPostgres) {
-      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '']);
+      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null]);
       pedidoId = resPedido.rows[0].id;
     } else {
-      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao) VALUES (?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '']);
+      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null]);
       pedidoId = resPedido.lastInsertRowid;
     }
 
-    // LÓGICA DE ATENDIMENTO MANUAL AUTOMÁTICO PARA DELIVERY
+    // LÓGICA DE ATENDIMENTO MANUAL AUTOMÁTICO E NOTIFICAÇÃO PARA DELIVERY
     if (garcom_id === 'DELIVERY' && cliente_telefone) {
       const numClean = cliente_telefone.replace(/\D/g, '');
       if (numClean) {
-        console.log(`🚀 [Delivery] Ativando modo humano para ${numClean} via API`);
-        // Adiciona ao mapa local (para parar de responder o menu)
-        // Nota: A variável clientesEmAtendimento está definida dentro do escopo do bot no server.js original.
-        // Se ela não estiver acessível aqui, precisamos movê-la para o escopo global do arquivo.
+        console.log(`🚀 [Delivery] Ativando modo humano e notificando ${numClean}`);
+        
         if (typeof clientesEmAtendimento !== 'undefined') {
           clientesEmAtendimento.set(numClean, Date.now() + (4 * 60 * 60 * 1000));
         }
 
-        // Sincroniza com o Bot Externo
         if (whatsappSocket && whatsappSocket.connected) {
           const jid = numClean.includes('@') ? numClean : `${numClean}@s.whatsapp.net`;
           whatsappSocket.emit('toggle_atendimento', { jid, status: true });
+          
+          // Notificação de "Recebido" para o cliente via Robô Render
+          notifyDeliveryStatusToBot(numClean, 'recebido', pedidoId).catch(console.error);
         }
       }
     }
@@ -1665,6 +1687,14 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
       }
     }
     await query('UPDATE pedidos SET status = ? WHERE id = ?', [status, id]);
+    
+    // NOTIFICAÇÃO DE SAIU PARA ENTREGA (DELIVERY)
+    if (status === 'entregue') {
+      const pDelivery = (await query("SELECT garcom_id, cliente_telefone FROM pedidos WHERE id = ?", [id])).rows[0];
+      if (pDelivery && pDelivery.garcom_id === 'DELIVERY' && pDelivery.cliente_telefone) {
+        notifyDeliveryStatusToBot(pDelivery.cliente_telefone, 'saiu_entrega', id).catch(console.error);
+      }
+    }
     
     if (status === 'cancelado') {
       await query("UPDATE pedido_itens SET status = 'cancelado' WHERE pedido_id = ?", [id]);
