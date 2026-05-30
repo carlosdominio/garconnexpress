@@ -4136,9 +4136,14 @@ async function configurarPusher() {
       console.log('📢 Admin: Pedido pronto!', data);
       tocarNotificacao(); 
       iniciarPiscarTitulo();
-      exibirNotificacaoNativa('🍳 PEDIDO PRONTO', data.mensagem, `mesa-${data.mesa_id}`);
-      mostrarToast(`🍳 PRONTO: ${data.mensagem}`);
-      mostrarAlerta(data.mensagem, "🍳 Cozinha", "🍳");
+
+      const mesa = data.mesa_numero || 'X';
+      const labelMesa = mesa.includes('DELIVERY') ? mesa : `Mesa ${mesa}`;
+      const msgSimples = `${labelMesa} está pronto!`;
+
+      exibirNotificacaoNativa('🍳 PEDIDO PRONTO', msgSimples, `mesa-${data.mesa_id}`);
+      mostrarToast(`🍳 PRONTO: ${labelMesa}`);
+      mostrarAlerta(msgSimples, "🍳 Cozinha", "🍳");
 
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => carregarPedidos(), 100);

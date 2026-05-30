@@ -307,10 +307,33 @@
                 c.innerHTML = '<p style="text-align:center; padding:20px; color:#999;">Carrinho vazio.</p>';
                 return;
             }
-            c.innerHTML = cart.map(i => `<div class="item-row"><div><h4>${i.qty}x ${i.nome}</h4></div><div><b>R$ ${(i.qty*i.preco).toFixed(2)}</b></div></div>`).join('');
+            c.innerHTML = cart.map(i => `
+                <div class="item-row">
+                    <div style="flex: 1;">
+                        <h4 style="margin:0;">${i.qty}x ${i.nome}</h4>
+                    </div>
+                    <div style="text-align: right; margin-right: 15px;">
+                        <b>R$ ${(i.qty*i.preco).toFixed(2)}</b>
+                    </div>
+                    <div>
+                        <button onclick="removeFromCart(${i.id})" style="background: #ff4757; color: white; border: none; padding: 5px 8px; border-radius: 5px; cursor: pointer;">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>`).join('');
             const subtotal = cart.reduce((s, x) => s + (x.qty*x.preco), 0);
             document.getElementById('modal-subtotal').innerText = `R$ ${subtotal.toFixed(2)}`;
             document.getElementById('modal-cart-total').innerText = `R$ ${(subtotal + TAXA_ENTREGA).toFixed(2)}`;
+        }
+
+        function removeFromCart(id) {
+            cart = cart.filter(x => x.id !== id);
+            renderMenu();
+            updateCartBar();
+            renderCartModal();
+            if (cart.length === 0) {
+                toggleCartModal(false);
+            }
         }
 
         async function finalizarPedido() {
