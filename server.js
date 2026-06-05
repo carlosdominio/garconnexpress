@@ -1676,7 +1676,8 @@ app.get('/api/menu', ensureDbInitialized, async (req, res) => {
     const { admin } = req.query;
     let querySql = 'SELECT * FROM menu';
     if (admin !== 'true') {
-      querySql += ' WHERE visivel = ' + (isPostgres ? 'TRUE' : '1');
+      querySql += ' WHERE (visivel = ' + (isPostgres ? 'TRUE' : '1') + ')';
+      querySql += ' AND (estoque > 0 OR estoque = -1)';
     }
     const menuRes = await query(querySql);
     let menu = menuRes.rows;
