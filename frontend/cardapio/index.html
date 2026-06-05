@@ -307,11 +307,29 @@
                 
                 // TRAVA DE SEGURANÇA: Bloqueia novos pedidos se houver algo pendente de confirmação
                 const btnEnviar = document.querySelector('#modal-cart .btn-send');
+                let msgWait = document.getElementById('wait-msg');
+                
+                if (!msgWait) {
+                    msgWait = document.createElement('p');
+                    msgWait.id = 'wait-msg';
+                    msgWait.style.textAlign = 'center';
+                    msgWait.style.fontSize = '0.85rem';
+                    msgWait.style.marginTop = '15px';
+                    msgWait.style.color = '#747d8c';
+                    msgWait.style.fontWeight = '600';
+                    msgWait.style.display = 'none';
+                    document.getElementById('cart-footer-logic').appendChild(msgWait);
+                }
+
                 if (d.tem_pendente) {
                     if (btnEnviar) {
                         btnEnviar.disabled = true;
                         btnEnviar.style.background = '#95a5a6';
-                        btnEnviar.innerHTML = '<i class="fas fa-clock"></i> AGUARDANDO GARÇOM...';
+                        btnEnviar.innerHTML = '<i class="fas fa-clock"></i> AGUARDANDO GARÇOM';
+                    }
+                    if (msgWait) {
+                        msgWait.innerText = 'Por favor, aguarde o garçom confirmar seu pedido anterior para enviar novos itens.';
+                        msgWait.style.display = 'block';
                     }
                 } else {
                     if (btnEnviar) {
@@ -319,6 +337,7 @@
                         btnEnviar.style.background = 'var(--primary)';
                         btnEnviar.innerHTML = 'ENVIAR PEDIDO';
                     }
+                    if (msgWait) msgWait.style.display = 'none';
                 }
 
                 if (d.success && d.pedido && d.itens && d.itens.length > 0) {
@@ -474,12 +493,39 @@
             if (q > 0) { bar.style.display = 'flex'; document.getElementById('cart-qty').innerText = `${q} itens`; document.getElementById('cart-total').innerText = `R$ ${v.toFixed(2)}`; }
             else { bar.style.display = 'none'; }
         }
-        function toggleCartModal(s) { document.getElementById('modal-cart').style.display=s?'flex':'none'; if(s){document.body.classList.add('modal-open');renderCartModal();}else{document.body.classList.remove('modal-open');} }
+        function toggleCartModal(s) { 
+            document.getElementById('modal-cart').style.display=s?'flex':'none'; 
+            if(s){
+                document.body.classList.add('modal-open');
+                renderCartModal();
+                carregarMeusPedidos(); // Atualiza o status do botão AGORA ao abrir o rascunho
+            }else{
+                document.body.classList.remove('modal-open');
+            } 
+        }
         function renderCartModal() {
             const c = document.getElementById('modal-cart-items'); if (cart.length === 0) { c.innerHTML = '<p style="text-align:center; padding:30px; color:#999; font-weight:700;">Rascunho vazio.</p>'; return; }
             c.innerHTML = cart.map(i => `<div class="item-row"><div><h4>${i.nome}</h4><p>${i.qty}x R$ ${i.preco.toFixed(2)}</p></div><div class="controls"><button class="btn-qty" onclick="updateCart(${i.id},-1)">-</button><span class="qty">${i.qty}</span><button class="btn-qty" onclick="updateCart(${i.id},1)">+</button></div></div>`).join('');
             const total = cart.reduce((s, x) => s + (x.qty*x.preco), 0);
             document.getElementById('modal-cart-total').innerText = `R$ ${total.toFixed(2)}`;
+            
+            // Área para mensagem de aviso (se não existir)
+            let msgWait = document.getElementById('wait-msg');
+            if (!msgWait) {
+                msgWait = document.createElement('div');
+                msgWait.id = 'wait-msg';
+                msgWait.style.background = '#fff4e5';
+                msgWait.style.color = '#663c00';
+                msgWait.style.padding = '15px';
+                msgWait.style.borderRadius = '12px';
+                msgWait.style.fontSize = '0.85rem';
+                msgWait.style.marginTop = '20px';
+                msgWait.style.textAlign = 'center';
+                msgWait.style.fontWeight = '700';
+                msgWait.style.display = 'none';
+                msgWait.style.border = '1px solid #ffe7cc';
+                document.getElementById('cart-footer-logic').appendChild(msgWait);
+            }
         }
         async function enviarRascunho() { 
             const btn = document.querySelector('.modal-cart .btn-send'); 

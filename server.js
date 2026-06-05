@@ -2320,7 +2320,7 @@ app.post('/api/cliente/enviar-rascunho', async (req, res) => {
     if (pendentes.rows.length > 0) {
       return res.status(403).json({ 
         error: 'PENDENTE', 
-        mensagem: 'Por favor, aguarde o garçom confirmar seu pedido anterior antes de enviar novos itens. Estamos preparando tudo para você!' 
+        mensagem: 'Ops! Você já enviou um pedido que está aguardando a confirmação do garçom. Por favor, aguarde ele confirmar este primeiro pedido para poder enviar novos itens. Obrigado pela paciência!' 
       });
     }
 
