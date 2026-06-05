@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Motoboy Express - GuGA Bebidas</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="stylesheet" href="style.css?v=1.0.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    <header>
+        <h1><i class="fas fa-motorcycle"></i> Motoboy Express</h1>
+    </header>
+
+    <main>
+        <div class="section-title">
+            <span>🛵 A CAMINHO (PRONTO)</span>
+            <span class="badge" id="count-pronto">0</span>
+        </div>
+        <div id="container-a-caminho" class="pedidos-container">
+            <div class="empty-state">Nenhum pedido pronto para entrega.</div>
+        </div>
+
+        <div class="section-title" style="margin-top: 30px;">
+            <span>🔥 AGUARDANDO PREPARO</span>
+            <span class="badge" id="count-pendente">0</span>
+        </div>
+        <div id="container-pendentes" class="pedidos-container">
+            <div class="empty-state">Nenhum pedido em preparo.</div>
+        </div>
+
+        <div class="section-title" style="margin-top: 30px;">
+            <span>✅ ENTREGUES (HOJE)</span>
+            <span class="badge" id="count-entregues">0</span>
+        </div>
+        <div id="container-entregues" class="pedidos-container">
+            <div class="empty-state">Nenhuma entrega realizada ainda.</div>
+        </div>
+    </main>
+
+    <div id="toast" class="toast">Mensagem de teste</div>
+
+    <!-- Scripts -->
+    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+    <script src="app.js?v=1.0.0"></script>
+</body>
+</html>
