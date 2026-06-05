@@ -37,14 +37,14 @@
           "pushName": "Carlos Leonidio"
         }
       ],
-      "atendimentoManual": true,
+      "atendimentoManual": false,
       "unreadCount": 3,
       "lastUpdate": 1780354138030
     },
     "786757575@s.whatsapp.net": {
       "name": "786757575",
       "messages": [],
-      "atendimentoManual": true,
+      "atendimentoManual": false,
       "unreadCount": 0,
       "lastUpdate": 1780332102590
     }

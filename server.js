@@ -43,14 +43,11 @@ if (botUrlFinal) {
       const from = data.from.split('@')[0].replace(/\D/g, '');
       const msg = data.body.trim();
 
-      // Sincroniza estado de atendimento humano se detectar palavras-chave de delivery 
-      // vindas do robô ou se necessário para o cache local
+      // APENAS VINCULA O CLIENTE AO CACHE, SEM FORÇAR O MODO HUMANO
+      // Deixamos o Robô enviar o menu automático primeiro.
       if (msg.includes('🛍️ *NOVO PEDIDO - DELIVERY*') || msg.includes('🛵 DELIVERY')) {
         clientesEmAtendimento.set(from, Date.now() + (4 * 60 * 60 * 1000));
-        
-        if (whatsappSocket && whatsappSocket.connected) {
-          whatsappSocket.emit('toggle_atendimento', { jid: data.from, status: true });
-        }
+        console.log(`📦 [Server] Pedido detectado para ${from}. Mantendo modo automático do Robô.`);
       }
     } catch (err) {
       console.error('⚠️ Erro ao sincronizar status do WhatsApp:', err.message);
@@ -309,7 +306,21 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
 
     // Dispara Pusher IMEDIATAMENTE (Prioridade)
     await safePusherTrigger('garconnexpress', 'status-atualizado', payload);
-    // Notificação WhatsApp em paralelo/background
+
+    // NOTIFICAÇÃO PROATIVA PARA CLIENTE DELIVERY
+    if (garcomId === 'DELIVERY' && pedidoId) {
+       try {
+         const pData = (await query("SELECT cliente_telefone FROM pedidos WHERE id = ?", [pedidoId])).rows[0];
+         if (pData && pData.cliente_telefone) {
+           let statusBot = status;
+           if (status === 'servido') statusBot = 'saiu_entrega';
+           console.log(`📡 [Notificação Proativa] Enviando '${statusBot}' para ${pData.cliente_telefone}`);
+           notifyDeliveryStatusToBot(pData.cliente_telefone, statusBot, pedidoId).catch(console.error);
+         }
+       } catch (e) { console.error('Erro notificação proativa:', e.message); }
+    }
+
+    // Notificação WhatsApp em paralelo/background para o ADMIN
     if (status === 'aguardando_fechamento') {
       sendWhatsAppMessage(`🛎️ *SOLICITAÇÃO DE FECHAMENTO*\n📍 Local: ${mesaNum}\n💰 O cliente solicitou a conta.`).catch(e => console.error('Erro Wpp:', e.message));
     } else if (status === 'cancelado') {
@@ -688,13 +699,7 @@ app.put('/api/pedidos/:id/cozinha-pronto', async (req, res) => {
     const pedido = (await query("SELECT p.garcom_id, p.cliente_telefone, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
     let mesaExibicao = 'BALCÃO';
     if (pedido) {
-      if (pedido.garcom_id === 'DELIVERY') {
-        mesaExibicao = `DELIVERY #${id}`;
-        // NOTIFICA CLIENTE QUE ESTÁ PREPARANDO (PRONTO NA COZINHA)
-        if (pedido.cliente_telefone) {
-          notifyDeliveryStatusToBot(pedido.cliente_telefone, 'preparando', id).catch(console.error);
-        }
-      }
+      if (pedido.garcom_id === 'DELIVERY') mesaExibicao = `DELIVERY #${id}`;
       else mesaExibicao = pedido.mesa_numero ? `Mesa ${pedido.mesa_numero}` : 'BALCÃO';
     }
     
@@ -705,6 +710,7 @@ app.put('/api/pedidos/:id/cozinha-pronto', async (req, res) => {
       mensagem: `🍳 Pedido ${mesaExibicao} está pronto!` 
     });
 
+    await notifyStatus(id, null, 'preparando');
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
@@ -1200,21 +1206,14 @@ app.post('/api/pedidos', async (req, res) => {
       pedidoId = resPedido.lastInsertRowid;
     }
 
-    // LÓGICA DE ATENDIMENTO MANUAL AUTOMÁTICO E NOTIFICAÇÃO PARA DELIVERY
+    // NOTIFICAÇÃO PARA DELIVERY (MANTÉM MODO AUTOMÁTICO DO ROBÔ)
     if (garcom_id === 'DELIVERY' && cliente_telefone) {
       const numClean = cliente_telefone.replace(/\D/g, '');
       if (numClean) {
-        console.log(`🚀 [Delivery] Ativando modo humano e notificando ${numClean}`);
+        console.log(`📦 [Delivery] Notificando cliente ${numClean} sobre recebimento...`);
         
-        if (typeof clientesEmAtendimento !== 'undefined') {
-          clientesEmAtendimento.set(numClean, Date.now() + (4 * 60 * 60 * 1000));
-        }
-
         if (whatsappSocket && whatsappSocket.connected) {
-          const jid = numClean.includes('@') ? numClean : `${numClean}@s.whatsapp.net`;
-          whatsappSocket.emit('toggle_atendimento', { jid, status: true });
-          
-          // Notificação de "Recebido" para o cliente via Robô Render
+          // Apenas notifica o status, o Robô agora está configurado para manter o modo automático
           notifyDeliveryStatusToBot(numClean, 'recebido', pedidoId).catch(console.error);
         }
       }
@@ -1678,14 +1677,6 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
       }
     }
     await query('UPDATE pedidos SET status = ? WHERE id = ?', [status, id]);
-    
-    // NOTIFICAÇÃO DE SAIU PARA ENTREGA (DELIVERY)
-    if (status === 'entregue') {
-      const pDelivery = (await query("SELECT garcom_id, cliente_telefone FROM pedidos WHERE id = ?", [id])).rows[0];
-      if (pDelivery && pDelivery.garcom_id === 'DELIVERY' && pDelivery.cliente_telefone) {
-        notifyDeliveryStatusToBot(pDelivery.cliente_telefone, 'saiu_entrega', id).catch(console.error);
-      }
-    }
     
     if (status === 'cancelado') {
       await query("UPDATE pedido_itens SET status = 'cancelado' WHERE pedido_id = ?", [id]);
