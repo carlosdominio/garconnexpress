@@ -1675,12 +1675,23 @@ app.get('/api/menu', ensureDbInitialized, async (req, res) => {
   try {
     const { admin } = req.query;
     let querySql = 'SELECT * FROM menu';
+    
     if (admin !== 'true') {
-      querySql += ' WHERE (visivel = ' + (isPostgres ? 'TRUE' : '1') + ')';
-      querySql += ' AND (estoque > 0 OR estoque = -1)';
+      // Camada 1: SQL - Filtra no banco (Visível = 1 E (Ilimitado -1 OU Maior que 0))
+      const visivelValue = isPostgres ? 'TRUE' : '1';
+      querySql += ` WHERE visivel = ${visivelValue} AND (estoque = -1 OR (estoque IS NOT NULL AND estoque > 0))`;
     }
+    
     const menuRes = await query(querySql);
     let menu = menuRes.rows;
+
+    // Camada 2: JavaScript - Filtro de segurança extra para clientes
+    if (admin !== 'true') {
+      menu = menu.filter(item => {
+        const est = parseInt(item.estoque);
+        return item.visivel && (est === -1 || est > 0);
+      });
+    }
 
     const ordemRes = await query("SELECT valor FROM sistema_config WHERE chave = 'ordem_categorias'");
     if (ordemRes.rows.length > 0 && ordemRes.rows[0].valor) {
@@ -1960,6 +1971,9 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
     // Usamos o último pedido da lista para as flags de status (fechamento, etc)
     const ultimoPedido = pedidosSessao[pedidosSessao.length - 1];
     
+    // 6. Verifica se há algum item que ainda não foi confirmado pelo garçom (status 'recebido')
+    const temPendente = itens.some(i => i.status === 'recebido');
+
     let totalReal = 0;
     itens.forEach(i => {
       const preco = i.preco || i.menu_preco || 0;

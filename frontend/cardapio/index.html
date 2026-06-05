@@ -304,6 +304,23 @@
             try {
                 const res = await fetch('/api/cliente/meus-pedidos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: sessionMesa.token }) });
                 const d = await res.json();
+                
+                // TRAVA DE SEGURANÇA: Bloqueia novos pedidos se houver algo pendente de confirmação
+                const btnEnviar = document.querySelector('#modal-cart .btn-send');
+                if (d.tem_pendente) {
+                    if (btnEnviar) {
+                        btnEnviar.disabled = true;
+                        btnEnviar.style.background = '#95a5a6';
+                        btnEnviar.innerHTML = '<i class="fas fa-clock"></i> AGUARDE CONFIRMAÇÃO...';
+                    }
+                } else {
+                    if (btnEnviar) {
+                        btnEnviar.disabled = false;
+                        btnEnviar.style.background = 'var(--primary)';
+                        btnEnviar.innerHTML = 'ENVIAR PEDIDO';
+                    }
+                }
+
                 if (d.success && d.pedido && d.itens && d.itens.length > 0) {
                     if (footer) footer.style.display = 'block';
                     container.innerHTML = `<div style="background:#f8f9fa; padding:12px; border-radius:12px; margin-bottom:15px; border:1px solid #eee; display:flex; justify-content:space-between; font-weight:800; font-size:0.8rem; color:#777;"><span>PEDIDO: #${d.pedido.id}</span><span>${d.pedido.status.toUpperCase()}</span></div>`;
