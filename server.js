@@ -2309,6 +2309,21 @@ app.post('/api/cliente/chamar-garcom', async (req, res) => {
 app.post('/api/cliente/enviar-rascunho', async (req, res) => {
   const { mesa_id, mesa_numero, itens } = req.body;
   try {
+    // TRAVA DE SEGURANÇA BACKEND: Verifica se já existe rascunho pendente não confirmado
+    const pendentes = await query(`
+      SELECT pi.id 
+      FROM pedido_itens pi 
+      JOIN pedidos p ON pi.pedido_id = p.id 
+      WHERE p.mesa_id = ? AND pi.status = 'recebido'
+    `, [mesa_id]);
+
+    if (pendentes.rows.length > 0) {
+      return res.status(403).json({ 
+        error: 'PENDENTE', 
+        mensagem: 'Por favor, aguarde o garçom confirmar seu pedido anterior antes de enviar novos itens. Estamos preparando tudo para você!' 
+      });
+    }
+
     const itensFormatados = itens.map(i => `${i.quantidade}x ${i.nome}`).join('\n');
     const msg = `📝 RASCUNHO RECEBIDO - MESA ${mesa_numero}\n${itensFormatados}`;
     
