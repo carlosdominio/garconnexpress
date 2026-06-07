@@ -925,11 +925,11 @@ app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, async (req, res) =
     const pedidosRes = await query(`
       SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome 
       FROM pedidos p 
-      LEFT JOIN mesas m ON p.mesa_id = m.id 
-      LEFT JOIN garcons g ON p.garcom_id = g.usuario 
-      WHERE p.status NOT IN ('entregue', 'cancelado') 
+      LEFT JOIN mesas m ON p.mesa_id = m.id
+      LEFT JOIN garcons g ON p.garcom_id = g.usuario
+      WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho')
       ORDER BY p.created_at DESC
-    `);
+      `);
     
     const pedidos = pedidosRes.rows;
     if (pedidos.length === 0) return res.json([]);
@@ -1196,6 +1196,18 @@ app.post('/api/pedidos', async (req, res) => {
       const mesaObj = (await query("SELECT status FROM mesas WHERE id = ?", [mesa_id])).rows[0];
       if (mesaObj && (mesaObj.status === 'fechando' || mesaObj.status === 'aguardando_fechamento')) {
         return res.status(403).json({ error: 'CONTA_SOLICITADA' });
+      }
+
+      // BLOQUEIO DE DUPLICIDADE (LOCKOUT): Se já existe um pedido ativo, não permite criar outro (POST)
+      // O correto em mesas ocupadas é usar ADICIONAR (PUT)
+      const pedidoAtivo = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho')", [mesa_id])).rows[0];
+      if (pedidoAtivo) {
+          console.log(`🚫 [BLOQUEIO] Tentativa de duplicar pedido na Mesa ${mesa_id}. Pedido ativo detectado: #${pedidoAtivo.id}`);
+          return res.status(400).json({ 
+              error: 'MESA_OCUPADA', 
+              message: 'Já existe um pedido em andamento para esta mesa. Use a função de adicionar itens.',
+              pedido_id: pedidoAtivo.id 
+          });
       }
 
       // LIMPEZA ANTECIPADA DE RASCUNHOS: Evita duplicação ao garantir que rascunhos sumam ANTES do novo pedido entrar
@@ -1975,7 +1987,7 @@ app.delete('/api/mesas/:id', async (req, res) => {
 
 app.get('/api/pedidos/mesa/:mesaId', async (req, res) => { 
   try {
-    res.json((await query(`SELECT * FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado') ORDER BY created_at DESC LIMIT 1`, [req.params.mesaId])).rows[0] || null); 
+    res.json((await query(`SELECT * FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY created_at DESC LIMIT 1`, [req.params.mesaId])).rows[0] || null); 
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
@@ -1983,15 +1995,15 @@ app.get('/api/mesas', ensureDbInitialized, async (req, res) => {
   try {
     res.json((await query(`
       SELECT m.*, 
-        (SELECT p.id FROM pedidos p WHERE p.mesa_id = m.id AND p.status != 'entregue' AND p.status != 'cancelado' ORDER BY p.id DESC LIMIT 1) as pedido_id,
-        (SELECT p.created_at FROM pedidos p WHERE p.mesa_id = m.id AND p.status != 'entregue' AND p.status != 'cancelado' ORDER BY p.id DESC LIMIT 1) as pedido_created_at, 
+        (SELECT p.id FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as pedido_id,
+        (SELECT p.created_at FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as pedido_created_at, 
         COALESCE(
-          (SELECT p.garcom_id FROM pedidos p WHERE p.mesa_id = m.id AND p.status != 'entregue' AND p.status != 'cancelado' ORDER BY p.id DESC LIMIT 1),
+          (SELECT p.garcom_id FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1),
           m.garcom_id
         ) as garcom_id,
-        (SELECT p.status FROM pedidos p WHERE p.mesa_id = m.id AND p.status != 'entregue' AND p.status != 'cancelado' ORDER BY p.id DESC LIMIT 1) as pedido_status,
-        (SELECT p.solicitou_fechamento FROM pedidos p WHERE p.mesa_id = m.id AND p.status != 'entregue' AND p.status != 'cancelado' ORDER BY p.id DESC LIMIT 1) as solicitou_fechamento,
-        (SELECT p.fechamento_liberado FROM pedidos p WHERE p.mesa_id = m.id AND p.status != 'entregue' AND p.status != 'cancelado' ORDER BY p.id DESC LIMIT 1) as fechamento_liberado,
+        (SELECT p.status FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as pedido_status,
+        (SELECT p.solicitou_fechamento FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as solicitou_fechamento,
+        (SELECT p.fechamento_liberado FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as fechamento_liberado,
         (SELECT ca.codigo FROM codigos_acesso ca WHERE ca.mesa_id = m.id AND ca.status = 'ativo' ORDER BY ca.id DESC LIMIT 1) as codigo_acesso
       FROM mesas m ORDER BY m.numero
     `)).rows); 

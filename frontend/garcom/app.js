@@ -492,6 +492,10 @@ async function aceitarRascunho(data) {
 
   // 3. Abre a tela de cardápio (limpa o carrinho atual do garçom)
   abrirCardapio();
+  
+  // LIMPEZA DE SEGURANÇA: Garante que o carrinho está vazio antes de carregar o rascunho
+  pedidoAtual = []; 
+  exibirResumoPedido();
 
   // 4. Popula o carrinho com os itens do rascunho
   for (const itemDraft of data.itens) {
