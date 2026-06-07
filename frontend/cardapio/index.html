@@ -307,6 +307,8 @@
             sessionBindingsAttached = true;
         }
 
+        let itensPendentesGlobal = false; // Controle global para trava de fechamento
+
         async function carregarMeusPedidos() {
             if (!sessionMesa) return;
             try {
@@ -319,27 +321,68 @@
                 
                 const btnEnviar = document.getElementById('btn-final-enviar');
                 const banner = document.getElementById('lock-banner-msg');
+                const btnPedirConta = document.getElementById('btn-solicitar-fechamento');
 
-                if (d.tem_pendente) {
+                // 1. Verifica se a conta já foi solicitada (status da mesa ou do pedido)
+                const mesaBloqueada = d.mesaStatus === 'fechando' || d.mesaStatus === 'aguardando_fechamento';
+                const pedidoEmFechamento = d.pedido && (d.pedido.status === 'aguardando_fechamento' || d.pedido.solicitou_fechamento === true || d.pedido.solicitou_fechamento === 1);
+                
+                const contaSolicitada = mesaBloqueada || pedidoEmFechamento;
+
+                // 2. Só permite pedir a conta se TODOS os itens estiverem como ENTREGUES ou SERVIDOS
+                const temItensNaoEntregues = d.itens && d.itens.some(i => {
+                    const s = i.status.toLowerCase();
+                    return s !== 'entregue' && s !== 'servido' && s !== 'cancelado';
+                });
+
+                itensPendentesGlobal = temItensNaoEntregues || d.tem_pendente;
+
+                // --- CONTROLE DOS BOTÕES E BANNERS ---
+                
+                // 1. Botão de Enviar Pedido (Cardápio -> Cozinha)
+                if (d.tem_pendente || contaSolicitada) {
+                    lockAtivo = true;
                     if (btnEnviar) {
                         btnEnviar.disabled = true;
-                        btnEnviar.innerHTML = '<i class="fas fa-clock"></i> AGUARDANDO GARÇOM';
+                        btnEnviar.innerHTML = contaSolicitada ? '<i class="fas fa-hand-paper"></i> CONTA SOLICITADA' : '<i class="fas fa-clock"></i> AGUARDANDO GARÇOM';
                     }
-                    if (banner) banner.style.display = 'block';
-                    lockAtivo = true;
+                    if (banner) {
+                        banner.style.display = 'block';
+                        banner.innerText = contaSolicitada ? 'Você já pediu a conta! Para novos itens, chame o garçom.' : 'O garçom precisa confirmar seu pedido anterior antes de você enviar novos itens.';
+                    }
                 } else {
+                    lockAtivo = false;
                     if (btnEnviar) {
                         btnEnviar.disabled = false;
                         btnEnviar.innerHTML = 'ENVIAR PEDIDO';
                     }
                     if (banner) banner.style.display = 'none';
-                    lockAtivo = false;
+                }
+
+                // 2. Botão de Pedir Conta (Mesa -> Pagamento)
+                if (btnPedirConta) {
+                    if (contaSolicitada) {
+                        btnPedirConta.disabled = true;
+                        btnPedirConta.style.background = '#95a5a6';
+                        btnPedirConta.innerText = 'CONTA PEDIDA';
+                    } else if (itensPendentesGlobal) {
+                        btnPedirConta.disabled = true;
+                        btnPedirConta.style.background = '#bdc3c7';
+                        btnPedirConta.innerText = 'AGUARDE A ENTREGA';
+                    } else {
+                        btnPedirConta.disabled = false;
+                        btnPedirConta.style.background = '#f1c40f';
+                        btnPedirConta.innerText = 'PEDIR CONTA';
+                    }
                 }
 
                 // Renderiza lista de consumo se houver
                 const container = document.getElementById('pedidos-lista');
                 if (container && d.success && d.pedido && d.itens && d.itens.length > 0) {
-                    container.innerHTML = `<div style="background:#f8f9fa; padding:12px; border-radius:12px; margin-bottom:15px; border:1px solid #eee; display:flex; justify-content:space-between; font-weight:800; font-size:0.8rem; color:#777;"><span>PEDIDO: #${d.pedido.id}</span><span>${d.pedido.status.toUpperCase()}</span></div>`;
+                    let statusLabel = d.pedido.status.toUpperCase();
+                    if (d.pedido.status === 'aguardando_fechamento') statusLabel = 'CONTA SOLICITADA';
+
+                    container.innerHTML = `<div style="background:#f8f9fa; padding:12px; border-radius:12px; margin-bottom:15px; border:1px solid #eee; display:flex; justify-content:space-between; font-weight:800; font-size:0.8rem; color:#777;"><span>PEDIDO: #${d.pedido.id}</span><span>${statusLabel}</span></div>`;
                     container.innerHTML += d.itens.map(i => {
                         const pr = i.preco || i.menu_preco || 0; 
                         return `<div class="item-row" style="padding:10px 0;"><div><h4>${i.quantidade}x ${i.menu_nome}</h4><p>R$ ${(i.quantidade*pr).toFixed(2)}</p></div><span class="status-badge">${i.status}</span></div>`;
@@ -350,7 +393,7 @@
         }
 
         async function enviarRascunho() { 
-            if (lockAtivo) return Swal.fire('Aguarde', 'Seu rascunho anterior ainda está sendo processado pelo garçom.', 'warning');
+            if (lockAtivo) return Swal.fire('Aguarde', 'Verifique o status do seu pedido nas notificações.', 'warning');
             
             const btn = document.getElementById('btn-final-enviar');
             btn.disabled = true; 
@@ -370,8 +413,10 @@
                 const d = await res.json();
                 
                 if (res.status === 403) {
-                    Swal.fire({ title: 'Atenção', text: d.mensagem, icon: 'warning' });
+                    Swal.fire({ title: 'Atenção', text: d.mensagem || 'Conta já solicitada.', icon: 'warning' });
                     carregarMeusPedidos();
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-hand-paper"></i> CONTA SOLICITADA';
                     return;
                 }
 
@@ -439,8 +484,33 @@
         function verMeusPedidos() { togglePedidosModal(true); }
         function togglePedidosModal(s) { document.getElementById('modal-pedidos').style.display=s?'flex':'none'; if(s){document.body.classList.add('modal-open');carregarMeusPedidos();}else{document.body.classList.remove('modal-open');} }
         async function solicitarFechamento() {
+            // TRAVA FINAL: Bloqueia se houver pendências (itens não entregues ou rascunho)
+            if (itensPendentesGlobal) {
+                return Swal.fire({
+                    title: 'Ainda não!',
+                    text: 'Você ainda tem itens em preparo ou entrega. Aguarde o recebimento de tudo para pedir a conta.',
+                    icon: 'warning'
+                });
+            }
+
             if (await Swal.fire({ title: 'Pedir conta?', icon: 'question', showCancelButton: true, confirmButtonColor: '#f1c40f' }).then(r => r.isConfirmed)) {
-                showLoading(true); try { await fetch('/api/cliente/solicitar-conta', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token:sessionMesa.token}) }); carregarMeusPedidos(); } finally { showLoading(false); }
+                showLoading(true); try { 
+                    const res = await fetch('/api/cliente/solicitar-conta', { 
+                        method:'POST', 
+                        headers:{'Content-Type':'application/json'}, 
+                        body:JSON.stringify({token:sessionMesa.token}) 
+                    }); 
+                    
+                    const d = await res.json();
+                    if (res.status === 400) {
+                        Swal.fire('Aviso', d.mensagem || 'Existem pendências.', 'warning');
+                    } else {
+                        Swal.fire('Enviado', 'O garçom foi notificado e já trará sua conta.', 'success');
+                    }
+                    carregarMeusPedidos(); 
+                } catch(e) {
+                    Swal.fire('Erro', 'Falha ao solicitar conta.', 'error');
+                } finally { showLoading(false); }
             }
         }
         async function chamarGarcom() {

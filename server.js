@@ -1190,6 +1190,23 @@ app.post('/api/pedidos', async (req, res) => {
   try {
     const caixaAberto = (await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'")).rows[0];
     if (!caixaAberto) return res.status(400).json({ error: 'O CAIXA ESTÁ FECHADO!' });
+
+    // TRAVA DEFINITIVA: Verifica status da mesa no banco de mesas (MUITO MAIS SEGURO)
+    if (mesa_id) {
+      const mesaObj = (await query("SELECT status FROM mesas WHERE id = ?", [mesa_id])).rows[0];
+      if (mesaObj && (mesaObj.status === 'fechando' || mesaObj.status === 'aguardando_fechamento')) {
+        return res.status(403).json({ error: 'CONTA_SOLICITADA' });
+      }
+
+      // LIMPEZA ANTECIPADA DE RASCUNHOS: Evita duplicação ao garantir que rascunhos sumam ANTES do novo pedido entrar
+      const mesaIdNum = Number(mesa_id);
+      const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesaIdNum])).rows;
+      for (const r of rascunhos) {
+          console.log(`[LIMPEZA-PRE] Removendo rascunho #${r.id} para evitar duplicidade`);
+          await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
+          await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
+      }
+    }
     for (const item of itens) {
       const p = (await query("SELECT nome, estoque FROM menu WHERE id = ?", [item.menu_id])).rows[0];
       if (p && p.estoque !== -1 && p.estoque < item.quantidade) return res.status(400).json({ error: `Estoque insuficiente: ${p.nome}` });
@@ -1485,11 +1502,26 @@ app.post('/api/cliente/solicitar-conta', async (req, res) => {
     
     // Busca o pedido ativo da mesa
     const pedido = (await query("SELECT id, mesa_id FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado') ORDER BY id DESC LIMIT 1", [mesaId])).rows[0];
-    
+
     if (!pedido) return res.status(404).json({ error: 'Nenhum pedido ativo encontrado para esta mesa.' });
+
+    // TRAVA DE SEGURANÇA: Verifica se existem itens pendentes de entrega
+    const itensPendentes = (await query(`
+      SELECT id FROM pedido_itens 
+      WHERE pedido_id = ? 
+      AND status NOT IN ('entregue', 'servido', 'cancelado')
+    `, [pedido.id])).rows;
+
+    if (itensPendentes.length > 0) {
+      return res.status(400).json({ 
+        error: 'PENDENCIAS_ENTREGA', 
+        mensagem: 'Você ainda tem itens em preparo ou entrega. Aguarde o recebimento de todos para pedir a conta.' 
+      });
+    }
 
     // 1. Atualiza o banco de dados
     await query("UPDATE pedidos SET solicitou_fechamento = TRUE WHERE id = ?", [pedido.id]);
+    await query("UPDATE mesas SET status = 'fechando' WHERE id = ?", [mesaId]);
     
     // 2. Busca número da mesa para a notificação
     const mesaRes = await query("SELECT numero FROM mesas WHERE id = ?", [mesaId]);
@@ -1989,8 +2021,12 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
 
     // 2. Verifica se o código de acesso existe.
     // Buscamos o status e a data de criação para garantir isolamento entre sessões.
-    const acesso = (await query("SELECT id, status, criado_at FROM codigos_acesso WHERE id = ?", [acessoId])).rows[0];
+    const acesso = (await query("SELECT id, status, criado_at, mesa_id FROM codigos_acesso WHERE id = ?", [acessoId])).rows[0];
     if (!acesso) return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
+
+    // Busca status atual da mesa
+    const mesaAtual = (await query("SELECT status FROM mesas WHERE id = ?", [mesaId])).rows[0];
+    const mesaStatus = mesaAtual ? mesaAtual.status : 'livre';
 
     // 3. Busca todos os pedidos vinculados a esta mesa que ainda não foram finalizados (PAGOS)
     // Buscamos pedidos com status 'aberto' ou 'pendente', mas também incluímos pedidos 'entregues' 
@@ -2060,7 +2096,8 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
       success: true,
       pedido: pedidoConsolidado,
       itens,
-      tem_pendente: temPendente
+      tem_pendente: temPendente,
+      mesaStatus: mesaStatus
     });
 
   } catch (error) {
@@ -2376,6 +2413,17 @@ app.post('/api/cliente/chamar-garcom', async (req, res) => {
 app.post('/api/cliente/enviar-rascunho', async (req, res) => {
   const { mesa_id, mesa_numero, itens } = req.body;
   try {
+    // BLOQUEIO DEFINITIVO: Verifica status real da mesa
+    if (mesa_id) {
+      const mesaObj = (await query("SELECT status FROM mesas WHERE id = ?", [mesa_id])).rows[0];
+      if (mesaObj && (mesaObj.status === 'fechando' || mesaObj.status === 'aguardando_fechamento')) {
+        return res.status(403).json({ 
+          error: 'CONTA_SOLICITADA',
+          mensagem: 'Você já solicitou o fechamento da conta para esta mesa. Se deseja pedir novos itens, por favor, chame o garçom.' 
+        });
+      }
+    }
+
     // TRAVA DE SEGURANÇA BACKEND: Verifica se já existe rascunho no Banco de Dados
     const pendentes = await query(`
       SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'
