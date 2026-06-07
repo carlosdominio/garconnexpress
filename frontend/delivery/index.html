@@ -175,7 +175,8 @@
                 });
 
                 ch.bind('status-caixa-atualizado', (data) => {
-                    if (data.status === 'fechado') location.reload();
+                    console.log('📢 Status do caixa recebido no delivery:', data);
+                    verificarCaixa(); // Atualiza a tela em tempo real
                 });
             } catch (e) { console.error('Erro Pusher:', e); }
         }
@@ -217,10 +218,26 @@
             try {
                 const res = await fetch('/api/caixa/status');
                 const cx = await res.json();
+                const screen = document.getElementById('closed-screen');
+                const main = document.getElementById('main-content');
+                const loading = document.getElementById('loading');
+
                 if(!cx) {
-                    document.getElementById('closed-screen').style.display = 'flex';
-                    document.getElementById('loading').style.display = 'none';
+                    screen.style.display = 'flex';
+                    loading.style.display = 'none';
+                    if(main) main.style.display = 'none';
                     return false;
+                }
+                
+                // Se o caixa abriu:
+                if (screen.style.display === 'flex') {
+                    screen.style.display = 'none';
+                    if (!fullMenu || fullMenu.length === 0) {
+                        loading.style.display = 'flex';
+                        loadMenu();
+                    } else {
+                        main.style.display = 'block';
+                    }
                 }
                 return true;
             } catch(e) { return true; }

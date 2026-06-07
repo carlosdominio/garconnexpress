@@ -229,21 +229,21 @@
         document.addEventListener('DOMContentLoaded', async () => {
             console.log("🚀 Cardápio Digital v2.1 carregado!");
             
-            // 1. Prioridade Total: Verificar se está fechado
-            const caixaAberto = await verificarCaixa();
-            if (!caixaAberto) {
-                showLoading(false);
-                return; // Para tudo se estiver fechado
-            }
+            // 1. Verifica status inicial
+            await verificarCaixa();
 
-            // 2. Se aberto, verifica sessão
+            // 2. Continua inicialização independente do status (para manter sincronia)
             initPusher(); 
             setInterval(verificarCaixa, 30000);
             
             if (!sessionMesa) { 
                 showLoading(false); 
-                document.body.classList.add('login-active'); 
-                document.getElementById('login-screen').style.display='flex'; 
+                // Só mostra login se estiver aberto
+                const cx = await verificarCaixa();
+                if (cx) {
+                    document.body.classList.add('login-active'); 
+                    document.getElementById('login-screen').style.display='flex'; 
+                }
                 return; 
             }
             if (!await validarSessaoAtiva()) { localStorage.removeItem('sessionMesa'); window.location.reload(); return; }
@@ -272,8 +272,20 @@
                     return false; 
                 } 
                 
-                s.style.display='none'; 
-                document.body.classList.remove('modal-open');
+                // Se detectou que abriu:
+                if (s.style.display === 'flex') {
+                    s.style.display = 'none';
+                    document.body.classList.remove('modal-open');
+                    
+                    // Decide o que mostrar ao reabrir
+                    if (!sessionMesa) {
+                        login.style.display = 'flex';
+                        document.body.classList.add('login-active');
+                    } else {
+                        showMainContent();
+                    }
+                }
+
                 return true; 
             } catch(e){ 
                 return true; // Em caso de erro de rede, assume aberto para não travar o cliente
@@ -323,7 +335,7 @@
                 
                 pusherChannel.bind('status-caixa-atualizado', (d) => { 
                     if(isClosingSession) return;
-                    if(d.status === 'fechado') location.reload(); 
+                    verificarCaixa(); // Atualiza a tela em tempo real
                 });
                 
                 attachSessionBindings();
