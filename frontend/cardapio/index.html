@@ -336,6 +336,7 @@
                 });
 
                 itensPendentesGlobal = temItensNaoEntregues || d.tem_pendente;
+                const temPedidosFeitos = d.itens && d.itens.length > 0;
 
                 // --- CONTROLE DOS BOTÕES E BANNERS ---
                 
@@ -369,6 +370,10 @@
                         btnPedirConta.disabled = true;
                         btnPedirConta.style.background = '#bdc3c7';
                         btnPedirConta.innerText = 'AGUARDE A ENTREGA';
+                    } else if (!temPedidosFeitos) {
+                        btnPedirConta.disabled = true;
+                        btnPedirConta.style.background = '#bdc3c7';
+                        btnPedirConta.innerText = 'PEDIR CONTA';
                     } else {
                         btnPedirConta.disabled = false;
                         btnPedirConta.style.background = '#f1c40f';
@@ -388,6 +393,9 @@
                         return `<div class="item-row" style="padding:10px 0;"><div><h4>${i.quantidade}x ${i.menu_nome}</h4><p>R$ ${(i.quantidade*pr).toFixed(2)}</p></div><span class="status-badge">${i.status}</span></div>`;
                     }).join('');
                     document.getElementById('pedidos-total').innerText = `R$ ${Number(d.pedido.total).toFixed(2)}`;
+                } else if (container) {
+                    container.innerHTML = '<div style="text-align:center; padding:20px; color:#95a5a6;"><i class="fas fa-receipt" style="font-size:2rem; display:block; margin-bottom:10px;"></i>Nenhum pedido realizado ainda.</div>';
+                    document.getElementById('pedidos-total').innerText = 'R$ 0,00';
                 }
             } catch (e) { console.error('Erro ao carregar status:', e); }
         }
