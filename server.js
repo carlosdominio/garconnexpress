@@ -1595,7 +1595,7 @@ app.post('/api/cliente/solicitar-conta', async (req, res) => {
 
 app.put('/api/pedidos/:id/solicitar-fechamento', async (req, res) => {
   const { id } = req.params;
-  const { mesa_id, forma_pagamento, desconto, acrescimo, valor_recebido, troco, total, num_pessoas, valor_por_pessoa } = req.body;
+  const { mesa_id, forma_pagamento, desconto, acrescimo, valor_recebido, troco, total, num_pessoas, valor_por_pessoa, pagamentos_detalhados } = req.body;
   try {
     let totalFinal = total;
     
@@ -1608,9 +1608,12 @@ app.put('/api/pedidos/:id/solicitar-fechamento', async (req, res) => {
       totalFinal = deveTaxa ? Math.round(sub * 1.10 * 100) / 100 : sub;
     }
 
+    const pagamentosStr = pagamentos_detalhados ? JSON.stringify(pagamentos_detalhados) : null;
+    const formaPagamentoFinal = (num_pessoas > 1 && pagamentos_detalhados) ? 'Múltiplas' : (forma_pagamento || 'Dinheiro');
+
     // Ativa fechamento_liberado quando o garçom processa a solicitação
-    await query(`UPDATE pedidos SET status = 'aguardando_fechamento', forma_pagamento = ?, desconto = ?, acrescimo = ?, valor_recebido = ?, troco = ?, total = ?, num_pessoas = ?, valor_por_pessoa = ?, cobrar_taxa = ?, fechamento_liberado = TRUE WHERE id = ?`, 
-      [forma_pagamento || 'Dinheiro', desconto || 0, acrescimo || 0, valor_recebido || 0, troco || 0, totalFinal, num_pessoas || 1, valor_por_pessoa || totalFinal, (req.body.cobrar_taxa !== undefined ? (req.body.cobrar_taxa ? 1 : 0) : 1), id]);
+    await query(`UPDATE pedidos SET status = 'aguardando_fechamento', forma_pagamento = ?, desconto = ?, acrescimo = ?, valor_recebido = ?, troco = ?, total = ?, num_pessoas = ?, valor_por_pessoa = ?, cobrar_taxa = ?, fechamento_liberado = TRUE, pagamentos_detalhados = ? WHERE id = ?`, 
+      [formaPagamentoFinal, desconto || 0, acrescimo || 0, valor_recebido || 0, troco || 0, totalFinal, num_pessoas || 1, valor_por_pessoa || totalFinal, (req.body.cobrar_taxa !== undefined ? (req.body.cobrar_taxa ? 1 : 0) : 1), pagamentosStr, id]);
     
     if (mesa_id) await query("UPDATE mesas SET status = 'fechando' WHERE id = ?", [mesa_id]);
     await notifyStatus(id, mesa_id, 'aguardando_fechamento');

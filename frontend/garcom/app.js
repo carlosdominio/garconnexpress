@@ -1096,22 +1096,13 @@ async function finalizarEDesocupar() {
     const totalComTaxa = Math.round(subtotal * 1.10 * 100) / 100;
 
     const elTotal = document.getElementById('total-fechamento-garcom');
-    const elRecebido = document.getElementById('valor-recebido-garcom');
-    const elTroco = document.getElementById('troco-garcom');
-    const elForma = document.getElementById('forma-pagamento-garcom');
-
     if (elTotal) elTotal.textContent = `R$ ${totalComTaxa.toFixed(2)}`;
-    if (elRecebido) elRecebido.value = '';
-    if (elTroco) elTroco.textContent = 'R$ 0,00';
-    if (elForma) elForma.value = 'Dinheiro';
     
     // Zera divisão de conta
     const elPessoas = document.getElementById('divisao-pessoas-garcom');
-    const elValorPessoa = document.getElementById('valor-pessoa-garcom');
     if (elPessoas) elPessoas.value = '1';
-    if (elValorPessoa) elValorPessoa.textContent = `R$ ${totalComTaxa.toFixed(2)}`;
-
-    alternarCampoTroco();
+    
+    calcularTrocoGarcom(); // Isso vai gerar os campos iniciais
 
     // Fecha o modal de opções antes de abrir o de fechamento
     fecharOpcoes();
@@ -1125,31 +1116,92 @@ async function finalizarEDesocupar() {
   }
 }
 
-function alternarCampoTroco() {
-  const elForma = document.getElementById('forma-pagamento-garcom');
-  const elCampoRecebido = document.getElementById('campo-recebido-garcom');
-  if (elForma && elCampoRecebido) {
-    elCampoRecebido.style.display = (elForma.value === 'Dinheiro') ? 'block' : 'none';
+function calcularTrocoGarcom() {
+  const elTotal = document.getElementById('total-fechamento-garcom');
+  const elPessoas = document.getElementById('divisao-pessoas-garcom');
+  const elValorPessoa = document.getElementById('valor-pessoa-garcom');
+  const container = document.getElementById('container-pagamentos-dinamicos');
+
+  if (!elTotal || !elPessoas || !container) return;
+
+  const total = parseFloat(elTotal.textContent.replace('R$ ', '').replace(',','.')) || 0;
+  const pessoas = parseInt(elPessoas.value) || 1;
+  const valorPessoa = total / pessoas;
+  if (elValorPessoa) elValorPessoa.textContent = `R$ ${valorPessoa.toFixed(2).replace('.',',')}`;
+
+  // Salva os valores que já estavam preenchidos para não perder ao digitar
+  const valoresAtuais = [];
+  const formasAtuais = [];
+  for (let i = 0; i < container.children.length; i++) {
+    const v = document.getElementById(`valor-recebido-garcom-${i}`);
+    const f = document.getElementById(`forma-pagamento-garcom-${i}`);
+    valoresAtuais.push(v ? v.value : '');
+    formasAtuais.push(f ? f.value : 'Dinheiro');
+  }
+
+  // Gera os campos dinamicamente
+  let html = '';
+  for (let i = 0; i < pessoas; i++) {
+    let titulo = pessoas === 1 ? 'FORMA DE PAGAMENTO:' : `PAGAMENTO PESSOA ${i + 1}:`;
+    let formaPrev = formasAtuais[i] || 'Dinheiro';
+    let valorPrev = valoresAtuais[i] || '';
+    let displayRecebido = formaPrev === 'Dinheiro' ? 'block' : 'none';
+
+    html += `
+      <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 10px;">
+        <label style="display:block; font-size:0.8rem; font-weight:bold; color:#7f8c8d; margin-bottom:5px;">${titulo}</label>
+        <select id="forma-pagamento-garcom-${i}" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; font-size:1rem; background: #fff; margin-bottom: 10px;" onchange="alternarCampoTrocoIndex(${i})">
+          <option value="Dinheiro" ${formaPrev === 'Dinheiro' ? 'selected' : ''}>💵 Dinheiro</option>
+          <option value="Pix" ${formaPrev === 'Pix' ? 'selected' : ''}>📱 Pix</option>
+          <option value="Cartão" ${formaPrev === 'Cartão' ? 'selected' : ''}>💳 Cartão</option>
+        </select>
+        
+        <div id="campo-recebido-garcom-${i}" style="display: ${displayRecebido};">
+          <label style="display:block; font-size:0.8rem; font-weight:bold; color:#7f8c8d; margin-bottom:5px;">VALOR RECEBIDO (R$):</label>
+          <input type="number" id="valor-recebido-garcom-${i}" value="${valorPrev}" placeholder="${valorPessoa.toFixed(2)}" step="0.50" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; font-size:1rem; font-weight:bold; color:#27ae60;" oninput="atualizarTrocoIndex(${i}, ${valorPessoa})">
+          <p style="margin: 5px 0 0 0; color: #e67e22; font-weight:bold; font-size: 0.85rem;">Troco: <span id="troco-garcom-${i}">R$ 0,00</span></p>
+        </div>
+      </div>
+    `;
+  }
+  container.innerHTML = html;
+
+  // Atualiza os trocos de cada um
+  for (let i = 0; i < pessoas; i++) {
+    atualizarTrocoIndex(i, valorPessoa);
   }
 }
 
-function calcularTrocoGarcom() {
-  const elTotal = document.getElementById('total-fechamento-garcom');
-  const elRecebido = document.getElementById('valor-recebido-garcom');
-  const elTroco = document.getElementById('troco-garcom');
-  const elPessoas = document.getElementById('divisao-pessoas-garcom');
-  const elValorPessoa = document.getElementById('valor-pessoa-garcom');
+function alternarCampoTrocoIndex(index) {
+  const elForma = document.getElementById(`forma-pagamento-garcom-${index}`);
+  const elCampoRecebido = document.getElementById(`campo-recebido-garcom-${index}`);
+  const elRecebido = document.getElementById(`valor-recebido-garcom-${index}`);
+  
+  if (elForma && elCampoRecebido) {
+    elCampoRecebido.style.display = (elForma.value === 'Dinheiro') ? 'block' : 'none';
+    if (elForma.value !== 'Dinheiro' && elRecebido) {
+       elRecebido.value = ''; // Limpa valor recebido se mudar para cartão/pix
+       const elPessoas = document.getElementById('divisao-pessoas-garcom');
+       const elTotal = document.getElementById('total-fechamento-garcom');
+       if(elTotal && elPessoas) {
+         const total = parseFloat(elTotal.textContent.replace('R$ ', '').replace(',','.')) || 0;
+         const pessoas = parseInt(elPessoas.value) || 1;
+         atualizarTrocoIndex(index, total/pessoas);
+       }
+    }
+  }
+}
 
-  if (elTotal && elRecebido && elTroco) {
-    const total = parseFloat(elTotal.textContent.replace('R$ ', '')) || 0;
+function atualizarTrocoIndex(index, valorPessoa) {
+  const elRecebido = document.getElementById(`valor-recebido-garcom-${index}`);
+  const elTroco = document.getElementById(`troco-garcom-${index}`);
+  const elForma = document.getElementById(`forma-pagamento-garcom-${index}`);
+  
+  if (elRecebido && elTroco && elForma) {
     const recebido = parseFloat(elRecebido.value) || 0;
-    const troco = recebido > total ? recebido - total : 0;
-    elTroco.textContent = `R$ ${troco.toFixed(2)}`;
-
-    // Divisão de conta
-    const pessoas = parseInt(elPessoas.value) || 1;
-    const valorPessoa = total / pessoas;
-    if (elValorPessoa) elValorPessoa.textContent = `R$ ${valorPessoa.toFixed(2)}`;
+    // Só calcula troco se for dinheiro
+    const troco = (elForma.value === 'Dinheiro' && recebido > valorPessoa) ? recebido - valorPessoa : 0;
+    elTroco.textContent = `R$ ${troco.toFixed(2).replace('.',',')}`;
   }
 }
 
@@ -1162,36 +1214,59 @@ function cancelarFechamentoGarcom() {
 }
 
 async function confirmarSolicitacaoFechamento() {
-  const elForma = document.getElementById('forma-pagamento-garcom');
-  const elRecebido = document.getElementById('valor-recebido-garcom');
   const elTotal = document.getElementById('total-fechamento-garcom');
   const elPessoas = document.getElementById('divisao-pessoas-garcom');
 
-  if (!elForma || !elTotal) return;
+  if (!elTotal || !elPessoas) return;
 
-  const forma = elForma.value;
-  const recebido = elRecebido ? (parseFloat(elRecebido.value) || 0) : 0;
-  const total = parseFloat(elTotal.textContent.replace('R$ ', '')) || 0;
-  const troco = recebido > total ? recebido - total : 0;
-  const num_pessoas = elPessoas ? (parseInt(elPessoas.value) || 1) : 1;
+  const total = parseFloat(elTotal.textContent.replace('R$ ', '').replace(',','.')) || 0;
+  const num_pessoas = parseInt(elPessoas.value) || 1;
   const valor_por_pessoa = total / num_pessoas;
 
-  if (forma === 'Dinheiro' && recebido < total && recebido > 0) {
-    if (!await mostrarConfirmacao("O valor recebido é menor que o total. Deseja continuar?", "Aviso", "Confirmar", "Cancelar", "⚠️")) return;
+  const pagamentosDetalhados = [];
+  let recebidoMenorQueTotal = false;
+
+  for (let i = 0; i < num_pessoas; i++) {
+    const elForma = document.getElementById(`forma-pagamento-garcom-${i}`);
+    const elRecebido = document.getElementById(`valor-recebido-garcom-${i}`);
+    
+    if (elForma) {
+      const forma = elForma.value;
+      const recebido = elRecebido ? (parseFloat(elRecebido.value) || 0) : 0;
+      const troco = (forma === 'Dinheiro' && recebido > valor_por_pessoa) ? recebido - valor_por_pessoa : 0;
+
+      pagamentosDetalhados.push({
+        forma_pagamento: forma,
+        valor: valor_por_pessoa,
+        recebido: forma === 'Dinheiro' && recebido > 0 ? recebido : valor_por_pessoa,
+        troco: troco
+      });
+
+      if (forma === 'Dinheiro' && recebido < valor_por_pessoa && recebido > 0) {
+        recebidoMenorQueTotal = true;
+      }
+    }
+  }
+
+  if (recebidoMenorQueTotal) {
+    if (!await mostrarConfirmacao("O valor recebido de uma ou mais pessoas em Dinheiro é menor que a sua parte. Deseja continuar mesmo assim?", "Aviso", "Confirmar", "Cancelar", "⚠️")) return;
   }
 
   try {
+    const forma_pagamento_principal = pagamentosDetalhados.length > 0 ? pagamentosDetalhados[0].forma_pagamento : 'Dinheiro';
+
     const res = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/solicitar-fechamento`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         mesa_id: mesaAtual.id,
-        forma_pagamento: forma,
-        valor_recebido: recebido,
-        troco: troco,
+        forma_pagamento: forma_pagamento_principal,
+        valor_recebido: pagamentosDetalhados.reduce((sum, p) => sum + p.recebido, 0),
+        troco: pagamentosDetalhados.reduce((sum, p) => sum + p.troco, 0),
         total: total,
         num_pessoas: num_pessoas,
-        valor_por_pessoa: valor_por_pessoa
+        valor_por_pessoa: valor_por_pessoa,
+        pagamentos_detalhados: pagamentosDetalhados
       })
     });
 

@@ -3265,9 +3265,15 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   let fpFinal = 'Dinheiro';
   if (fpRaw.toLowerCase().includes('pix')) fpFinal = 'Pix';
   else if (fpRaw.toLowerCase().includes('cart')) fpFinal = 'Cartão';
+  else if (fpRaw.toLowerCase().includes('múltiplas') || fpRaw.toLowerCase().includes('multiplas')) fpFinal = 'Múltiplas';
   else if (fpRaw.toLowerCase().includes('dinh')) fpFinal = 'Dinheiro';
 
-  document.getElementById('fechamento-forma-admin').value = fpFinal;
+  const selectForma = document.getElementById('fechamento-forma-admin');
+  if (selectForma) {
+    selectForma.value = fpFinal;
+    selectForma.disabled = (fpFinal === 'Múltiplas');
+  }
+  
   document.getElementById('fechamento-recebido-admin').value = pedidoParaFecharAdmin.valor_recebido || '';
   document.getElementById('fechamento-divisao-pessoas').value = pedidoParaFecharAdmin.num_pessoas || 1;
   
@@ -3711,10 +3717,27 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
     } else {
       // FECHAMENTO TOTAL DA MESA
       let formasPagamentoPessoas = null;
-      // Se num_pessoas > 1 e clicou em "FECHAR TUDO", abre o modal de multi-pagamento DIRETO
+      let finalFormaPagamento = forma_pagamento;
+      
       if (num_pessoas > 1 && modo === 'tudo') {
-          formasPagamentoPessoas = await mostrarModalMultiPagamento(num_pessoas, valor_por_pessoa);
-          if (!formasPagamentoPessoas) return; // Se cancelar no modal, interrompe
+        // Tenta usar os pagamentos detalhados enviados pelo garçom primeiro
+        let pagamentosGarcom = null;
+        if (pedidoParaFecharAdmin.pagamentos_detalhados) {
+            try {
+                pagamentosGarcom = typeof pedidoParaFecharAdmin.pagamentos_detalhados === 'string' 
+                                            ? JSON.parse(pedidoParaFecharAdmin.pagamentos_detalhados) 
+                                            : pedidoParaFecharAdmin.pagamentos_detalhados;
+                console.log("💰 Usando pagamentos detalhados definidos pelo garçom:", pagamentosGarcom);
+            } catch (e) {
+                console.error("Erro ao fazer parse de pagamentos_detalhados:", e);
+            }
+        }
+        
+        // SEMPRE abre o modal para conferência (seja do garçom ou novo)
+        formasPagamentoPessoas = await mostrarModalMultiPagamento(num_pessoas, valor_por_pessoa, pagamentosGarcom);
+        if (!formasPagamentoPessoas) return; // Se cancelar no modal, interrompe
+
+        finalFormaPagamento = 'Múltiplas';
       }
 
       const resFechamento = await fetch(`/api/pedidos/${idPedido}/solicitar-fechamento`, {
@@ -3722,7 +3745,7 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           mesa_id: idMesa, 
-          forma_pagamento: forma_pagamento, 
+          forma_pagamento: finalFormaPagamento, 
           desconto, acrescimo, valor_recebido, troco, total,
           num_pessoas, valor_por_pessoa, cobrar_taxa: cobrarTaxa
         })
@@ -3750,7 +3773,7 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
         acrescimo: acrescimo, 
         desconto: desconto, 
         pago_parcial: pagoParcial, 
-        forma_pagamento: forma_pagamento,
+        forma_pagamento: finalFormaPagamento,
         valor_recebido: valor_recebido,
         troco: troco,
         isFechamentoFinal: true,
@@ -3904,7 +3927,7 @@ function fecharModalMultiPagamento() {
   document.body.classList.remove('modal-open');
 }
 
-function mostrarModalMultiPagamento(numPessoas, valorPorPessoa) {
+function mostrarModalMultiPagamento(numPessoas, valorPorPessoa, pagamentosGarcom = null) {
   return new Promise(resolve => {
     const elV = document.getElementById('multi-pag-valor-pessoa');
     if (elV) elV.innerText = valorPorPessoa.toFixed(2);
@@ -3914,24 +3937,37 @@ function mostrarModalMultiPagamento(numPessoas, valorPorPessoa) {
 
     container.innerHTML = '';
     for (let i = 1; i <= numPessoas; i++) {
+      let formaAtual = 'Dinheiro';
+      let recebidoAtual = valorPorPessoa.toFixed(2);
+      
+      if (pagamentosGarcom && pagamentosGarcom[i-1]) {
+        formaAtual = pagamentosGarcom[i-1].forma_pagamento;
+        if (formaAtual === 'Dinheiro') {
+           recebidoAtual = (pagamentosGarcom[i-1].recebido || valorPorPessoa).toFixed(2);
+        } else {
+           recebidoAtual = '';
+        }
+      }
+
       container.innerHTML += `
         <div class="multi-pag-card" style="background: #f8f9fa; padding: 12px; border-radius: 10px; border: 1px solid #dee2e6; margin-bottom: 10px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <strong style="color: #2c3e50; font-size: 1rem;">👤 Pessoa ${i}:</strong>
             <select class="multi-pag-forma-select" data-index="${i}" onchange="toggleMultiPagDinheiro(${i}, this.value)" style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e0; font-size: 0.95rem; font-weight: bold; background: white;">
-              <option value="Dinheiro">💵 Dinheiro</option>
-              <option value="Pix">📱 Pix</option>
-              <option value="Cartão">💳 Cartão</option>
+              <option value="Dinheiro" ${formaAtual === 'Dinheiro' ? 'selected' : ''}>💵 Dinheiro</option>
+              <option value="Pix" ${formaAtual === 'Pix' ? 'selected' : ''}>📱 Pix</option>
+              <option value="Cartão" ${formaAtual === 'Cartão' ? 'selected' : ''}>💳 Cartão</option>
             </select>
           </div>
           
-          <div id="multi-pag-dinheiro-container-${i}" style="display: flex; gap: 10px; align-items: center; padding-top: 8px; border-top: 1px dashed #cbd5e0; transition: 0.3s opacity;">
+          <div id="multi-pag-dinheiro-container-${i}" style="display: flex; gap: 10px; align-items: center; padding-top: 8px; border-top: 1px dashed #cbd5e0; transition: 0.3s opacity; opacity: ${formaAtual === 'Dinheiro' ? '1' : '0.3'};">
             <div style="flex: 1;">
               <label style="display:block; font-size: 0.7rem; font-weight: bold; color: #64748b; margin-bottom: 2px;">VALOR RECEBIDO:</label>
               <input type="number" step="0.01" class="multi-pag-recebido-input" 
                      oninput="calcularTrocoMultiPag(${i}, ${valorPorPessoa})" 
                      id="multi-pag-recebido-${i}" 
-                     value="${valorPorPessoa.toFixed(2)}" 
+                     value="${recebidoAtual}" 
+                     ${formaAtual === 'Dinheiro' ? '' : 'disabled'}
                      style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e0; font-weight: 800; font-size: 1rem; color: #27ae60; box-sizing: border-box;">
             </div>
             <div style="flex: 1; text-align: right;">
@@ -3945,6 +3981,14 @@ function mostrarModalMultiPagamento(numPessoas, valorPorPessoa) {
     const modal = document.getElementById('modal-multi-pagamento');
     modal.style.display = 'flex';
     document.body.classList.add('modal-open');
+
+    setTimeout(() => {
+        for (let i = 1; i <= numPessoas; i++) {
+            if (pagamentosGarcom && pagamentosGarcom[i-1] && pagamentosGarcom[i-1].forma_pagamento === 'Dinheiro') {
+                calcularTrocoMultiPag(i, valorPorPessoa);
+            }
+        }
+    }, 50);
 
     // Garante que o botão de confirmar capture os dados exatos da tela
     const btnFinalizar = document.getElementById('btn-confirmar-multi-pagamento');
