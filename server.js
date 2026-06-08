@@ -578,7 +578,7 @@ app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'a
 app.get('/cozinha', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'cozinha', 'index.html')));
 app.get('/motoboy', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'motoboy', 'index.html')));
 app.get('/delivery', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'delivery', 'index.html')));
-app.get('/delivery', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'delivery', 'index.html')));
+app.get('/cardapio', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'cardapio', 'index.html')));
 
 // Middlewares de Autenticação JWT
 function isAuthenticated(req, res, next) {
