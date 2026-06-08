@@ -23,6 +23,34 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 
+// --- CONFIGURAÇÕES DE DELIVERY (CONTROLE INDEPENDENTE) ---
+app.get('/api/configs/delivery-status', ensureDbInitialized, async (req, res) => {
+  try {
+    const result = await query("SELECT valor FROM sistema_config WHERE chave = 'delivery_aberto'");
+    const status = result.rows && result.rows.length > 0 ? result.rows[0].valor === 'true' : true;
+    res.json({ delivery_aberto: status });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/configs/delivery-toggle', ensureDbInitialized, isAdmin, async (req, res) => {
+  const { enabled } = req.body;
+  try {
+    const valor = enabled ? 'true' : 'false';
+    if (isPostgres) {
+      await query("INSERT INTO sistema_config (chave, valor) VALUES ('delivery_aberto', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [valor]);
+    } else {
+      await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('delivery_aberto', ?)", [valor]);
+    }
+    
+    await safePusherTrigger('garconnexpress', 'delivery-status-atualizado', { delivery_aberto: enabled });
+    res.json({ success: true, delivery_aberto: enabled });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // INTEGRAÇÃO WHATSAPP (BOT EXTERNO)
 const DEFAULT_BOT_URL = 'https://meu-zap-bot.onrender.com/';
 const botUrlFinal = process.env.WHATSAPP_BOT_URL || DEFAULT_BOT_URL;
@@ -380,6 +408,7 @@ async function initDb() {
     else db.exec(sqlConfig);
 
     await query("INSERT INTO sistema_config (chave, valor) SELECT 'whatsapp_enabled', 'true' WHERE NOT EXISTS (SELECT 1 FROM sistema_config WHERE chave = 'whatsapp_enabled')");
+    await query("INSERT INTO sistema_config (chave, valor) SELECT 'delivery_aberto', 'true' WHERE NOT EXISTS (SELECT 1 FROM sistema_config WHERE chave = 'delivery_aberto')");
 
     // LIMPEZA E REGISTRO DO NÃšMERO DE WHATSAPP (CONSOLIDADO)
     const notificationNumbers = '558293157048'; 
@@ -531,6 +560,9 @@ if (!isPostgres) {
   console.log('â³ Inicialização do banco adiada (lazy loading)');
 }
 
+// --- CONFIGURAÇÕES DE DELIVERY (CONTROLE INDEPENDENTE) ---
+// --- DELIVERY CLEANUP ---
+
 app.use(express.static(path.join(__dirname, 'frontend'), {
   setHeaders: (res, path) => {
     if (path.endsWith('.html') || path.endsWith('.js')) {
@@ -545,6 +577,8 @@ app.get('/garcom', (req, res) => res.sendFile(path.join(__dirname, 'frontend', '
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'admin', 'index.html')));
 app.get('/cozinha', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'cozinha', 'index.html')));
 app.get('/motoboy', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'motoboy', 'index.html')));
+app.get('/delivery', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'delivery', 'index.html')));
+app.get('/delivery', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'delivery', 'index.html')));
 
 // Middlewares de Autenticação JWT
 function isAuthenticated(req, res, next) {
@@ -911,14 +945,17 @@ app.post('/api/caixa/fechar', async (req, res) => {
     const agora = new Date();
     const dataLocal = agora.getFullYear() + '-' + String(agora.getMonth() + 1).padStart(2, '0') + '-' + String(agora.getDate()).padStart(2, '0') + ' ' + String(agora.getHours()).padStart(2, '0') + ':' + String(agora.getMinutes()).padStart(2, '0') + ':' + String(agora.getSeconds()).padStart(2, '0');
     await query("UPDATE fluxo_caixa SET valor_final = ?, status = 'fechado', data_fechamento = ? WHERE id = ?", [valor_final, dataLocal, id]);
-    
+
     // Expira todos os códigos de acesso ativos ao fechar o caixa
     await query("UPDATE codigos_acesso SET status = 'expirado' WHERE status = 'ativo'");
-    
+
     await safePusherTrigger('garconnexpress', 'status-caixa-atualizado', { status: 'fechado' });
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Erro ao fechar caixa' }); }
 });
+
+// --- CONFIGURAÇÕES DE DELIVERY (CONTROLE INDEPENDENTE) ---
+// --- LIMPANDO DELIVERY ---
 
 app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, async (req, res) => {
   try {

@@ -275,6 +275,7 @@ async function iniciarPainelAdmin() {
   carregarPedidos();
   carregarCardapio();
   carregarStatusCaixa();
+  carregarStatusDelivery();
   carregarDadosConfig(); 
   configurarPusher();
   window.addEventListener('focus', () => pararPiscarTitulo());
@@ -4265,6 +4266,16 @@ async function configurarPusher() {
       timeoutPusher = setTimeout(() => carregarPedidos(), 100);
     });
 
+    // EVENTO: STATUS DO DELIVERY
+    channel.bind('delivery-status-atualizado', (data) => {
+      console.log('📢 Status do Delivery atualizado:', data);
+      const check = document.getElementById('check-delivery');
+      if (check) {
+        check.checked = data.delivery_aberto;
+        atualizarIconeDelivery(data.delivery_aberto);
+      }
+    });
+
     channel.bind('estoque-baixo', (data) => {
       console.log('📢 Admin: Estoque baixo!', data);
       mostrarToast(data.mensagem, 'estoque');
@@ -5214,6 +5225,27 @@ function abrirVisualizadorGlobal(url) {
     }
 }
 
+// Função para o Dropdown de Acessos Rápidos
+function toggleDropdownAcessos() {
+    const dropdown = document.getElementById('dropdown-acessos');
+    if (dropdown) {
+        dropdown.classList.toggle('show');
+    }
+}
+
+// Fechar dropdown ao clicar fora
+window.addEventListener('click', function(event) {
+    if (!event.target.closest('.dropdown-menu-header')) {
+        const dropdowns = document.getElementsByClassName("dropdown-content-header");
+        for (let i = 0; i < dropdowns.length; i++) {
+            const openDropdown = dropdowns[i];
+            if (openDropdown.classList.contains('show')) {
+                openDropdown.classList.remove('show');
+            }
+        }
+    }
+});
+
 function fecharVisualizadorGlobal() {
     const viewer = document.getElementById('global-image-viewer');
     const target = document.getElementById('global-image-target');
@@ -5224,4 +5256,50 @@ function fecharVisualizadorGlobal() {
             document.body.classList.remove('modal-open');
         }
     }
+}
+
+// Controle Independente do Delivery
+async function carregarStatusDelivery() {
+  try {
+    const res = await fetch('/api/configs/delivery-status');
+    const data = await res.json();
+    const check = document.getElementById('check-delivery');
+    if (check) {
+      check.checked = data.delivery_aberto;
+      atualizarIconeDelivery(data.delivery_aberto);
+    }
+  } catch (e) {
+    console.error('Erro ao carregar status delivery:', e);
+  }
+}
+
+async function alternarDelivery() {
+  const check = document.getElementById('check-delivery');
+  if (!check) return;
+  const enabled = check.checked;
+  
+  try {
+    const res = await fetch('/api/configs/delivery-toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled })
+    });
+    const data = await res.json();
+    if (data.success) {
+      atualizarIconeDelivery(enabled);
+      mostrarToast(enabled ? "🛵 Delivery ATIVADO" : "🛑 Delivery DESATIVADO", enabled ? 'sucesso' : 'alerta');
+    } else {
+      check.checked = !enabled;
+    }
+  } catch (e) {
+    console.error('Erro ao alternar delivery:', e);
+    check.checked = !enabled;
+  }
+}
+
+function atualizarIconeDelivery(enabled) {
+  const label = document.getElementById('label-delivery');
+  if (label) {
+    label.style.color = enabled ? '#2ecc71' : '#e74c3c';
+  }
 }

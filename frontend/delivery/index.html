@@ -71,8 +71,8 @@
         <div style="width:100%; max-width:450px; background:white; padding:60px 40px; border-radius:40px; box-shadow: 0 25px 60px rgba(0,0,0,0.1); display:flex; flex-direction:column; align-items:center;">
             <div style="width: 120px; height: 120px; background: #e8f8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 25px; font-size: 4rem;">🛵</div>
             <h1 style="font-weight: 900; font-size: 2.2rem; color: #2f3542; margin-bottom: 10px; letter-spacing: -1px;">Guga Bebidas</h1>
-            <p style="color: #27ae60; font-weight: 800; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 25px;">Delivery Fechado</p>
-            <p style="color: #747d8c; line-height: 1.6; font-size: 1.1rem; margin-bottom: 35px;">
+            <p id="closed-subtitle" style="color: #27ae60; font-weight: 800; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 25px;">Delivery Fechado</p>
+            <p id="closed-msg" style="color: #747d8c; line-height: 1.6; font-size: 1.1rem; margin-bottom: 35px;">
                 No momento não estamos aceitando pedidos para entrega.<br>
                 Agradecemos a compreensão!
             </p>
@@ -178,6 +178,11 @@
                     console.log('📢 Status do caixa recebido no delivery:', data);
                     verificarCaixa(); // Atualiza a tela em tempo real
                 });
+
+                ch.bind('delivery-status-atualizado', (data) => {
+                    console.log('📢 Status do delivery recebido:', data);
+                    verificarCaixa(); // Atualiza a tela em tempo real
+                });
             } catch (e) { console.error('Erro Pusher:', e); }
         }
 
@@ -214,22 +219,59 @@
             Toast.fire({ icon: 'success', title: msg });
         }
 
+        function copiarCodigo(id) {
+            navigator.clipboard.writeText(id).then(() => {
+                const Toast = Swal.mixin({
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 2000,
+                    timerProgressBar: true
+                });
+                Toast.fire({ icon: 'success', title: "Código copiado!" });
+            });
+        }
+
         async function verificarCaixa() {
             try {
-                const res = await fetch('/api/caixa/status');
-                const cx = await res.json();
+                const [resCaixa, resDelivery] = await Promise.all([
+                    fetch('/api/caixa/status'),
+                    fetch('/api/configs/delivery-status')
+                ]);
+                
+                const cx = await resCaixa.json();
+                const del = await resDelivery.json();
+                
                 const screen = document.getElementById('closed-screen');
                 const main = document.getElementById('main-content');
                 const loading = document.getElementById('loading');
+                const subtitle = document.getElementById('closed-subtitle');
+                const msg = document.getElementById('closed-msg');
 
+                // 1. Se o caixa geral estiver fechado (prioridade total)
                 if(!cx) {
                     screen.style.display = 'flex';
                     loading.style.display = 'none';
                     if(main) main.style.display = 'none';
+                    if(subtitle) subtitle.innerText = 'Estabelecimento Fechado';
+                    if(msg) msg.innerHTML = 'Nosso atendimento via cardápio digital está <b>encerrado</b> no momento.<br>Agradecemos a compreensão!';
+                    return false;
+                }
+
+                // 2. Se o caixa está aberto, mas o delivery está desligado
+                if (!del.delivery_aberto) {
+                    screen.style.display = 'flex';
+                    loading.style.display = 'none';
+                    if(main) main.style.display = 'none';
+                    if(subtitle) {
+                        subtitle.innerText = 'Delivery Fechado';
+                        subtitle.style.color = '#e67e22'; // Laranja para diferenciar
+                    }
+                    if(msg) msg.innerHTML = 'No momento, estamos atendendo apenas <b>presencialmente</b>.<br>O serviço de delivery está temporariamente desativado.';
                     return false;
                 }
                 
-                // Se o caixa abriu:
+                // Se tudo estiver aberto:
                 if (screen.style.display === 'flex') {
                     screen.style.display = 'none';
                     if (!fullMenu || fullMenu.length === 0) {
@@ -460,10 +502,21 @@
                     window.open(`https://wa.me/${ADMIN_NUMBER}?text=${encoded}`, '_blank');
 
                     Swal.fire({
-                        title: 'Sucesso!',
-                        text: 'Seu pedido foi enviado com sucesso e já está sendo preparado!',
+                        title: 'Pedido Enviado!',
+                        html: `
+                            <p style="margin-bottom: 15px;">Seu pedido já está com a nossa equipe!</p>
+                            <div style="background: #f1f2f6; padding: 15px; border-radius: 12px; border: 1px dashed #ced4da;">
+                                <span style="display: block; font-size: 0.8rem; color: #747d8c; text-transform: uppercase; font-weight: 700;">Código do Pedido</span>
+                                <strong style="font-size: 1.8rem; color: #2f3542; letter-spacing: 1px;">#${pedidoId}</strong>
+                                <button onclick="copiarCodigo('${pedidoId}')" style="margin-top: 10px; background: #fff; border: 1px solid #ddd; padding: 8px 15px; border-radius: 10px; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-left: auto; margin-right: auto; font-weight: 700; color: #57606f;">
+                                    <i class="fas fa-copy"></i> COPIAR CÓDIGO
+                                </button>
+                            </div>
+                            <p style="margin-top: 15px; font-size: 0.9rem; color: #57606f;">Anote ou tire um print para acompanhar sua entrega.</p>
+                        `,
                         icon: 'success',
-                        confirmButtonText: 'OK'
+                        confirmButtonText: 'OK, ENTENDI',
+                        confirmButtonColor: '#27ae60'
                     }).then(() => {
                         cart = [];
                         updateCartBar();

@@ -24,6 +24,14 @@ function alternarSom() {
     somAtivo = check ? check.checked : !somAtivo;
     localStorage.setItem('cozinha_som_ativo', somAtivo);
     atualizarIconeSom();
+    
+    // Notificação visual (balão/toast)
+    mostrarToast(somAtivo ? "🔊 Som Ativado" : "🔇 Som Desativado");
+
+    // Testa o som ao ativar
+    if (somAtivo) {
+        tocarCampainha();
+    }
 }
 
 function tocarCampainha() {

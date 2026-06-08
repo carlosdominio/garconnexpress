@@ -86,9 +86,138 @@ header {
   align-items: center;
   gap: 5px;
   transition: transform 0.2s;
+  border: 1px solid transparent;
+  cursor: pointer;
 }
 
 .btn-whatsapp-header:hover { transform: scale(1.05); }
+
+/* Novos Botões de Ícone no Cabeçalho */
+.header-links-icons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-icon-header {
+  background: rgba(255,255,255,0.1);
+  color: white !important;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: all 0.2s;
+  border: 1px solid rgba(255,255,255,0.2);
+  cursor: pointer;
+}
+
+.btn-icon-header i {
+  font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands", sans-serif !important;
+  font-weight: 900 !important;
+  font-style: normal !important;
+  font-size: 1.2rem !important;
+  display: inline-block !important;
+}
+
+.btn-icon-header:hover {
+  background: rgba(255,255,255,0.25);
+  transform: translateY(-2px);
+  border-color: rgba(255,255,255,0.4);
+}
+
+.btn-icon-header.cozinha { background: #e67e22; border-color: #d35400; }
+.btn-icon-header.cozinha:hover { background: #f39c12; }
+
+/* Estilo do Dropdown de Acessos Rápidos */
+.dropdown-menu-header {
+  position: relative;
+  display: inline-block;
+}
+
+.dropbtn-header {
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: white !important;
+  padding: 8px 15px !important;
+  font-size: 0.85rem !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.3) !important;
+  border-radius: 10px !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-weight: 800 !important;
+  transition: all 0.2s !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+.dropbtn-header:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+  transform: translateY(-1px);
+}
+
+.dropdown-content-header {
+  display: none;
+  position: absolute;
+  right: 0;
+  background-color: #fff;
+  min-width: 240px;
+  box-shadow: 0px 15px 35px rgba(0,0,0,0.2);
+  z-index: 5000;
+  border-radius: 15px;
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid #edf2f7;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-content-header.show {
+  display: block;
+}
+
+.dropdown-item-header {
+  color: #2c3e50;
+  padding: 12px 18px;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  transition: background 0.2s;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.dropdown-item-header:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item-header:hover {
+  background-color: #f8fafc;
+  color: #3498db;
+}
+
+.dropdown-item-header i {
+  width: 20px;
+  text-align: center;
+  font-size: 1.1rem;
+}
+
+/* Cores específicas dos ícones no Dropdown */
+.dropdown-item-header.garcom i { color: #9b59b6; }
+.dropdown-item-header.cozinha i { color: #e67e22; }
+.dropdown-item-header.motoboy i { color: #f1c40f; }
+.dropdown-item-header.mesa i { color: #3498db; }
+.dropdown-item-header.delivery i { color: #1abc9c; }
+.dropdown-item-header.whatsapp i { color: #25D366; }
 
 .header-stats {
   display: flex;
