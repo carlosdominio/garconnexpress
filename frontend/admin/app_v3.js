@@ -2294,10 +2294,10 @@ function atualizarSelectMesasAtivas() {
 
   const nomesMesas = [...new Set(pedidosFiltrados.map(p => {
     if (p.garcom_id === 'DELIVERY') return `🛵 DELIVERY #${p.id}`;
-    return p.mesa_numero ? `Mesa ${p.mesa_numero}` : 'BALCÃO';
+    return p.mesa_numero ? `Mesa ${p.mesa_numero}` : `Pedido #${p.id}`;
   }))].sort((a, b) => {
-    if (a === 'BALCÃO') return -1;
-    if (b === 'BALCÃO') return 1;
+    if (a.startsWith('Pedido')) return -1;
+    if (b.startsWith('Pedido')) return 1;
     return a.localeCompare(b, undefined, {numeric: true});
   });
 
@@ -2361,7 +2361,7 @@ async function exibirPedidos() {
   try {
     for (const pedido of pedidosOrdenados) {
       const isDelivery = (pedido.garcom_id === 'DELIVERY');
-      const mesaNomeExibicao = isDelivery ? `🛵 DELIVERY #${pedido.id}` : (pedido.mesa_numero ? `Mesa ${pedido.mesa_numero}` : 'BALCÃO');
+      const mesaNomeExibicao = isDelivery ? `🛵 DELIVERY #${pedido.id}` : (pedido.mesa_numero ? `Mesa ${pedido.mesa_numero}` : `Pedido #${pedido.id}`);
       
       if (pedidosStatusTaxa[pedido.id] === undefined) {
         pedidosStatusTaxa[pedido.id] = (pedido.cobrar_taxa !== undefined) ? pedido.cobrar_taxa : true;
