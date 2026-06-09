@@ -633,7 +633,8 @@ function exibirCategoriasLancar() {
     container.dataset.wheelAdded = 'true';
   }
 
-  const categoriasUnicas = [...new Set(cardapio.map(item => item.categoria.trim().toLowerCase()))];
+  const cardapioAtivo = cardapio.filter(i => i.visivel !== false && i.visivel !== 0);
+  const categoriasUnicas = [...new Set(cardapioAtivo.map(item => item.categoria.trim().toLowerCase()))];
   const categorias = ['todas', ...categoriasUnicas];
   container.innerHTML = categorias.map(cat => {
     const nomeExibicao = cat === 'todas' ? 'Todos' : cat.charAt(0).toUpperCase() + cat.slice(1);
@@ -651,7 +652,9 @@ function selecionarCategoriaLancar(cat) {
 function exibirMenuLancar(categoria) {
   const container = document.getElementById('lancar-menu-grid');
   if (!container) return;
-  const itens = categoria === 'todas' ? cardapio : cardapio.filter(i => i.categoria.trim().toLowerCase() === categoria);
+  
+  const cardapioAtivo = cardapio.filter(i => i.visivel !== false && i.visivel !== 0);
+  const itens = categoria === 'todas' ? cardapioAtivo : cardapioAtivo.filter(i => i.categoria.trim().toLowerCase() === categoria);
   container.innerHTML = itens.map(item => {
     let estoqueNum = -1;
     if (item.estoque !== null && item.estoque !== undefined && item.estoque !== '') {
@@ -2998,7 +3001,8 @@ async function renderizarMenuEdicao(categoria = 'todas') {
     catContainer.dataset.wheelAdded = 'true';
   }
 
-  const categoriasUnicas = [...new Set(cardapio.map(i => i.categoria.trim().toLowerCase()))];
+  const cardapioAtivo = cardapio.filter(i => i.visivel !== false && i.visivel !== 0);
+  const categoriasUnicas = [...new Set(cardapioAtivo.map(i => i.categoria.trim().toLowerCase()))];
   const categorias = ['todas', ...categoriasUnicas];
   
   catContainer.innerHTML = categorias.map(cat => {
@@ -3012,7 +3016,7 @@ async function renderizarMenuEdicao(categoria = 'todas') {
     `;
   }).join('');
 
-  const itens = categoriaEdicaoAtual === 'todas' ? cardapio : cardapio.filter(i => i.categoria.trim().toLowerCase() === categoriaEdicaoAtual.trim().toLowerCase());
+  const itens = categoriaEdicaoAtual === 'todas' ? cardapioAtivo : cardapioAtivo.filter(i => i.categoria.trim().toLowerCase() === categoriaEdicaoAtual.trim().toLowerCase());
   container.innerHTML = itens.map(item => {
     let estoqueNum = -1;
     if (item.estoque !== null && item.estoque !== undefined && item.estoque !== '') {
@@ -4100,7 +4104,10 @@ async function carregarCardapio() {
   const res = await fetch('/api/menu');
   cardapio = await res.json();
   const select = document.getElementById('menu-select');
-  if (select) select.innerHTML = cardapio.map(item => `<option value="${item.id}">${item.nome} - R$ ${item.preco.toFixed(2)}</option>`).join('');
+  if (select) {
+    const cardapioAtivo = cardapio.filter(i => i.visivel !== false && i.visivel !== 0);
+    select.innerHTML = cardapioAtivo.map(item => `<option value="${item.id}">${item.nome} - R$ ${item.preco.toFixed(2)}</option>`).join('');
+  }
   
   // Atualiza as interfaces que dependem do cardápio/estoque em tempo real
   if (abaAtiva === 'configuracoes') {
