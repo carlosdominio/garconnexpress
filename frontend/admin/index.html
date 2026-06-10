@@ -12,19 +12,27 @@
     #historico-section:not(.hidden) {
       display: flex;
       flex-direction: column;
-      height: calc(100vh - 210px) !important; /* Aumentado o offset para garantir que não estoure a tela */
+      height: calc(100vh - 215px) !important; /* Ajuste fino para o 3º card aparecer sem scroll de página */
       overflow: hidden !important;
-      margin-bottom: 0 !important;
+      margin: 0 !important;
     }
+    
+    /* Remove padding do main apenas quando o histórico está visível para ganhar espaço */
+    main:has(#historico-section:not(.hidden)) {
+      padding-bottom: 0 !important;
+      padding-top: 0.3rem !important;
+      margin-top: 0 !important;
+    }
+
     #historico-section .filters-bar {
       flex-shrink: 0;
       position: relative !important;
       top: 0 !important;
-      margin-bottom: 10px !important;
+      margin-bottom: 4px !important; /* Mais compacto */
       box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important;
       background: white;
       border-radius: 8px;
-      padding: 10px;
+      padding: 4px 10px; /* Mais compacto */
     }
     #historico-list {
       display: flex;
