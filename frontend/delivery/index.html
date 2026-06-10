@@ -153,6 +153,7 @@
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     <script>
         let fullMenu = [], cart = [], currentCategory = null, pusher;
+        let ultimoScriptEncoded = ''; // Armazena o último script para reenvio
         const ADMIN_NUMBER = '558293157048'; // Número do Admin para o WhatsApp
         const TAXA_ENTREGA = 3.00; // Taxa de entrega fixa
 
@@ -230,6 +231,14 @@
                 });
                 Toast.fire({ icon: 'success', title: "Código copiado!" });
             });
+        }
+
+        function reenviarScript() {
+            if (ultimoScriptEncoded) {
+                window.open(`https://wa.me/${ADMIN_NUMBER}?text=${ultimoScriptEncoded}`, '_blank');
+            } else {
+                Swal.fire('Aviso', 'Não há script para reenviar.', 'warning');
+            }
         }
 
         async function verificarCaixa() {
@@ -499,6 +508,7 @@
                     msg += `_Enviado via Cardápio Digital_`;
 
                     const encoded = encodeURIComponent(msg);
+                    ultimoScriptEncoded = encoded; // Salva para reenvio
                     window.open(`https://wa.me/${ADMIN_NUMBER}?text=${encoded}`, '_blank');
 
                     Swal.fire({
@@ -508,11 +518,14 @@
                             <div style="background: #f1f2f6; padding: 15px; border-radius: 12px; border: 1px dashed #ced4da;">
                                 <span style="display: block; font-size: 0.8rem; color: #747d8c; text-transform: uppercase; font-weight: 700;">Código do Pedido</span>
                                 <strong style="font-size: 1.8rem; color: #2f3542; letter-spacing: 1px;">#${pedidoId}</strong>
-                                <button onclick="copiarCodigo('${pedidoId}')" style="margin-top: 10px; background: #fff; border: 1px solid #ddd; padding: 8px 15px; border-radius: 10px; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-left: auto; margin-right: auto; font-weight: 700; color: #57606f;">
+                                <button onclick="copiarCodigo('${pedidoId}')" style="margin-top: 10px; background: #fff; border: 1px solid #ddd; padding: 8px 15px; border-radius: 10px; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-left: auto; margin-right: auto; font-weight: 700; color: #57606f; width: 100%; justify-content: center;">
                                     <i class="fas fa-copy"></i> COPIAR CÓDIGO
                                 </button>
+                                <button onclick="reenviarScript()" style="margin-top: 10px; background: #25D366; border: none; padding: 10px 15px; border-radius: 10px; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-left: auto; margin-right: auto; font-weight: 700; color: #fff; width: 100%; justify-content: center;">
+                                    <i class="fab fa-whatsapp"></i> REENVIAR WHATSAPP
+                                </button>
                             </div>
-                            <p style="margin-top: 15px; font-size: 0.9rem; color: #57606f;">Anote ou tire um print para acompanhar sua entrega.</p>
+                            <p style="margin-top: 15px; font-size: 0.9rem; color: #57606f;">Se o WhatsApp não abriu automaticamente, clique no botão acima para concluir o envio.</p>
                         `,
                         icon: 'success',
                         confirmButtonText: 'OK, ENTENDI',
