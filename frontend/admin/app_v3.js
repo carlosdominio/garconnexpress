@@ -1828,17 +1828,17 @@ function renderizarColunaHistorico(tipo, lista, pagina, container) {
     card.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
         <div style="line-height: 1.1;">
-          <h4 style="margin: 0; font-size: 0.85rem; color: #2c3e50; font-weight: 800;">${mesaNome}</h4>
-          <small style="color: #94a3b8; font-size: 0.65rem;">ID #${p.id}</small>
+          <h4 style="margin: 0; font-size: 0.95rem; color: #2c3e50; font-weight: 800;">${mesaNome}</h4>
+          <small style="color: #94a3b8; font-size: 0.7rem;">ID #${p.id}</small>
         </div>
         <div style="text-align: right; line-height: 1.1;">
-          <div style="font-weight: 900; color: #2c3e50; font-size: 0.95rem;">R$ ${valor.toFixed(2)}</div>
-          <small style="color: #94a3b8; font-size: 0.6rem;">${new Date(p.created_at).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</small>
+          <div style="font-weight: 900; color: #2c3e50; font-size: 1.05rem;">R$ ${valor.toFixed(2)}</div>
+          <small style="color: #94a3b8; font-size: 0.65rem;">${new Date(p.created_at).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</small>
         </div>
       </div>
       <div style="margin-top: 4px; border-top: 1px solid #f1f5f9; padding-top: 3px; display: flex; justify-content: space-between; align-items: center; width: 100%;">
-        <span style="font-size: 0.6rem; font-weight: 800; color: #94a3b8;">👤 ${p.garcom_nome || 'Admin'}</span>
-        <span style="font-size: 0.55rem; color: #3498db; font-weight: 900; text-transform: uppercase;">DETALHES</span>
+        <span style="font-size: 0.7rem; font-weight: 800; color: #94a3b8;">👤 ${p.garcom_nome || 'Admin'}</span>
+        <span style="font-size: 0.65rem; color: #3498db; font-weight: 900; text-transform: uppercase;">DETALHES</span>
       </div>
     `;
 
@@ -2001,11 +2001,12 @@ function abrirModalDetalheHistorico(p) {
     const totalPedido = (p.total || 0) + (p.pago_parcial || 0);
     const subtotal = p.subtotal || totalPedido;
     const taxa = p.taxa_servico || 0;
+    const isCancelado = p.status === 'cancelado';
     
     let htmlFin = '<div style="display: flex; flex-direction: column; gap: 6px;">';
     
-    // Subtotal e Taxa (se existirem e forem relevantes)
-    if (taxa > 0) {
+    // Subtotal e Taxa
+    if (taxa > 0 || subtotal !== totalPedido) {
       htmlFin += `
         <div style="display: flex; justify-content: space-between; font-size: 0.85rem; opacity: 0.8;">
           <span>Subtotal:</span><span>R$ ${subtotal.toFixed(2)}</span>
@@ -2015,8 +2016,8 @@ function abrirModalDetalheHistorico(p) {
         </div>`;
     }
 
-    // Listagem de Pagamentos (se houver múltiplos)
-    if (p.pagamentos && p.pagamentos.length > 1) {
+    // Listagem de Pagamentos (se houver múltiplos e não for cancelado)
+    if (!isCancelado && p.pagamentos && p.pagamentos.length > 1) {
       htmlFin += `<div style="margin: 8px 0; padding: 8px 0; border-top: 1px solid rgba(255,255,255,0.1); border-bottom: 1px solid rgba(255,255,255,0.1);">`;
       p.pagamentos.forEach((pag, idx) => {
         htmlFin += `
@@ -2030,14 +2031,25 @@ function abrirModalDetalheHistorico(p) {
        htmlFin += `<div style="margin-top: 5px;"></div>`;
     }
 
-    // Total Final
+    // Total Final - Muda rótulo se for cancelado
+    const labelTotal = isCancelado ? 'TOTAL DO PEDIDO:' : 'TOTAL PAGO:';
+    
     htmlFin += `
       <div style="display: flex; justify-content: space-between; font-weight: 900; font-size: 1.4rem; margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 8px;">
-        <span>TOTAL PAGO:</span><span>R$ ${totalPedido.toFixed(2)}</span>
-      </div>
-      <div style="font-size: 0.8rem; margin-top: 5px; opacity: 0.9; text-align: right; font-style: italic;">
-        💳 Forma Principal: ${p.forma_pagamento || 'N/A'}
+        <span>${labelTotal}</span><span>R$ ${totalPedido.toFixed(2)}</span>
       </div>`;
+
+    if (!isCancelado) {
+      htmlFin += `
+        <div style="font-size: 0.8rem; margin-top: 5px; opacity: 0.9; text-align: right; font-style: italic;">
+          💳 Forma Principal: ${p.forma_pagamento || 'N/A'}
+        </div>`;
+    } else {
+      htmlFin += `
+        <div style="font-size: 0.85rem; margin-top: 5px; color: #ffeb3b; text-align: right; font-weight: bold; text-transform: uppercase;">
+          ⚠️ Pedido Cancelado
+        </div>`;
+    }
     
     htmlFin += '</div>';
     financeiro.innerHTML = htmlFin;
