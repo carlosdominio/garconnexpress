@@ -62,10 +62,51 @@
         .spinner { width: 50px; height: 50px; border: 6px solid #f3f3f3; border-top: 6px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         #closed-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; background: white; z-index: 3000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
+
+        /* TRACKING STYLES */
+        #tracking-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; background: var(--bg); z-index: 4000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center; }
+        .tracking-card { background: white; width: 100%; max-width: 450px; padding: 40px 30px; border-radius: 40px; box-shadow: 0 25px 60px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; }
+        .tracking-status-icon { width: 100px; height: 100px; background: #e8f8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 25px; font-size: 3.5rem; }
+        .tracking-id { background: #f1f2f6; padding: 8px 15px; border-radius: 12px; font-size: 0.85rem; font-weight: 800; color: var(--text-light); margin-bottom: 15px; text-transform: uppercase; }
+        .tracking-title { font-size: 1.8rem; font-weight: 900; color: var(--text); margin-bottom: 10px; }
+        .tracking-msg { color: var(--text-light); line-height: 1.5; margin-bottom: 30px; font-size: 1rem; }
+        
+        .stepper { display: flex; width: 100%; justify-content: space-between; position: relative; margin-bottom: 30px; padding: 0 10px; }
+        .stepper::before { content: ''; position: absolute; top: 15px; left: 30px; right: 30px; height: 3px; background: #eee; z-index: 1; }
+        .step { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1; }
+        .step-circle { width: 34px; height: 34px; background: white; border: 3px solid #eee; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: #ccc; transition: 0.3s; }
+        .step.active .step-circle { border-color: var(--primary); background: var(--primary); color: white; box-shadow: 0 0 15px rgba(39, 174, 96, 0.3); }
+        .step.completed .step-circle { border-color: var(--primary); background: var(--primary); color: white; }
+        .step-label { font-size: 0.65rem; font-weight: 800; color: #ccc; text-transform: uppercase; text-align: center; }
+        .step.active .step-label { color: var(--primary); }
+        .step.completed .step-label { color: var(--text); }
+        
+        .btn-back-menu { width: 100%; padding: 18px; border-radius: 18px; border: none; background: #2f3542; color: white; font-weight: 800; cursor: pointer; font-size: 1rem; margin-top: 10px; display: none; }
     </style>
 </head>
 <body>
     <div id="loading"><div class="spinner"></div><p style="font-weight: 700; color: #999;">CARREGANDO DELIVERY...</p></div>
+
+    <div id="tracking-screen">
+        <div class="tracking-card">
+            <div class="tracking-id" id="track-pedido-id">PEDIDO #000</div>
+            <div class="tracking-status-icon" id="track-icon">⏳</div>
+            <h2 class="tracking-title" id="track-title">Aguardando...</h2>
+            <p class="tracking-msg" id="track-msg">Estamos atualizando o status do seu pedido em tempo real.</p>
+            
+            <div class="stepper">
+                <div class="step" id="step-1"><div class="step-circle"><i class="fas fa-check"></i></div><span class="step-label">Recebido</span></div>
+                <div class="step" id="step-2"><div class="step-circle"><i class="fas fa-utensils"></i></div><span class="step-label">Preparo</span></div>
+                <div class="step" id="step-3"><div class="step-circle"><i class="fas fa-motorcycle"></i></div><span class="step-label">Entrega</span></div>
+                <div class="step" id="step-4"><div class="step-circle"><i class="fas fa-flag-checkered"></i></div><span class="step-label">Concluído</span></div>
+            </div>
+
+            <button onclick="reenviarScript()" id="btn-track-reenviar" style="background: #25D366; color: white; border: none; padding: 15px; border-radius: 15px; font-weight: 700; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; margin-bottom: 10px;">
+                <i class="fab fa-whatsapp"></i> ABRIR WHATSAPP
+            </button>
+            <button onclick="voltarAoMenu()" class="btn-back-menu" id="btn-voltar-menu">FAZER NOVO PEDIDO</button>
+        </div>
+    </div>
 
     <div id="closed-screen">
         <div style="width:100%; max-width:450px; background:white; padding:60px 40px; border-radius:40px; box-shadow: 0 25px 60px rgba(0,0,0,0.1); display:flex; flex-direction:column; align-items:center;">
@@ -153,7 +194,9 @@
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     <script>
         let fullMenu = [], cart = [], currentCategory = null, pusher;
-        let ultimoScriptEncoded = ''; // Armazena o último script para reenvio
+        let ultimoScriptEncoded = localStorage.getItem('ultimoScriptEncoded') || '';
+        let pedidoAtivoId = localStorage.getItem('pedidoAtivoId') || null;
+
         const ADMIN_NUMBER = '558293157048'; // Número do Admin para o WhatsApp
         const TAXA_ENTREGA = 3.00; // Taxa de entrega fixa
 
@@ -161,6 +204,7 @@
             await verificarCaixa();
             initPusher();
             loadMenu();
+            verificarStatusAtivo();
         });
 
         async function initPusher() {
@@ -184,7 +228,100 @@
                     console.log('📢 Status do delivery recebido:', data);
                     verificarCaixa(); // Atualiza a tela em tempo real
                 });
+
+                ch.bind('status-atualizado', (data) => {
+                    console.log('📢 Status de pedido atualizado:', data);
+                    if (pedidoAtivoId && data.pedido_id == pedidoAtivoId) {
+                        updateTrackingUI(data.status, data.pedido_id);
+                    }
+                });
             } catch (e) { console.error('Erro Pusher:', e); }
+        }
+
+        async function verificarStatusAtivo() {
+            if (!pedidoAtivoId) return;
+
+            try {
+                const res = await fetch(`/api/pedidos/${pedidoAtivoId}`);
+                if (res.ok) {
+                    const pedido = await res.json();
+                    if (pedido.status === 'entregue' || pedido.status === 'cancelado') {
+                        // Se já foi finalizado há muito tempo, não mostra.
+                        // Mas para "atualizar sozinha", vamos mostrar o estado final.
+                        updateTrackingUI(pedido.status, pedido.id);
+                    } else {
+                        updateTrackingUI(pedido.status, pedido.id);
+                    }
+                } else {
+                    // Pedido não encontrado ou erro, limpa.
+                    pedidoAtivoId = null;
+                    localStorage.removeItem('pedidoAtivoId');
+                }
+            } catch (e) { console.error("Erro ao verificar status ativo:", e); }
+        }
+
+        function updateTrackingUI(status, id) {
+            const screen = document.getElementById('tracking-screen');
+            const title = document.getElementById('track-title');
+            const msg = document.getElementById('track-msg');
+            const icon = document.getElementById('track-icon');
+            const btnVoltar = document.getElementById('btn-voltar-menu');
+            const btnReenviar = document.getElementById('btn-track-reenviar');
+            
+            pedidoAtivoId = id;
+            document.getElementById('track-pedido-id').innerText = `PEDIDO #${id}`;
+            screen.style.display = 'flex';
+            document.body.classList.add('modal-open');
+
+            // Reseta steps
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active', 'completed'));
+
+            const statusMap = {
+                'pendente': { step: 1, title: 'Pedido Recebido!', msg: 'Seu pedido já chegou para nós e em breve entrará em preparo.', icon: '✅' },
+                'recebido': { step: 1, title: 'Pedido Recebido!', msg: 'Seu pedido já chegou para nós e em breve entrará em preparo.', icon: '✅' },
+                'preparando': { step: 2, title: 'Em Preparação', msg: 'Nossa cozinha já está preparando seus itens com todo carinho.', icon: '🍳' },
+                'pronto': { step: 3, title: 'Pedido Pronto!', msg: 'Tudo pronto! Seu pedido está aguardando o motoboy para sair.', icon: '🍱' },
+                'servido': { step: 3, title: 'Saiu para Entrega!', msg: 'O motoboy já pegou seu pedido e está a caminho do seu endereço.', icon: '🛵' },
+                'saiu_entrega': { step: 3, title: 'Saiu para Entrega!', msg: 'O motoboy já pegou seu pedido e está a caminho do seu endereço.', icon: '🛵' },
+                'aguardando_fechamento': { step: 3, title: 'Entregue!', msg: 'O motoboy confirmou a entrega. Aproveite sua refeição!', icon: '😋' },
+                'entregue': { step: 4, title: 'Concluído!', msg: 'Pedido finalizado com sucesso. Obrigado pela preferência!', icon: '✨' },
+                'cancelado': { step: 0, title: 'Pedido Cancelado', msg: 'Infelizmente seu pedido foi cancelado. Entre em contato para mais detalhes.', icon: '❌' }
+            };
+
+            const info = statusMap[status] || statusMap['pendente'];
+            title.innerText = info.title;
+            msg.innerText = info.msg;
+            icon.innerText = info.icon;
+
+            if (status === 'cancelado') {
+                document.getElementById('step-1').style.display = 'none';
+                document.getElementById('step-2').style.display = 'none';
+                document.getElementById('step-3').style.display = 'none';
+                document.getElementById('step-4').style.display = 'none';
+                btnVoltar.style.display = 'block';
+                btnReenviar.style.display = 'none';
+            } else {
+                for (let i = 1; i <= 4; i++) {
+                    const s = document.getElementById(`step-${i}`);
+                    s.style.display = 'flex';
+                    if (i < info.step) s.classList.add('completed');
+                    if (i === info.step) s.classList.add('active');
+                }
+                
+                if (info.step >= 4 || status === 'entregue' || status === 'aguardando_fechamento') {
+                    btnVoltar.style.display = 'block';
+                } else {
+                    btnVoltar.style.display = 'none';
+                }
+            }
+        }
+
+        function voltarAoMenu() {
+            localStorage.removeItem('pedidoAtivoId');
+            localStorage.removeItem('ultimoScriptEncoded');
+            pedidoAtivoId = null;
+            ultimoScriptEncoded = '';
+            location.reload();
         }
 
         async function buscarCEP() {
@@ -508,7 +645,10 @@
                     msg += `_Enviado via Cardápio Digital_`;
 
                     const encoded = encodeURIComponent(msg);
-                    ultimoScriptEncoded = encoded; // Salva para reenvio
+                    ultimoScriptEncoded = encoded; 
+                    localStorage.setItem('ultimoScriptEncoded', encoded);
+                    localStorage.setItem('pedidoAtivoId', pedidoId);
+                    
                     window.open(`https://wa.me/${ADMIN_NUMBER}?text=${encoded}`, '_blank');
 
                     Swal.fire({
