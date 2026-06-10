@@ -41,7 +41,7 @@ html::-webkit-scrollbar-thumb {
 body {
   font-family: Arial, sans-serif;
   background-color: #f5f5f5;
-  overflow-y: auto;
+  overflow: hidden; /* Desativa o scroll fora para manter tudo fixo na tela */
 }
 
 .paginacao-controles {
@@ -919,12 +919,12 @@ button.btn-entregue { background-color: #95a5a6; }
 .tabs { 
   display: flex; 
   gap: 0.5rem; 
-  margin-bottom: 1.5rem; 
+  margin-bottom: 0.5rem; 
   background: #eee; 
   padding: 0.5rem; 
   border-radius: 8px; 
   position: sticky;
-  top: 87px; /* Aumentado para manter gap do header ao rolar */
+  top: 87px; 
   z-index: 1000;
   box-shadow: 0 4px 6px -2px rgba(0,0,0,0.1), 0 -30px 0 0 #f5f5f5;
 }
@@ -1674,7 +1674,8 @@ input:checked + .slider:before {
   background: #fff;
   border-radius: 15px;
   border: 1px solid #e2e8f0;
-  min-height: calc(100vh - 250px);
+  height: calc(100vh - 180px); /* Altura fixa para caber perfeitamente na tela */
+  margin-top: 15px;
   overflow: hidden;
   box-shadow: 0 4px 6px rgba(0,0,0,0.05);
 }
@@ -1728,7 +1729,7 @@ input:checked + .slider:before {
   flex: 1;
   padding: 25px;
   overflow-y: auto;
-  max-height: calc(100vh - 250px);
+  height: 100%; /* Ocupa toda a altura da caixa pai */
 }
 
 .config-sub-section {
