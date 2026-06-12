@@ -16,8 +16,9 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const ioClient = require('socket.io-client');
 const webpush = require('web-push');
+const admin = require('firebase-admin');
 
-// --- Configuração VAPID (Web Push) ---
+// --- Configuração VAPID (Web Push - Navegador) ---
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BMyiv6uhCaW8LUu4EsraMpa-aiSYPEScoustJawyZDCgW0JmT9_UH4cQipSyEY5RZVNQuNvEu7cfNfumLAn_0i8';
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'E4g3M62wJcFlgy8IeJzB_VlKE6fkfvTqETIall5pce4';
 
@@ -26,6 +27,17 @@ webpush.setVapidDetails(
   VAPID_PUBLIC_KEY,
   VAPID_PRIVATE_KEY
 );
+
+// --- Configuração Firebase Admin (App Nativo Android/iOS) ---
+try {
+  const serviceAccount = require('./firebase-adminsdk.json');
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+  console.log('✅ Firebase Admin SDK inicializado com sucesso.');
+} catch (error) {
+  console.log('⚠️ Firebase Admin SDK não configurado. Notificações Nativas não funcionarão.', error.message);
+}
 
 // Configuração de ambiente
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -287,7 +299,7 @@ async function safePusherTrigger(channel, event, data) {
     await pusher.trigger(channel, event, data);
     console.log(`✅ [Pusher] Sucesso: ${event}`);
     
-    // --- WEB PUSH NATIVO (BACKGROUND) ---
+    // --- WEB PUSH NATIVO (BACKGROUND) E FCM (NATIVO ANDROID/IOS) ---
     // Dispara notificação nativa para todos os garçons inscritos quando houver eventos cruciais
     if (['novo-pedido', 'pedido-cancelado', 'chamado-garcom'].includes(event)) {
       try {
@@ -300,18 +312,56 @@ async function safePusherTrigger(channel, event, data) {
         const payload = JSON.stringify({ title: 'GarçomExpress', body: pushMsg, event });
         
         for (const sub of subs) {
-          const pushSubscription = {
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh, auth: sub.auth }
-          };
-          webpush.sendNotification(pushSubscription, payload).catch(async err => {
-            if (err.statusCode === 410 || err.statusCode === 404) {
-              console.log('🗑️ Removendo inscrição inativa:', sub.endpoint);
-              await query("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]);
-            } else {
-              console.error('❌ Erro no Web Push:', err.message);
-            }
-          });
+          if (sub.endpoint.includes('fcm.googleapis.com')) {
+             // Tratamento para Web Push tradicional (VAPID)
+             const pushSubscription = {
+                endpoint: sub.endpoint,
+                keys: { p256dh: sub.p256dh, auth: sub.auth }
+             };
+             webpush.sendNotification(pushSubscription, payload).catch(async err => {
+                if (err.statusCode === 410 || err.statusCode === 404) {
+                   console.log('🗑️ Removendo inscrição VAPID inativa:', sub.endpoint);
+                   await query("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]);
+                } else {
+                   console.error('❌ Erro no Web Push:', err.message);
+                }
+             });
+          } else {
+             // Tratamento para Token Nativo (Capacitor/Firebase SDK)
+             // Assumimos que se não é uma URL, é um token de dispositivo FCM
+             if (admin.apps.length > 0) {
+               const message = {
+                 notification: {
+                   title: 'GarçomExpress',
+                   body: pushMsg
+                 },
+                 data: {
+                   event: event
+                 },
+                 android: {
+                   priority: 'high',
+                   notification: {
+                     sound: 'default',
+                     clickAction: 'FCM_PLUGIN_ACTIVITY'
+                   }
+                 },
+                 token: sub.endpoint // O endpoint armazena o token do dispositivo
+               };
+               
+               admin.messaging().send(message)
+                 .then((response) => {
+                   console.log('✅ FCM Nativo enviado com sucesso:', response);
+                 })
+                 .catch(async (error) => {
+                   console.error('❌ Erro enviando FCM Nativo:', error);
+                   // Remove tokens inválidos
+                   if (error.code === 'messaging/invalid-registration-token' || error.code === 'messaging/registration-token-not-registered') {
+                      console.log('🗑️ Removendo token FCM inativo:', sub.endpoint);
+                      await query("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]);
+                   }
+                 });
+             }
+          }
         }
       } catch (err) {
         console.error('Erro ao buscar subscriptions:', err.message);
