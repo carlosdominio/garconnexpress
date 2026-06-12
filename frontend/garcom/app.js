@@ -394,6 +394,10 @@ async function configurarPusher() {
       // Garçom sempre toca para pedidos prontos
       tocarCampainha();
 
+      // Mostra Toast e Notificação Nativa
+      mostrarToast(data.mensagem, 'success', '🍳 PEDIDO PRONTO');
+      exibirNotificacaoNativa('🍳 COZINHA: PEDIDO PRONTO!', data.mensagem, `pronto-${Date.now()}`);
+
       // Mostra apenas alerta informativo
       mostrarAlerta(data.mensagem, "🍳 COZINHA: PEDIDO PRONTO!", "🍳");
 
@@ -454,6 +458,7 @@ async function configurarPusher() {
       console.log('📢 Evento recebido: chamado-garcom', data);
       tocarCampainha();
       mostrarAlerta(data.mensagem, "🛎️ CHAMADO DE CLIENTE", "🛎️");
+      exibirNotificacaoNativa("🛎️ CHAMADO DE CLIENTE", data.mensagem, `chamado-${data.mesa_id}`);
     });
 
     channel.bind('menu-atualizado', (data) => {
@@ -466,12 +471,14 @@ async function configurarPusher() {
       console.log('📢 Evento recebido: rascunho-recebido', data);
       tocarCampainha();
       mostrarRascunho(data);
+      exibirNotificacaoNativa("📝 RASCUNHO RECEBIDO", `Mesa ${data.mesa_numero} enviou itens para o carrinho.`, `rascunho-${data.mesa_id}`);
     });
 
     channel.bind('solicitacao-fechamento-cliente', (data) => {
       console.log('📢 Evento recebido: solicitacao-fechamento-cliente', data);
       tocarCampainha();
       mostrarAlerta(data.mensagem, "🙋‍♂️ SOLICITAÇÃO DE FECHAMENTO", "💰");
+      exibirNotificacaoNativa("💰 SOLICITAÇÃO DE FECHAMENTO", data.mensagem, `fechamento-${data.mesa_id}`);
       
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => carregarMesas(), 50);
@@ -576,6 +583,23 @@ async function aceitarRascunho(data) {
   toggleCarrinho();
   
   mostrarToast(`Mesa ${data.mesa_numero}: Itens carregados no carrinho!`);
+}
+
+function solicitarPermissaoNotificacao() {
+  if ("Notification" in window) Notification.requestPermission();
+}
+
+function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
+  if ("Notification" in window && Notification.permission === "granted") {
+    const n = new Notification(tit, {
+      body: msg,
+      tag: tagId,
+      renotify: true
+    });
+    n.onclick = () => {
+      window.focus();
+    };
+  }
 }
 
 /**

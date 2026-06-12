@@ -76,10 +76,13 @@ async function initPusher() {
             if (data.garcom_id === 'DELIVERY') {
                 if (data.status === 'cancelado') {
                     showToast(`Pedido #${data.pedido_id} foi CANCELADO.`, "warning");
+                    exibirNotificacaoNativa(`❌ PEDIDO CANCELADO`, `Pedido #${data.pedido_id} foi removido.`);
                 } else if (data.status === 'pronto' || data.status === 'servido') {
                     showToast(`Pedido #${data.pedido_id} está PRONTO!`, "success");
+                    exibirNotificacaoNativa(`🍳 PEDIDO PRONTO`, `Pedido #${data.pedido_id} pronto para entrega!`);
                 } else if (data.status === 'recebido') {
                     showToast(`Novo pedido #${data.pedido_id} recebido!`, "info");
+                    exibirNotificacaoNativa(`🆕 NOVO PEDIDO`, `Pedido #${data.pedido_id} chegou!`);
                 } else if (data.status === 'aguardando_fechamento' || data.status === 'entregue') {
                     showToast(`Pedido #${data.pedido_id} ENTREGUE!`, "success");
                 }
@@ -95,6 +98,7 @@ async function initPusher() {
             const pedido = data.pedido || data;
             if (pedido.garcom_id === 'DELIVERY') {
                 showToast(`Novo pedido #${pedido.id || pedido.pedido_id} recebido!`, "info");
+                exibirNotificacaoNativa(`🆕 NOVO DELIVERY`, `Pedido #${pedido.id || pedido.pedido_id} recebido!`);
             }
         });
 
@@ -106,6 +110,7 @@ async function initPusher() {
             // FILTRO: Só mostra balão se for DELIVERY
             if (data.garcom_id === 'DELIVERY' || (data.mesa_numero && data.mesa_numero.includes('DELIVERY'))) {
                 showToast(`Pedido #${data.id || data.pedido_id} foi REMOVIDO.`, "warning");
+                exibirNotificacaoNativa(`❌ PEDIDO REMOVIDO`, `Pedido #${data.id || data.pedido_id} foi cancelado.`);
             }
         });
 
@@ -117,6 +122,7 @@ async function initPusher() {
             // FILTRO: Só mostra balão se for DELIVERY
             if (data.garcom_id === 'DELIVERY' || (data.mesa_numero && data.mesa_numero.includes('DELIVERY'))) {
                 showToast("Pedido pronto para entrega!", "success");
+                exibirNotificacaoNativa(`🍳 COZINHA: PRONTO`, `O pedido de delivery está pronto!`);
             }
         });
 
@@ -306,6 +312,23 @@ async function confirmarEntrega(id, btn) {
         showToast("Falha na conexão.");
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-check"></i> CONFIRMAR ENTREGA';
+    }
+}
+
+function solicitarPermissaoNotificacao() {
+    if ("Notification" in window) Notification.requestPermission();
+}
+
+function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
+    if ("Notification" in window && Notification.permission === "granted") {
+        const n = new Notification(tit, {
+            body: msg,
+            tag: tagId,
+            renotify: true
+        });
+        n.onclick = () => {
+            window.focus();
+        };
     }
 }
 
