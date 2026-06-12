@@ -578,20 +578,61 @@ async function aceitarRascunho(data) {
   mostrarToast(`Mesa ${data.mesa_numero}: Itens carregados no carrinho!`);
 }
 
-function mostrarToast(mensagem) {
-  const toastExistente = document.querySelector('.toast-notificacao');
-  if (toastExistente) toastExistente.remove();
-  const toast = document.createElement('div');
-  toast.className = 'toast-notificacao';
-  toast.innerText = mensagem;
-  document.body.appendChild(toast);
-  setTimeout(() => {
-    toast.classList.add('show');
-    setTimeout(() => {
-      toast.classList.remove('show');
-      setTimeout(() => toast.remove(), 500);
-    }, 4000);
-  }, 100);
+/**
+ * Exibe uma notificação elegante no canto da tela (Toast)
+ * @param {string} msg - Mensagem da notificação
+ * @param {string} tipo - 'success', 'error', 'warning', 'info'
+ * @param {string} titulo - Título opcional
+ * @param {number} duracao - Tempo em ms (padrão 5s)
+ */
+function mostrarToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    document.body.appendChild(container);
+  }
+
+  const t = document.createElement('div');
+  // Normalização de tipos
+  let classeTipo = tipo;
+  if (tipo === 'sucesso') classeTipo = 'success';
+  if (tipo === 'erro') classeTipo = 'error';
+
+  t.className = `toast-notificacao ${classeTipo}`;
+  
+  const icones = {
+    success: '✅',
+    error: '❌',
+    warning: '⚠️',
+    info: 'ℹ️'
+  };
+
+  const html = `
+    <div class="toast-icon">${icones[classeTipo] || '🔔'}</div>
+    <div class="toast-content">
+      ${titulo ? `<strong class="toast-title">${titulo}</strong>` : ''}
+      <span class="toast-msg">${msg}</span>
+    </div>
+    <button class="toast-close">&times;</button>
+  `;
+
+  t.innerHTML = html;
+  container.appendChild(t);
+
+  setTimeout(() => t.classList.add('show'), 10);
+
+  const autoClose = setTimeout(() => fecharToast(t), duracao);
+
+  t.querySelector('.toast-close').onclick = () => {
+    clearTimeout(autoClose);
+    fecharToast(t);
+  };
+}
+
+function fecharToast(el) {
+  el.classList.remove('show');
+  setTimeout(() => { if (el.parentNode) el.remove(); }, 400);
 }
 
 async function carregarMenu() {

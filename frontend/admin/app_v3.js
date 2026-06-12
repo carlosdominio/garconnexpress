@@ -4430,6 +4430,7 @@ async function configurarPusher() {
         statusLed.style.boxShadow = '0 0 8px rgba(46, 204, 113, 0.6)';
         statusLed.title = 'Conectado em tempo real';
       }
+      mostrarToast("Sincronização em tempo real ativa.", "success", "Rede Conectada", 3000);
     });
 
     pusherInstancia.connection.bind('disconnected', () => {
@@ -4440,6 +4441,7 @@ async function configurarPusher() {
         statusLed.style.boxShadow = '0 0 5px rgba(255, 0, 0, 0.5)';
         statusLed.title = 'Desconectado';
       }
+      mostrarToast("A conexão com o servidor foi interrompida.", "error", "Sem Conexão");
     });
 
     pusherInstancia.connection.bind('error', function(err) {
@@ -4450,6 +4452,7 @@ async function configurarPusher() {
         statusLed.style.boxShadow = '0 0 5px rgba(241, 196, 15, 0.5)';
         statusLed.title = 'Erro de Conexão';
       }
+      mostrarToast("Houve um erro na comunicação com o servidor.", "warning", "Erro de Rede");
     });
 
     const channel = pusherInstancia.subscribe('garconnexpress');
@@ -4748,7 +4751,14 @@ function alternarSomWindows() {
     mostrarToast("🔇 Som do Windows DESATIVADO");
   }
 }
-function mostrarToast(msg, tipo = 'sucesso') {
+/**
+ * Exibe uma notificação elegante no canto da tela (Toast)
+ * @param {string} msg - Mensagem da notificação
+ * @param {string} tipo - 'success', 'error', 'warning', 'info'
+ * @param {string} titulo - Título opcional
+ * @param {number} duracao - Tempo em ms (padrão 5s)
+ */
+function mostrarToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
   let container = document.getElementById('toast-container');
   if (!container) {
     container = document.createElement('div');
@@ -4757,24 +4767,53 @@ function mostrarToast(msg, tipo = 'sucesso') {
   }
 
   const t = document.createElement('div');
-  t.className = 'toast-notificacao';
-  if (tipo === 'estoque') t.classList.add('estoque-alerta');
-  if (tipo === 'erro') t.classList.add('erro');
+  // Mapeamento de tipos antigos para os novos
+  let classeTipo = tipo;
+  if (tipo === 'sucesso') classeTipo = 'success';
+  if (tipo === 'estoque') classeTipo = 'warning';
 
-  t.textContent = msg;
+  t.className = `toast-notificacao ${classeTipo}`;
+
+  const icones = {
+    success: '✅',
+    error: '❌',
+    warning: '⚠️',
+    info: 'ℹ️'
+  };
+
+  const html = `
+    <div class="toast-icon">${icones[classeTipo] || '🔔'}</div>
+    <div class="toast-content">
+      ${titulo ? `<strong class="toast-title">${titulo}</strong>` : ''}
+      <span class="toast-msg">${msg}</span>
+    </div>
+    <button class="toast-close">&times;</button>
+  `;
+
+  t.innerHTML = html;
   container.appendChild(t);
 
-  // Animação de entrada
-  setTimeout(() => { 
-    t.classList.add('show'); 
-    // Auto-remove após 5 segundos
-    setTimeout(() => { 
-      t.classList.remove('show'); 
-      setTimeout(() => t.remove(), 500); 
-    }, 5000); 
-  }, 100);
+  // Trigger animação de entrada
+  setTimeout(() => t.classList.add('show'), 10);
+
+  // Auto-close
+  const autoClose = setTimeout(() => {
+    fecharToast(t);
+  }, duracao);
+
+  // Botão fechar
+  t.querySelector('.toast-close').onclick = () => {
+    clearTimeout(autoClose);
+    fecharToast(t);
+  };
 }
 
+function fecharToast(el) {
+  el.classList.remove('show');
+  setTimeout(() => {
+      if (el.parentNode) el.remove();
+  }, 400);
+}
 // FUNÇÕES DE SISTEMA (SUBSTITUIÇÃO DE ALERT/CONFIRM)
 function mostrarAlerta(msg, titulo = "Aviso", icone = "🔔") {
   return new Promise(resolve => {
@@ -4796,10 +4835,11 @@ function mostrarAlerta(msg, titulo = "Aviso", icone = "🔔") {
       }
       resolve(true);
     };
-  });
-}
+    });
+    }
 
-function mostrarConfirmacao(msg, titulo = "Confirmação", txtConfirmar = "Confirmar", txtCancelar = "Cancelar", icone = "❓") {
+    function mostrarConfirmacao(msg, titulo = "Confirmação", txtConfirmar = "Confirmar", txtCancelar = "Cancelar", icone = "❓") {
+
   return new Promise(resolve => {
     document.getElementById('modal-sistema-icon').innerText = icone;
     document.getElementById('modal-sistema-titulo').innerText = titulo;

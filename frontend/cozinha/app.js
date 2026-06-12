@@ -70,22 +70,64 @@ function tocarSomNotificacao(tipo = 'campainha') {
     tocarCampainha();
 }
 
-function mostrarToast(mensagem, tipo = 'sucesso') {
-    const toastExistente = document.querySelector('.toast-notificacao');
-    if (toastExistente) toastExistente.remove();
+/**
+ * Exibe uma notificação elegante no canto da tela (Toast)
+ * @param {string} msg - Mensagem da notificação
+ * @param {string} tipo - 'success', 'error', 'warning', 'info'
+ * @param {string} titulo - Título opcional
+ * @param {number} duracao - Tempo em ms (padrão 5s)
+ */
+function mostrarToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
 
-    const toast = document.createElement('div');
-    toast.className = `toast-notificacao ${tipo === 'erro' ? 'cancelado' : ''}`;
-    toast.innerText = mensagem;
-    document.body.appendChild(toast);
+    const t = document.createElement('div');
+    // Mapeamento de tipos antigos para os novos
+    let classeTipo = tipo;
+    if (tipo === 'sucesso') classeTipo = 'success';
+    if (tipo === 'erro' || tipo === 'cancelado') classeTipo = 'error';
+    
+    t.className = `toast-notificacao ${classeTipo}`;
+    
+    const icones = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+    };
 
-    setTimeout(() => {
-        toast.classList.add('show');
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 500);
-        }, 4000);
-    }, 100);
+    const html = `
+        <div class="toast-icon">${icones[classeTipo] || '🔔'}</div>
+        <div class="toast-content">
+            ${titulo ? `<strong class="toast-title">${titulo}</strong>` : ''}
+            <span class="toast-msg">${msg}</span>
+        </div>
+        <button class="toast-close">&times;</button>
+    `;
+
+    t.innerHTML = html;
+    container.appendChild(t);
+
+    // Trigger animação
+    setTimeout(() => t.classList.add('show'), 10);
+
+    // Auto-close
+    const autoClose = setTimeout(() => fecharToast(t), duracao);
+
+    // Botão fechar
+    t.querySelector('.toast-close').onclick = () => {
+        clearTimeout(autoClose);
+        fecharToast(t);
+    };
+}
+
+function fecharToast(el) {
+    el.classList.remove('show');
+    setTimeout(() => { if (el.parentNode) el.remove(); }, 400);
 }
 
 async function carregarPedidos() {
@@ -299,16 +341,16 @@ async function confirmarConclusaoPedido() {
         const result = await res.json();
         
         if (result.success) {
-            mostrarToast(`✅ Pedido #${pedidoId} enviado!`);
+            mostrarToast(`Pedido #${pedidoId} enviado!`, 'success');
             carregarPedidos();
         } else {
-            alert('Erro ao concluir pedido: ' + (result.error || 'Erro desconhecido'));
+            mostrarToast('Erro ao concluir pedido: ' + (result.error || 'Erro desconhecido'), 'error');
             btn.innerText = originalText;
             btn.disabled = false;
         }
     } catch (e) {
         console.error('Erro:', e);
-        alert('Erro de conexão ao concluir pedido.');
+        mostrarToast('Erro de conexão ao concluir pedido.', 'error');
         btn.innerText = originalText;
         btn.disabled = false;
     }

@@ -309,27 +309,72 @@ async function confirmarEntrega(id, btn) {
     }
 }
 
-function showToast(msg, type = 'info') {
-    const toast = document.getElementById('toast');
-    const toastMsg = document.getElementById('toast-msg');
-    const toastIcon = document.getElementById('toast-icon');
+/**
+ * Exibe uma notificação elegante no canto da tela (Toast)
+ * @param {string} msg - Mensagem da notificação
+ * @param {string} tipo - 'success', 'error', 'warning', 'info'
+ * @param {string} titulo - Título opcional
+ * @param {number} duracao - Tempo em ms (padrão 5s)
+ */
+function mostrarToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
 
-    // Define ícone baseado no tipo
-    let iconClass = 'fa-bell';
-    if (type === 'success') iconClass = 'fa-check-circle';
-    if (type === 'warning') iconClass = 'fa-exclamation-triangle';
-    if (type === 'info') iconClass = 'fa-info-circle';
-
-    toastIcon.className = `fas ${iconClass}`;
-    toastMsg.innerText = msg;
+    const t = document.createElement('div');
+    // Normalização de tipos
+    let classeTipo = tipo;
+    if (tipo === 'sucesso') classeTipo = 'success';
+    if (tipo === 'erro') classeTipo = 'error';
     
-    // Remove classes anteriores e adiciona a nova
-    toast.classList.remove('success', 'warning', 'info');
-    if (type !== 'info') toast.classList.add(type);
+    t.className = `toast-notificacao ${classeTipo}`;
+    
+    const icones = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+    };
 
-    // Toca o som
-    audioNotificacao.play().catch(e => console.log('Áudio bloqueado ou erro:', e));
+    const html = `
+        <div class="toast-icon">${icones[classeTipo] || '🔔'}</div>
+        <div class="toast-content">
+            ${titulo ? `<strong class="toast-title">${titulo}</strong>` : ''}
+            <span class="toast-msg">${msg}</span>
+        </div>
+        <button class="toast-close">&times;</button>
+    `;
 
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 5000); // 5 segundos para o balão
+    t.innerHTML = html;
+    container.appendChild(t);
+
+    // Trigger animação
+    setTimeout(() => t.classList.add('show'), 10);
+
+    // Auto-close
+    const autoClose = setTimeout(() => fecharToast(t), duracao);
+
+    // Toca o som (Motoboy sempre toca para chamar atenção)
+    if (typeof audioNotificacao !== 'undefined') {
+        audioNotificacao.play().catch(e => console.log('Áudio bloqueado:', e));
+    }
+
+    // Botão fechar
+    t.querySelector('.toast-close').onclick = () => {
+        clearTimeout(autoClose);
+        fecharToast(t);
+    };
+}
+
+function fecharToast(el) {
+    el.classList.remove('show');
+    setTimeout(() => { if (el.parentNode) el.remove(); }, 400);
+}
+
+// Alias para compatibilidade com código antigo do motoboy
+function showToast(msg, type = 'info') {
+    mostrarToast(msg, type);
 }
