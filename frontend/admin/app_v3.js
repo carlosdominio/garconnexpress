@@ -4637,6 +4637,13 @@ async function configurarPusher() {
       console.log('📢 Admin: Status do caixa atualizado', data);
       tocarNotificacao();
       carregarStatusCaixa();
+      
+      if (data.status === 'fechado') {
+          mostrarToast('O caixa foi FECHADO com sucesso!', 'warning', '💰 CAIXA');
+      } else if (data.status === 'aberto') {
+          mostrarToast('O caixa foi ABERTO! Bom trabalho.', 'success', '💰 CAIXA');
+      }
+
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => {
         carregarPedidos();
@@ -4798,9 +4805,6 @@ function mostrarToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
 
   t.innerHTML = html;
   container.appendChild(t);
-
-  // NOVO: Espelha para notificação nativa do Windows automaticamente
-  exibirNotificacaoNativa(titulo || (classeTipo.toUpperCase() + ": " + (icones[classeTipo] || "")), msg, 'toast-' + Date.now());
 
   // Trigger animação de entrada
   setTimeout(() => t.classList.add('show'), 10);

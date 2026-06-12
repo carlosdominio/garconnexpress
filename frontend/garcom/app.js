@@ -440,6 +440,14 @@ async function configurarPusher() {
     channel.bind('status-caixa-atualizado', (data) => {
       console.log('📢 Evento recebido: status-caixa-atualizado', data);
       atualizarStatusCaixa();
+      
+      if (data.status === 'fechado') {
+        tocarCampainha();
+        mostrarAlerta("O caixa foi fechado pelo administrador. O atendimento está encerrado.", "💰 CAIXA FECHADO", "🛑");
+      } else if (data.status === 'aberto') {
+        tocarCampainha(true); // Som suave
+        mostrarToast("O caixa foi aberto! Bom trabalho.");
+      }
     });
 
     channel.bind('garcom-status-alterado', (data) => {

@@ -447,7 +447,12 @@ async function configurarPusher() {
         canal.bind('status-caixa-atualizado', (data) => {
             console.log('📢 Status do Caixa atualizado:', data);
             verificarCaixa();
-            if (data.status === 'aberto') {
+            if (data.status === 'fechado') {
+                tocarCampainha();
+                mostrarToast("O expediente foi encerrado pelo administrador. O caixa está FECHADO.", "error", "💰 CAIXA FECHADO");
+            } else if (data.status === 'aberto') {
+                tocarCampainha();
+                mostrarToast("O caixa foi aberto! Bom trabalho.");
                 carregarPedidos();
             }
         });

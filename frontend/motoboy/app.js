@@ -65,6 +65,11 @@ async function initPusher() {
         channel.bind('status-caixa-atualizado', (data) => {
             console.log('📢 Evento de caixa recebido no motoboy:', data);
             verificarStatusCaixa();
+            if (data.status === 'fechado') {
+                showToast("O expediente foi encerrado. O caixa está FECHADO.", "warning");
+            } else if (data.status === 'aberto') {
+                showToast("O caixa foi aberto! Bom trabalho.");
+            }
         });
 
         // Escuta atualizações de status (cozinha/admin)

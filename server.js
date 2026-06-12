@@ -934,6 +934,10 @@ app.post('/api/caixa/abrir', async (req, res) => {
     const dataLocal = agora.getFullYear() + '-' + String(agora.getMonth() + 1).padStart(2, '0') + '-' + String(agora.getDate()).padStart(2, '0') + ' ' + String(agora.getHours()).padStart(2, '0') + ':' + String(agora.getMinutes()).padStart(2, '0') + ':' + String(agora.getSeconds()).padStart(2, '0');
     await query("INSERT INTO fluxo_caixa (valor_inicial, status, data_abertura) VALUES (?, 'aberto', ?)", [valor_inicial || 0, dataLocal]);
     await safePusherTrigger('garconnexpress', 'status-caixa-atualizado', { status: 'aberto' });
+    
+    // Notificação WhatsApp
+    sendWhatsAppMessage(`💰 *CAIXA ABERTO*\n🕒 Horário: ${new Date().toLocaleTimeString()}\n💵 Valor Inicial: R$ ${Number(valor_inicial || 0).toFixed(2)}`).catch(e => console.error('Erro Wpp:', e.message));
+
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Erro ao abrir caixa' }); }
 });
@@ -943,6 +947,10 @@ app.post('/api/caixa/fechar', async (req, res) => {
   try {
     const pedidosAtivos = await query("SELECT id FROM pedidos WHERE status NOT IN ('entregue', 'cancelado')");
     if (pedidosAtivos.rows.length > 0) return res.status(400).json({ error: 'Existem pedidos pendentes.' });
+    
+    // Busca dados do caixa antes de fechar para o relatório do WhatsApp
+    const dadosCaixa = (await query("SELECT * FROM fluxo_caixa WHERE id = ?", [id])).rows[0];
+
     const agora = new Date();
     const dataLocal = agora.getFullYear() + '-' + String(agora.getMonth() + 1).padStart(2, '0') + '-' + String(agora.getDate()).padStart(2, '0') + ' ' + String(agora.getHours()).padStart(2, '0') + ':' + String(agora.getMinutes()).padStart(2, '0') + ':' + String(agora.getSeconds()).padStart(2, '0');
     await query("UPDATE fluxo_caixa SET valor_final = ?, status = 'fechado', data_fechamento = ? WHERE id = ?", [valor_final, dataLocal, id]);
@@ -951,6 +959,19 @@ app.post('/api/caixa/fechar', async (req, res) => {
     await query("UPDATE codigos_acesso SET status = 'expirado' WHERE status = 'ativo'");
 
     await safePusherTrigger('garconnexpress', 'status-caixa-atualizado', { status: 'fechado' });
+
+    // Notificação WhatsApp detalhada
+    if (dadosCaixa) {
+      const msgWpp = `💰 *CAIXA FECHADO*\n🕒 Horário: ${new Date().toLocaleTimeString()}\n\n` +
+                     `📊 *RESUMO DO DIA:*\n` +
+                     `💵 Dinheiro: R$ ${Number(dadosCaixa.total_dinheiro || 0).toFixed(2)}\n` +
+                     `💳 Cartão: R$ ${Number(dadosCaixa.total_cartao || 0).toFixed(2)}\n` +
+                     `📱 Pix: R$ ${Number(dadosCaixa.total_pix || 0).toFixed(2)}\n` +
+                     `📈 Total Vendas: R$ ${Number(dadosCaixa.total_vendas || 0).toFixed(2)}\n` +
+                     `🏁 Valor Final: R$ ${Number(valor_final || 0).toFixed(2)}`;
+      sendWhatsAppMessage(msgWpp).catch(e => console.error('Erro Wpp:', e.message));
+    }
+
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Erro ao fechar caixa' }); }
 });
