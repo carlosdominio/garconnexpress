@@ -1,4 +1,4 @@
-const CACHE_NAME = 'garcom-cache-v3'; // Incrementado para forçar atualização
+const CACHE_NAME = 'garcom-cache-v4'; // Incrementado para forçar atualização
 const urlsToCache = [
   'index.html',
   'style.css',
@@ -57,9 +57,10 @@ self.addEventListener('push', event => {
         body: data.body,
         icon: '/garcom/favicon.svg',
         badge: '/garcom/favicon.svg',
-        vibrate: [200, 100, 200, 100, 200, 100, 200],
+        vibrate: [500, 110, 500, 110, 450, 110, 200, 110, 170, 40, 450, 110, 200, 110, 170, 40],
         requireInteraction: true,
         renotify: true,
+        silent: false,
         tag: data.event || 'push-notification',
         data: {
           url: self.registration.scope

@@ -301,24 +301,31 @@ async function safePusherTrigger(channel, event, data) {
     
     // --- WEB PUSH NATIVO (BACKGROUND) E FCM (NATIVO ANDROID/IOS) ---
     // Dispara notificação nativa para todos os garçons inscritos quando houver eventos cruciais
-    if (['novo-pedido', 'pedido-cancelado', 'chamado-garcom'].includes(event)) {
+    const eventsToPush = ['novo-pedido', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto', 'rascunho-recebido', 'solicitacao-fechamento-cliente'];
+    if (eventsToPush.includes(event)) {
       try {
         const subs = (await query("SELECT * FROM push_subscriptions")).rows;
         let pushMsg = '';
-        if (event === 'novo-pedido') pushMsg = `NOVO PEDIDO: ${data.pedido.mesa_numero}`;
-        if (event === 'pedido-cancelado') pushMsg = `CANCELADO: Mesa ${data.mesa_numero}`;
-        if (event === 'chamado-garcom') pushMsg = `CHAMADO: Mesa ${data.mesa_numero}`;
+        const mesaNum = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : 'BALCÃO');
+        
+        if (event === 'novo-pedido') pushMsg = `NOVO PEDIDO: ${mesaNum}`;
+        else if (event === 'pedido-cancelado') pushMsg = `CANCELADO: Mesa ${mesaNum}`;
+        else if (event === 'chamado-garcom') pushMsg = `🛎️ CHAMADO: Mesa ${mesaNum}`;
+        else if (event === 'pedido-pronto') pushMsg = `🍳 PRONTO: Mesa ${mesaNum}`;
+        else if (event === 'rascunho-recebido') pushMsg = `📝 RASCUNHO: Mesa ${mesaNum}`;
+        else if (event === 'solicitacao-fechamento-cliente') pushMsg = `💰 FECHAMENTO: Mesa ${mesaNum}`;
+        else pushMsg = `Notificação: ${event}`;
         
         const payload = JSON.stringify({ title: 'GarçomExpress', body: pushMsg, event });
         
         for (const sub of subs) {
-          if (sub.endpoint.includes('fcm.googleapis.com')) {
+          if (sub.endpoint.includes('fcm.googleapis.com') || sub.endpoint.startsWith('https://')) {
              // Tratamento para Web Push tradicional (VAPID)
              const pushSubscription = {
                 endpoint: sub.endpoint,
                 keys: { p256dh: sub.p256dh, auth: sub.auth }
              };
-             webpush.sendNotification(pushSubscription, payload).catch(async err => {
+             webpush.sendNotification(pushSubscription, payload, { urgency: 'high' }).catch(async err => {
                 if (err.statusCode === 410 || err.statusCode === 404) {
                    console.log('🗑️ Removendo inscrição VAPID inativa:', sub.endpoint);
                    await query("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]);
