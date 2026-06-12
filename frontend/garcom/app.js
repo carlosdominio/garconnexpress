@@ -120,10 +120,49 @@ let garcomLogado = null;
 let caixaAberto = false;
 let categoriaAtual = sessionStorage.getItem('garcom_categoria_atual') || 'todas';
 let garcomPausado = localStorage.getItem('garcom_pausado') === 'true';
+let pusherInstancia = null; // Instância global do Pusher para reconexão
+
+// --- WAKE LOCK API (Evita que a tela desligue) ---
+let wakeLock = null;
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      console.log('🔒 Wake Lock ativado! A tela não vai apagar.');
+      wakeLock.addEventListener('release', () => {
+        console.log('🔓 Wake Lock liberado.');
+      });
+    }
+  } catch (err) {
+    console.error(`❌ Erro Wake Lock: ${err.name}, ${err.message}`);
+  }
+}
+
+// --- VISIBILITY SYNC (Reconexão Agressiva ao voltar ao app) ---
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    console.log('👀 App voltou ao foco! Sincronizando dados...');
+    requestWakeLock(); // Refaz o lock caso tenha se perdido
+    
+    // Força atualização das mesas imediatamente
+    carregarMesas();
+    
+    // Força a reconexão do Web Socket se estiver desconectado
+    if (pusherInstancia && pusherInstancia.connection.state !== 'connected') {
+      console.log('🔌 Reconectando Pusher...');
+      pusherInstancia.connect();
+    }
+  }
+});
 
 document.addEventListener('DOMContentLoaded', async () => {
   verificarSessao();
   atualizarInterfacePausa();
+  
+  // Ativa o Wake Lock no primeiro clique do usuário
+  document.body.addEventListener('click', () => {
+    if (!wakeLock) requestWakeLock();
+  }, { once: true });
 });
 
 async function togglePausa() {
