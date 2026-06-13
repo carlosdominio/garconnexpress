@@ -42,6 +42,19 @@ async function registerNativePush() {
     const { PushNotifications } = window.Capacitor.Plugins;
     if (!PushNotifications) return;
 
+    // Cria o canal de notificação com o som personalizado no Android
+    if (window.Capacitor.getPlatform() === 'android') {
+      await PushNotifications.createChannel({
+        id: 'pedidos',
+        name: 'Alertas de Pedidos',
+        description: 'Notificações de novos pedidos e chamados',
+        sound: 'notificacao',
+        importance: 5,
+        visibility: 1,
+        vibration: true
+      });
+    }
+
     let permStatus = await PushNotifications.checkPermissions();
     if (permStatus.receive === 'prompt') {
       permStatus = await PushNotifications.requestPermissions();
@@ -70,8 +83,22 @@ async function registerNativePush() {
       });
     });
 
-    PushNotifications.addListener('pushNotificationReceived', (notification) => {
+    PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 Notificação recebida:', notification);
+      
+      // Tenta tocar o som manualmente se estiver em primeiro plano
+      try {
+        const audio = new Audio('notificacao.mp3');
+        await audio.play();
+      } catch (e) { console.error("Erro ao tocar áudio foreground:", e); }
+
+      // Vibração Nativa (Haptics)
+      if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
+        try {
+          await window.Capacitor.Plugins.Haptics.vibrate();
+        } catch (e) { console.error("Erro vibração:", e); }
+      }
+
       if (typeof carregarMesas === 'function') carregarMesas();
     });
 

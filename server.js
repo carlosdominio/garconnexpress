@@ -359,8 +359,16 @@ async function safePusherTrigger(channel, event, data) {
                  android: {
                    priority: 'high',
                    notification: {
-                     sound: 'default',
+                     sound: 'notificacao',
+                     channelId: 'pedidos',
                      clickAction: 'FCM_PLUGIN_ACTIVITY'
+                   }
+                 },
+                 apns: {
+                   payload: {
+                     aps: {
+                       sound: 'notificacao.caf'
+                     }
                    }
                  },
                  token: sub.endpoint // O endpoint armazena o token do dispositivo
