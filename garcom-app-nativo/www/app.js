@@ -6,20 +6,23 @@ let timeoutPusher = null;
 let configCozinhaCategorias = []; // Estado global das categorias da cozinha
 
 // --- INTEGRAÇÃO CAPACITOR NATIVA ---
-let isNativeApp = false;
+let isNativeApp = (window.Capacitor && window.Capacitor.isNativePlatform()) || 
+                  window.location.protocol === 'capacitor:' || 
+                  window.location.protocol === 'http:' && window.location.hostname === 'localhost' && !window.location.port;
 
 document.addEventListener('DOMContentLoaded', async () => {
-  if (window.Capacitor) {
+  // Re-checa se o Capacitor carregou depois
+  if (window.Capacitor && !isNativeApp) {
     isNativeApp = window.Capacitor.isNativePlatform();
-    console.log(`📱 App rodando em ambiente nativo? ${isNativeApp}`);
-    
-    if (isNativeApp) {
-       // Configurações específicas para app nativo
-       if (localStorage.getItem('garcom_token')) await registerNativePush();
-       
-       // Adiciona classe ao body para estilos específicos se necessário
-       document.body.classList.add('native-app');
-    }
+  }
+  
+  console.log(`📱 Ambiente Nativo detectado: ${isNativeApp} (Protocolo: ${window.location.protocol})`);
+  
+  if (isNativeApp) {
+     document.body.classList.add('native-app');
+     if (window.Capacitor && window.Capacitor.Plugins && localStorage.getItem('garcom_token')) {
+        await registerNativePush();
+     }
   }
 
   if (!isNativeApp && 'serviceWorker' in navigator) {
@@ -216,11 +219,14 @@ console.error = function(...args) {
         
         // Em vez de reload direto, avisa o usuário (isso pausa a execução e permite ver o console)
         window.location.reload();
-        // console.log("🔄 Auto-reload cancelado para debug. Verifique o console.");
       }
       return response;
     } catch (error) {
       console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
+      // Mostra um alerta visual no app para o usuário saber que a conexão falhou
+      if (typeof mostrarAlerta === 'function') {
+        mostrarAlerta(`Erro de conexão com o servidor remoto.\n\nDetalhe: ${error.message}\nURL: ${args[0]}`, "Falha de Conexão", "🌐");
+      }
       throw error;
     }
   };
