@@ -180,8 +180,11 @@ app.use((req, res, next) => {
 const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['*'];
 app.use(require('cors')({
   origin: (origin, callback) => {
+    // Permite explicitamente origens do Capacitor/Mobile
+    const nativeOrigins = ['capacitor://localhost', 'http://localhost', 'http://127.0.0.1'];
+    
     // Se allowedOrigins for ['*'], permite qualquer origem
-    if (allowedOrigins.includes('*') || !origin) {
+    if (allowedOrigins.includes('*') || !origin || nativeOrigins.includes(origin)) {
       callback(null, true);
     } else if (allowedOrigins.some(o => origin.startsWith(o.trim()))) {
       callback(null, true);
