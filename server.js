@@ -2014,8 +2014,8 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
       }
       await query("UPDATE pedido_itens SET status = 'cancelado' WHERE pedido_id = ?", [id]);
     }
-    const pm = (await query("SELECT p.mesa_id, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
-    const mesaNum = pm ? pm.numero || 'BALCÃO' : 'BALCÃO';
+    const pm = (await query("SELECT p.mesa_id, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
+    const mesaNum = pm ? (pm.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : (pm.numero || 'BALCÃO')) : 'BALCÃO';
 
     // Se o status for cancelado ou entregue, libera a mesa e o código
     if ((status === 'cancelado' || status === 'entregue') && pm && pm.mesa_id) {
