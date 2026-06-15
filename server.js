@@ -1403,7 +1403,6 @@ app.delete('/api/pedidos/itens/:id', async (req, res) => {
         },
         mensagem: `🚨 O Pedido #${item.pedido_id} foi CANCELADO (último item removido).` 
       });
-      });
 
       await query("DELETE FROM pedidos WHERE id = ?", [item.pedido_id]);
       if (pedido && pedido.mesa_id) {
