@@ -369,24 +369,18 @@ async function safePusherTrigger(channel, event, data) {
           const isMotoboy = sub.garcom_id === 'DELIVERY';
           
           // Filtro robusto para identificar se o evento é de Delivery
-          let isDeliveryEvent = 
+          const isDeliveryEvent = 
             (data.garcom_id === 'DELIVERY') || 
             (data.pedido && data.pedido.garcom_id === 'DELIVERY') ||
             (mesaNum && String(mesaNum).toUpperCase().includes('DELIVERY'));
 
-          // Caso especial para cancelamento: Se for cancelamento, enviamos para AMBOS (Garçom e Motoboy) 
-          // para garantir que ninguém perca a informação, já que o status do pedido pode já ter sido alterado no DB.
-          const isCancelamento = (event === 'pedido-cancelado') || (event === 'status-atualizado' && data.status === 'cancelado');
-          if (isCancelamento) {
-             isDeliveryEvent = isMotoboy; // Se é motoboy, trata como evento dele. Se é garçom, também.
-          }
-            
-          if (isCancelamento) {
-             console.log(`[DEBUG-PUSH] 🚨 CANCELAMENTO: isMotoboy=${isMotoboy} | Token=${sub.endpoint.substring(0, 10)}...`);
+          // Debug para cancelamento
+          if (event === 'pedido-cancelado' || (event === 'status-atualizado' && data.status === 'cancelado')) {
+             console.log(`[DEBUG-PUSH] 🚨 CANCELAMENTO: isMotoboy=${isMotoboy} | isDeliveryEvent=${isDeliveryEvent} | Token=${sub.endpoint.substring(0, 10)}...`);
           }
           
           if (isMotoboy && !isDeliveryEvent) continue;
-          if (!isMotoboy && isDeliveryEvent && !isCancelamento) continue; 
+          if (!isMotoboy && isDeliveryEvent) continue; 
 
           if (sub.endpoint.includes('fcm.googleapis.com') || sub.endpoint.startsWith('https://')) {
              // ... [Web Push remains same] ...
@@ -395,21 +389,30 @@ async function safePusherTrigger(channel, event, data) {
              const firebaseAppToUse = isMotoboy ? firebaseMotoboyApp : firebaseGarcomApp;
 
              if (firebaseAppToUse) {
+               // Normaliza IDs para String para evitar erros no FCM
+               const pId = String(data.pedido_id || data.id || (data.pedido ? data.pedido.id : ''));
+               const gId = String(data.garcom_id || (data.pedido ? data.pedido.garcom_id : ''));
+               const sStatus = String(data.status || (data.pedido ? data.pedido.status : ''));
+
                const message = {
                  notification: {
                    title: 'GarçomExpress',
                    body: pushMsg
                  },
                  data: {
-                   event: event,
-                   pedido_id: String(data.pedido_id || data.id || ''),
-                   status: String(data.status || ''),
+                   event: String(event),
+                   id: pId,
+                   pedido_id: pId,
+                   garcom_id: gId,
+                   status: sStatus,
+                   mesa_numero: String(mesaNum || ''),
                    title: 'GarçomExpress',
-                   body: pushMsg
+                   body: pushMsg,
+                   sound: 'notificacao'
                  },
                  android: {
                    priority: 'high',
-                   ttl: 3600 * 1000, // 1 hora
+                   ttl: 3600 * 1000,
                    notification: {
                      title: 'GarçomExpress',
                      body: pushMsg,
@@ -419,7 +422,6 @@ async function safePusherTrigger(channel, event, data) {
                      channelId: 'pedidos',
                      priority: 'high',
                      visibility: 'public',
-                     notificationCount: 1,
                      clickAction: 'FCM_PLUGIN_ACTIVITY'
                    }
                  },
