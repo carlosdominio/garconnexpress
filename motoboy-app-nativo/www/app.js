@@ -1,7 +1,8 @@
+const API_BASE_URL = 'https://garconnexpress.vercel.app';
 let pusher;
 let channel;
 
-const audioNotificacao = new Audio('/notificacao.mp3');
+const audioNotificacao = new Audio(API_BASE_URL + '/notificacao.mp3');
 
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Verifica status do caixa primeiro
@@ -62,7 +63,7 @@ async function initNativePush() {
 
 async function verificarStatusCaixa() {
     try {
-        const res = await fetch('/api/caixa/status');
+        const res = await fetch(API_BASE_URL + '/api/caixa/status');
         const cx = await res.json();
         const screen = document.getElementById('closed-screen');
         if (!screen) return;
@@ -79,7 +80,7 @@ async function verificarStatusCaixa() {
 
 async function initPusher() {
     try {
-        const res = await fetch('/api/pusher-config');
+        const res = await fetch(API_BASE_URL + '/api/pusher-config');
         const config = await res.json();
         
         pusher = new Pusher(config.key, {
@@ -166,7 +167,7 @@ async function initPusher() {
 
 async function loadPedidos() {
     try {
-        const res = await fetch('/api/pedidos/ativos-detalhado');
+        const res = await fetch(API_BASE_URL + '/api/pedidos/ativos-detalhado');
         const allPedidos = await res.json();
         
         // Filtra apenas os pedidos de DELIVERY
@@ -326,7 +327,7 @@ async function confirmarEntrega(id, btn) {
 
     try {
         // Envia status 'aguardando_fechamento' para que no Admin caia na coluna de entregue/fechamento
-        const res = await fetch(`/api/pedidos/${id}/status`, {
+        const res = await fetch(API_BASE_URL + `/api/pedidos/${id}/status`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: 'aguardando_fechamento' })
