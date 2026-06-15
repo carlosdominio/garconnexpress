@@ -369,21 +369,27 @@ async function safePusherTrigger(channel, event, data) {
           const isMotoboy = sub.garcom_id === 'DELIVERY';
           
           // Filtro robusto para identificar se o evento é de Delivery
-          const isDeliveryEvent = 
+          // Se for cancelamento, tentamos ser mais permissivos ou buscar no DB se necessário
+          let isDeliveryEvent = 
             (data.garcom_id === 'DELIVERY') || 
             (data.pedido && data.pedido.garcom_id === 'DELIVERY') ||
             (mesaNum && String(mesaNum).toUpperCase().includes('DELIVERY'));
+
+          // Caso especial para cancelamento onde data pode estar incompleta
+          if (!isDeliveryEvent && event === 'pedido-cancelado' && data.pedido_id) {
+             // Se não detectou pelos dados, mas temos o pedido_id, o Motoboy precisa saber se era dele
+             // Para não pesar o loop com queries, confiamos no isMotoboy para enviar se o evento for global
+             isDeliveryEvent = true; 
+          }
             
           if (event === 'pedido-cancelado') {
-             console.log(`[DEBUG-PUSH] Evento: cancelado | isMotoboy: ${isMotoboy} | isDeliveryEvent: ${isDeliveryEvent} | data.garcom_id: ${data.garcom_id} | mesaNum: ${mesaNum}`);
+             console.log(`[DEBUG-PUSH] Evento: cancelado | isMotoboy: ${isMotoboy} | isDeliveryEvent: ${isDeliveryEvent} | pedidoId: ${data.pedido_id} | mesaNum: ${mesaNum}`);
           }
           
           if (isMotoboy && !isDeliveryEvent) {
-             if (event === 'pedido-cancelado') console.log(`[DEBUG-PUSH] 🚫 Ignorado Motoboy (Não é evento de delivery)`);
              continue;
           }
           if (!isMotoboy && isDeliveryEvent) {
-             if (event === 'pedido-cancelado') console.log(`[DEBUG-PUSH] 🚫 Ignorado Garçom (É evento de delivery)`);
              continue; 
           }
 
