@@ -1364,23 +1364,24 @@ app.delete('/api/pedidos/itens/:id', async (req, res) => {
     await query("DELETE FROM pedido_itens WHERE id = ?", [id]);
     const itensRestantes = (await query("SELECT status FROM pedido_itens WHERE pedido_id = ?", [item.pedido_id])).rows;
     if (itensRestantes.length === 0) {
-      const pedido = (await query("SELECT mesa_id, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [item.pedido_id])).rows[0];
+      const pedido = (await query("SELECT mesa_id, m.numero, p.garcom_id FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [item.pedido_id])).rows[0];
       await query("DELETE FROM pedidos WHERE id = ?", [item.pedido_id]);
       if (pedido && pedido.mesa_id) {
         await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [pedido.mesa_id]);
         await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [pedido.mesa_id]);
-        
+
         // Notifica o cliente para encerrar o acesso
         await safePusherTrigger('garconnexpress', `deslogar-mesa-${pedido.mesa_id}`, { 
           status: 'cancelado',
           mensagem: "Seu pedido foi cancelado e a mesa liberada. O acesso foi encerrado." 
         });
       }
-      
-      const mesaNum = pedido ? pedido.numero || 'BALCÃO' : 'BALCÃO';
+
+      const mesaNum = pedido ? (pedido.garcom_id === 'DELIVERY' ? `DELIVERY #${item.pedido_id}` : (pedido.numero || 'BALCÃO')) : 'BALCÃO';
       await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
         pedido_id: item.pedido_id, 
         mesa_numero: mesaNum,
+        garcom_id: pedido ? pedido.garcom_id : null,
         mensagem: `🚨 O Pedido #${item.pedido_id} (Mesa ${mesaNum}) foi CANCELADO.` 
       });
 
@@ -1398,7 +1399,7 @@ app.delete('/api/pedidos/itens/:id', async (req, res) => {
 app.delete('/api/pedidos/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const pedido = (await query("SELECT p.mesa_id, p.status, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
+    const pedido = (await query("SELECT p.mesa_id, p.status, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
     const itens = (await query("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
     for (const item of itens) await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque + ? END WHERE id = ?", [item.quantidade, item.menu_id]);
     await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [id]);
@@ -1415,10 +1416,11 @@ app.delete('/api/pedidos/:id', async (req, res) => {
           mensagem: "Este pedido foi removido pelo estabelecimento. Seu acesso foi encerrado." 
         });
       }
-      const mesaNum = pedido.numero || 'BALCÃO';
+      const mesaNum = pedido.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : (pedido.numero || 'BALCÃO');
       await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
         pedido_id: id, 
         mesa_numero: mesaNum,
+        garcom_id: pedido.garcom_id,
         mensagem: `🚨 O Pedido #${id} (Mesa ${mesaNum}) foi REMOVIDO pelo Admin.` 
       });
     }
@@ -2022,6 +2024,7 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
             id: id,
             pedido_id: id, 
             mesa_numero: mesaNum,
+            garcom_id: pm ? pm.garcom_id : null,
             mensagem: `🚨 O Pedido #${id} (Mesa ${mesaNum}) foi CANCELADO pelo Admin.` 
           });
         }
