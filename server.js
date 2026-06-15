@@ -404,21 +404,22 @@ async function safePusherTrigger(channel, event, data) {
                    event: event,
                    pedido_id: String(data.pedido_id || data.id || ''),
                    status: String(data.status || ''),
-                   sound: 'notificacao',
                    title: 'GarçomExpress',
                    body: pushMsg
                  },
                  android: {
                    priority: 'high',
+                   ttl: 3600 * 1000, // 1 hora
                    notification: {
                      title: 'GarçomExpress',
                      body: pushMsg,
+                     icon: 'ic_stat_notification',
+                     color: '#e67e22',
                      sound: 'notificacao',
                      channelId: 'pedidos',
-                     icon: 'ic_stat_name',
-                     color: '#ff0000',
                      priority: 'high',
                      visibility: 'public',
+                     notificationCount: 1,
                      clickAction: 'FCM_PLUGIN_ACTIVITY'
                    }
                  },
