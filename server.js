@@ -353,6 +353,16 @@ async function safePusherTrigger(channel, event, data) {
         }
         else pushMsg = `Notificação: ${event}`;
         
+        // Deduplicação de tokens para evitar envios repetidos ao mesmo aparelho
+        const uniqueSubs = [];
+        const seenTokens = new Set();
+        for (const s of subs) {
+          if (s.endpoint && !seenTokens.has(s.endpoint)) {
+            seenTokens.add(s.endpoint);
+            uniqueSubs.push(s);
+          }
+        }
+
         for (const sub of uniqueSubs) {
           const isMotoboy = sub.garcom_id === 'DELIVERY';
           
@@ -403,6 +413,8 @@ async function safePusherTrigger(channel, event, data) {
                      channelId: 'pedidos',
                      priority: 'high',
                      visibility: 'public',
+                     tag: pId,
+                     ticker: pushMsg,
                      clickAction: 'FCM_PLUGIN_ACTIVITY'
                    }
                  },
@@ -1382,11 +1394,15 @@ app.delete('/api/pedidos/itens/:id', async (req, res) => {
       await notifyStatus(item.pedido_id, pedido ? pedido.mesa_id : null, 'cancelado');
       await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
         id: item.pedido_id,
-        pedido_id: item.pedido_id, 
-        mesa_numero: mesaNum,
-        garcom_id: pedido.garcom_id,
-        status: 'cancelado',
+        pedido: {
+          id: item.pedido_id, 
+          pedido_id: item.pedido_id, 
+          mesa_numero: mesaNum,
+          garcom_id: pedido.garcom_id,
+          status: 'cancelado'
+        },
         mensagem: `🚨 O Pedido #${item.pedido_id} foi CANCELADO (último item removido).` 
+      });
       });
 
       await query("DELETE FROM pedidos WHERE id = ?", [item.pedido_id]);
@@ -1431,6 +1447,13 @@ app.delete('/api/pedidos/:id', async (req, res) => {
       const mesaNum = pedido.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : (pedido.numero || 'BALCÃO');
       await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
         pedido_id: id, 
+        pedido: {
+          id: id,
+          pedido_id: id, 
+          mesa_numero: mesaNum,
+          garcom_id: pedido.garcom_id,
+          status: 'cancelado'
+        },
         mesa_numero: mesaNum,
         garcom_id: pedido.garcom_id,
         status: 'cancelado',
@@ -2035,7 +2058,13 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
           console.log(`❌ Pedido ${id} cancelado pelo Admin. Notificando globalmente...`);
           await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
             id: id,
-            pedido_id: id, 
+            pedido: {
+              id: id,
+              pedido_id: id, 
+              mesa_numero: mesaNum,
+              garcom_id: pm ? pm.garcom_id : null,
+              status: 'cancelado'
+            },
             mesa_numero: mesaNum,
             garcom_id: pm ? pm.garcom_id : null,
             status: 'cancelado',
