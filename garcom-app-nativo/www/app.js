@@ -454,57 +454,73 @@ async function realizarLogin() {
   const usuario = document.getElementById('login-usuario').value;
   const senha = document.getElementById('login-senha').value;
   if (!usuario || !senha) return await mostrarAlerta("Preencha todos os campos", "Aviso", "⚠️");
+
   const res = await fetch('/api/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ usuario, senha })
   });
+
   if (res.ok) {
     const data = await res.json();
     garcomLogado = data.garcom;
     localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
-    if (data.token) localStorage.setItem('garcom_token', data.token); // Salva token
-    
-    // Em vez de location.reload(), fazemos a transição manual para evitar o crash
-    // do WebView ao recarregar com recursos pesados.
+    if (data.token) localStorage.setItem('garcom_token', data.token);
+
+    // Transição de tela imediata
     const telaLogin = document.getElementById('tela-login');
     if (telaLogin) telaLogin.style.display = 'none';
     const nomeExib = document.getElementById('garcom-nome-exibicao');
     if (nomeExib) nomeExib.textContent = `Garçom: ${garcomLogado.nome}`;
-    
-    // Inicia o app e as notificações Push
-    await iniciarApp();
-    if (isNativeApp && window.Capacitor && window.Capacitor.Plugins) {
-       await registerNativePush();
-    }
+
+    // Pequeno delay de 500ms para o Android "respirar" antes de carregar tudo
+    setTimeout(async () => {
+        try {
+            await iniciarApp();
+            // Defer push registration for another 2 seconds
+            if (isNativeApp) {
+                setTimeout(() => registerNativePush().catch(e => console.error("Push defer error:", e)), 2000);
+            }
+        } catch (e) {
+            console.error("Erro na inicialização pós-login:", e);
+        }
+    }, 500);
+
   } else await mostrarAlerta("Usuário ou senha incorretos", "Erro de Login", "❌");
 }
 
 async function logout() {
-  await fetch('/api/logout', { method: 'POST' });
+  try { await fetch('/api/logout', { method: 'POST' }); } catch(e){}
   localStorage.removeItem('garcom_logado');
   localStorage.removeItem('garcom_token');
   location.reload();
 }
 
 async function iniciarApp() {
-  await carregarConfigCozinha();
-  await carregarMenu();
-  await carregarMesas();
-  await atualizarStatusCaixa();
-  atualizarIconeSom();
-  configurarEventos();
-  configurarPusher();
-  
-  // Atualiza os cronômetros das mesas a cada 1 segundo (visual apenas)
-  setInterval(() => {
-    exibirMesas();
-  }, 1000);
+  console.log("🚀 Iniciando carregamento de dados...");
 
-  // Recarrega os dados das mesas a cada 60 segundos para garantir sincronia
-  setInterval(() => {
-    carregarMesas();
-  }, 60000);
+  // Carrega cada módulo individualmente com proteção contra erro
+  const safeLoad = async (fn, name) => {
+      try { await fn(); } catch(e) { console.error(`Falha ao carregar ${name}:`, e); }
+  };
+
+  await safeLoad(carregarConfigCozinha, "Configs Cozinha");
+  await safeLoad(carregarMenu, "Menu");
+  await safeLoad(carregarMesas, "Mesas");
+  await safeLoad(atualizarStatusCaixa, "Status Caixa");
+
+  try {
+      atualizarIconeSom();
+      configurarEventos();
+      configurarPusher();
+  } catch(e) { console.error("Erro em setup UI/Pusher:", e); }
+
+  // Timers
+  if (window._timersIniciados) return;
+  window._timersIniciados = true;
+
+  setInterval(() => { try { exibirMesas(); } catch(e){} }, 1000);
+  setInterval(() => { try { carregarMesas(); } catch(e){} }, 60000);
 }
 
 async function carregarConfigCozinha() {
