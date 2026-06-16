@@ -1,18 +1,118 @@
+const API_BASE_URL = 'https://garconnexpress.vercel.app'; // URL DO SEU SERVIDOR
+
 let menu = [];
 let mesas = [];
 let timeoutPusher = null;
 let configCozinhaCategorias = []; // Estado global das categorias da cozinha
 
-// REGISTRO DE SERVICE WORKER (PWA) E WEB PUSH
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/garcom/sw.js')
-      .then(reg => {
-        console.log('🚀 Service Worker registrado!', reg);
-        if (localStorage.getItem('garcom_token')) subscribeToPush();
-      })
-      .catch(err => console.log('❌ Erro ao registrar Service Worker:', err));
-  });
+// --- INTEGRAÇÃO CAPACITOR NATIVA ---
+let isNativeApp = (window.Capacitor && window.Capacitor.isNativePlatform()) || 
+                  window.location.protocol === 'capacitor:' || 
+                  window.location.protocol === 'http:' && window.location.hostname === 'localhost' && !window.location.port;
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // Re-checa se o Capacitor carregou depois
+  if (window.Capacitor && !isNativeApp) {
+    isNativeApp = window.Capacitor.isNativePlatform();
+  }
+  
+  console.log(`📱 Ambiente Nativo detectado: ${isNativeApp} (Protocolo: ${window.location.protocol})`);
+  
+  if (isNativeApp) {
+     document.body.classList.add('native-app');
+     if (window.Capacitor && window.Capacitor.Plugins && localStorage.getItem('garcom_token')) {
+        await registerNativePush();
+     }
+  }
+
+  if (!isNativeApp && 'serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => {
+          console.log('🚀 Service Worker registrado!', reg);
+          if (localStorage.getItem('garcom_token')) subscribeToPush();
+        })
+        .catch(err => console.log('❌ Erro ao registrar Service Worker:', err));
+    });
+  }
+});
+
+async function registerNativePush() {
+  try {
+    const { PushNotifications } = window.Capacitor.Plugins;
+    if (!PushNotifications) return;
+
+    // Cria o canal de notificação com o som personalizado no Android
+    if (window.Capacitor.getPlatform() === 'android') {
+      await PushNotifications.createChannel({
+        id: 'pedidos',
+        name: 'Alertas de Pedidos',
+        description: 'Notificações de novos pedidos e chamados',
+        sound: 'notificacao',
+        importance: 5,
+        visibility: 1,
+        vibration: true
+      });
+    }
+
+    let permStatus = await PushNotifications.checkPermissions();
+    if (permStatus.receive === 'prompt') {
+      permStatus = await PushNotifications.requestPermissions();
+    }
+
+    if (permStatus.receive !== 'granted') {
+      console.warn('❌ Permissão de notificação negada.');
+      return;
+    }
+
+    await PushNotifications.register();
+
+    PushNotifications.addListener('registration', async (token) => {
+      console.log('🔥 Token FCM recebido:', token.value);
+      await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + localStorage.getItem('garcom_token')
+        },
+        body: JSON.stringify({
+          endpoint: token.value,
+          keys: { p256dh: '', auth: '' },
+          isNative: true
+        })
+      });
+    });
+
+    PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+      console.log('📩 Notificação recebida:', notification);
+      
+      // Tenta tocar o som manualmente se estiver em primeiro plano
+      try {
+        const audio = new Audio('notificacao.mp3');
+        await audio.play();
+      } catch (e) { console.error("Erro ao tocar áudio foreground:", e); }
+
+      // Vibração Nativa (Haptics)
+      if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
+        try {
+          await window.Capacitor.Plugins.Haptics.vibrate();
+        } catch (e) { console.error("Erro vibração:", e); }
+      }
+
+      if (typeof carregarMesas === 'function') carregarMesas();
+    });
+
+    // --- NOVO: TRATAMENTO DE CLIQUE NA NOTIFICAÇÃO ---
+    PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+      console.log('🖱️ Clique na notificação detectado:', notification);
+      // Ao clicar, garante que os dados estão atualizados
+      if (typeof carregarMesas === 'function') carregarMesas();
+      // Tenta focar na janela do app (nativo já faz isso, mas aqui reforçamos)
+    });
+
+  } catch (error) {
+    console.error('❌ Erro Push Nativo:', error);
+  }
 }
 
 function urlBase64ToUint8Array(base64String) {
@@ -121,8 +221,15 @@ console.error = function(...args) {
 // Interceptador global para redirecionar ao login se a sessão expirar
   const originalFetch = window.fetch;
   window.fetch = async (...args) => {
-    // Adiciona token ao header Authorization se existir no localStorage
+    let url = args[0];
     const token = localStorage.getItem('garcom_token');
+    
+    // Se for app nativo e a URL for interna, coloca a API_BASE_URL na frente
+    if (isNativeApp && typeof url === 'string' && url.startsWith('/api/')) {
+        url = API_BASE_URL + url;
+        args[0] = url;
+    }
+
     if (token) {
       if (!args[1]) args[1] = {};
       if (!args[1].headers) args[1].headers = {};
@@ -147,11 +254,14 @@ console.error = function(...args) {
         
         // Em vez de reload direto, avisa o usuário (isso pausa a execução e permite ver o console)
         window.location.reload();
-        // console.log("🔄 Auto-reload cancelado para debug. Verifique o console.");
       }
       return response;
     } catch (error) {
       console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
+      // Mostra um alerta visual no app para o usuário saber que a conexão falhou
+      if (typeof mostrarAlerta === 'function') {
+        mostrarAlerta(`Erro de conexão com o servidor remoto.\n\nDetalhe: ${error.message}\nURL: ${args[0]}`, "Falha de Conexão", "🌐");
+      }
       throw error;
     }
   };
@@ -613,48 +723,21 @@ async function configurarPusher() {
     });
 
     // Desbloqueia áudio no primeiro clique do usuário
-    function desbloquearAudio() {
+    document.addEventListener('click', () => {
       if (audioDesbloqueado) return;
+      audioDesbloqueado = true;
       
-      // Tenta carregar e tocar silenciosamente para ganhar permissão do navegador
-      audioNotificacao.load();
       audioNotificacao.muted = true;
-      const playPromise = audioNotificacao.play();
-      
-      if (playPromise !== undefined) {
-        playPromise.then(() => {
+      audioNotificacao.play().then(() => {
           audioNotificacao.pause();
           audioNotificacao.currentTime = 0;
-          
-          audioDesbloqueado = true;
           // Só desmuda se o som estiver ativo
           if (somAtivo) {
-            audioNotificacao.muted = false;
+              audioNotificacao.muted = false;
           }
           console.log('🔊 Áudio preparado!');
-          
-          // Remove os listeners agora que funcionou
-          document.removeEventListener('click', desbloquearAudio);
-          document.removeEventListener('touchstart', desbloquearAudio);
-          document.removeEventListener('mousedown', desbloquearAudio);
-          document.removeEventListener('keydown', desbloquearAudio);
-          document.removeEventListener('pointerdown', desbloquearAudio);
-        }).catch(e => {
-          // Se falhou por falta de interação válida, mantemos audioDesbloqueado = false 
-          // para que a próxima interação tente novamente. Silenciamos NotAllowedError.
-          if (e.name !== 'NotAllowedError') {
-            console.warn('Erro ao preparar áudio:', e);
-          }
-        });
-      }
-    }
-
-    // Escuta interações para desbloquear o som
-    document.addEventListener('click', desbloquearAudio);
-    document.addEventListener('touchstart', desbloquearAudio);
-    document.addEventListener('mousedown', desbloquearAudio);
-    document.addEventListener('keydown', desbloquearAudio);
-    document.addEventListener('pointerdown', desbloquearAudio);
+      }).catch(e => console.log('Erro ao preparar áudio:', e));
+    }, { once: true });
 
   } catch (e) { console.warn('Pusher init error:', e); }
 }
