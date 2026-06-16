@@ -29,32 +29,6 @@ input, textarea, select {
   user-select: text !important;
   -webkit-user-select: text !important;
 }
-/* Botão em estado de carregamento */
-.btn-loading {
-  position: relative !important;
-  color: transparent !important;
-  pointer-events: none !important;
-  opacity: 0.8 !important;
-}
-
-.btn-loading::after {
-  content: "";
-  position: absolute;
-  width: 20px;
-  height: 20px;
-  top: 50%;
-  left: 50%;
-  margin: -10px 0 0 -10px;
-  border: 3px solid rgba(255,255,255,0.3);
-  border-radius: 50%;
-  border-top-color: #fff;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 /* Estilos da Tela de Login */
 .tela-login {
   position: fixed;

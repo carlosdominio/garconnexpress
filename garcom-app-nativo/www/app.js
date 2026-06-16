@@ -5,21 +5,6 @@ let mesas = [];
 let timeoutPusher = null;
 let configCozinhaCategorias = []; // Estado global das categorias da cozinha
 
-// Helper para controle de loading em botões
-function setBtnLoading(btn, isLoading, loadingText = "Carregando...") {
-  if (!btn) return;
-  if (isLoading) {
-    btn.dataset.originalText = btn.innerText;
-    btn.innerText = loadingText;
-    btn.classList.add('btn-loading');
-    btn.disabled = true;
-  } else {
-    btn.innerText = btn.dataset.originalText || btn.innerText;
-    btn.classList.remove('btn-loading');
-    btn.disabled = false;
-  }
-}
-
 // --- INTEGRAÇÃO CAPACITOR NATIVA ---
 let isNativeApp = (window.Capacitor && window.Capacitor.isNativePlatform()) || 
                   window.location.protocol === 'capacitor:' || 
@@ -460,34 +445,21 @@ function mostrarConfirmacao(msg, titulo = "Confirmação", txtConfirmar = "Confi
 }
 
 async function realizarLogin() {
-  const btn = document.querySelector('#tela-login button');
   const usuario = document.getElementById('login-usuario').value;
   const senha = document.getElementById('login-senha').value;
   if (!usuario || !senha) return await mostrarAlerta("Preencha todos os campos", "Aviso", "⚠️");
-
-  setBtnLoading(btn, true, "Entrando...");
-
-  try {
-    const res = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ usuario, senha })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      garcomLogado = data.garcom;
-      localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
-      if (data.token) localStorage.setItem('garcom_token', data.token); // Salva token
-      location.reload();
-    } else {
-      await mostrarAlerta("Usuário ou senha incorretos", "Erro de Login", "❌");
-    }
-  } catch (error) {
-    console.error("Erro ao realizar login:", error);
-    await mostrarAlerta("Erro de conexão com o servidor", "Erro", "❌");
-  } finally {
-    setBtnLoading(btn, false);
-  }
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario, senha })
+  });
+  if (res.ok) {
+    const data = await res.json();
+    garcomLogado = data.garcom;
+    localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
+    if (data.token) localStorage.setItem('garcom_token', data.token); // Salva token
+    location.reload();
+  } else await mostrarAlerta("Usuário ou senha incorretos", "Erro de Login", "❌");
 }
 
 async function logout() {
@@ -1596,7 +1568,6 @@ function cancelarFechamentoGarcom() {
 async function confirmarSolicitacaoFechamento() {
   const elTotal = document.getElementById('total-fechamento-garcom');
   const elPessoas = document.getElementById('divisao-pessoas-garcom');
-  const btn = document.querySelector('#modal-fechamento-garcom button[onclick*="confirmarSolicitacaoFechamento"]');
 
   if (!elTotal || !elPessoas) return;
 
@@ -1634,7 +1605,6 @@ async function confirmarSolicitacaoFechamento() {
   }
 
   try {
-    setBtnLoading(btn, true, "Finalizando...");
     const forma_pagamento_principal = pagamentosDetalhados.length > 0 ? pagamentosDetalhados[0].forma_pagamento : 'Dinheiro';
 
     const res = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/solicitar-fechamento`, {
@@ -1666,8 +1636,6 @@ async function confirmarSolicitacaoFechamento() {
     }
   } catch (error) {
     await mostrarAlerta("Erro ao enviar solicitação.", "Erro", "❌");
-  } finally {
-    setBtnLoading(btn, false);
   }
 }
 
@@ -1892,9 +1860,14 @@ async function enviarPedido() {
   if (pedidoAtual.length === 0) return await mostrarAlerta('Adicione pelo menos um item', "Aviso", "⚠️");
   
   const btnEnviar = document.getElementById('enviar-pedido');
+  const originalTexto = btnEnviar.innerText;
   
   try {
-    setBtnLoading(btnEnviar, true, "Enviando...");
+    // Desabilita o botão para evitar duplicidade
+    btnEnviar.disabled = true;
+    btnEnviar.innerText = "Enviando...";
+    btnEnviar.style.opacity = "0.5";
+    btnEnviar.style.cursor = "not-allowed";
 
     const mesa_id = mesaAtual ? mesaAtual.id : null;
     let url = '/api/pedidos';
@@ -1949,15 +1922,17 @@ async function enviarPedido() {
     console.error("Erro ao enviar pedido:", error);
     await mostrarAlerta('Erro de conexão com o servidor', "Erro", "❌"); 
   } finally {
-    setBtnLoading(btnEnviar, false);
+    // Reabilita o botão em caso de erro ou ao finalizar
+    btnEnviar.disabled = false;
+    btnEnviar.innerText = originalTexto;
+    btnEnviar.style.opacity = "1";
+    btnEnviar.style.cursor = "pointer";
   }
 }
 
 async function gerarCodigoAcesso() {
   if (!mesaAtual) return;
-  const btn = document.querySelector('.btn-gerar-codigo');
   try {
-    setBtnLoading(btn, true, "Gerando...");
     const res = await fetch('/api/acesso/gerar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1972,8 +1947,6 @@ async function gerarCodigoAcesso() {
     }
   } catch (error) {
     await mostrarAlerta("Erro de conexão.", "Erro", "❌");
-  } finally {
-    setBtnLoading(btn, false);
   }
 }
 
@@ -1983,9 +1956,7 @@ async function cancelarCodigoAcesso() {
   const confirm = await mostrarConfirmacao(`Deseja realmente CANCELAR o acesso digital da Mesa ${mesaAtual.numero}? O cliente será deslogado e a mesa ficará livre.`, "Confirmar Cancelamento", "Confirmar", "Cancelar", "❓");
   if (!confirm) return;
 
-  const btn = document.querySelector('.btn-cancelar-codigo');
   try {
-    setBtnLoading(btn, true, "Cancelando...");
     const res = await fetch('/api/acesso/cancelar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2000,8 +1971,6 @@ async function cancelarCodigoAcesso() {
     }
   } catch (error) {
     await mostrarAlerta("Erro de conexão.", "Erro", "❌");
-  } finally {
-    setBtnLoading(btn, false);
   }
 }
 

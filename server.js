@@ -29,47 +29,24 @@ webpush.setVapidDetails(
 );
 
 // --- Configuração Firebase Admin (App Nativo Android/iOS) ---
-let firebaseGarcomApp = null;
-let firebaseMotoboyApp = null;
-
 try {
-  let serviceAccountGarcom;
+  let serviceAccount;
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    serviceAccountGarcom = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    console.log('📦 Firebase Admin inicializado via Variável de Ambiente.');
   } else {
-    try {
-      serviceAccountGarcom = require('./firebase-adminsdk.json');
-    } catch (e) { console.log('⚠️ Arquivo firebase-adminsdk.json não encontrado.'); }
+    serviceAccount = require('./firebase-adminsdk.json');
+    console.log('📦 Firebase Admin inicializado via Arquivo Local.');
   }
 
-  if (serviceAccountGarcom) {
-    firebaseGarcomApp = admin.initializeApp({
-      credential: admin.credential.cert(serviceAccountGarcom)
-    }, 'garcom');
-    console.log('✅ Firebase Admin (Garçom) pronto.');
+  if (admin.apps.length === 0) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    console.log('✅ Firebase Admin SDK pronto.');
   }
 } catch (error) {
-  console.log('⚠️ Erro ao configurar Firebase Garçom:', error.message);
-}
-
-try {
-  let serviceAccountMotoboy;
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_MOTOBOY) {
-    serviceAccountMotoboy = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_MOTOBOY);
-  } else {
-    try {
-      serviceAccountMotoboy = require('./firebase-motoboy-adminsdk.json');
-    } catch (e) { /* ignore */ }
-  }
-
-  if (serviceAccountMotoboy) {
-    firebaseMotoboyApp = admin.initializeApp({
-      credential: admin.credential.cert(serviceAccountMotoboy)
-    }, 'motoboy');
-    console.log('✅ Firebase Admin (Motoboy) pronto.');
-  }
-} catch (error) {
-  console.log('⚠️ Erro ao configurar Firebase Motoboy:', error.message);
+  console.log('⚠️ Firebase Admin SDK não configurado:', error.message);
 }
 
 // Configuração de ambiente
@@ -340,105 +317,66 @@ async function safePusherTrigger(channel, event, data) {
         const mesaNum = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : 'BALCÃO');
         
         if (event === 'novo-pedido') pushMsg = `🚀 NOVO PEDIDO: ${mesaNum}`;
-        else if (event === 'pedido-cancelado') pushMsg = `❌ CANCELADO: ${mesaNum}`;
-        else if (event === 'chamado-garcom') pushMsg = `🛎️ CHAMADO: ${mesaNum}`;
-        else if (event === 'pedido-pronto') pushMsg = `🍳 PRONTO: ${mesaNum}`;
-        else if (event === 'rascunho-recebido') pushMsg = `📝 RASCUNHO: ${mesaNum}`;
-        else if (event === 'solicitacao-fechamento-cliente') pushMsg = `💰 FECHAMENTO: ${mesaNum}`;
+        else if (event === 'pedido-cancelado') pushMsg = `❌ CANCELADO: Mesa ${mesaNum}`;
+        else if (event === 'chamado-garcom') pushMsg = `🛎️ CHAMADO: Mesa ${mesaNum}`;
+        else if (event === 'pedido-pronto') pushMsg = `🍳 PRONTO: Mesa ${mesaNum}`;
+        else if (event === 'rascunho-recebido') pushMsg = `📝 RASCUNHO: Mesa ${mesaNum}`;
+        else if (event === 'solicitacao-fechamento-cliente') pushMsg = `💰 FECHAMENTO: Mesa ${mesaNum}`;
         else if (event === 'status-atualizado') {
-           if (data.status === 'servido') pushMsg = `✅ SERVIDO: ${mesaNum}`;
-           else if (data.status === 'entregue' || data.status === 'aguardando_fechamento') pushMsg = `✅ ENTREGUE: ${mesaNum}`;
-           else if (data.status === 'saiu_entrega') pushMsg = `🛵 A CAMINHO: ${mesaNum}`;
-           else if (data.status === 'cancelado') pushMsg = `❌ CANCELADO: ${mesaNum}`;
-           else pushMsg = `Atualização: ${data.status} - ${mesaNum}`;
+           if (data.status === 'servido' || data.status === 'entregue') pushMsg = `✅ ENTREGUE: Mesa ${mesaNum}`;
+           else if (data.status === 'saiu_entrega') pushMsg = `🛵 SAIU ENTREGA: ${mesaNum}`;
+           else return true; // Ignora outros status para não "notificar pra tudo"
         }
         else pushMsg = `Notificação: ${event}`;
         
-        // Deduplicação de tokens para evitar envios repetidos ao mesmo aparelho
-        const uniqueSubs = [];
-        const seenTokens = new Set();
-        for (const s of subs) {
-          if (s.endpoint && !seenTokens.has(s.endpoint)) {
-            seenTokens.add(s.endpoint);
-            uniqueSubs.push(s);
-          }
-        }
-
-        for (const sub of uniqueSubs) {
-          const isMotoboy = sub.garcom_id === 'DELIVERY';
-          
-          const gId = String(data.garcom_id || (data.pedido ? data.pedido.garcom_id : '')).toUpperCase();
-          const sStatus = String(data.status || (data.pedido ? data.pedido.status : '')).toLowerCase();
-          const isCancelamento = (event === 'pedido-cancelado') || (sStatus === 'cancelado');
-          // FLEXIBILIZAÇÃO: Se for cancelamento, permitimos que chegue tanto para garçom quanto motoboy para garantir visibilidade
-          const isDeliveryEvent = (gId === 'DELIVERY') || (mesaNum && String(mesaNum).toUpperCase().includes('DELIVERY'));
-
-          // Regra de Roteamento:
-          // Se for motoboy, SÓ recebe se for evento de Delivery.
-          if (isMotoboy && !isDeliveryEvent) continue;
-          // Se for garçom, recebe se NÃO for Delivery OU se for um Cancelamento geral
-          if (!isMotoboy && isDeliveryEvent && !isCancelamento) continue; 
-
-          let msgFinal = pushMsg;
-          if (isMotoboy && event === 'status-atualizado' && (sStatus === 'servido' || sStatus === 'saiu_entrega')) {
-              msgFinal = `🛵 A CAMINHO: ${mesaNum}`;
-          }
-
-          const pushTitle = isMotoboy ? 'Motoboy Pro' : 'GarçomExpress';
-
+        const payload = JSON.stringify({ title: 'GarçomExpress', body: pushMsg, event });
+        
+        for (const sub of subs) {
           if (sub.endpoint.includes('fcm.googleapis.com') || sub.endpoint.startsWith('https://')) {
-             // Web Push - Não implementado para motoboy nativo
+             // ... [Web Push remains same] ...
           } else {
-             const firebaseAppToUse = isMotoboy ? firebaseMotoboyApp : firebaseGarcomApp;
-             if (firebaseAppToUse) {
-               const pId = String(data.pedido_id || data.id || (data.pedido ? data.pedido.id : ''));
-               console.log(`🚀 [Push] Enviando via Firebase ${isMotoboy ? 'Motoboy' : 'Garçom'} para token: ${sub.endpoint.substring(0, 10)}...`);
-               
+             // Tratamento para Token Nativo (Capacitor/Firebase SDK)
+             if (admin.apps.length > 0) {
                const message = {
-                 notification: { 
-                   title: pushTitle, 
-                   body: msgFinal 
+                 notification: {
+                   title: 'GarçomExpress',
+                   body: pushMsg
                  },
                  data: {
-                   event: String(event),
-                   id: pId,
-                   pedido_id: pId,
-                   status: isCancelamento ? 'cancelado' : sStatus,
-                   mesa_numero: String(mesaNum || ''),
-                   title: pushTitle,
-                   body: msgFinal,
+                   event: event,
                    sound: 'notificacao'
                  },
                  android: {
                    priority: 'high',
                    notification: {
-                     title: pushTitle,
-                     body: msgFinal,
-                     icon: 'ic_stat_notification',
-                     color: '#e67e22',
                      sound: 'notificacao',
                      channelId: 'pedidos',
-                     priority: 'high',
-                     visibility: 'public',
-                     tag: pId,
-                     ticker: msgFinal
+                     defaultSound: false
+                   }
+                 },
+                 apns: {
+                   payload: {
+                     aps: {
+                       sound: 'notificacao.caf',
+                       badge: 1
+                     }
                    }
                  },
                  token: sub.endpoint
                };
                
-               firebaseAppToUse.messaging().send(message)
+               admin.messaging().send(message)
                  .then((response) => {
-                   console.log(`✅ FCM (${isMotoboy ? 'Motoboy' : 'Garçom'}) Sucesso:`, response);
+                   console.log('✅ FCM Nativo enviado com sucesso:', response);
                  })
                  .catch(async (error) => {
-                   console.error(`❌ FCM Erro:`, error.message);
+                   console.error('❌ Erro enviando FCM Nativo:', error);
+                   // Remove tokens inválidos
                    if (error.code === 'messaging/invalid-registration-token' || error.code === 'messaging/registration-token-not-registered') {
+                      console.log('🗑️ Removendo token FCM inativo:', sub.endpoint);
                       await query("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]);
                    }
                  });
-             } else {
-               console.warn(`⚠️ Firebase App não configurado para ${isMotoboy ? 'Motoboy' : 'Garçom'}`);
              }
           }
         }
@@ -466,30 +404,17 @@ app.post('/api/subscribe', isAuthenticated, async (req, res) => {
     // Tenta encontrar se a inscrição já existe
     const exists = await query("SELECT id FROM push_subscriptions WHERE endpoint = ?", [subscription.endpoint]);
     if (exists.rows.length === 0) {
-      await query("INSERT INTO push_subscriptions (garcom_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)",
-        [garcomId, subscription.endpoint, subscription.keys?.p256dh || '', subscription.keys?.auth || '']);
+      if (isPostgres) {
+         await query("INSERT INTO push_subscriptions (garcom_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)", 
+           [garcomId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]);
+      } else {
+         await query("INSERT INTO push_subscriptions (garcom_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)", 
+           [garcomId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]);
+      }
     }
     res.status(201).json({ success: true });
   } catch (error) {
     console.error("Erro ao salvar inscrição push:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/api/subscribe-motoboy', async (req, res) => {
-  const subscription = req.body;
-  const garcomId = 'DELIVERY';
-  try {
-    // Inscrição para Motoboy (Pode ser Token FCM direto do Capacitor ou WebPush)
-    const exists = await query("SELECT id FROM push_subscriptions WHERE endpoint = ?", [subscription.endpoint]);
-    if (exists.rows.length === 0) {
-      await query("INSERT INTO push_subscriptions (garcom_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)",
-        [garcomId, subscription.endpoint, subscription.keys?.p256dh || '', subscription.keys?.auth || '']);
-      console.log('✅ Novo dispositivo Motoboy inscrito para Push:', subscription.endpoint);
-    }
-    res.status(201).json({ success: true });
-  } catch (error) {
-    console.error("Erro ao salvar inscrição push motoboy:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1392,30 +1317,27 @@ app.delete('/api/pedidos/itens/:id', async (req, res) => {
     await query("DELETE FROM pedido_itens WHERE id = ?", [id]);
     const itensRestantes = (await query("SELECT status FROM pedido_itens WHERE pedido_id = ?", [item.pedido_id])).rows;
     if (itensRestantes.length === 0) {
-      const pedido = (await query("SELECT mesa_id, m.numero, p.garcom_id FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [item.pedido_id])).rows[0];
-      const mesaNum = pedido.garcom_id === 'DELIVERY' ? `DELIVERY #${item.pedido_id}` : (pedido.numero || 'BALCÃO');
-      await notifyStatus(item.pedido_id, pedido ? pedido.mesa_id : null, 'cancelado');
-      await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
-        id: item.pedido_id,
-        pedido: {
-          id: item.pedido_id, 
-          pedido_id: item.pedido_id, 
-          mesa_numero: mesaNum,
-          garcom_id: pedido.garcom_id,
-          status: 'cancelado'
-        },
-        mensagem: `🚨 O Pedido #${item.pedido_id} foi CANCELADO (último item removido).` 
-      });
-
+      const pedido = (await query("SELECT mesa_id, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [item.pedido_id])).rows[0];
       await query("DELETE FROM pedidos WHERE id = ?", [item.pedido_id]);
       if (pedido && pedido.mesa_id) {
         await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [pedido.mesa_id]);
         await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [pedido.mesa_id]);
+        
+        // Notifica o cliente para encerrar o acesso
         await safePusherTrigger('garconnexpress', `deslogar-mesa-${pedido.mesa_id}`, { 
           status: 'cancelado',
-          mensagem: "Este pedido foi removido pelo estabelecimento. Seu acesso foi encerrado." 
+          mensagem: "Seu pedido foi cancelado e a mesa liberada. O acesso foi encerrado." 
         });
       }
+      
+      const mesaNum = pedido ? pedido.numero || 'BALCÃO' : 'BALCÃO';
+      await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
+        pedido_id: item.pedido_id, 
+        mesa_numero: mesaNum,
+        mensagem: `🚨 O Pedido #${item.pedido_id} (Mesa ${mesaNum}) foi CANCELADO.` 
+      });
+
+      await notifyStatus(item.pedido_id, pedido ? pedido.mesa_id : null, 'cancelado');
     } else {
       const temPendente = itensRestantes.some(i => i.status === 'pendente');
       if (!temPendente) { await query("UPDATE pedidos SET status = 'servido' WHERE id = ?", [item.pedido_id]); await notifyStatus(item.pedido_id, null, 'servido'); }
@@ -1429,7 +1351,7 @@ app.delete('/api/pedidos/itens/:id', async (req, res) => {
 app.delete('/api/pedidos/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const pedido = (await query("SELECT p.mesa_id, p.status, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
+    const pedido = (await query("SELECT p.mesa_id, p.status, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
     const itens = (await query("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
     for (const item of itens) await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque + ? END WHERE id = ?", [item.quantidade, item.menu_id]);
     await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [id]);
@@ -1446,19 +1368,10 @@ app.delete('/api/pedidos/:id', async (req, res) => {
           mensagem: "Este pedido foi removido pelo estabelecimento. Seu acesso foi encerrado." 
         });
       }
-      const mesaNum = pedido.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : (pedido.numero || 'BALCÃO');
+      const mesaNum = pedido.numero || 'BALCÃO';
       await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
         pedido_id: id, 
-        pedido: {
-          id: id,
-          pedido_id: id, 
-          mesa_numero: mesaNum,
-          garcom_id: pedido.garcom_id,
-          status: 'cancelado'
-        },
         mesa_numero: mesaNum,
-        garcom_id: pedido.garcom_id,
-        status: 'cancelado',
         mensagem: `🚨 O Pedido #${id} (Mesa ${mesaNum}) foi REMOVIDO pelo Admin.` 
       });
     }
@@ -2040,8 +1953,8 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
       }
       await query("UPDATE pedido_itens SET status = 'cancelado' WHERE pedido_id = ?", [id]);
     }
-    const pm = (await query("SELECT p.mesa_id, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
-    const mesaNum = pm ? (pm.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : (pm.numero || 'BALCÃO')) : 'BALCÃO';
+    const pm = (await query("SELECT p.mesa_id, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
+    const mesaNum = pm ? pm.numero || 'BALCÃO' : 'BALCÃO';
 
     // Se o status for cancelado ou entregue, libera a mesa e o código
     if ((status === 'cancelado' || status === 'entregue') && pm && pm.mesa_id) {
@@ -2060,16 +1973,8 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
           console.log(`❌ Pedido ${id} cancelado pelo Admin. Notificando globalmente...`);
           await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
             id: id,
-            pedido: {
-              id: id,
-              pedido_id: id, 
-              mesa_numero: mesaNum,
-              garcom_id: pm ? pm.garcom_id : null,
-              status: 'cancelado'
-            },
+            pedido_id: id, 
             mesa_numero: mesaNum,
-            garcom_id: pm ? pm.garcom_id : null,
-            status: 'cancelado',
             mensagem: `🚨 O Pedido #${id} (Mesa ${mesaNum}) foi CANCELADO pelo Admin.` 
           });
         }
