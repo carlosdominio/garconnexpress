@@ -2,317 +2,234 @@
     --primary: #e67e22;
     --primary-dark: #d35400;
     --secondary: #2c3e50;
-    --success: #27ae60;
+    --success: #2ecc71;
     --danger: #e74c3c;
-    --bg: #f4f7f6;
+    --bg: #f0f3f5;
     --card-bg: #ffffff;
-    --text: #34495e;
+    --text: #2c3e50;
+    --text-light: #95a5a6;
 }
 
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
 }
 
 body {
     background-color: var(--bg);
     color: var(--text);
-    padding-bottom: 20px;
+    padding-bottom: 40px;
+    line-height: 1.6;
 }
 
 header {
-    background-color: var(--primary);
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
     color: white;
-    padding: 15px;
+    padding: 20px 15px;
     text-align: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     position: sticky;
     top: 0;
-    z-index: 100;
+    z-index: 1000;
+    border-bottom-left-radius: 20px;
+    border-bottom-right-radius: 20px;
 }
 
-h1 {
-    font-size: 1.2rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
+header h1 {
+    font-size: 1.3rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.btn-icon {
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    color: white;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: all 0.2s;
+}
+
+.btn-icon:active {
+    transform: scale(0.9);
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.btn-icon.muted {
+    background: rgba(0, 0, 0, 0.2);
+    color: rgba(255, 255, 255, 0.5);
 }
 
 main {
-    padding: 15px;
-    max-width: 600px;
+    padding: 20px 15px;
+    max-width: 500px;
     margin: 0 auto;
 }
 
 .section-title {
-    margin: 20px 0 10px;
-    font-size: 1rem;
-    font-weight: bold;
-    color: var(--secondary);
+    margin: 25px 0 10px;
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--text-light);
     display: flex;
     justify-content: space-between;
     align-items: center;
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }
 
 .badge {
-    background: var(--secondary);
-    color: white;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 0.8rem;
+    background: white;
+    color: var(--primary);
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
 .pedidos-container {
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 12px;
 }
 
+/* Card Styling */
 .pedido-card {
     background: var(--card-bg);
-    border-radius: 12px;
+    border-radius: 18px;
     padding: 15px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    border-left: 5px solid #ccc;
-    transition: transform 0.2s;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.03);
+    border: 1px solid rgba(0,0,0,0.02);
 }
 
-.pedido-card.pendente {
-    border-left-color: #e67e22;
-}
-
-.pedido-card.pronto {
-    border-left-color: var(--success);
-}
+.pedido-card.a-caminho { border-left: 5px solid var(--success); }
+.pedido-card.pendente { border-left: 5px solid #f1c40f; }
+.pedido-card.entregue { opacity: 0.7; background-color: #f8f9fa; }
 
 .pedido-header {
     display: flex;
     justify-content: space-between;
     margin-bottom: 10px;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 8px;
+    font-weight: 800;
 }
 
-.pedido-id {
-    font-weight: 900;
-    color: var(--primary-dark);
-}
-
-.pedido-total {
-    font-weight: bold;
-    color: var(--primary-dark);
-    font-size: 1.1rem;
-}
+.pedido-id { color: var(--primary); font-size: 1.1rem; }
+.pedido-total { color: var(--text); font-size: 1.1rem; }
 
 .status-badge {
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.7rem;
-    font-weight: bold;
-    text-transform: uppercase;
-    color: white;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 900;
+    margin-left: 5px;
+    vertical-align: middle;
 }
-
-.status-badge.pendente {
-    background-color: #e67e22; /* Laranja */
-}
-
-.status-badge.a-caminho {
-    background-color: #27ae60; /* Verde */
-}
-
-.status-badge.entregue {
-    background-color: #f1c40f; /* Amarelo */
-    color: #2c3e50;
-}
+.status-badge.pendente { background: #fef9e7; color: #f39c12; border: 1px solid #f39c12; }
+.status-badge.a-caminho { background: #eafaf1; color: #27ae60; border: 1px solid #27ae60; }
+.status-badge.entregue { background: #ebf5fb; color: #2980b9; border: 1px solid #2980b9; }
 
 .pedido-time {
-    font-size: 0.8rem;
-    color: #95a5a6;
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-light);
+    margin-top: 2px;
 }
 
-.pedido-body {
-    margin-bottom: 15px;
-}
+.pedido-body { margin-bottom: 15px; }
 
 .cliente-info {
-    font-weight: bold;
-    margin-bottom: 5px;
     display: block;
+    font-size: 1.05rem;
+    color: var(--secondary);
+    margin-bottom: 4px;
 }
 
-.endereco-info {
-    font-size: 0.9rem;
-    color: #7f8c8d;
-    line-height: 1.4;
+.endereco-info { font-size: 0.9rem; color: #7f8c8d; margin-bottom: 8px; line-height: 1.4; }
+.endereco-info i { color: var(--danger); margin-right: 4px; }
+
+.pedido-itens { 
+    font-size: 0.85rem; 
+    color: #34495e; 
+    font-weight: 600;
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 8px;
 }
 
-.pedido-itens {
-    margin-top: 10px;
-    font-size: 0.85rem;
-    background: #f9f9f9;
-    padding: 8px;
-    border-radius: 6px;
-}
-
-.item-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 3px;
-}
+.item-row { margin-bottom: 3px; }
 
 .btn-entregar {
     width: 100%;
     padding: 12px;
     border: none;
-    border-radius: 8px;
-    background-color: var(--success);
+    border-radius: 12px;
+    background: var(--success);
     color: white;
-    font-weight: bold;
-    font-size: 1rem;
+    font-weight: 800;
+    font-size: 0.9rem;
     cursor: pointer;
-    box-shadow: 0 4px 0 #219150;
-    transition: 0.2s;
+    box-shadow: 0 4px 0 #27ae60;
+    transition: 0.1s;
 }
 
 .btn-entregar:active {
     transform: translateY(2px);
-    box-shadow: 0 2px 0 #219150;
-}
-
-.btn-entregar:disabled {
-    background-color: #bdc3c7;
-    box-shadow: 0 4px 0 #95a5a6;
-    cursor: not-allowed;
-    opacity: 0.7;
-}
-
-.btn-entregar.loading {
-    background-color: #f1c40f;
-    box-shadow: 0 4px 0 #d4ac0d;
+    box-shadow: 0 2px 0 #27ae60;
 }
 
 .empty-state {
     text-align: center;
-    padding: 40px 20px;
-    color: #bdc3c7;
-    font-style: italic;
+    padding: 30px 10px;
+    color: var(--text-light);
+    font-size: 0.8rem;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 15px;
+    border: 1px dashed #ddd;
 }
 
-/* ============================================================
-   SISTEMA DE TOASTS (NOTIFICAÇÕES DE CANTO)
-   ============================================================ */
+/* Toast Container */
 #toast-container {
     position: fixed;
     top: 20px;
+    left: 20px;
     right: 20px;
     z-index: 999999;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
     pointer-events: none;
 }
 
+/* Fix for SweetAlert2 behind login screen */
+.my-swal-container {
+    z-index: 1000000 !important;
+}
+
 .toast-notificacao {
-    min-width: 280px;
-    max-width: 350px;
-    background: #ffffff;
-    padding: 14px;
+    background: white;
+    padding: 12px 15px;
     border-radius: 12px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-    display: flex;
-    align-items: center;
-    gap: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    border-left: 5px solid var(--primary);
+    transform: translateY(-150%);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     pointer-events: auto;
-    transform: translateX(120%);
-    transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-    border-left: 6px solid #ccc;
-    position: relative;
-    overflow: hidden;
-    color: #333;
-    text-align: left;
 }
 
-.toast-notificacao.show {
-    transform: translateX(0);
-}
-
-.toast-notificacao .toast-icon {
-    font-size: 1.3rem;
-    width: 35px;
-    height: 35px;
-    background: #f8fafc;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.toast-notificacao .toast-content {
-    flex: 1;
-}
-
-.toast-notificacao .toast-title {
-    font-weight: 800;
-    font-size: 0.9rem;
-    color: #1e293b;
-    margin-bottom: 1px;
-    display: block;
-}
-
-.toast-notificacao .toast-msg {
-    font-size: 0.8rem;
-    color: #64748b;
-    line-height: 1.3;
-    display: block;
-}
-
-.toast-notificacao .toast-close {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    background: transparent;
-    border: none;
-    color: #94a3b8;
-    cursor: pointer;
-    font-size: 0.9rem;
-    padding: 4px;
-}
-
-.toast-notificacao.success { border-left-color: #27ae60; }
-.toast-notificacao.success .toast-icon { color: #27ae60; background: #e8f5e9; }
-
-.toast-notificacao.error { border-left-color: #e74c3c; }
-.toast-notificacao.error .toast-icon { color: #e74c3c; background: #fdedec; }
-
-.toast-notificacao.warning { border-left-color: #f39c12; }
-.toast-notificacao.warning .toast-icon { color: #f39c12; background: #fef5e7; }
-
+.toast-notificacao.show { transform: translateY(0); }
+.toast-notificacao.warning { border-left-color: #f1c40f; }
 .toast-notificacao.info { border-left-color: #3498db; }
-.toast-notificacao.info .toast-icon { color: #3498db; background: #ebf5fb; }
 
-@media (max-width: 768px) {
-    #toast-container {
-        top: 10px !important;
-        right: auto !important;
-        left: 50% !important;
-        transform: translateX(-50%) !important;
-        width: 100% !important;
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        justify-content: flex-start !important;
-    }
-    .toast-notificacao {
-        min-width: 0 !important;
-        width: 90vw !important;
-        max-width: 400px !important;
-        margin: 5px auto !important;
-        transform: translateY(-150%) !important;
-    }
-    .toast-notificacao.show {
-        transform: translateY(0) !important;
-    }
-}
+.toast-content { font-size: 0.85rem; color: #333; }
