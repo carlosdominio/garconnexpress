@@ -252,8 +252,14 @@ console.error = function(...args) {
         localStorage.removeItem('garcom_logado');
         localStorage.removeItem('garcom_token');
         
-        // Em vez de reload direto, avisa o usuário (isso pausa a execução e permite ver o console)
-        window.location.reload();
+        // Em vez de reload direto, avisa o usuário
+        if (!isNativeApp) {
+           window.location.reload();
+        } else {
+           const telaLogin = document.getElementById('tela-login');
+           if (telaLogin) telaLogin.style.display = 'flex';
+           mostrarAlerta("Sessão expirada. Por favor, faça login novamente.", "Aviso", "⚠️");
+        }
       }
       return response;
     } catch (error) {
@@ -458,7 +464,19 @@ async function realizarLogin() {
     garcomLogado = data.garcom;
     localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
     if (data.token) localStorage.setItem('garcom_token', data.token); // Salva token
-    location.reload();
+    
+    // Em vez de location.reload(), fazemos a transição manual para evitar o crash
+    // do WebView ao recarregar com recursos pesados.
+    const telaLogin = document.getElementById('tela-login');
+    if (telaLogin) telaLogin.style.display = 'none';
+    const nomeExib = document.getElementById('garcom-nome-exibicao');
+    if (nomeExib) nomeExib.textContent = `Garçom: ${garcomLogado.nome}`;
+    
+    // Inicia o app e as notificações Push
+    await iniciarApp();
+    if (isNativeApp && window.Capacitor && window.Capacitor.Plugins) {
+       await registerNativePush();
+    }
   } else await mostrarAlerta("Usuário ou senha incorretos", "Erro de Login", "❌");
 }
 
