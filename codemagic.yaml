@@ -1,12 +1,14 @@
 workflows:
-  android-garcom-debug:
-    name: Garçom Express APK
+  android-motoboy-debug:
+    name: Motoboy App Debug APK
     max_build_duration: 60
     instance_type: mac_mini_m1
-    working_directory: .
+    working_directory: motoboy-app-nativo
     environment:
       node: 20
       java: 21
+      groups:
+        - google_play # Opcional
     scripts:
       - name: Install dependencies
         script: |
@@ -19,13 +21,8 @@ workflows:
       - name: Capacitor Sync
         script: |
           npx cap sync android
-      - name: Fix Gradlew Permissions
-        script: |
-          cd android
-          chmod +x gradlew
       - name: Build Android Debug APK
         script: |
-          cd android
-          ./gradlew assembleDebug
+          cd android && ./gradlew assembleDebug
     artifacts:
       - android/app/build/outputs/apk/debug/app-debug.apk
