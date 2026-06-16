@@ -1,9 +1,9 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.garconnexpress.motoboy2',
-  appName: 'Motoboy Express',
-  webDir: 'motoboy-app-nativo/www',
+  appId: 'com.garconnexpress.app',
+  appName: 'Garçom Express',
+  webDir: 'garcom-app-nativo/www',
   server: {
     androidScheme: 'https'
   },
