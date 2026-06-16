@@ -1,4 +1,4 @@
-package com.garconnexpress.motoboy2;
+package com.garconnexpress.app;
 
 import com.getcapacitor.BridgeActivity;
 
