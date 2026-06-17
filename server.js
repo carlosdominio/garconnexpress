@@ -316,7 +316,7 @@ async function safePusherTrigger(channel, event, data) {
         let pushMsg = '';
         const mesaNum = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : 'BALCÃO');
         
-        if (event === 'novo-pedido') pushMsg = `🚀 NOVO PEDIDO: ${mesaNum}`;
+        if (event === 'novo-pedido') pushMsg = `🚀 NOVO PEDIDO: Mesa ${mesaNum}`;
         else if (event === 'pedido-cancelado') pushMsg = `❌ CANCELADO: Mesa ${mesaNum}`;
         else if (event === 'chamado-garcom') pushMsg = `🛎️ CHAMADO: Mesa ${mesaNum}`;
         else if (event === 'pedido-pronto') pushMsg = `🍳 PRONTO: Mesa ${mesaNum}`;
