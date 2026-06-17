@@ -508,17 +508,18 @@ async function realizarLogin() {
       const nomeExib = document.getElementById('garcom-nome-exibicao');
       if (nomeExib) nomeExib.textContent = `Garçom: ${garcomLogado.nome}`;
 
-      // Delay de segurança e carregamento modular
-      setTimeout(async () => {
-          try {
-              await iniciarApp();
-              if (isNativeApp) {
-                  setTimeout(() => registerNativePush().catch(e => console.error("Push defer error:", e)), 2000);
-              }
-          } catch (e) {
-              console.error("Erro fatal pós-login:", e);
-          }
-      }, 500);
+    // Delay de segurança e carregamento modular
+    setTimeout(async () => {
+        try {
+            await iniciarApp();
+            if (isNativeApp) {
+                // Chama imediatamente após login para pedir permissão
+                await registerNativePush();
+            }
+        } catch (e) {
+            console.error("Erro fatal pós-login:", e);
+        }
+    }, 500);
 
     } else {
       await mostrarAlerta("Usuário ou senha incorretos", "Erro de Login", "❌");
