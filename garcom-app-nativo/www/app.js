@@ -447,19 +447,45 @@ function mostrarConfirmacao(msg, titulo = "Confirmação", txtConfirmar = "Confi
 async function realizarLogin() {
   const usuario = document.getElementById('login-usuario').value;
   const senha = document.getElementById('login-senha').value;
+  const btnLogin = document.getElementById('btn-login');
+  const spinner = btnLogin ? btnLogin.querySelector('.spinner') : null;
+  const btnText = document.getElementById('btn-login-text');
+
   if (!usuario || !senha) return await mostrarAlerta("Preencha todos os campos", "Aviso", "⚠️");
-  const res = await fetch('/api/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usuario, senha })
-  });
-  if (res.ok) {
-    const data = await res.json();
-    garcomLogado = data.garcom;
-    localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
-    if (data.token) localStorage.setItem('garcom_token', data.token); // Salva token
-    location.reload();
-  } else await mostrarAlerta("Usuário ou senha incorretos", "Erro de Login", "❌");
+
+  // Ativar Loading
+  if (btnLogin) btnLogin.disabled = true;
+  if (spinner) spinner.style.display = 'inline-block';
+  if (btnText) btnText.textContent = 'Entrando...';
+
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario, senha })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      garcomLogado = data.garcom;
+      localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
+      if (data.token) localStorage.setItem('garcom_token', data.token); // Salva token
+      location.reload();
+    } else {
+      await mostrarAlerta("Usuário ou senha incorretos", "Erro de Login", "❌");
+      // Resetar Loading em caso de erro
+      if (btnLogin) btnLogin.disabled = false;
+      if (spinner) spinner.style.display = 'none';
+      if (btnText) btnText.textContent = 'Entrar';
+    }
+  } catch (err) {
+    console.error("Erro no login:", err);
+    await mostrarAlerta("Erro de conexão com o servidor.", "Erro", "❌");
+    // Resetar Loading em caso de erro de rede
+    if (btnLogin) btnLogin.disabled = false;
+    if (spinner) spinner.style.display = 'none';
+    if (btnText) btnText.textContent = 'Entrar';
+  }
 }
 
 async function logout() {
