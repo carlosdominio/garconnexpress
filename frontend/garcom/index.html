@@ -20,7 +20,10 @@
       <p>Área do Colaborador</p>
       <input type="text" id="login-usuario" placeholder="Usuário">
       <input type="password" id="login-senha" placeholder="Senha">
-      <button onclick="realizarLogin()">Entrar</button>
+      <button id="btn-login" onclick="realizarLogin()">
+        <span class="spinner"></span>
+        <span id="btn-login-text">Entrar</span>
+      </button>
     </div>
   </div>
 

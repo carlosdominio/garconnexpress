@@ -451,42 +451,63 @@ function mostrarConfirmacao(msg, titulo = "Confirmação", txtConfirmar = "Confi
 }
 
 async function realizarLogin() {
+  const btn = document.getElementById('btn-login');
+  const btnText = document.getElementById('btn-login-text');
   const usuario = document.getElementById('login-usuario').value;
   const senha = document.getElementById('login-senha').value;
+
   if (!usuario || !senha) return await mostrarAlerta("Preencha todos os campos", "Aviso", "⚠️");
 
-  const res = await fetch('/api/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usuario, senha })
-  });
+  // Ativa loading
+  if (btn) {
+    btn.classList.add('loading');
+    btn.disabled = true;
+  }
 
-  if (res.ok) {
-    const data = await res.json();
-    garcomLogado = data.garcom;
-    localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
-    if (data.token) localStorage.setItem('garcom_token', data.token);
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario, senha })
+    });
 
-    // Transição de tela imediata
-    const telaLogin = document.getElementById('tela-login');
-    if (telaLogin) telaLogin.style.display = 'none';
-    const nomeExib = document.getElementById('garcom-nome-exibicao');
-    if (nomeExib) nomeExib.textContent = `Garçom: ${garcomLogado.nome}`;
+    if (res.ok) {
+      const data = await res.json();
+      garcomLogado = data.garcom;
+      localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
+      if (data.token) localStorage.setItem('garcom_token', data.token);
 
-    // Pequeno delay de 500ms para o Android "respirar" antes de carregar tudo
-    setTimeout(async () => {
-        try {
-            await iniciarApp();
-            // Defer push registration for another 2 seconds
-            if (isNativeApp) {
-                setTimeout(() => registerNativePush().catch(e => console.error("Push defer error:", e)), 2000);
-            }
-        } catch (e) {
-            console.error("Erro na inicialização pós-login:", e);
-        }
-    }, 500);
+      // Transição de tela imediata
+      const telaLogin = document.getElementById('tela-login');
+      if (telaLogin) telaLogin.style.display = 'none';
+      const nomeExib = document.getElementById('garcom-nome-exibicao');
+      if (nomeExib) nomeExib.textContent = `Garçom: ${garcomLogado.nome}`;
 
-  } else await mostrarAlerta("Usuário ou senha incorretos", "Erro de Login", "❌");
+      // Delay de segurança e carregamento modular
+      setTimeout(async () => {
+          try {
+              await iniciarApp();
+              if (isNativeApp) {
+                  setTimeout(() => registerNativePush().catch(e => console.error("Push defer error:", e)), 2000);
+              }
+          } catch (e) {
+              console.error("Erro fatal pós-login:", e);
+          }
+      }, 500);
+
+    } else {
+      await mostrarAlerta("Usuário ou senha incorretos", "Erro de Login", "❌");
+    }
+  } catch (error) {
+    console.error("Erro na requisição de login:", error);
+    await mostrarAlerta("Erro de conexão com o servidor.", "Erro", "🌐");
+  } finally {
+    // Desativa loading se ainda estiver na tela
+    if (btn) {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
+  }
 }
 
 async function logout() {
