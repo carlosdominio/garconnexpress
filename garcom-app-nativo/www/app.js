@@ -639,7 +639,13 @@ async function configurarPusher() {
       tocarCampainha(true);
 
       // Extrai número da mesa se disponível
-      const mesaStr = data.mesa_numero ? `Mesa ${data.mesa_numero}` : (data.mesa_id ? `Mesa ${data.mesa_id}` : 'Mesa');
+      let mesaRaw = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : null) || data.mesa_id || (data.pedido ? data.pedido.mesa_id : null) || 'X';
+      let mesaStr = mesaRaw;
+      if (mesaRaw !== 'X' && !String(mesaRaw).toUpperCase().includes('MESA') && !String(mesaRaw).toUpperCase().includes('BALCÃO')) {
+          mesaStr = `Mesa ${mesaRaw}`;
+      } else if (mesaRaw === 'X') {
+          mesaStr = 'Mesa';
+      }
 
       // Mostra Toast e Notificação Nativa
       mostrarToast(`Novo pedido recebido da ${mesaStr}`, 'info', `✨ NOVO PEDIDO - ${mesaStr}`);
