@@ -314,17 +314,21 @@ async function safePusherTrigger(channel, event, data) {
       try {
         const subs = (await query("SELECT * FROM push_subscriptions")).rows;
         let pushMsg = '';
-        const mesaNum = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : 'BALCÃO');
+        const mesaRaw = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : 'BALCÃO');
+        let mesaFormatada = mesaRaw;
+        if (mesaRaw !== 'BALCÃO' && !String(mesaRaw).toUpperCase().includes('DELIVERY') && !String(mesaRaw).toUpperCase().includes('MESA')) {
+            mesaFormatada = `Mesa ${mesaRaw}`;
+        }
         
-        if (event === 'novo-pedido') pushMsg = `🚀 NOVO PEDIDO: ${mesaNum}`;
-        else if (event === 'pedido-cancelado') pushMsg = `❌ CANCELADO: ${mesaNum}`;
-        else if (event === 'chamado-garcom') pushMsg = `🛎️ CHAMADO: ${mesaNum}`;
-        else if (event === 'pedido-pronto') pushMsg = `🍳 PRONTO: ${mesaNum}`;
-        else if (event === 'rascunho-recebido') pushMsg = `📝 RASCUNHO: ${mesaNum}`;
-        else if (event === 'solicitacao-fechamento-cliente') pushMsg = `💰 FECHAMENTO: ${mesaNum}`;
+        if (event === 'novo-pedido') pushMsg = `🚀 NOVO PEDIDO: ${mesaFormatada}`;
+        else if (event === 'pedido-cancelado') pushMsg = `❌ ${mesaFormatada} PEDIDO CANCELADO`;
+        else if (event === 'chamado-garcom') pushMsg = `🛎️ CHAMADO: ${mesaFormatada}`;
+        else if (event === 'pedido-pronto') pushMsg = `🍳 PRONTO: ${mesaFormatada}`;
+        else if (event === 'rascunho-recebido') pushMsg = `📝 RASCUNHO: ${mesaFormatada}`;
+        else if (event === 'solicitacao-fechamento-cliente') pushMsg = `💰 FECHAMENTO: ${mesaFormatada}`;
         else if (event === 'status-atualizado') {
-           if (data.status === 'servido' || data.status === 'entregue') pushMsg = `✅ ENTREGUE: ${mesaNum}`;
-           else if (data.status === 'saiu_entrega') pushMsg = `🛵 SAIU ENTREGA: ${mesaNum}`;
+           if (data.status === 'servido' || data.status === 'entregue') pushMsg = `✅ ENTREGUE: ${mesaFormatada}`;
+           else if (data.status === 'saiu_entrega') pushMsg = `🛵 SAIU ENTREGA: ${mesaFormatada}`;
            else return true; // Ignora outros status para não "notificar pra tudo"
         }
         else pushMsg = `Notificação: ${event}`;
@@ -1587,7 +1591,7 @@ app.post('/api/pedidos', async (req, res) => {
       }),
       safePusherTrigger('garconnexpress', 'novo-pedido', {
         para_cozinha: temItemCozinha,
-        pedido: { id: pedidoId, mesa_id, mesa_numero: mesaNum, status: 'recebido', garcom_id }
+        pedido: { id: pedidoId, mesa_id, mesa_numero: mesaNum, status: 'recebido', garcom_id: garcom_id }
       })
     ]);
 
@@ -1725,7 +1729,7 @@ app.put('/api/pedidos/:id/adicionar', async (req, res) => {
       safePusherTrigger('garconnexpress', 'menu-atualizado', {}),
       safePusherTrigger('garconnexpress', 'novo-pedido', { 
         para_cozinha: temItemCozinha,
-        pedido: { id: id, mesa_numero: mesaNum, status: 'recebido' } 
+        pedido: { id: id, mesa_numero: mesaNum, status: 'recebido', garcom_id: pMesa ? pMesa.garcom_id : null } 
       })
     ]);
 
