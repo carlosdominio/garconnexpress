@@ -351,6 +351,11 @@ async function safePusherTrigger(channel, event, data) {
             mesaFormatada = `Mesa ${mesaRaw}`;
         }
         
+        // Determina se o evento é para o Motoboy (Delivery) ou Garçom
+        const isDelivery = data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY');
+        const targetApp = isDelivery ? 'motoboy' : 'garcom';
+        const pushTitle = isDelivery ? 'Delivery Express' : 'GarçomExpress';
+
         if (event === 'novo-pedido') pushMsg = `🚀 NOVO PEDIDO: ${mesaFormatada}`;
         else if (event === 'pedido-cancelado') pushMsg = `❌ ${mesaFormatada} PEDIDO CANCELADO`;
         else if (event === 'chamado-garcom') pushMsg = `🛎️ CHAMADO: ${mesaFormatada}`;
@@ -358,16 +363,18 @@ async function safePusherTrigger(channel, event, data) {
         else if (event === 'rascunho-recebido') pushMsg = `📝 RASCUNHO: ${mesaFormatada}`;
         else if (event === 'solicitacao-fechamento-cliente') pushMsg = `💰 FECHAMENTO: ${mesaFormatada}`;
         else if (event === 'status-atualizado') {
-           if (data.status === 'servido' || data.status === 'entregue') pushMsg = `✅ ENTREGUE: ${mesaFormatada}`;
-           else if (data.status === 'saiu_entrega') pushMsg = `🛵 SAIU ENTREGA: ${mesaFormatada}`;
-           else return true; // Ignora outros status para não "notificar pra tudo"
+           if (data.status === 'entregue') {
+               pushMsg = `✅ ENTREGUE: ${mesaFormatada}`;
+           } else if (data.status === 'servido') {
+               // No Delivery, 'servido' significa que o motoboy pegou o pedido e 'Saiu para entrega'
+               pushMsg = isDelivery ? `🛵 SAIU PARA ENTREGA: ${mesaFormatada}` : `✅ ENTREGUE: ${mesaFormatada}`;
+           } else if (data.status === 'saiu_entrega') {
+               pushMsg = `🛵 SAIU PARA ENTREGA: ${mesaFormatada}`;
+           } else {
+               return true; // Ignora outros status para não "notificar pra tudo"
+           }
         }
         else pushMsg = `Notificação: ${event}`;
-        
-        // Determina se o evento é para o Motoboy (Delivery) ou Garçom
-        const isDelivery = data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY');
-        const targetApp = isDelivery ? 'motoboy' : 'garcom';
-        const pushTitle = isDelivery ? 'Delivery Express' : 'GarçomExpress';
 
         for (const sub of subs) {
           // FILTRO: Só envia se o app_type da inscrição coincidir com o alvo do evento
