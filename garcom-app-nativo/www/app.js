@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   if (isNativeApp) {
      document.body.classList.add('native-app');
+     limparNotificacoesNativas();
      if (window.Capacitor && window.Capacitor.Plugins && localStorage.getItem('garcom_token')) {
         await registerNativePush();
      }
@@ -34,6 +35,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         })
         .catch(err => console.log('❌ Erro ao registrar Service Worker:', err));
     });
+  }
+});
+
+async function limparNotificacoesNativas() {
+  try {
+    if (window.Capacitor && window.Capacitor.Plugins) {
+      const { PushNotifications } = window.Capacitor.Plugins;
+      if (PushNotifications && typeof PushNotifications.removeAllDeliveredNotifications === 'function') {
+        await PushNotifications.removeAllDeliveredNotifications();
+        console.log("🧹 Notificações FCM limpas da barra de status.");
+      }
+    }
+  } catch (e) {
+    console.error("Erro ao limpar notificações:", e);
+  }
+}
+
+// Limpa notificações quando o app volta para primeiro plano
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && isNativeApp) {
+    limparNotificacoesNativas();
   }
 });
 
