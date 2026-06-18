@@ -329,17 +329,25 @@ async function safePusherTrigger(channel, event, data) {
         }
         else pushMsg = `Notificação: ${event}`;
         
-        const payload = JSON.stringify({ title: 'GarçomExpress', body: pushMsg, event });
-        
+        // Determina se o evento é para o Motoboy (Delivery) ou Garçom
+        const isDelivery = data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY');
+        const targetApp = isDelivery ? 'motoboy' : 'garcom';
+        const pushTitle = isDelivery ? 'Delivery Express' : 'GarçomExpress';
+
         for (const sub of subs) {
+          // FILTRO: Só envia se o app_type da inscrição coincidir com o alvo do evento
+          if (sub.app_type !== targetApp) continue;
+
           if (sub.endpoint.includes('fcm.googleapis.com') || sub.endpoint.startsWith('https://')) {
-             // ... [Web Push remains same] ...
+             // Web Push logic (could also be filtered here if needed, but the focus is Native FCM)
+             const payload = JSON.stringify({ title: pushTitle, body: pushMsg, event });
+             webpush.sendNotification(sub, payload).catch(e => console.error('Erro WebPush:', e.message));
           } else {
              // Tratamento para Token Nativo (Capacitor/Firebase SDK)
              if (admin.apps.length > 0) {
                const message = {
                  notification: {
-                   title: 'GarçomExpress',
+                   title: pushTitle,
                    body: pushMsg
                  },
                  data: {
@@ -369,10 +377,10 @@ async function safePusherTrigger(channel, event, data) {
                
                admin.messaging().send(message)
                  .then((response) => {
-                   console.log('✅ FCM Nativo enviado com sucesso:', response);
+                   console.log(`✅ FCM Nativo (${targetApp}) enviado:`, response);
                  })
                  .catch(async (error) => {
-                   console.error('❌ Erro enviando FCM Nativo:', error);
+                   console.error(`❌ Erro enviando FCM Nativo (${targetApp}):`, error);
                    // Remove tokens inválidos
                    if (error.code === 'messaging/invalid-registration-token' || error.code === 'messaging/registration-token-not-registered') {
                       console.log('🗑️ Removendo token FCM inativo:', sub.endpoint);
@@ -402,21 +410,43 @@ app.get('/api/vapid-publicKey', (req, res) => {
 app.post('/api/subscribe', isAuthenticated, async (req, res) => {
   const subscription = req.body;
   const garcomId = req.user.id || req.user.usuario; // Depende de como está no token
+  const appType = req.body.app_type || 'garcom';
   try {
     // Tenta encontrar se a inscrição já existe
     const exists = await query("SELECT id FROM push_subscriptions WHERE endpoint = ?", [subscription.endpoint]);
     if (exists.rows.length === 0) {
       if (isPostgres) {
-         await query("INSERT INTO push_subscriptions (garcom_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)", 
-           [garcomId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]);
+         await query("INSERT INTO push_subscriptions (garcom_id, endpoint, p256dh, auth, app_type) VALUES (?, ?, ?, ?, ?)", 
+           [garcomId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth, appType]);
       } else {
-         await query("INSERT INTO push_subscriptions (garcom_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)", 
-           [garcomId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]);
+         await query("INSERT INTO push_subscriptions (garcom_id, endpoint, p256dh, auth, app_type) VALUES (?, ?, ?, ?, ?)", 
+           [garcomId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth, appType]);
       }
+    } else {
+      // Atualiza o app_type se já existir
+      await query("UPDATE push_subscriptions SET app_type = ? WHERE endpoint = ?", [appType, subscription.endpoint]);
     }
     res.status(201).json({ success: true });
   } catch (error) {
     console.error("Erro ao salvar inscrição push:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint específico para o app Motoboy
+app.post('/api/subscribe-motoboy', isAuthenticated, async (req, res) => {
+  const { endpoint } = req.body;
+  const garcomId = req.user.id || req.user.usuario;
+  try {
+    const exists = await query("SELECT id FROM push_subscriptions WHERE endpoint = ?", [endpoint]);
+    if (exists.rows.length === 0) {
+      await query("INSERT INTO push_subscriptions (garcom_id, endpoint, app_type) VALUES (?, ?, 'motoboy')", [garcomId, endpoint]);
+    } else {
+      await query("UPDATE push_subscriptions SET app_type = 'motoboy' WHERE endpoint = ?", [endpoint]);
+    }
+    res.status(201).json({ success: true });
+  } catch (error) {
+    console.error("Erro ao salvar inscrição motoboy:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -529,7 +559,7 @@ async function initDb() {
     `CREATE TABLE IF NOT EXISTS sistema_config (chave TEXT PRIMARY KEY, valor TEXT)`,
     `CREATE TABLE IF NOT EXISTS fluxo_caixa (id SERIAL PRIMARY KEY, data_abertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, data_fechamento TIMESTAMP, valor_inicial REAL NOT NULL, valor_final REAL, status TEXT DEFAULT 'aberto', total_dinheiro REAL DEFAULT 0, total_pix REAL DEFAULT 0, total_cartao REAL DEFAULT 0, total_vendas REAL DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS codigos_acesso (id SERIAL PRIMARY KEY, mesa_id INTEGER, codigo TEXT NOT NULL, status TEXT DEFAULT 'ativo', criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS push_subscriptions (id SERIAL PRIMARY KEY, garcom_id TEXT, endpoint TEXT, p256dh TEXT, auth TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
+    `CREATE TABLE IF NOT EXISTS push_subscriptions (id SERIAL PRIMARY KEY, garcom_id TEXT, endpoint TEXT, p256dh TEXT, auth TEXT, app_type TEXT DEFAULT 'garcom', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE INDEX IF NOT EXISTS idx_pedido_itens_pedido_id ON pedido_itens(pedido_id)`,
     `CREATE INDEX IF NOT EXISTS idx_pedidos_mesa_id ON pedidos(mesa_id)`,
     `CREATE INDEX IF NOT EXISTS idx_pedidos_status ON pedidos(status)`
@@ -586,6 +616,7 @@ async function initDb() {
     };
     
     // Migrações garantidas para todos os bancos
+    await addCol('push_subscriptions', 'app_type', "TEXT DEFAULT 'garcom'");
     await addCol('mesas', 'garcom_id', 'TEXT');
     await addCol('pedidos', 'forma_pagamento', 'TEXT');
     await addCol('pedidos', 'desconto', 'REAL DEFAULT 0');
