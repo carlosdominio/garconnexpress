@@ -385,9 +385,17 @@ async function safePusherTrigger(channel, event, data) {
         const pId = String(data.pedido_id || data.id || (data.pedido ? (data.pedido.id || data.pedido.pedido_id) : '') || '');
         const statusVal = String(data.status || '');
 
+        const sentEndpoints = new Set();
         for (const sub of subs) {
           // FILTRO: Só envia se o app_type da inscrição coincidir com o alvo do evento
           if (sub.app_type !== targetApp) continue;
+
+          // Evita envio duplicado para o mesmo token/endpoint na mesma execução
+          if (sentEndpoints.has(sub.endpoint)) {
+            console.log(`⚠️ Ignorando token duplicado no loop de envio: ${sub.endpoint}`);
+            continue;
+          }
+          sentEndpoints.add(sub.endpoint);
 
           if (sub.endpoint.includes('fcm.googleapis.com') || sub.endpoint.startsWith('https://')) {
              // Web Push logic (could also be filtered here if needed, but the focus is Native FCM)
@@ -470,20 +478,18 @@ app.post('/api/subscribe', isAuthenticated, async (req, res) => {
   const garcomId = req.user.id || req.user.usuario; // Depende de como está no token
   const appType = req.body.app_type || 'garcom';
   try {
-    // Tenta encontrar se a inscrição já existe
-    const exists = await query("SELECT id FROM push_subscriptions WHERE endpoint = ?", [subscription.endpoint]);
-    if (exists.rows.length === 0) {
-      if (isPostgres) {
-         await query("INSERT INTO push_subscriptions (garcom_id, endpoint, p256dh, auth, app_type) VALUES (?, ?, ?, ?, ?)", 
-           [garcomId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth, appType]);
-      } else {
-         await query("INSERT INTO push_subscriptions (garcom_id, endpoint, p256dh, auth, app_type) VALUES (?, ?, ?, ?, ?)", 
-           [garcomId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth, appType]);
-      }
-    } else {
-      // Atualiza o app_type se já existir
-      await query("UPDATE push_subscriptions SET app_type = ? WHERE endpoint = ?", [appType, subscription.endpoint]);
+    if (!subscription || !subscription.endpoint) {
+      return res.status(400).json({ error: 'Endpoint/token é obrigatório.' });
     }
+    // Garante unicidade: remove qualquer registro anterior com o mesmo endpoint
+    await query("DELETE FROM push_subscriptions WHERE endpoint = ?", [subscription.endpoint]);
+    
+    // Insere o novo registro atualizado
+    const p256dh = subscription.keys?.p256dh || '';
+    const auth = subscription.keys?.auth || '';
+    await query("INSERT INTO push_subscriptions (garcom_id, endpoint, p256dh, auth, app_type) VALUES (?, ?, ?, ?, ?)", 
+      [garcomId, subscription.endpoint, p256dh, auth, appType]);
+
     res.status(201).json({ success: true });
   } catch (error) {
     console.error("Erro ao salvar inscrição push:", error);
@@ -496,12 +502,14 @@ app.post('/api/subscribe-motoboy', isAuthenticated, async (req, res) => {
   const { endpoint } = req.body;
   const garcomId = req.user.id || req.user.usuario;
   try {
-    const exists = await query("SELECT id FROM push_subscriptions WHERE endpoint = ?", [endpoint]);
-    if (exists.rows.length === 0) {
-      await query("INSERT INTO push_subscriptions (garcom_id, endpoint, app_type) VALUES (?, ?, 'motoboy')", [garcomId, endpoint]);
-    } else {
-      await query("UPDATE push_subscriptions SET app_type = 'motoboy' WHERE endpoint = ?", [endpoint]);
-    }
+    if (!endpoint) return res.status(400).json({ error: 'Endpoint/token é obrigatório.' });
+
+    // Garante unicidade: remove qualquer registro anterior com o mesmo endpoint
+    await query("DELETE FROM push_subscriptions WHERE endpoint = ?", [endpoint]);
+    
+    // Insere o novo registro atualizado
+    await query("INSERT INTO push_subscriptions (garcom_id, endpoint, app_type) VALUES (?, ?, 'motoboy')", [garcomId, endpoint]);
+
     res.status(201).json({ success: true });
   } catch (error) {
     console.error("Erro ao salvar inscrição motoboy:", error);
@@ -1080,9 +1088,15 @@ app.put('/api/pedidos/:id/marcar-entregue', async (req, res) => {
     // Só muda status do pedido para 'servido' se TODOS os itens foram entregues
     const pendentesCount = (await query("SELECT COUNT(*) as total FROM pedido_itens WHERE pedido_id = ? AND status IN ('pendente', 'pronto')", [id])).rows[0].total;
     
+    // Busca status anterior para evitar notificações redundantes
+    const prevStatusRes = await query("SELECT status FROM pedidos WHERE id = ?", [id]);
+    const prevStatus = prevStatusRes.rows[0] ? prevStatusRes.rows[0].status : null;
+
     if (parseInt(pendentesCount) === 0) {
-      await query("UPDATE pedidos SET status = 'servido' WHERE id = ?", [id]);
-      await notifyStatus(id, null, 'servido');
+      if (prevStatus !== 'servido') {
+        await query("UPDATE pedidos SET status = 'servido' WHERE id = ?", [id]);
+        await notifyStatus(id, null, 'servido');
+      }
     } else {
       await notifyStatus(id, null, 'itens_atualizados');
     }
@@ -1120,9 +1134,16 @@ app.put('/api/itens/:id/pronto', async (req, res) => {
 
     // Verifica se ainda existem itens pendentes no pedido
     const pendentes = (await query("SELECT id FROM pedido_itens WHERE pedido_id = ? AND status IN ('pendente', 'pronto')", [item.pedido_id])).rows;
+    
+    // Busca status anterior para evitar notificações redundantes
+    const prevStatusRes = await query("SELECT status FROM pedidos WHERE id = ?", [item.pedido_id]);
+    const prevStatus = prevStatusRes.rows[0] ? prevStatusRes.rows[0].status : null;
+
     if (pendentes.length === 0) {
-      await query("UPDATE pedidos SET status = 'servido' WHERE id = ?", [item.pedido_id]);
-      await notifyStatus(item.pedido_id, null, 'servido');
+      if (prevStatus !== 'servido') {
+        await query("UPDATE pedidos SET status = 'servido' WHERE id = ?", [item.pedido_id]);
+        await notifyStatus(item.pedido_id, null, 'servido');
+      }
     } else {
       await notifyStatus(item.pedido_id, null, 'itens_atualizados');
     }
@@ -2036,9 +2057,14 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
         await query("UPDATE pedidos SET pago_parcial = pago_parcial + total, total = 0 WHERE id = ?", [id]);
       }
     }
-    // Busca status anterior para controle de estoque
+    // Busca status anterior para controle de estoque e prevenção de redundâncias
     const prevStatusRes = await query("SELECT status FROM pedidos WHERE id = ?", [id]);
     const prevStatus = prevStatusRes.rows[0] ? prevStatusRes.rows[0].status : null;
+
+    if (prevStatus === status) {
+      console.log(`⚠️ Status do pedido ${id} já é '${status}'. Pulando atualização e notificações redundantes.`);
+      return res.json({ success: true });
+    }
 
     await query('UPDATE pedidos SET status = ? WHERE id = ?', [status, id]);
     
