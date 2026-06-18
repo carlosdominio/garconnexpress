@@ -365,7 +365,7 @@ async function safePusherTrigger(channel, event, data) {
         else if (event === 'status-atualizado') {
            if (data.status === 'entregue') {
                if (isDelivery) {
-                   pushMsg = `✅ ENTREGUE: ${mesaFormatada}`;
+                   pushMsg = `✅ PEDIDO ENTREGUE E FINALIZADO: ${mesaFormatada}`;
                } else {
                    return true; // Ignora para mesas de salão (evita duplicidade de "Entregue")
                }
