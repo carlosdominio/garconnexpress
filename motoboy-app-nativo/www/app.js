@@ -283,22 +283,8 @@ const App = {
 
             this.playAlert();
 
-            if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-                try {
-                    const { LocalNotifications } = Capacitor.Plugins;
-                    await LocalNotifications.schedule({
-                        notifications: [{
-                            title: title || 'GarçomExpress',
-                            body: body || '',
-                            id: Math.floor(Math.random() * 1000000),
-                            schedule: { at: new Date(Date.now() + 100) },
-                            sound: 'notificacao.mp3',
-                            smallIcon: 'ic_stat_notification',
-                            channelId: NOTIFICATION_CHANNEL_ID
-                        }]
-                    });
-                } catch (err) { console.error('Erro LocalNotif:', err); }
-            }
+            // Apenas exibe o Toast informativo se o app estiver aberto (primeiro plano)
+            // Não agendamos notificação nativa local se o app já está aberto, para evitar banners duplicados.
             App.ui.showToast(body, 'info', title);
         },
 

@@ -481,9 +481,12 @@ app.post('/api/subscribe', isAuthenticated, async (req, res) => {
     if (!subscription || !subscription.endpoint) {
       return res.status(400).json({ error: 'Endpoint/token é obrigatório.' });
     }
-    // Garante unicidade: remove qualquer registro anterior com o mesmo endpoint
+    // Garante unicidade absoluta: remove qualquer registro anterior com o mesmo token (endpoint)
     await query("DELETE FROM push_subscriptions WHERE endpoint = ?", [subscription.endpoint]);
     
+    // Evita duplicidade do mesmo garçom para o mesmo tipo de app
+    await query("DELETE FROM push_subscriptions WHERE garcom_id = ? AND app_type = ?", [garcomId, appType]);
+
     // Insere o novo registro atualizado
     const p256dh = subscription.keys?.p256dh || '';
     const auth = subscription.keys?.auth || '';
@@ -504,8 +507,11 @@ app.post('/api/subscribe-motoboy', isAuthenticated, async (req, res) => {
   try {
     if (!endpoint) return res.status(400).json({ error: 'Endpoint/token é obrigatório.' });
 
-    // Garante unicidade: remove qualquer registro anterior com o mesmo endpoint
+    // Garante unicidade absoluta: remove qualquer registro anterior com o mesmo token (endpoint)
     await query("DELETE FROM push_subscriptions WHERE endpoint = ?", [endpoint]);
+
+    // Evita duplicidade do mesmo motoboy na base
+    await query("DELETE FROM push_subscriptions WHERE garcom_id = ? AND app_type = 'motoboy'", [garcomId]);
     
     // Insere o novo registro atualizado
     await query("INSERT INTO push_subscriptions (garcom_id, endpoint, app_type) VALUES (?, ?, 'motoboy')", [garcomId, endpoint]);
