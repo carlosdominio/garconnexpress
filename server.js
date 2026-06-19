@@ -62,13 +62,13 @@ try {
     let serviceAccountMotoboy;
     if (process.env.FIREBASE_SERVICE_ACCOUNT_MOTOBOY) {
       serviceAccountMotoboy = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_MOTOBOY);
-      console.log('📦 Firebase Admin (Motoboy) inicializado via Variável de Ambiente.');
+      console.log('✅ Firebase Admin (Motoboy) inicializado via Variável de Ambiente.');
     } else {
       try {
-        serviceAccountMotoboy = require('./firebase-motoboy-adminsdk.json');
-        console.log('📦 Firebase Admin (Motoboy) inicializado via Arquivo Local.');
+        serviceAccountMotoboy = require('./firebase-adminsdk-motoboy.json');
+        console.log('✅ Firebase Admin (Motoboy) inicializado via Arquivo Local.');
       } catch (e) {
-        // Silencioso se não houver arquivo específico para motoboy
+        console.log('⚠️ Arquivo firebase-adminsdk-motoboy.json não encontrado.');
       }
     }
 
@@ -77,6 +77,30 @@ try {
         credential: admin.credential.cert(serviceAccountMotoboy)
       }, 'motoboy');
       console.log('✅ Firebase Admin (Motoboy) pronto.');
+    }
+  }
+
+  // Inicializa App Terciário (Cozinha) se houver configuração
+  const hasCozinhaApp = admin.apps.find(app => app.name === 'cozinha');
+  if (!hasCozinhaApp) {
+    let serviceAccountCozinha;
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_COZINHA) {
+      serviceAccountCozinha = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_COZINHA);
+      console.log('✅ Firebase Admin (Cozinha) inicializado via Variável de Ambiente.');
+    } else {
+      try {
+        serviceAccountCozinha = require('./firebase-adminsdk-cozinha.json');
+        console.log('✅ Firebase Admin (Cozinha) inicializado via Arquivo Local.');
+      } catch (e) {
+        console.log('⚠️ Arquivo firebase-adminsdk-cozinha.json não encontrado.');
+      }
+    }
+
+    if (serviceAccountCozinha) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccountCozinha)
+      }, 'cozinha');
+      console.log('✅ Firebase Admin (Cozinha) pronto.');
     }
   }
 } catch (error) {
@@ -471,9 +495,12 @@ async function safePusherTrigger(channel, event, data) {
                  };
                  
                  // Seleciona a instância correta do Firebase Admin
-                 const firebaseAppToUse = (targetApp === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) 
-                   ? admin.app('motoboy') 
-                   : admin;
+                 let firebaseAppToUse = admin;
+                 if (targetApp === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) {
+                   firebaseAppToUse = admin.app('motoboy');
+                 } else if (targetApp === 'cozinha' && admin.apps.find(a => a.name === 'cozinha')) {
+                   firebaseAppToUse = admin.app('cozinha');
+                 }
 
                  firebaseAppToUse.messaging().send(message)
                    .then((response) => {
@@ -636,7 +663,13 @@ async function checkAndNotifyDelayedOrders() {
               },
               token: sub.endpoint
             };
-            const firebaseAppToUse = (targetApp === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) ? admin.app('motoboy') : admin.app();
+            let firebaseAppToUse = admin;
+            if (targetApp === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) {
+              firebaseAppToUse = admin.app('motoboy');
+            } else if (targetApp === 'cozinha' && admin.apps.find(a => a.name === 'cozinha')) {
+              firebaseAppToUse = admin.app('cozinha');
+            }
+            
             firebaseAppToUse.messaging().send(message).catch(e => console.error('Erro FCM Atraso:', e.message));
           }
         }
