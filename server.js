@@ -353,8 +353,6 @@ async function safePusherTrigger(channel, event, data) {
         
         // Determina se o evento é para o Motoboy (Delivery) ou Garçom
         const isDelivery = data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY');
-        const targetApp = isDelivery ? 'motoboy' : 'garcom';
-        const pushTitle = isDelivery ? 'Delivery Express' : 'GarçomExpress';
 
         if (event === 'novo-pedido') pushMsg = `🚀 NOVO PEDIDO: ${mesaFormatada}`;
         else if (event === 'pedido-cancelado') pushMsg = `❌ ${mesaFormatada} PEDIDO CANCELADO`;
@@ -382,85 +380,115 @@ async function safePusherTrigger(channel, event, data) {
         }
         else pushMsg = `Notificação: ${event}`;
 
+        // Mapeia os alvos que devem receber a notificação
+        const targets = [];
+        if (isDelivery) {
+          targets.push({ app: 'motoboy', title: 'Delivery Express', msg: pushMsg });
+        } else {
+          targets.push({ app: 'garcom', title: 'GarçomExpress', msg: pushMsg });
+        }
+
+        // Adiciona a cozinha como alvo se houver itens para cozinha ou se o pedido foi cancelado
+        if (event === 'novo-pedido' || event === 'pedido-cancelado') {
+          const pId = data.pedido_id || data.id || (data.pedido ? data.pedido.id : null);
+          let enviaCozinha = true; // Por padrão para cancelamentos
+          if (event === 'novo-pedido' && pId) {
+            const itensIds = data.itens ? data.itens.map(i => i.menu_id) : [];
+            enviaCozinha = await checkTemItemCozinha(itensIds);
+          }
+          if (enviaCozinha) {
+            const cozinhaMsg = event === 'novo-pedido' 
+              ? `🍳 NOVO PEDIDO: ${mesaFormatada}` 
+              : `❌ ${mesaFormatada} PEDIDO CANCELADO`;
+            targets.push({ app: 'cozinha', title: 'CozinhaExpress', msg: cozinhaMsg });
+          }
+        }
+
         const pId = String(data.pedido_id || data.id || (data.pedido ? (data.pedido.id || data.pedido.pedido_id) : '') || '');
         const statusVal = String(data.status || '');
 
-        const sentEndpoints = new Set();
-        for (const sub of subs) {
-          // FILTRO: Só envia se o app_type da inscrição coincidir com o alvo do evento
-          if (sub.app_type !== targetApp) continue;
+        for (const target of targets) {
+          const targetApp = target.app;
+          const pushTitle = target.title;
+          const currentPushMsg = target.msg;
 
-          // Evita envio duplicado para o mesmo token/endpoint na mesma execução
-          if (sentEndpoints.has(sub.endpoint)) {
-            console.log(`⚠️ Ignorando token duplicado no loop de envio: ${sub.endpoint}`);
-            continue;
-          }
-          sentEndpoints.add(sub.endpoint);
+          const sentEndpoints = new Set();
+          for (const sub of subs) {
+            // FILTRO: Só envia se o app_type da inscrição coincidir com o alvo do evento
+            if (sub.app_type !== targetApp) continue;
 
-          if (sub.endpoint.includes('fcm.googleapis.com') || sub.endpoint.startsWith('https://')) {
-             // Web Push logic (could also be filtered here if needed, but the focus is Native FCM)
-             const payload = JSON.stringify({ title: pushTitle, body: pushMsg, event });
-             const pushSubscription = {
-               endpoint: sub.endpoint,
-               keys: {
-                 p256dh: sub.p256dh || '',
-                 auth: sub.auth || ''
-               }
-             };
-             webpush.sendNotification(pushSubscription, payload).catch(e => console.error('Erro WebPush:', e.message));
-          } else {
-             // Tratamento para Token Nativo (Capacitor/Firebase SDK)
-             if (admin.apps.length > 0) {
-               const message = {
-                 notification: {
-                   title: pushTitle,
-                   body: pushMsg
-                 },
-                 data: {
-                   event: event,
-                   click_action: 'FCM_PLUGIN_ACTIVITY',
-                   sound: 'notificacao',
-                   pedido_id: pId,
-                   status: statusVal
-                 },
-                 android: {
-                   priority: 'high',
-                   notification: {
-                     sound: 'notificacao',
-                     channelId: 'pedidos',
-                     defaultSound: false,
-                     clickAction: 'FCM_PLUGIN_ACTIVITY'
-                   }
-                 },
-                 apns: {
-                   payload: {
-                     aps: {
-                       sound: 'notificacao.caf',
-                       badge: 1
-                     }
-                   }
-                 },
-                 token: sub.endpoint
+            // Evita envio duplicado para o mesmo token/endpoint na mesma execução
+            if (sentEndpoints.has(sub.endpoint)) {
+              console.log(`⚠️ Ignorando token duplicado no loop de envio: ${sub.endpoint}`);
+              continue;
+            }
+            sentEndpoints.add(sub.endpoint);
+
+            if (sub.endpoint.includes('fcm.googleapis.com') || sub.endpoint.startsWith('https://')) {
+               // Web Push logic (could also be filtered here if needed, but the focus is Native FCM)
+               const payload = JSON.stringify({ title: pushTitle, body: currentPushMsg, event });
+               const pushSubscription = {
+                 endpoint: sub.endpoint,
+                 keys: {
+                   p256dh: sub.p256dh || '',
+                   auth: sub.auth || ''
+                 }
                };
-               
-               // Seleciona a instância correta do Firebase Admin
-               const firebaseAppToUse = (targetApp === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) 
-                 ? admin.app('motoboy') 
-                 : admin;
+               webpush.sendNotification(pushSubscription, payload).catch(e => console.error('Erro WebPush:', e.message));
+            } else {
+               // Tratamento para Token Nativo (Capacitor/Firebase SDK)
+               if (admin.apps.length > 0) {
+                 const message = {
+                   notification: {
+                     title: pushTitle,
+                     body: currentPushMsg
+                   },
+                   data: {
+                     event: event,
+                     click_action: 'FCM_PLUGIN_ACTIVITY',
+                     sound: 'notificacao',
+                     pedido_id: pId,
+                     status: statusVal
+                   },
+                   android: {
+                     priority: 'high',
+                     notification: {
+                       sound: 'notificacao',
+                       channelId: 'pedidos',
+                       defaultSound: false,
+                       clickAction: 'FCM_PLUGIN_ACTIVITY'
+                     }
+                   },
+                   apns: {
+                     payload: {
+                       aps: {
+                         sound: 'notificacao.caf',
+                         badge: 1
+                       }
+                     }
+                   },
+                   token: sub.endpoint
+                 };
+                 
+                 // Seleciona a instância correta do Firebase Admin
+                 const firebaseAppToUse = (targetApp === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) 
+                   ? admin.app('motoboy') 
+                   : admin;
 
-               firebaseAppToUse.messaging().send(message)
-                 .then((response) => {
-                   console.log(`✅ FCM Nativo (${targetApp}) enviado:`, response);
-                 })
-                 .catch(async (error) => {
-                   console.error(`❌ Erro enviando FCM Nativo (${targetApp}):`, error);
-                   // Remove tokens inválidos
-                   if (error.code === 'messaging/invalid-registration-token' || error.code === 'messaging/registration-token-not-registered') {
-                      console.log('🗑️ Removendo token FCM inativo:', sub.endpoint);
-                      await query("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]);
-                   }
-                 });
-             }
+                 firebaseAppToUse.messaging().send(message)
+                   .then((response) => {
+                     console.log(`✅ FCM Nativo (${targetApp}) enviado:`, response);
+                   })
+                   .catch(async (error) => {
+                     console.error(`❌ Erro enviando FCM Nativo (${targetApp}):`, error);
+                     // Remove tokens inválidos
+                     if (error.code === 'messaging/invalid-registration-token' || error.code === 'messaging/registration-token-not-registered') {
+                        console.log('🗑️ Removendo token FCM inativo:', sub.endpoint);
+                        await query("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]);
+                     }
+                   });
+               }
+            }
           }
         }
       } catch (err) {
