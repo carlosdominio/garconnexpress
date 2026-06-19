@@ -784,10 +784,15 @@ async function initDb() {
     
     // Migração da coluna notificado_atraso de forma segura
     try {
-      await query("ALTER TABLE pedidos ADD COLUMN notificado_atraso INTEGER DEFAULT 0");
-    } catch (e) {
-      // Ignora erro se a coluna já existir
-    }
+      if (isPostgres) {
+        await query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS notificado_atraso INTEGER DEFAULT 0");
+      } else {
+        const columns = await query("PRAGMA table_info(pedidos)");
+        if (!columns.rows.find(c => c.name === 'notificado_atraso')) {
+          await query("ALTER TABLE pedidos ADD COLUMN notificado_atraso INTEGER DEFAULT 0");
+        }
+      }
+    } catch (e) {}
 
     // LIMPEZA E REGISTRO DO NÃšMERO DE WHATSAPP (CONSOLIDADO)
     const notificationNumbers = '558293157048'; 
