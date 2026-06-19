@@ -301,7 +301,6 @@ async function iniciarPainelAdmin() {
   carregarCardapio();
   carregarStatusCaixa();
   carregarStatusDelivery();
-  carregarStatusWhatsApp(); // Carrega status e o IFrame do WhatsApp em segundo plano
   carregarDadosConfig(); 
   configurarPusher();
   window.addEventListener('focus', () => pararPiscarTitulo());
