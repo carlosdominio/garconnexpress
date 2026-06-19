@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CozinhaExpress</string>
+    <string name="title_activity_main">CozinhaExpress</string>
+    <string name="package_name">com.garconnexpress.cozinha</string>
+    <string name="custom_url_scheme">com.garconnexpress.cozinha</string>
+</resources>

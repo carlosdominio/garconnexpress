@@ -47,7 +47,7 @@
 
   <header>
     <div class="header-content" style="display:flex; justify-content: space-between; align-items: center; width: 100%;">
-      <div class="header-info">
+      <div class="header-info" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
         <div>
           <h1 style="margin: 0; font-size: 1.2rem;">GarçomExpress</h1>
           <div style="display:flex; align-items:center; gap:8px;">
@@ -55,6 +55,7 @@
             <span id="caixa-status-badge" class="badge-caixa" style="display:none;"></span>
           </div>
         </div>
+        <button onclick="logout()" style="width: auto; background: rgba(255,255,255,0.1); color: #fff; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.3); padding: 5px 10px; border-radius: 6px; margin-bottom: 0; font-weight: bold; flex-shrink: 0;">SAIR</button>
       </div>
       <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
         <button id="btn-header-mesas" onclick="voltarParaMesas()" style="display:none; width: auto; background: #e74c3c; color: #fff; font-size: 0.8rem; border: none; padding: 6px 12px; border-radius: 6px; margin-bottom: 0; font-weight: bold; align-items: center; gap: 8px;">
@@ -80,8 +81,6 @@
             <span class="slider" id="slider-pausa"></span>
           </label>
         </div>
-
-        <button onclick="logout()" style="width: auto; background: rgba(255,255,255,0.1); color: #fff; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.3); padding: 5px 10px; border-radius: 6px; margin-bottom: 0; font-weight: bold; flex-shrink: 0;">SAIR</button>
       </div>
     </div>
   </header>

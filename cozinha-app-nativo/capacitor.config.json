@@ -1,0 +1,18 @@
+{
+  "appId": "com.garconnexpress.cozinha",
+  "appName": "CozinhaExpress",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_notification",
+      "iconColor": "#e74c3c",
+      "sound": "notificacao.mp3"
+    }
+  }
+}

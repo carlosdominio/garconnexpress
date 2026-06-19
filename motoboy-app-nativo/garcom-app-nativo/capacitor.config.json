@@ -1,0 +1,6 @@
+{
+  "appId": "com.garcomexpress.garcom",
+  "appName": "GarçomExpress",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
