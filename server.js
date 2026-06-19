@@ -544,8 +544,7 @@ app.post('/api/subscribe-motoboy', isAuthenticated, async (req, res) => {
 
     // Garante unicidade absoluta: remove qualquer registro anterior com o mesmo token (endpoint)
     await query("DELETE FROM push_subscriptions WHERE endpoint = ?", [endpoint]);
-
-    // Evita duplicidade do mesmo motoboy na base
+// Evita duplicidade do mesmo motoboy na base
     await query("DELETE FROM push_subscriptions WHERE garcom_id = ? AND app_type = 'motoboy'", [garcomId]);
     
     // Insere o novo registro atualizado
@@ -558,8 +557,13 @@ app.post('/api/subscribe-motoboy', isAuthenticated, async (req, res) => {
   }
 });
 
-// --- ROTA CRON DE MONITORAMENTO DE PEDIDOS ATRASADOS (>10 MIN) ---
-app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) => {
+let lastDelayedCheck = 0;
+
+async function checkAndNotifyDelayedOrders() {
+  const nowTime = Date.now();
+  if (nowTime - lastDelayedCheck < 60000) return; // Checa no máximo 1 vez por minuto
+  lastDelayedCheck = nowTime;
+  
   try {
     // 1. Busca pedidos ativos não notificados ainda
     const activeOrdersRes = await query(`
@@ -577,14 +581,11 @@ app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) 
       return diffMinutes >= 10;
     });
 
-    if (delayedOrders.length === 0) {
-      return res.json({ message: "Nenhum pedido em atraso pendente." });
-    }
+    if (delayedOrders.length === 0) return;
 
     // 2. Busca inscrições push de dispositivos
     const subsRes = await query("SELECT * FROM push_subscriptions");
     const subs = subsRes.rows;
-    const notifiedIds = [];
 
     for (const p of delayedOrders) {
       const isDelivery = p.garcom_id === 'DELIVERY';
@@ -598,7 +599,6 @@ app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) 
 
       // Atualiza o status de notificação no banco de dados para evitar reenvio
       await query("UPDATE pedidos SET notificado_atraso = 1 WHERE id = ?", [p.id]);
-      notifiedIds.push(p.id);
 
       // Envia notificações para todos os dispositivos correspondentes
       const sentEndpoints = new Set();
@@ -608,7 +608,6 @@ app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) 
         sentEndpoints.add(sub.endpoint);
 
         if (sub.endpoint.includes('fcm.googleapis.com') || sub.endpoint.startsWith('https://')) {
-          // Formato WebPush (PWA)
           const payload = JSON.stringify({ title: pushTitle, body: pushMsg, event: 'status-atualizado' });
           const pushSubscription = {
             endpoint: sub.endpoint,
@@ -616,7 +615,6 @@ app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) 
           };
           webpush.sendNotification(pushSubscription, payload).catch(e => console.error('Erro WebPush Atraso:', e.message));
         } else {
-          // Formato FCM Nativo (Capacitor/Android)
           if (admin.apps.length > 0) {
             const message = {
               notification: { title: pushTitle, body: pushMsg },
@@ -638,28 +636,21 @@ app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) 
               },
               token: sub.endpoint
             };
-
-            const firebaseAppToUse = (targetApp === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) 
-              ? admin.app('motoboy') 
-              : admin;
-
-            firebaseAppToUse.messaging().send(message)
-              .then(resp => console.log(`✅ FCM Nativo Atraso enviado (${targetApp}):`, resp))
-              .catch(async (error) => {
-                if (error.code === 'messaging/invalid-registration-token' || error.code === 'messaging/registration-token-not-registered') {
-                   await query("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]);
-                }
-              });
+            const firebaseAppToUse = (targetApp === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) ? admin.app('motoboy') : admin.app();
+            firebaseAppToUse.messaging().send(message).catch(e => console.error('Erro FCM Atraso:', e.message));
           }
         }
       }
     }
-
-    res.json({ success: true, notified_orders: notifiedIds });
   } catch (error) {
-    console.error("Erro na verificação de atraso:", error);
-    res.status(500).json({ error: error.message });
+    console.error('Erro ao verificar pedidos atrasados internamente:', error);
   }
+}
+
+// --- ROTA CRON MANUAL DE MONITORAMENTO DE PEDIDOS ATRASADOS (>10 MIN) ---
+app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) => {
+  await checkAndNotifyDelayedOrders();
+  res.json({ message: "Verificação de atrasos executada." });
 });
 
 async function verificarEstoqueBaixo(menuId) {
@@ -947,7 +938,7 @@ if (!isPostgres) {
   initDb().catch(console.error);
 } else {
   // Adia a inicialização para evitar timeout no startup
-  console.log('â³ Inicialização do banco adiada (lazy loading)');
+  console.log('â ³ Inicialização do banco adiada (lazy loading)');
 }
 
 // --- CONFIGURAÇÕES DE DELIVERY (CONTROLE INDEPENDENTE) ---
