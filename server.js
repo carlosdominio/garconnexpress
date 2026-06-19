@@ -1454,6 +1454,7 @@ app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, async (req, res) =
 });
 
 app.get('/api/pedidos', ensureDbInitialized, async (req, res) => {
+  checkAndNotifyDelayedOrders();
   try {
     const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`);
     res.json(result.rows);
@@ -1463,6 +1464,7 @@ app.get('/api/pedidos', ensureDbInitialized, async (req, res) => {
 });
 
 app.get('/api/pedidos/cozinha', ensureDbInitialized, async (req, res) => {
+  checkAndNotifyDelayedOrders();
   res.setHeader('X-Debug-Version', '1.0.3');
   try {
     const filterCozinha = await getFilterCozinha();
