@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "90033469871",
-    "project_id": "garcomexpress-304f0",
-    "storage_bucket": "garcomexpress-304f0.firebasestorage.app"
+    "project_number": "691275617790",
+    "project_id": "app-cozinha-8b67f",
+    "storage_bucket": "app-cozinha-8b67f.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:90033469871:android:8cb2dbb5599c6942cf175a",
+        "mobilesdk_app_id": "1:691275617790:android:de9b1d47cabdc488ee9caf",
         "android_client_info": {
-          "package_name": "com.garconnexpress.garcom"
+          "package_name": "com.garconnexpress.cozinha"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBTGPpj6nEFW0RmbguRiS7mTfBgIMM3JXA"
+          "current_key": "AIzaSyBPLvUqrEqZtbkILJtZBGA99QnVUDZjrsk"
         }
       ],
       "services": {
