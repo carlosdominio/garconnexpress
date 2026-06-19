@@ -530,6 +530,110 @@ app.post('/api/subscribe-motoboy', isAuthenticated, async (req, res) => {
   }
 });
 
+// --- ROTA CRON DE MONITORAMENTO DE PEDIDOS ATRASADOS (>10 MIN) ---
+app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) => {
+  try {
+    // 1. Busca pedidos ativos não notificados ainda
+    const activeOrdersRes = await query(`
+      SELECT p.id, p.garcom_id, p.created_at, m.numero as mesa_numero
+      FROM pedidos p
+      LEFT JOIN mesas m ON p.mesa_id = m.id
+      WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho')
+        AND (p.notificado_atraso = 0 OR p.notificado_atraso IS NULL)
+    `);
+
+    const now = new Date();
+    const delayedOrders = activeOrdersRes.rows.filter(p => {
+      const createdAt = new Date(p.created_at);
+      const diffMinutes = (now - createdAt) / 60000;
+      return diffMinutes >= 10;
+    });
+
+    if (delayedOrders.length === 0) {
+      return res.json({ message: "Nenhum pedido em atraso pendente." });
+    }
+
+    // 2. Busca inscrições push de dispositivos
+    const subsRes = await query("SELECT * FROM push_subscriptions");
+    const subs = subsRes.rows;
+    const notifiedIds = [];
+
+    for (const p of delayedOrders) {
+      const isDelivery = p.garcom_id === 'DELIVERY';
+      const targetApp = isDelivery ? 'motoboy' : 'garcom';
+      const pushTitle = isDelivery ? '🚨 ENTREGA EM ATRASO!' : '🚨 PEDIDO EM ATRASO!';
+      
+      const mesaName = p.mesa_numero ? (String(p.mesa_numero).toUpperCase().includes('MESA') ? p.mesa_numero : `Mesa ${p.mesa_numero}`) : 'BALCÃO';
+      const pushMsg = isDelivery 
+        ? `O pedido de entrega #${p.id} está parado há mais de 10 minutos!` 
+        : `O pedido da ${mesaName} (#${p.id}) está parado há mais de 10 minutos!`;
+
+      // Atualiza o status de notificação no banco de dados para evitar reenvio
+      await query("UPDATE pedidos SET notificado_atraso = 1 WHERE id = ?", [p.id]);
+      notifiedIds.push(p.id);
+
+      // Envia notificações para todos os dispositivos correspondentes
+      const sentEndpoints = new Set();
+      for (const sub of subs) {
+        if (sub.app_type !== targetApp) continue;
+        if (sentEndpoints.has(sub.endpoint)) continue;
+        sentEndpoints.add(sub.endpoint);
+
+        if (sub.endpoint.includes('fcm.googleapis.com') || sub.endpoint.startsWith('https://')) {
+          // Formato WebPush (PWA)
+          const payload = JSON.stringify({ title: pushTitle, body: pushMsg, event: 'status-atualizado' });
+          const pushSubscription = {
+            endpoint: sub.endpoint,
+            keys: { p256dh: sub.p256dh || '', auth: sub.auth || '' }
+          };
+          webpush.sendNotification(pushSubscription, payload).catch(e => console.error('Erro WebPush Atraso:', e.message));
+        } else {
+          // Formato FCM Nativo (Capacitor/Android)
+          if (admin.apps.length > 0) {
+            const message = {
+              notification: { title: pushTitle, body: pushMsg },
+              data: {
+                event: 'status-atualizado',
+                click_action: 'FCM_PLUGIN_ACTIVITY',
+                sound: 'notificacao',
+                pedido_id: String(p.id),
+                status: 'atrasado'
+              },
+              android: {
+                priority: 'high',
+                notification: {
+                  sound: 'notificacao',
+                  channelId: 'pedidos',
+                  defaultSound: false,
+                  clickAction: 'FCM_PLUGIN_ACTIVITY'
+                }
+              },
+              token: sub.endpoint
+            };
+
+            const firebaseAppToUse = (targetApp === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) 
+              ? admin.app('motoboy') 
+              : admin;
+
+            firebaseAppToUse.messaging().send(message)
+              .then(resp => console.log(`✅ FCM Nativo Atraso enviado (${targetApp}):`, resp))
+              .catch(async (error) => {
+                if (error.code === 'messaging/invalid-registration-token' || error.code === 'messaging/registration-token-not-registered') {
+                   await query("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]);
+                }
+              });
+          }
+        }
+      }
+    }
+
+    res.json({ success: true, notified_orders: notifiedIds });
+  } catch (error) {
+    console.error("Erro na verificação de atraso:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 async function verificarEstoqueBaixo(menuId) {
   try {
     const item = (await query("SELECT id, nome, estoque FROM menu WHERE id = ?", [menuId])).rows[0];
@@ -658,6 +762,13 @@ async function initDb() {
 
     await query("INSERT INTO sistema_config (chave, valor) SELECT 'whatsapp_enabled', 'true' WHERE NOT EXISTS (SELECT 1 FROM sistema_config WHERE chave = 'whatsapp_enabled')");
     await query("INSERT INTO sistema_config (chave, valor) SELECT 'delivery_aberto', 'true' WHERE NOT EXISTS (SELECT 1 FROM sistema_config WHERE chave = 'delivery_aberto')");
+    
+    // Migração da coluna notificado_atraso de forma segura
+    try {
+      await query("ALTER TABLE pedidos ADD COLUMN notificado_atraso INTEGER DEFAULT 0");
+    } catch (e) {
+      // Ignora erro se a coluna já existir
+    }
 
     // LIMPEZA E REGISTRO DO NÃšMERO DE WHATSAPP (CONSOLIDADO)
     const notificationNumbers = '558293157048'; 
