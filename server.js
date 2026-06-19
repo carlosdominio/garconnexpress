@@ -417,8 +417,12 @@ async function safePusherTrigger(channel, event, data) {
           const pId = data.pedido_id || data.id || (data.pedido ? data.pedido.id : null);
           let enviaCozinha = true; // Por padrão para cancelamentos
           if (event === 'novo-pedido' && pId) {
-            const itensIds = data.itens ? data.itens.map(i => i.menu_id) : [];
-            enviaCozinha = await checkTemItemCozinha(itensIds);
+            if (data.para_cozinha !== undefined) {
+              enviaCozinha = data.para_cozinha;
+            } else {
+              const itensIds = data.itens ? data.itens.map(i => i.menu_id) : [];
+              enviaCozinha = await checkTemItemCozinha(itensIds);
+            }
           }
           if (enviaCozinha) {
             const cozinhaMsg = event === 'novo-pedido' 
