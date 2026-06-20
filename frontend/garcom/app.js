@@ -149,6 +149,10 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 async function subscribeToPush() {
+  if (window.Capacitor && window.Capacitor.isNative) {
+    console.log('Ambiente nativo detectado, ignorando Web Push para evitar duplicidade.');
+    return;
+  }
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try {
     const reg = await navigator.serviceWorker.ready;

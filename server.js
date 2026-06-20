@@ -638,8 +638,9 @@ async function checkAndNotifyDelayedOrders() {
         ? `O pedido de entrega #${p.id} está parado há mais de 10 minutos!` 
         : `O pedido da ${mesaName} (#${p.id}) está parado há mais de 10 minutos!`;
 
-      // Atualiza o status de notificação no banco de dados para evitar reenvio
-      await query("UPDATE pedidos SET notificado_atraso = 1 WHERE id = ?", [p.id]);
+      // Atualiza de forma atômica para evitar envios duplicados por concorrência
+      const updateRes = await query("UPDATE pedidos SET notificado_atraso = 1 WHERE id = ? AND (notificado_atraso = 0 OR notificado_atraso IS NULL)", [p.id]);
+      if (updateRes.changes === 0) continue; // Já foi notificado por outro processo/requisição
 
       // Envia notificações para todos os dispositivos correspondentes
       const sentEndpoints = new Set();
