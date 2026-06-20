@@ -83,6 +83,10 @@
         
         .btn-back-menu { width: 100%; padding: 18px; border-radius: 18px; border: none; background: #2f3542; color: white; font-weight: 800; cursor: pointer; font-size: 1rem; margin-top: 10px; display: none; }
     </style>
+
+  <link rel="manifest" href="/delivery/manifest.json">
+  <meta name="theme-color" content="#ff4500">
+  <link rel="apple-touch-icon" href="/icon-192.png">
 </head>
 <body>
     <div id="loading"><div class="spinner"></div><p style="font-weight: 700; color: #999;">CARREGANDO DELIVERY...</p></div>
@@ -706,5 +710,15 @@
             }
         }
     </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/delivery/sw.js')
+          .then(reg => console.log('SW registrado', reg))
+          .catch(err => console.error('SW erro', err));
+      });
+    }
+  </script>
 </body>
 </html>

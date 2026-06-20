@@ -241,6 +241,10 @@
             }
         }
     </style>
+
+  <link rel="manifest" href="/cardapio/manifest.json">
+  <meta name="theme-color" content="#ff4500">
+  <link rel="apple-touch-icon" href="/icon-192.png">
 </head>
 <body>
     <div id="loading"><div class="spinner"></div><p style="font-weight: 700; color: #999;">CARREGANDO...</p></div>
@@ -910,5 +914,15 @@
         }
         function showLoading(s) { document.getElementById('loading').style.display=s?'flex':'none'; }
     </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/cardapio/sw.js')
+          .then(reg => console.log('SW registrado', reg))
+          .catch(err => console.error('SW erro', err));
+      });
+    }
+  </script>
 </body>
 </html>
