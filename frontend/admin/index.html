@@ -663,6 +663,12 @@
           <button class="config-nav-btn" onclick="switchConfigSubTab('cozinha')">
             <i class="fa-solid fa-utensils"></i> Cozinha
           </button>
+          <button class="config-nav-btn" onclick="switchConfigSubTab('whatsapp')">
+            <i class="fa-brands fa-whatsapp"></i> Robô Zap
+          </button>
+          <button class="config-nav-btn" onclick="switchConfigSubTab('bottexts')">
+            <i class="fa-solid fa-message"></i> Textos do Robô
+          </button>
         </aside>
 
         <!-- Conteúdo das Configurações -->
@@ -772,6 +778,82 @@
                 <p style="text-align:center; opacity:0.5;">Carregando categorias...</p>
               </div>
               <button onclick="salvarConfigCategoriasCozinha()" style="width: 100%; margin-top: 15px; background: #2c3e50;">SALVAR CONFIGURAÇÃO</button>
+            </div>
+          </div>
+
+          <!-- Sub-seção: WhatsApp Bot -->
+          <div id="config-sub-whatsapp" class="config-sub-section">
+            <div class="config-card">
+              <h3><i class="fa-brands fa-whatsapp"></i> Configuração do Robô de Zap</h3>
+              <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">Edite o número padrão do WhatsApp para onde as notificações são enviadas (somente números).</p>
+              
+              <div class="modal-form-group" style="margin-bottom: 1rem;">
+                <label>Número do Robô (com DDI e DDD)</label>
+                <input type="text" id="config-bot-numero" placeholder="Ex: 5511999999999" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
+              </div>
+
+              <button onclick="salvarNumeroBotZap()" style="width: 100%; padding: 12px; background: #25D366; border: none; border-radius: 5px; color: white; font-weight: bold; cursor: pointer;">SALVAR NÚMERO DO ROBÔ</button>
+            </div>
+          </div>
+
+          <!-- Sub-seção: Textos do Robô -->
+          <div id="config-sub-bottexts" class="config-sub-section">
+            <div class="config-card">
+              <h3><i class="fa-solid fa-message"></i> Textos do Robô Zap (Menu)</h3>
+              <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">Edite todas as respostas que o robô envia automaticamente para o cliente.</p>
+              
+              <div class="modal-form-group">
+                <label>Boas-Vindas Normal</label>
+                <textarea id="bot-txt-welcome" rows="4" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;"></textarea>
+              </div>
+
+              <div class="modal-form-group" style="margin-top: 10px;">
+                <label>Boas-Vindas Delivery (quando o cliente tem um pedido ativo)</label>
+                <textarea id="bot-txt-delivery" rows="4" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;"></textarea>
+              </div>
+
+              <div class="modal-form-group" style="margin-top: 10px; border-left: 3px solid #25D366; padding-left: 10px;">
+                <label>Opção 1 Delivery - Acompanhamento do Pedido</label>
+                <textarea id="bot-txt-delivery-opt1" rows="4" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;"></textarea>
+                <small style="color: #64748b; font-size: 0.8rem;">Use <code>{pId}</code> para o número do pedido e <code>{status}</code> para o status atual.</small>
+              </div>
+
+              <div class="modal-form-group" style="margin-top: 10px; border-left: 3px solid #25D366; padding-left: 10px;">
+                <label>Opção 2 Delivery - Atendimento Humano</label>
+                <textarea id="bot-txt-delivery-opt2" rows="4" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;"></textarea>
+              </div>
+
+              <div class="modal-form-group" style="margin-top: 10px;">
+                <label>Opção 1 - Cardápio</label>
+                <textarea id="bot-txt-menu1" rows="3" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;"></textarea>
+              </div>
+
+              <div class="modal-form-group" style="margin-top: 10px;">
+                <label>Opção 2 - Fazer Pedido</label>
+                <textarea id="bot-txt-menu2" rows="3" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;"></textarea>
+              </div>
+
+              <div class="modal-form-group" style="margin-top: 10px;">
+                <label>Opção 3 - Promoções (Quando Não Houver Promoção)</label>
+                <textarea id="bot-txt-menu3" rows="3" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;"></textarea>
+              </div>
+
+              <div class="modal-form-group" style="margin-top: 10px;">
+                <label>Opção 4 - Endereço e Horários</label>
+                <textarea id="bot-txt-menu4" rows="4" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;"></textarea>
+              </div>
+
+              <div class="modal-form-group" style="margin-top: 10px;">
+                <label>Opção 5 - Atendimento Humano</label>
+                <textarea id="bot-txt-menu5" rows="3" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;"></textarea>
+              </div>
+
+              <div class="modal-form-group" style="margin-top: 15px; border-left: 4px solid #ef4444; padding-left: 10px;">
+                <label style="color: #ef4444; font-weight: bold;">Loja Fechada (Manda se o cliente falar fora do horário)</label>
+                <textarea id="bot-txt-store-closed" rows="4" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;"></textarea>
+              </div>
+
+              <button onclick="salvarTextosBot()" style="width: 100%; padding: 12px; margin-top: 15px; background: #3498db; border: none; border-radius: 5px; color: white; font-weight: bold; cursor: pointer;">SALVAR TEXTOS</button>
             </div>
           </div>
 
@@ -1211,6 +1293,9 @@
   <div id="cupom-impressao"></div>
 
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
-  <script src="app_v3.js?v=1.2.0"></script>
+  <script src="app_v3.js?v=1.2.2"></script>
 </body>
 </html>
+
+
+

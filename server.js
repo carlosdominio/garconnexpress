@@ -3071,6 +3071,20 @@ app.post('/api/whatsapp-toggle', async (req, res) => {
   }
 });
 
+app.post('/api/whatsapp-number', async (req, res) => {
+  const { number } = req.body;
+  try {
+    if (isPostgres) {
+      await query("INSERT INTO sistema_config (chave, valor) VALUES ('whatsapp_notify_numbers', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [number]);
+    } else {
+      await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('whatsapp_notify_numbers', ?)", [number]);
+    }
+    res.json({ success: true, number });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/config/categorias-cozinha', async (req, res) => {
   try {
     const config = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
@@ -3159,4 +3173,34 @@ app.get('/api/diag', async (req, res) => {
   });
 
   const PORT = process.env.PORT || 3001;
+// ==========================================
+// TEXTOS DO ROBO (BOT RESPONSES)
+// ==========================================
+app.get('/api/bot-responses', (req, res) => {
+    try {
+        const row = db.prepare("SELECT valor FROM sistema_config WHERE chave = 'bot_responses'").get();
+        if (row && row.valor) {
+            res.json(JSON.parse(row.valor));
+        } else {
+            res.json({});
+        }
+    } catch(err) {
+        console.error('Erro GET /api/bot-responses', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/bot-responses', (req, res) => {
+    try {
+        const { responses } = req.body;
+        const stmt = db.prepare("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('bot_responses', ?)");
+        stmt.run(JSON.stringify(responses));
+        res.json({ success: true });
+    } catch(err) {
+        console.error('Erro POST /api/bot-responses', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.listen(PORT, () => console.log(`Rodando na porta ${PORT}`));
+

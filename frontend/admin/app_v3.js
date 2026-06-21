@@ -5873,3 +5873,79 @@ document.addEventListener('click', (e) => {
     dropdown.style.display = 'none';
   }
 });
+// ==========================================
+// TEXTOS DO ROBO
+// ==========================================
+const defaultsBot = {
+    welcome: "Olá {nome}! 👋 Seja muito bem-vindo ao *GuGA Bebidas*! 🍻\n\nComo podemos deixar o seu dia melhor hoje?\n\n1️⃣ - Ver nosso Cardápio 📋\n2️⃣ - Fazer um Pedido agora 🛵\n3️⃣ - Ver Promoções do Dia 🤑\n4️⃣ - Endereço e Horários 📍\n5️⃣ - Falar com um Atendente 👨‍💻\n\n_Basta digitar o número da opção desejada._",
+    delivery: "Olá {nome}! 👋\n\nIdentificamos que você tem um pedido ativo conosco! 🛵🍔\n\nComo posso te ajudar agora?\n\n1️⃣ - Ver Status Atual 🕒\n2️⃣ - Falar com Atendente 👨‍💻",
+    delivery_opt1: "🚚 *ACOMPANHAMENTO DO PEDIDO #{pId}*\n\nOlá {nome}, identificamos o seu pedido em nosso sistema! 🔍\n\n📌 *Status Atual:* *{status}*\n\n💡 *Dica:* Fique tranquilo(a), te avisaremos assim que ele sair para entrega! 🛵💨",
+    delivery_opt2: "👨‍💻 *ATENDIMENTO HUMANO*\n\nEntendido! Já acionei nossa equipe. Um de nossos atendentes falará com você em instantes para tirar suas dúvidas ou resolver qualquer problema. 💬\n\n⏳ *Tempo médio de espera:* 2 a 5 minutos.\n\n_Por favor, aguarde um momento..._",
+    menu1: "📋 *NOSSO CARDÁPIO DIGITAL*\n\nExplore todas as nossas bebidas e delícias diretamente pelo link abaixo:\n🔗 https://garconnexpress.vercel.app/delivery\n\n_Dê uma olhadinha e escolha o seu preferido!_ 😋",
+    menu2: "🛵 *FAZER UM PEDIDO AGORA*\n\nJá escolheu? Então não perca tempo! Peça agora pelo nosso sistema de Delivery:\n🔗 https://garconnexpress.vercel.app/delivery\n\n💡 *Dica:* Seus dados ficam salvos para o próximo pedido ser ainda mais rápido!",
+    menu3: "No momento não temos promoções ativas, mas nossos preços continuam os melhores da região! 😉\n\nConfira tudo aqui: https://garconnexpress.vercel.app/delivery",
+    menu4: "📍 *ONDE ESTAMOS E QUANDO ABRIMOS*\n\n🏢 *Endereço:* Rua Demócrito Gracindo, 132 - Ponta Grossa\n\n🕒 *Horário de Funcionamento:*\nTerça a Domingo: das 18h às 02h\n\n_Venha nos visitar ou peça no conforto do seu sofá!_ 🛵🍻",
+    menu5: "👨‍💻 *ATENDIMENTO HUMANO*\n\nEntendi! Já avisei a nossa equipe. Um de nossos atendentes falará com você em instantes.\n\n_Por favor, aguarde um momento..._",
+    store_closed: "Olá {nome}! No momento estamos *FECHADOS* 🌙\n\n⏰ *Horário de Funcionamento:*\nTerça a Domingo: das 18h às 02h\n\n🏠 *Endereço:* Rua Demócrito Gracindo, 132 - Ponta Grossa\n\n_Aguardamos seu pedido em breve!_ 🛵"
+};
+
+async function carregarTextosBot() {
+  try {
+    const res = await fetch('/api/bot-responses');
+    let data = {};
+    if (res.ok) {
+      data = await res.json();
+    }
+    
+    if (document.getElementById('bot-txt-welcome')) {
+      document.getElementById('bot-txt-welcome').value = data.welcome || defaultsBot.welcome;
+      document.getElementById('bot-txt-delivery').value = data.delivery || defaultsBot.delivery;
+      document.getElementById('bot-txt-delivery-opt1').value = data.delivery_opt1 || defaultsBot.delivery_opt1;
+      document.getElementById('bot-txt-delivery-opt2').value = data.delivery_opt2 || defaultsBot.delivery_opt2;
+      document.getElementById('bot-txt-menu1').value = data.menu1 || defaultsBot.menu1;
+      document.getElementById('bot-txt-menu2').value = data.menu2 || defaultsBot.menu2;
+      document.getElementById('bot-txt-menu3').value = data.menu3 || defaultsBot.menu3;
+      document.getElementById('bot-txt-menu4').value = data.menu4 || defaultsBot.menu4;
+      document.getElementById('bot-txt-menu5').value = data.menu5 || defaultsBot.menu5;
+      document.getElementById('bot-txt-store-closed').value = data.store_closed || defaultsBot.store_closed;
+    }
+  } catch (e) {
+    console.error('Erro ao carregar textos do bot:', e);
+  }
+}
+
+async function salvarTextosBot() {
+  const responses = {
+    welcome: document.getElementById('bot-txt-welcome').value,
+    delivery: document.getElementById('bot-txt-delivery').value,
+    delivery_opt1: document.getElementById('bot-txt-delivery-opt1').value,
+    delivery_opt2: document.getElementById('bot-txt-delivery-opt2').value,
+    menu1: document.getElementById('bot-txt-menu1').value,
+    menu2: document.getElementById('bot-txt-menu2').value,
+    menu3: document.getElementById('bot-txt-menu3').value,
+    menu4: document.getElementById('bot-txt-menu4').value,
+    menu5: document.getElementById('bot-txt-menu5').value,
+    store_closed: document.getElementById('bot-txt-store-closed').value
+  };
+
+  try {
+    const res = await fetch('/api/bot-responses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ responses })
+    });
+    const data = await res.json();
+    if (data.success) {
+      mostrarToast('Textos do robô atualizados com sucesso!', 'sucesso');
+    } else {
+      mostrarToast('Erro ao atualizar textos do robô', 'erro');
+    }
+  } catch (e) {
+    console.error('Erro ao salvar textos do bot:', e);
+    mostrarToast('Erro de conexão ao salvar textos', 'erro');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  carregarTextosBot();
+});
