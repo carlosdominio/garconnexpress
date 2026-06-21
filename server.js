@@ -3176,11 +3176,11 @@ app.get('/api/diag', async (req, res) => {
 // ==========================================
 // TEXTOS DO ROBO (BOT RESPONSES)
 // ==========================================
-app.get('/api/bot-responses', (req, res) => {
+app.get('/api/bot-responses', async (req, res) => {
     try {
-        const row = db.prepare("SELECT valor FROM sistema_config WHERE chave = 'bot_responses'").get();
-        if (row && row.valor) {
-            res.json(JSON.parse(row.valor));
+        const { rows } = await query("SELECT valor FROM sistema_config WHERE chave = 'bot_responses'");
+        if (rows && rows.length > 0 && rows[0].valor) {
+            res.json(JSON.parse(rows[0].valor));
         } else {
             res.json({});
         }
@@ -3190,11 +3190,15 @@ app.get('/api/bot-responses', (req, res) => {
     }
 });
 
-app.post('/api/bot-responses', (req, res) => {
+app.post('/api/bot-responses', async (req, res) => {
     try {
         const { responses } = req.body;
-        const stmt = db.prepare("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('bot_responses', ?)");
-        stmt.run(JSON.stringify(responses));
+        const valor = JSON.stringify(responses);
+        if (isPostgres) {
+            await query("INSERT INTO sistema_config (chave, valor) VALUES ('bot_responses', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [valor]);
+        } else {
+            await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('bot_responses', ?)", [valor]);
+        }
         res.json({ success: true });
     } catch(err) {
         console.error('Erro POST /api/bot-responses', err);
