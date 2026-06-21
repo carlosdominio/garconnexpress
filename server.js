@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 // v1.0.1 - Deploy forçado para ativação do menu bot
 const path = require('path');
 // Carregamento condicional do SQLite para evitar erros no Vercel
@@ -253,7 +253,7 @@ async function sendWhatsAppMessage(text, targetNumber = null) {
 
 // Log global de todas as requisições
 app.use((req, res, next) => {
-  console.log(`📡 [${new Date().toLocaleTimeString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
+  console.log(`📡 [${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
   next();
 });
 
@@ -1384,7 +1384,7 @@ app.post('/api/caixa/abrir', async (req, res) => {
     await safePusherTrigger('garconnexpress', 'status-caixa-atualizado', { status: 'aberto' });
     
     // Notificação WhatsApp
-    sendWhatsAppMessage(`💰 *CAIXA ABERTO*\n🕒 Horário: ${new Date().toLocaleTimeString()}\n💵 Valor Inicial: R$ ${Number(valor_inicial || 0).toFixed(2)}`).catch(e => console.error('Erro Wpp:', e.message));
+    sendWhatsAppMessage(`💰 *CAIXA ABERTO*\n🕒 Horário: ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n💵 Valor Inicial: R$ ${Number(valor_inicial || 0).toFixed(2)}`).catch(e => console.error('Erro Wpp:', e.message));
 
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Erro ao abrir caixa' }); }
@@ -1410,7 +1410,7 @@ app.post('/api/caixa/fechar', async (req, res) => {
 
     // Notificação WhatsApp detalhada
     if (dadosCaixa) {
-      const msgWpp = `💰 *CAIXA FECHADO*\n🕒 Horário: ${new Date().toLocaleTimeString()}\n\n` +
+      const msgWpp = `🔴 *CAIXA FECHADO*\n🕒 Horário: ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n\n` +
                      `📊 *RESUMO DO DIA:*\n` +
                      `💵 Dinheiro: R$ ${Number(dadosCaixa.total_dinheiro || 0).toFixed(2)}\n` +
                      `💳 Cartão: R$ ${Number(dadosCaixa.total_cartao || 0).toFixed(2)}\n` +
