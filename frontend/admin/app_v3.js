@@ -553,7 +553,7 @@ async function carregarStatusWhatsApp() {
   if (!badge) return;
 
   try {
-    const res = await fetch('/api/whatsapp-status');
+    const res = await fetch('/api/whatsapp-status?_=' + Date.now(), { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     
     const status = await res.json();

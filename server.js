@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 // v1.0.1 - Deploy forçado para ativação do menu bot
 const path = require('path');
 // Carregamento condicional do SQLite para evitar erros no Vercel
@@ -3028,6 +3028,9 @@ app.post('/api/cliente/enviar-rascunho', async (req, res) => {
 });
 
 app.get('/api/whatsapp-status', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   try {
     const configRes = await query("SELECT valor FROM sistema_config WHERE chave = 'whatsapp_enabled'");
     const isEnabled = configRes.rows && configRes.rows.length > 0 ? configRes.rows[0].valor === 'true' : true;
