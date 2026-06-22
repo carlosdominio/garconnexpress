@@ -27,9 +27,15 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET' || event.request.url.includes('/api/') || event.request.url.includes('pusher')) {
+    return;
+  }
+
   if (event.request.mode === 'navigate' || event.request.url.includes('index.html')) {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
+      fetch(event.request).catch(() => {
+        return caches.match(event.request).then(res => res || new Response("Offline", { status: 503, statusText: "Offline" }));
+      })
     );
     return;
   }
@@ -37,7 +43,7 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request).then(response => {
       if (response) return response;
-      return fetch(event.request).catch(() => {});
+      return fetch(event.request).catch(() => new Response("Offline", { status: 503, statusText: "Offline" }));
     })
   );
 });

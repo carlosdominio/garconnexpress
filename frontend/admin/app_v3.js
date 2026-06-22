@@ -1,4 +1,4 @@
-﻿window.onerror = function(msg, url, line) {
+window.onerror = function(msg, url, line) {
   console.log('🚀 Admin v1.2.0 Iniciado');
   const msgStr = String(msg || '');
   if (msgStr.includes('WebSocket') || msgStr.includes('Pusher') || msgStr.includes('connection')) {
@@ -1676,9 +1676,9 @@ async function exibirMenuConfig() {
                     </small>
                     <small>${validadeHtml}</small>
                   </div>
-                  <div style="display:flex; flex-direction:column; gap:0.2rem">
-                    <button style="background:#3498db; padding:4px 8px; font-size:0.8rem" onclick="prepararEdicaoMenuById(${m.id})">✏️ Editar</button>
-                    <button class="btn-excluir" onclick="excluirDoMenu(${m.id})">Excluir</button>
+                  <div style="display:flex; flex-direction:column; gap:0.4rem; justify-content:center; align-items:stretch; min-width:80px;">
+                    <button style="background:#3498db; padding:6px; font-size:0.8rem; border:none; border-radius:6px; color:white; cursor:pointer; height:max-content; box-shadow:0 2px 4px rgba(0,0,0,0.1);" onclick="prepararEdicaoMenuById(${m.id})">✏️ Editar</button>
+                    <button style="background:#e74c3c; padding:6px; font-size:0.8rem; border:none; border-radius:6px; color:white; cursor:pointer; height:max-content; box-shadow:0 2px 4px rgba(0,0,0,0.1);" onclick="excluirDoMenu(${m.id})">Excluir</button>
                   </div>
                 </div>
               </div>`;

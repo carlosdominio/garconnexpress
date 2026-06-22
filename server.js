@@ -250,6 +250,9 @@ setInterval(async () => {
 // ENDPOINT PARA VERCEL CRON JOBS
 app.get('/api/cron/cardapio', async (req, res) => {
     try {
+        // --- FAXINA DE MESAS E PEDIDOS ÓRFÃOS ---
+        await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE garcom_id IS NOT NULL AND garcom_id NOT IN (SELECT usuario FROM garcons WHERE usuario IS NOT NULL)");
+        await query("UPDATE pedidos SET status = 'cancelado' WHERE status NOT IN ('entregue', 'cancelado') AND garcom_id IS NOT NULL AND garcom_id != 'ADMIN' AND garcom_id != 'QRCODE' AND garcom_id NOT IN (SELECT usuario FROM garcons WHERE usuario IS NOT NULL)");
         // --- FAXINA AUTOMÁTICA DIÁRIA ---
         const hoje = new Date().toISOString().substring(0, 10);
         const rFaxina = await query("SELECT valor FROM sistema_config WHERE chave = 'ultima_faxina'");
@@ -2500,6 +2503,8 @@ app.get('/api/menu', ensureDbInitialized, async (req, res) => {
       querySql += ` WHERE visivel = ${visivelValue} AND (estoque = -1 OR (estoque IS NOT NULL AND estoque > 0))`;
     }
     
+    querySql += ' ORDER BY categoria ASC, nome ASC';
+    
     const menuRes = await query(querySql);
     let menu = menuRes.rows;
 
@@ -2665,6 +2670,8 @@ app.put('/api/garcons/:id', async (req, res) => {
 });
 app.delete('/api/garcons/:id', async (req, res) => { 
   try {
+    const garcom = await query('SELECT usuario FROM garcons WHERE id = ?', [req.params.id]);
+    if (garcom.rows && garcom.rows.length > 0) await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE garcom_id = ?", [garcom.rows[0].usuario]);
     await query('DELETE FROM garcons WHERE id = ?', [req.params.id]); 
     res.json({ success: true }); 
   } catch (error) { res.status(500).json({ error: error.message }); }

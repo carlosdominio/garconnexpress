@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cardápio Digital - GarconnExpress</title>
+    <title>Cardápio Digital - Guga Bebidas</title>
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -12,7 +12,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <style>
-        :root { --primary: #ff4757; --primary-dark: #e84118; --bg: #f1f2f6; --card-bg: #ffffff; --text: #2f3542; --text-light: #747d8c; --shadow: 0 4px 12px rgba(0,0,0,0.08); --radius: 16px; }
+        :root { --primary: #ea1d2c; --primary-dark: #b51722; --bg: #f1f2f6; --card-bg: #ffffff; --text: #2f3542; --text-light: #747d8c; --shadow: 0 4px 12px rgba(0,0,0,0.08); --radius: 16px; }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background: var(--bg); color: var(--text); padding-bottom: 100px; }
         body.login-active, body.modal-open { overflow: hidden; height: 100vh; overscroll-behavior: none; }
@@ -23,7 +23,7 @@
         .categories { display: flex; overflow-x: auto; padding: 15px 20px; gap: 12px; background: var(--bg); scrollbar-width: none; }
         .categories::-webkit-scrollbar { display: none; }
         .category-pill { background: var(--card-bg); padding: 10px 20px; border-radius: 25px; font-size: 0.9rem; white-space: nowrap; box-shadow: var(--shadow); cursor: pointer; font-weight: 600; color: var(--text-light); border: 2px solid transparent; }
-        .category-pill.active { background: var(--primary); color: white; transform: translateY(-2px); box-shadow: 0 6px 15px rgba(255, 71, 87, 0.3); }
+        .category-pill.active { background: var(--primary); color: white; }
         .container { padding: 20px; max-width: 600px; margin: 0 auto; }
         .section-title { margin: 25px 0 15px; font-size: 1.4rem; color: var(--text); font-weight: 800; border-left: 5px solid var(--primary); padding-left: 12px; }
         .menu-item { background: var(--card-bg); border-radius: var(--radius); padding: 18px; margin-bottom: 20px; display: flex; gap: 15px; box-shadow: var(--shadow); }
@@ -285,7 +285,7 @@
 
     <div id="main-content" style="display: none;">
         <div id="sticky-header-group">
-            <header><h1>GarconnExpress</h1><p id="mesa-label">Mesa --</p></header>
+            <header><h1>Guga Bebidas</h1><p id="mesa-label">Mesa --</p></header>
             <div class="categories" id="categories-container"></div>
         </div>
         <div class="container" id="menu-container"></div>
