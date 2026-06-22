@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 // v1.0.1 - Deploy forçado para ativação do menu bot
 const path = require('path');
 // Carregamento condicional do SQLite para evitar erros no Vercel
@@ -250,6 +250,25 @@ setInterval(async () => {
 // ENDPOINT PARA VERCEL CRON JOBS
 app.get('/api/cron/cardapio', async (req, res) => {
     try {
+        // --- FAXINA AUTOMÁTICA DIÁRIA ---
+        const hoje = new Date().toISOString().substring(0, 10);
+        const rFaxina = await query("SELECT valor FROM sistema_config WHERE chave = 'ultima_faxina'");
+        const ultimaFaxina = rFaxina.rows && rFaxina.rows.length > 0 ? rFaxina.rows[0].valor : null;
+        if (ultimaFaxina !== hoje) {
+            const limite = new Date();
+            limite.setHours(limite.getHours() - 24);
+            const limiteStr = limite.toISOString().replace('T', ' ').substring(0, 19);
+            await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT id FROM pedidos WHERE status IN ('entregue', 'cancelado') AND created_at < ?)", [limiteStr]);
+            await query("DELETE FROM pedidos WHERE status IN ('entregue', 'cancelado') AND created_at < ?", [limiteStr]);
+            if (isPostgres) {
+                await query("INSERT INTO sistema_config (chave, valor) VALUES ('ultima_faxina', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [hoje]);
+            } else {
+                await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('ultima_faxina', ?)", [hoje]);
+            }
+            console.log('?? FAXINA AUTOMATICA REALIZADA:', hoje);
+        }
+        // --- FIM FAXINA ---
+
         const rAuto = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_auto'");
         if (!rAuto.rows || rAuto.rows.length === 0 || rAuto.rows[0].valor !== 'true') return res.status(200).json({ status: 'skip' });
 
