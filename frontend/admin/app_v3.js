@@ -1,4 +1,4 @@
-window.onerror = function(msg, url, line) {
+﻿window.onerror = function(msg, url, line) {
   console.log('🚀 Admin v1.2.0 Iniciado');
   const msgStr = String(msg || '');
   if (msgStr.includes('WebSocket') || msgStr.includes('Pusher') || msgStr.includes('connection')) {
@@ -277,12 +277,13 @@ async function iniciarPainelAdmin() {
   switchTab('ativos'); 
   switchSubTab('garcom');
 
-  await carregarConfigCategoriasCozinha(); // Carrega config de cozinha imediatamente
+  await carregarConfigCategoriasCozinha(); 
   carregarPedidos();
   carregarCardapio();
   carregarStatusCaixa();
   carregarStatusDelivery();
-  carregarStatusWhatsApp(); // Carrega status e o IFrame do WhatsApp em segundo plano
+  carregarStatusCardapio();
+  carregarStatusWhatsApp(); 
   carregarDadosConfig(); 
   configurarPusher();
   window.addEventListener('focus', () => pararPiscarTitulo());
@@ -4685,7 +4686,7 @@ async function configurarPusher() {
     });
 
     // EVENTO: STATUS DO DELIVERY
-    channel.bind('delivery-status-atualizado', (data) => {
+    channel.bind('cardapio-status-atualizado', (data) => { const check = document.getElementById('check-cardapio'); if (check) check.checked = data.cardapio_aberto; }); channel.bind('delivery-status-atualizado', (data) => {
       console.log('📢 Status do Delivery atualizado:', data);
       const check = document.getElementById('check-delivery');
       if (check) {
@@ -5715,6 +5716,43 @@ function fecharVisualizadorGlobal() {
     }
 }
 
+// Controle Independente do Cardápio Digital (Mesas)
+async function carregarStatusCardapio() {
+  try {
+    const res = await fetch('/api/configs/cardapio-status');
+    const data = await res.json();
+    const check = document.getElementById('check-cardapio');
+    if (check) {
+      check.checked = data.cardapio_aberto;
+    }
+  } catch (e) {
+    console.error('Erro ao carregar status do cardápio:', e);
+  }
+}
+
+async function alternarCardapio() {
+  const check = document.getElementById('check-cardapio');
+  if (!check) return;
+  const enabled = check.checked;
+  
+  try {
+    const res = await fetch('/api/configs/cardapio-toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled })
+    });
+    const data = await res.json();
+    if (data.success) {
+      mostrarToast(`Cardápio Digital (Mesas) ${enabled ? 'Aberto' : 'Fechado'}!`);
+    } else {
+      check.checked = !enabled; // revert on fail
+    }
+  } catch (e) {
+    console.error('Erro ao alternar cardápio:', e);
+    check.checked = !enabled;
+  }
+}
+
 // Controle Independente do Delivery
 async function carregarStatusDelivery() {
   try {
@@ -6062,6 +6100,63 @@ async function salvarNumeroBotZap() {
     }
   } catch (e) {
     console.error('Erro ao salvar número do robô:', e);
-    mostrarToast('Erro ao salvar número', 'erro');
+    mostrarToast('Erro ao salvar nmero', 'erro');
   }
 }
+
+// --- AGENDAMENTO DO CARDÁPIO DIGITAL ---
+function toggleAutoCardapioCampos() {
+    const isAuto = document.getElementById('check-auto-cardapio').checked;
+    document.getElementById('campos-agendamento-cardapio').style.display = isAuto ? 'block' : 'none';
+}
+
+function abrirModalAgendamentoCardapio() {
+    fetch('/api/configs/cardapio-horarios')
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('check-auto-cardapio').checked = data.cardapio_auto || false;
+            document.getElementById('cardapio-hora-abrir').value = data.hora_abrir || '';
+            document.getElementById('cardapio-hora-fechar').value = data.hora_fechar || '';
+            toggleAutoCardapioCampos();
+            document.getElementById('modal-agendamento-cardapio').style.display = 'flex';
+        })
+        .catch(e => {
+            console.error('Erro ao carregar agendamento:', e);
+            mostrarToast('Erro ao carregar agendamento', 'erro');
+        });
+}
+
+function fecharModalAgendamentoCardapio() {
+    document.getElementById('modal-agendamento-cardapio').style.display = 'none';
+}
+
+function salvarAgendamentoCardapio() {
+    const auto = document.getElementById('check-auto-cardapio').checked;
+    const hora_abrir = document.getElementById('cardapio-hora-abrir').value;
+    const hora_fechar = document.getElementById('cardapio-hora-fechar').value;
+
+    if (auto && (!hora_abrir || !hora_fechar)) {
+        return Swal.fire('Aviso', 'Preencha o horário de abertura e fechamento para ativar a automação.', 'warning');
+    }
+
+    fetch('/api/configs/cardapio-horarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auto, hora_abrir, hora_fechar })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.success) {
+            mostrarToast('Agendamento salvo com sucesso!', 'sucesso');
+            fecharModalAgendamentoCardapio();
+            setTimeout(carregarStatusCardapio, 1000);
+        } else {
+            mostrarToast(data.error || 'Erro ao salvar', 'erro');
+        }
+    })
+    .catch(e => {
+        console.error('Erro ao salvar agendamento:', e);
+        mostrarToast('Erro ao salvar agendamento', 'erro');
+    });
+}
+

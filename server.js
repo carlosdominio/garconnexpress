@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 // v1.0.1 - Deploy forçado para ativação do menu bot
 const path = require('path');
 // Carregamento condicional do SQLite para evitar erros no Vercel
@@ -125,7 +125,147 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(cookieParser());
 
-// --- CONFIGURAÇÕES DE DELIVERY (CONTROLE INDEPENDENTE) ---
+// --- CONFIGURAÇÕES DE CARDAPIO E DELIVERY (CONTROLE INDEPENDENTE) ---
+app.get('/api/configs/cardapio-status', ensureDbInitialized, async (req, res) => {
+  try {
+    const result = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_aberto'");
+    const status = result.rows && result.rows.length > 0 ? result.rows[0].valor === 'true' : true; // Por padrao é true
+    res.json({ cardapio_aberto: status });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/configs/cardapio-toggle', ensureDbInitialized, isAdmin, async (req, res) => {
+  const { enabled } = req.body;
+  try {
+    const valor = enabled ? 'true' : 'false';
+    if (isPostgres) {
+      await query("INSERT INTO sistema_config (chave, valor) VALUES ('cardapio_aberto', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [valor]);
+    } else {
+      await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('cardapio_aberto', ?)", [valor]);
+    }
+    
+    await safePusherTrigger('garconnexpress', 'cardapio-status-atualizado', { cardapio_aberto: enabled });
+    res.json({ success: true, cardapio_aberto: enabled });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- AGENDAMENTO AUTOMÁTICO DO CARDÁPIO ---
+app.get('/api/configs/cardapio-horarios', ensureDbInitialized, async (req, res) => {
+  try {
+    const rAuto = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_auto'");
+    const rAbrir = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_hora_abrir'");
+    const rFechar = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_hora_fechar'");
+    
+    res.json({
+      cardapio_auto: rAuto.rows && rAuto.rows.length > 0 ? rAuto.rows[0].valor === 'true' : false,
+      hora_abrir: rAbrir.rows && rAbrir.rows.length > 0 ? rAbrir.rows[0].valor : '',
+      hora_fechar: rFechar.rows && rFechar.rows.length > 0 ? rFechar.rows[0].valor : ''
+    });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/configs/cardapio-horarios', ensureDbInitialized, isAdmin, async (req, res) => {
+  const { auto, hora_abrir, hora_fechar } = req.body;
+  try {
+    const salvar = async (chv, val) => {
+        if (isPostgres) {
+            await query("INSERT INTO sistema_config (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [chv, val]);
+        } else {
+            await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES (?, ?)", [chv, val]);
+        }
+    };
+      
+    await salvar('cardapio_auto', auto ? 'true' : 'false');
+    await salvar('cardapio_hora_abrir', hora_abrir || '');
+    await salvar('cardapio_hora_fechar', hora_fechar || '');
+    
+    if(auto) {
+       verificarHorarioCardapio(hora_abrir, hora_fechar); 
+    }
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+async function verificarHorarioCardapio(hora_abrir, hora_fechar) {
+    if (!hora_abrir || !hora_fechar) return;
+    
+    const agora = new Date();
+    const options = { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false };
+    const formatter = new Intl.DateTimeFormat('pt-BR', options);
+    const timeParts = formatter.formatToParts(agora);
+    const hour = timeParts.find(p => p.type === 'hour').value;
+    const minute = timeParts.find(p => p.type === 'minute').value;
+    const timeString = `${hour}:${minute}`;
+    
+    let deveEstarAberto = false;
+    if (hora_abrir < hora_fechar) {
+        deveEstarAberto = timeString >= hora_abrir && timeString < hora_fechar;
+    } else {
+        deveEstarAberto = timeString >= hora_abrir || timeString < hora_fechar;
+    }
+    
+    const result = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_aberto'");
+    const statusAtual = result.rows && result.rows.length > 0 ? result.rows[0].valor === 'true' : true;
+    
+    if (statusAtual !== deveEstarAberto) {
+        const valor = deveEstarAberto ? 'true' : 'false';
+        if (isPostgres) {
+            await query("INSERT INTO sistema_config (chave, valor) VALUES ('cardapio_aberto', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [valor]);
+        } else {
+            await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('cardapio_aberto', ?)", [valor]);
+        }
+        
+        if (typeof safePusherTrigger !== 'undefined') {
+            await safePusherTrigger('garconnexpress', 'cardapio-status-atualizado', { cardapio_aberto: deveEstarAberto });
+        }
+        console.log(`🤖 Agendamento Cardápio: Alterado para ${deveEstarAberto ? 'ABERTO' : 'FECHADO'} as ${timeString}`);
+    }
+}
+
+// CRON JOB Roda a cada minuto
+setInterval(async () => {
+    try {
+        const rAuto = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_auto'");
+        if (!rAuto.rows || rAuto.rows.length === 0 || rAuto.rows[0].valor !== 'true') return;
+
+        const rAbrir = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_hora_abrir'");
+        const rFechar = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_hora_fechar'");
+        
+        const hora_abrir = rAbrir.rows && rAbrir.rows.length > 0 ? rAbrir.rows[0].valor : null;
+        const hora_fechar = rFechar.rows && rFechar.rows.length > 0 ? rFechar.rows[0].valor : null;
+        
+        verificarHorarioCardapio(hora_abrir, hora_fechar);
+    } catch(e) { }
+}, 60000);
+
+
+// ENDPOINT PARA VERCEL CRON JOBS
+app.get('/api/cron/cardapio', async (req, res) => {
+    try {
+        const rAuto = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_auto'");
+        if (!rAuto.rows || rAuto.rows.length === 0 || rAuto.rows[0].valor !== 'true') return res.status(200).json({ status: 'skip' });
+
+        const rAbrir = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_hora_abrir'");
+        const rFechar = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_hora_fechar'");
+        
+        const hora_abrir = rAbrir.rows && rAbrir.rows.length > 0 ? rAbrir.rows[0].valor : null;
+        const hora_fechar = rFechar.rows && rFechar.rows.length > 0 ? rFechar.rows[0].valor : null;
+        
+        await verificarHorarioCardapio(hora_abrir, hora_fechar);
+        res.status(200).json({ status: 'success' });
+    } catch(e) { 
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.get('/api/configs/delivery-status', ensureDbInitialized, async (req, res) => {
   try {
     const result = await query("SELECT valor FROM sistema_config WHERE chave = 'delivery_aberto'");
@@ -3267,4 +3407,5 @@ app.post('/api/bot-responses', async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`Rodando na porta ${PORT}`));
+
 

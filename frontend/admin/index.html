@@ -677,7 +677,21 @@
           <!-- Sub-seção: Mesas -->
           <div id="config-sub-mesas" class="config-sub-section active">
             <div class="config-card">
-              <h3>Mesas do Bar</h3>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3>Mesas do Bar</h3>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: bold; color: #4a5568;">
+                      <span style="font-size: 0.9rem;">Aceitar Pedidos (Cardápio Digital):</span>
+                      <div class="switch">
+                        <input type="checkbox" id="check-cardapio" onchange="alternarCardapio()">
+                        <span class="slider round"></span>
+                      </div>
+                    </label>
+                    <button onclick="abrirModalAgendamentoCardapio()" style="background: #e2e8f0; color: #4a5568; border: none; border-radius: 50%; width: 35px; height: 35px; cursor: pointer; transition: 0.3s; display: flex; align-items: center; justify-content: center;" title="Configurar Agendamento Automático">
+                        <i class="fa-solid fa-clock"></i>
+                    </button>
+                </div>
+              </div>
               <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
                 <input type="number" id="nova-mesa-num" placeholder="Nº da Mesa">
                 <button onclick="adicionarMesa()">Adicionar</button>
@@ -1307,6 +1321,42 @@
   </div>
 
   <div id="cupom-impressao"></div>
+
+  <!-- Modal Agendamento Cardápio -->
+  <div id="modal-agendamento-cardapio" class="modal">
+    <div class="modal-content" style="max-width: 400px; border-radius: 15px;">
+      <h3 style="margin-top: 0; color: #2d3748; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;"><i class="fa-solid fa-clock" style="margin-right: 8px;"></i>Agendamento do Cardápio</h3>
+      
+      <div style="margin-top: 20px;">
+        <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-weight: bold; color: #4a5568;">
+          Ativar Automação:
+          <div class="switch">
+            <input type="checkbox" id="check-auto-cardapio" onchange="toggleAutoCardapioCampos()">
+            <span class="slider round"></span>
+          </div>
+        </label>
+
+        <div id="campos-agendamento-cardapio" style="display: none; background: #f8f9fa; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0;">
+          <div class="form-group" style="margin-bottom: 15px;">
+            <label style="display: block; font-size: 0.9rem; color: #718096; margin-bottom: 5px;">Hora de Abertura:</label>
+            <input type="time" id="cardapio-hora-abrir" class="modern-input" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e0;">
+          </div>
+          <div class="form-group">
+            <label style="display: block; font-size: 0.9rem; color: #718096; margin-bottom: 5px;">Hora de Fechamento:</label>
+            <input type="time" id="cardapio-hora-fechar" class="modern-input" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e0;">
+          </div>
+          <p style="font-size: 0.8rem; color: #a0aec0; margin-top: 10px; line-height: 1.4;">
+            <i class="fa-solid fa-circle-info"></i> Quando ativado, o sistema vai ligar e desligar a chave "Aceitar Pedidos" sozinho nestes horários exatos.
+          </p>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="margin-top: 25px; display: flex; justify-content: flex-end; gap: 10px;">
+        <button onclick="fecharModalAgendamentoCardapio()" class="btn-secondary" style="border-radius: 8px;">Cancelar</button>
+        <button onclick="salvarAgendamentoCardapio()" class="btn-primary" style="border-radius: 8px;">Salvar</button>
+      </div>
+    </div>
+  </div>
 
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="app_v3.js?v=1.2.2"></script>

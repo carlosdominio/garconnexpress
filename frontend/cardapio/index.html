@@ -260,7 +260,7 @@
             <p style="color: #ff4757; font-weight: 800; font-size: 1.0rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 15px;">Menu Fechado</p>
             
             <div style="background: #f8f9fa; padding: 15px; border-radius: 20px; margin-bottom: 20px; border: 1px solid #eee; width: 100%;">
-                <p style="color: #747d8c; line-height: 1.5; font-size: 0.95rem; margin-bottom: 0;">
+                <p id="closed-text" style="color: #747d8c; line-height: 1.5; font-size: 0.95rem; margin-bottom: 0;">
                     Olá! No momento nosso cardápio digital está em <b>manutenção ou fora do horário de atendimento</b>.
                 </p>
             </div>
@@ -464,12 +464,19 @@
 
         async function verificarCaixa() {
             try { 
-                const res = await fetch('/api/caixa/status'); 
-                const cx = await res.json(); 
+                const [resCaixa, resCardapio] = await Promise.all([
+                    fetch('/api/caixa/status'),
+                    fetch('/api/configs/cardapio-status')
+                ]);
+                const cx = await resCaixa.json(); 
+                const cardapioData = await resCardapio.json();
+                window.isCardapioOpen = cardapioData.cardapio_aberto !== false;
+
                 const s = document.getElementById('closed-screen');
                 const login = document.getElementById('login-screen');
                 const main = document.getElementById('main-content');
                 const loading = document.getElementById('loading');
+                const closedText = document.getElementById('closed-text');
 
                 if(!cx){ 
                     s.style.display='flex'; 
@@ -477,6 +484,10 @@
                     if(main) main.style.display='none';
                     if(loading) loading.style.display='none';
                     document.body.classList.add('modal-open');
+                    
+                    if(closedText) {
+                        closedText.innerHTML = "Olá! No momento nosso cardápio digital está em <b>manutenção ou fora do horário de atendimento</b>.";
+                    }
                     return false; 
                 } 
                 
@@ -542,6 +553,11 @@
                 pusherChannel = pusher.subscribe('garconnexpress');
                 
                 pusherChannel.bind('status-caixa-atualizado', (d) => { 
+                    if(isClosingSession) return;
+                    verificarCaixa(); // Atualiza a tela em tempo real
+                });
+                
+                pusherChannel.bind('cardapio-status-atualizado', (d) => { 
                     if(isClosingSession) return;
                     verificarCaixa(); // Atualiza a tela em tempo real
                 });
@@ -787,6 +803,15 @@
         }
 
         async function enviarRascunho() { 
+            if (window.isCardapioOpen === false) {
+                return Swal.fire({
+                    title: 'Aviso',
+                    text: 'Os novos pedidos foram encerrados por hoje. Para mais informações, chame o garçom!',
+                    icon: 'info',
+                    confirmButtonText: 'Entendi',
+                    confirmButtonColor: '#ff4757'
+                });
+            }
             if (lockAtivo) return Swal.fire('Aguarde', 'Verifique o status do seu pedido nas notificações.', 'warning');
             
             const btn = document.getElementById('btn-final-enviar');
@@ -854,6 +879,16 @@
             }
         }
         function updateCart(id, delta) {
+            if (delta > 0 && window.isCardapioOpen === false) {
+                Swal.fire({
+                    title: 'Aviso',
+                    text: 'Os novos pedidos foram encerrados por hoje. Para mais informações, chame o garçom!',
+                    icon: 'info',
+                    confirmButtonText: 'Entendi',
+                    confirmButtonColor: '#ff4757'
+                });
+                return;
+            }
             const i = fullMenu.find(x => x.id === id); const cI = cart.find(x => x.id === id);
             if (cI) { cI.qty += delta; if (cI.qty <= 0) cart = cart.filter(x => x.id !== id); }
             else if (delta > 0) cart.push({ ...i, qty: 1 });
