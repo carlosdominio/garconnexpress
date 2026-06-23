@@ -721,7 +721,6 @@ async function safePusherTrigger(channel, event, data) {
                    },
                    data: {
                      event: event,
-                     click_action: 'FCM_PLUGIN_ACTIVITY',
                      sound: 'notificacao',
                      pedido_id: pId,
                      status: statusVal
@@ -731,8 +730,7 @@ async function safePusherTrigger(channel, event, data) {
                      notification: {
                        sound: 'notificacao',
                        channelId: 'pedidos',
-                       defaultSound: false,
-                       clickAction: 'FCM_PLUGIN_ACTIVITY'
+                       defaultSound: false
                      }
                    },
                    apns: {
@@ -900,7 +898,6 @@ async function checkAndNotifyDelayedOrders() {
               notification: { title: pushTitle, body: pushMsg },
               data: {
                 event: 'status-atualizado',
-                click_action: 'FCM_PLUGIN_ACTIVITY',
                 sound: 'notificacao',
                 pedido_id: String(p.id),
                 status: 'atrasado'
@@ -910,8 +907,7 @@ async function checkAndNotifyDelayedOrders() {
                 notification: {
                   sound: 'notificacao',
                   channelId: 'pedidos',
-                  defaultSound: false,
-                  clickAction: 'FCM_PLUGIN_ACTIVITY'
+                  defaultSound: false
                 }
               },
               token: sub.endpoint

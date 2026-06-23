@@ -19,14 +19,16 @@ self.addEventListener('fetch', event => {
   // ESTRATÉGIA: Network First para arquivos da API, Cache First para estáticos
   if (event.request.url.includes('/api/')) {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
+      fetch(event.request).catch(() => {
+        return caches.match(event.request).then(res => res || new Response('{"error": "Offline"}', { status: 503, headers: {'Content-Type':'application/json'} }));
+      })
     );
     return;
   }
 
   event.respondWith(
     caches.match(event.request)
-      .then(response => response || fetch(event.request))
+      .then(response => response || fetch(event.request).catch(() => new Response("Offline", { status: 503, statusText: "Offline" })))
   );
 });
 
