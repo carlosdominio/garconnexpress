@@ -102,8 +102,9 @@ const App = {
                     body: JSON.stringify({ usuario, senha })
                 });
 
-                if (res.ok) {
-                    const data = await res.json();
+                const data = await res.json();
+
+                if (data.success) {
                     localStorage.setItem('motoboy_token', data.token);
                     localStorage.setItem('motoboy_user', JSON.stringify(data.garcom));
                     
@@ -117,11 +118,10 @@ const App = {
 
                     setTimeout(() => location.reload(), 2000);
                 } else {
-                    const errorData = await res.json().catch(() => ({}));
-                    const msgErro = errorData.error || 'Usuário ou senha incorretos. Verifique seus dados e tente novamente.';
+                    console.log('❌ Login falhou: Resposta do servidor indicou falha.');
                     Swal.fire({
                         title: 'Acesso Negado',
-                        text: msgErro,
+                        text: 'Usuário ou senha incorretos. Verifique seus dados e tente novamente.',
                         icon: 'error',
                         confirmButtonColor: '#e74c3c',
                         confirmButtonText: 'TENTAR NOVAMENTE',

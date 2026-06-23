@@ -661,24 +661,23 @@ async function realizarLogin() {
         }
         
         // Se falhar como admin, tenta como garçom
-        const response = await fetch('/api/login', {
+        res = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ usuario, senha })
         });
-
-        if (response.ok) {
-            const data = await response.json();
+        
+        if (res.ok) {
+            data = await res.json();
             localStorage.setItem('cozinha_logado', 'true');
-            if (data.token) localStorage.setItem('cozinha_token', data.token); // Usa o token de admin provisoriamente
-            if (btn) btn.disabled = false;
+            localStorage.setItem('cozinha_token', data.token);
+            mostrarToast("Login realizado com sucesso!", "success");
             location.reload();
         } else {
-            const errorData = await response.json().catch(() => ({}));
-            const msgErro = errorData.error || "Usuário ou senha incorretos!";
-            exibirErroLogin(msgErro);
+            exibirErroLogin("Usuário ou senha incorretos!");
             if (btn) btn.disabled = false;
-        }    if (btnText) btnText.innerText = "Entrar";
+            if (btnText) btnText.innerText = "Entrar";
+        }
     } catch (e) {
         console.error(e);
         exibirErroLogin("Erro de conexão ao realizar login.");
@@ -688,19 +687,20 @@ async function realizarLogin() {
 }
 
 function exibirErroLogin(mensagem) {
-    Swal.fire({
-        title: 'Acesso Negado',
-        text: mensagem,
-        icon: 'error',
-        confirmButtonColor: '#e74c3c',
-        confirmButtonText: 'TENTAR NOVAMENTE'
-    });
-    
-    // Animação de tremor no box de login
+    const errorDiv = document.getElementById('login-error');
     const loginBox = document.querySelector('.login-box');
+    
+    if (errorDiv) {
+        errorDiv.innerText = mensagem;
+        errorDiv.style.display = 'block';
+    } else {
+        mostrarToast(mensagem, "error");
+    }
+    
     if (loginBox) {
+        loginBox.classList.remove('shake');
+        void loginBox.offsetWidth; // Trigger reflow para reiniciar animação
         loginBox.classList.add('shake');
-        setTimeout(() => loginBox.classList.remove('shake'), 500);
     }
 }
 

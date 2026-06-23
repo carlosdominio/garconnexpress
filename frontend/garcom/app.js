@@ -520,9 +520,7 @@ async function realizarLogin() {
       if (data.token) localStorage.setItem('garcom_token', data.token); // Salva token
       location.reload();
     } else {
-      const errorData = await res.json().catch(() => ({}));
-      const msgErro = errorData.error || "Usuário ou senha incorretos";
-      await mostrarAlerta(msgErro, "Erro de Login", "❌");
+      await mostrarAlerta("Usuário ou senha incorretos", "Erro de Login", "❌");
       // Resetar Loading em caso de erro
       if (btnLogin) btnLogin.disabled = false;
       if (spinner) spinner.style.display = 'none';
