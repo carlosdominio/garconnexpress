@@ -117,9 +117,11 @@ const App = {
 
                     setTimeout(() => location.reload(), 2000);
                 } else {
+                    const errorData = await res.json().catch(() => ({}));
+                    const msgErro = errorData.error || 'Usuário ou senha incorretos. Verifique seus dados e tente novamente.';
                     Swal.fire({
                         title: 'Acesso Negado',
-                        text: 'Usuário ou senha incorretos. Verifique seus dados e tente novamente.',
+                        text: msgErro,
                         icon: 'error',
                         confirmButtonColor: '#e74c3c',
                         confirmButtonText: 'TENTAR NOVAMENTE',
