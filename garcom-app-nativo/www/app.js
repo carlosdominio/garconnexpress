@@ -519,6 +519,12 @@ async function realizarLogin() {
       localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
       if (data.token) localStorage.setItem('garcom_token', data.token); // Salva token
       location.reload();
+    } else if (res.status === 429) {
+      await mostrarAlerta("Muitas tentativas incorretas. Conta bloqueada por 15 minutos.", "Atenção (Segurança)", "🔒");
+      // Resetar Loading em caso de erro
+      if (btnLogin) btnLogin.disabled = false;
+      if (spinner) spinner.style.display = 'none';
+      if (btnText) btnText.textContent = 'Entrar';
     } else {
       await mostrarAlerta("Usuário ou senha incorretos", "Erro de Login", "❌");
       // Resetar Loading em caso de erro

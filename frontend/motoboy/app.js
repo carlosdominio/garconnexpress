@@ -117,6 +117,21 @@ const App = {
                     });
 
                     setTimeout(() => location.reload(), 2000);
+                } else if (res.status === 429) {
+                    Swal.fire({
+                        title: 'Sistema de Segurança',
+                        text: 'Muitas tentativas incorretas. Conta bloqueada por 15 minutos.',
+                        icon: 'warning',
+                        confirmButtonColor: '#e67e22',
+                        confirmButtonText: 'OK',
+                        customClass: {
+                            container: 'my-swal-container'
+                        }
+                    });
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = 'ENTRAR NO APP <i class="fas fa-arrow-right"></i>';
+                    }
                 } else {
                     console.log('❌ Login falhou: Resposta do servidor indicou falha.');
                     Swal.fire({

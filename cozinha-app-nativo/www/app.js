@@ -673,6 +673,16 @@ async function realizarLogin() {
             localStorage.setItem('cozinha_token', data.token);
             mostrarToast("Login realizado com sucesso!", "success");
             location.reload();
+        } else if (res.status === 429) {
+            Swal.fire({
+                title: 'Sistema de Segurança',
+                text: 'Muitas tentativas incorretas. Conta bloqueada por 15 minutos.',
+                icon: 'warning',
+                confirmButtonColor: '#e67e22',
+                confirmButtonText: 'OK'
+            });
+            if (btn) btn.disabled = false;
+            if (btnText) btnText.innerText = "Entrar";
         } else {
             exibirErroLogin("Usuário ou senha incorretos!");
             if (btn) btn.disabled = false;
