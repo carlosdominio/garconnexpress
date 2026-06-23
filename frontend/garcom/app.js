@@ -526,7 +526,7 @@ async function realizarLogin() {
       if (spinner) spinner.style.display = 'none';
       if (btnText) btnText.textContent = 'Entrar';
     } else {
-      await mostrarAlerta("Usuário ou senha incorretos", "Erro de Login", "❌");
+      await mostrarAlerta("Usuário ou senha incorretos.\n\nPor favor, verifique os dados digitados e tente novamente. Caso o erro persista, confirme suas credenciais com a gerência do restaurante.", "Acesso Negado", "❌");
       // Resetar Loading em caso de erro
       if (btnLogin) btnLogin.disabled = false;
       if (spinner) spinner.style.display = 'none';
