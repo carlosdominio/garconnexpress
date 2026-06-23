@@ -1410,7 +1410,7 @@ async function notifyDeliveryStatusToBot(number, status, pedidoId, tempo = null,
   }
 }
 
-app.put('/api/pedidos/:id/cozinha-pronto', async (req, res) => {
+app.put('/api/pedidos/:id/cozinha-pronto', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   try {
     // Marca todos os itens pendentes como 'pronto'
@@ -1717,7 +1717,7 @@ app.get('/api/pedidos', ensureDbInitialized, async (req, res) => {
   }
 });
 
-app.get('/api/pedidos/cozinha', ensureDbInitialized, async (req, res) => {
+app.get('/api/pedidos/cozinha', ensureDbInitialized, isAuthenticated, async (req, res) => {
   checkAndNotifyDelayedOrders();
   res.setHeader('X-Debug-Version', '1.0.3');
   try {
