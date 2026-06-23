@@ -619,6 +619,10 @@ function alternarSom() {
 }
 
 function tocarCampainha(suave = false) {
+  // Se o app estiver minimizado (segundo plano), não toca o som JS,
+  // pois o próprio Android já vai tocar o som da notificação FCM nativa.
+  if (document.hidden) return;
+
   if (somAtivo && audioDesbloqueado) {
     if (Date.now() - ultimoSomTocado < 2000) return; // Evita eco/duplicidade com FCM
     ultimoSomTocado = Date.now();
