@@ -710,6 +710,28 @@ function logout() {
     location.reload();
 }
 
+// Bateria (executa solto no boot nativo)
+(async () => {
+    if (isNativeApp) {
+        try {
+            const { BatteryOptimization } = Capacitor.Plugins;
+            if (BatteryOptimization) {
+                const { enabled } = await BatteryOptimization.isBatteryOptimizationEnabled();
+                if (enabled) {
+                    const userAgreed = confirm("Atenção à Bateria 🔋\n\nPara não perder pedidos com a tela desligada, o aplicativo pedirá permissão para rodar sem limites de bateria.\n\nPressione OK e depois escolha 'Permitir' na janela do celular.");
+                    if (userAgreed) {
+                        try {
+                            await BatteryOptimization.requestIgnoreBatteryOptimization();
+                        } catch(e) {
+                            await BatteryOptimization.openBatteryOptimizationSettings();
+                        }
+                    }
+                }
+            }
+        } catch(e) { console.warn('Aviso Bateria:', e); }
+    }
+})();
+
 function verificarSessao() {
     const logado = localStorage.getItem('cozinha_logado');
     const token = localStorage.getItem('cozinha_token');

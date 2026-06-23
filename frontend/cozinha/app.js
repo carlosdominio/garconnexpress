@@ -457,7 +457,7 @@ async function configurarPusher() {
             
             if (data && data.para_cozinha === true) {
                 const mesa = (data.pedido && data.pedido.mesa_numero) || data.mesa_numero || 'BALCÃO';
-                const labelMesa = String(mesa).toUpperCase().includes('DELIVERY') ? mesa : `Mesa ${mesa}`;
+                const labelMesa = mesa.includes('DELIVERY') ? mesa : `Mesa ${mesa}`;
                 mostrarToast(`🍳 NOVO PEDIDO: ${labelMesa}`);
                 exibirNotificacaoNativa(`🍳 NOVO PEDIDO: ${labelMesa}`, "Um novo pedido chegou para a cozinha!", `pedido-${data.pedido_id || 'novo'}`);
                 tocarSomNotificacao('campainha');
@@ -709,6 +709,28 @@ function logout() {
     localStorage.removeItem('cozinha_token');
     location.reload();
 }
+
+// Bateria (executa solto no boot nativo)
+(async () => {
+    if (isNativeApp) {
+        try {
+            const { BatteryOptimization } = Capacitor.Plugins;
+            if (BatteryOptimization) {
+                const { enabled } = await BatteryOptimization.isBatteryOptimizationEnabled();
+                if (enabled) {
+                    const userAgreed = confirm("Atenção à Bateria 🔋\n\nPara não perder pedidos com a tela desligada, o aplicativo pedirá permissão para rodar sem limites de bateria.\n\nPressione OK e depois escolha 'Permitir' na janela do celular.");
+                    if (userAgreed) {
+                        try {
+                            await BatteryOptimization.requestIgnoreBatteryOptimization();
+                        } catch(e) {
+                            await BatteryOptimization.openBatteryOptimizationSettings();
+                        }
+                    }
+                }
+            }
+        } catch(e) { console.warn('Aviso Bateria:', e); }
+    }
+})();
 
 function verificarSessao() {
     const logado = localStorage.getItem('cozinha_logado');
