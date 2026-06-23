@@ -1680,7 +1680,7 @@ app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, async (req, res) =
 
     const pedidoIds = pedidos.map(p => p.id).join(',');
     const itensRes = await query(`
-      SELECT pi.*, m.nome, m.preco, m.categoria, m.enviar_cozinha
+      SELECT pi.*, m.nome, m.preco, m.categoria, m.enviar_cozinha, m.imagem
       FROM pedido_itens pi
       JOIN menu m ON pi.menu_id = m.id
       WHERE pi.pedido_id IN (${pedidoIds})
@@ -1791,7 +1791,7 @@ app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, async (req, res
 
     // Busca itens e pagamentos de todos os pedidos de uma vez
     const [itensRes, pagamentosRes] = await Promise.all([
-      query(`SELECT pi.*, m.nome, m.preco FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id IN (${idList})`),
+      query(`SELECT pi.*, m.nome, m.preco, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id IN (${idList})`),
       query(`SELECT * FROM pagamentos WHERE pedido_id IN (${idList}) ORDER BY data ASC`)
     ]);
 
