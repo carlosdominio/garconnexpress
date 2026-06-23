@@ -457,7 +457,7 @@ async function configurarPusher() {
             
             if (data && data.para_cozinha === true) {
                 const mesa = (data.pedido && data.pedido.mesa_numero) || data.mesa_numero || 'BALCÃO';
-                const labelMesa = mesa.includes('DELIVERY') ? mesa : `Mesa ${mesa}`;
+                const labelMesa = String(mesa).toUpperCase().includes('DELIVERY') ? mesa : `Mesa ${mesa}`;
                 mostrarToast(`🍳 NOVO PEDIDO: ${labelMesa}`);
                 exibirNotificacaoNativa(`🍳 NOVO PEDIDO: ${labelMesa}`, "Um novo pedido chegou para a cozinha!", `pedido-${data.pedido_id || 'novo'}`);
                 tocarSomNotificacao('campainha');
