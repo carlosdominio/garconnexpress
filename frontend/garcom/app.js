@@ -499,6 +499,10 @@ async function realizarLogin() {
   const spinner = btnLogin ? btnLogin.querySelector('.spinner') : null;
   const btnText = document.getElementById('btn-login-text');
 
+  if (!usuario || !senha) {
+    return await mostrarAlerta("Por favor, preencha o usuário e a senha antes de entrar.", "Campos Vazios", "⚠️");
+  }
+
   if (!usuario || !senha) return await mostrarAlerta("Preencha todos os campos", "Aviso", "⚠️");
 
   // Ativar Loading

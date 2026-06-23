@@ -90,6 +90,17 @@ const App = {
             const senha = document.getElementById('login-pass').value;
             const btn = document.getElementById('btn-login-submit');
 
+            if (!usuario || !senha) {
+                Swal.fire({
+                    title: 'Atenção',
+                    text: 'Por favor, preencha todos os campos antes de entrar.',
+                    icon: 'warning',
+                    confirmButtonColor: '#e67e22',
+                    customClass: { container: 'my-swal-container' }
+                });
+                return;
+            }
+
             if (btn) {
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENTRANDO...';
