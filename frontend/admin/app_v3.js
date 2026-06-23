@@ -1581,6 +1581,13 @@ async function exibirMenuConfig() {
         opt.innerText = cat;
         selectFiltroCat.appendChild(opt);
       });
+      // Adiciona o filtro virtual de Produtos Vencidos no Dropdown
+      const optVencido = document.createElement('option');
+      optVencido.value = 'VENCIDOS';
+      optVencido.innerText = '⚠️ Produtos Vencidos';
+      optVencido.style.fontWeight = 'bold';
+      optVencido.style.color = '#e74c3c';
+      selectFiltroCat.appendChild(optVencido);
     }
 
     const hoje = new Date();
@@ -1594,7 +1601,17 @@ async function exibirMenuConfig() {
 
     const cardapioFiltrado = cardapio.filter(m => {
       const matchBusca = m.nome.toLowerCase().includes(termoBusca) || (m.descricao && m.descricao.toLowerCase().includes(termoBusca));
-      const matchCat = catSelecionada === '' || m.categoria.trim().toUpperCase() === catSelecionada;
+      
+      let matchCat = true;
+      if (catSelecionada === 'VENCIDOS') {
+         if (!m.validade) return false;
+         const dataVal = new Date(m.validade);
+         dataVal.setHours(0,0,0,0);
+         matchCat = dataVal < hoje;
+      } else if (catSelecionada !== '') {
+         matchCat = m.categoria.trim().toUpperCase() === catSelecionada;
+      }
+
       return matchBusca && matchCat;
     });
 

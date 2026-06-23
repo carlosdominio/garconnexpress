@@ -1,4 +1,5 @@
 const express = require('express');
+const helmet = require('helmet');
 // v1.0.1 - Deploy forçado para ativação do menu bot
 const path = require('path');
 // Carregamento condicional do SQLite para evitar erros no Vercel
@@ -108,6 +109,14 @@ try {
 }
 
 const app = express();
+app.set('trust proxy', 1); // Necessário para Rate Limit funcionar no Vercel/Render
+
+// Adiciona headers de segurança (desativando algumas políticas estritas para evitar quebra de imagens e recursos externos)
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: false
+}));
 
 // Middleware manual para garantir que OPTIONS responda sempre com sucesso e headers corretos
 app.use((req, res, next) => {
@@ -123,6 +132,23 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
+
+// Middleware de Sanitização Global (Anti-XSS) - Limpa todos os textos que o cliente envia
+const sanitizeHtml = require('sanitize-html');
+const sanitizePayload = (obj) => {
+  for (let key in obj) {
+    if (typeof obj[key] === 'string') {
+      obj[key] = sanitizeHtml(obj[key], { allowedTags: [], allowedAttributes: {} });
+    } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+      sanitizePayload(obj[key]);
+    }
+  }
+};
+app.use((req, res, next) => {
+  if (req.body) sanitizePayload(req.body);
+  if (req.query) sanitizePayload(req.query);
+  next();
+});
 app.use(cookieParser());
 
 // --- CONFIGURAÇÕES DE CARDAPIO E DELIVERY (CONTROLE INDEPENDENTE) ---
@@ -433,6 +459,42 @@ app.use((req, res, next) => {
 
 const JWT_SECRET = process.env.JWT_SECRET || 'seusegredomuitolouco123';
 const saltRounds = 10;
+
+const rateLimit = require('express-rate-limit');
+
+// Limitador Global (Anti-DDoS)
+const globalLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutos
+  max: 1000,
+  message: { error: 'Muitas requisições. Tente novamente mais tarde.' }
+});
+app.use('/api/', globalLimiter);
+
+// Limitador de Login (Anti-Força Bruta)
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 5,
+  message: { error: 'Muitas tentativas de login incorretas. Conta bloqueada por 15 minutos.' }
+});
+
+// Limitador de Pedidos (Anti-Spam Delivery)
+const orderLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutos
+  max: 5, // Limite de 5 pedidos a cada 10 min
+  skip: (req) => {
+    // Pula o rate limit se for garçom ou admin (eles não têm limite de lançar pedidos)
+    const token = req.cookies.admin_token || req.cookies.garcom_token || req.cookies.token || (req.headers.authorization && req.headers.authorization.split(' ')[1]);
+    if (token) {
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            if (decoded.role === 'admin' || decoded.role === 'garcom') return true;
+        } catch (e) { return false; }
+    }
+    return false;
+  },
+  message: { error: 'Você está fazendo pedidos rápido demais. Aguarde 10 minutos.' }
+});
+
 
 // INICIALIZAÇÃO DO PUSHER (Com as novas chaves do usuário)
 const pusherConfig = {
@@ -1874,7 +1936,7 @@ app.delete('/api/pedidos/:id', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.post('/api/pedidos', async (req, res) => {
+app.post('/api/pedidos', orderLimiter, async (req, res) => {
   const { mesa_id, garcom_id, itens, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, metodo_pagamento, valor_recebido, troco } = req.body;
   const deveCobrarTaxa = cobrar_taxa !== false;
   try {
@@ -2842,7 +2904,7 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
   }
 });
 
-app.post('/api/admin/login', async (req, res) => {
+app.post('/api/admin/login', loginLimiter, async (req, res) => {
   try {
     const { usuario, senha } = req.body;
     const result = await query('SELECT id, usuario, senha FROM usuarios_admin WHERE usuario = ?', [usuario]);
@@ -2850,14 +2912,14 @@ app.post('/api/admin/login', async (req, res) => {
       const admin = result.rows[0];
       delete admin.senha;
       
-      const token = jwt.sign({ id: admin.id, usuario: admin.usuario, role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
+      const token = jwt.sign({ id: admin.id, usuario: admin.usuario, role: 'admin' }, JWT_SECRET, { expiresIn: '2h' });
       
       const isProd = process.env.NODE_ENV === 'production';
       res.cookie('admin_token', token, {
         httpOnly: true,
         secure: isProd,
         sameSite: isProd ? 'none' : 'lax',
-        maxAge: 1000 * 60 * 60 * 24 * 7 // 7 dias
+        maxAge: 1000 * 60 * 60 * 2 // 2 horas
       });
       
       res.json({ success: true, admin, token }); 
@@ -2866,7 +2928,7 @@ app.post('/api/admin/login', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', loginLimiter, async (req, res) => {
   try {
     const { usuario, senha } = req.body;
     const result = await query('SELECT id, nome, usuario, senha FROM garcons WHERE usuario = ?', [usuario]);
@@ -2874,7 +2936,7 @@ app.post('/api/login', async (req, res) => {
       const garcom = result.rows[0];
       delete garcom.senha;
       
-      const token = jwt.sign({ id: garcom.id, nome: garcom.nome, usuario: garcom.usuario, role: 'garcom' }, JWT_SECRET, { expiresIn: '7d' });
+      const token = jwt.sign({ id: garcom.id, nome: garcom.nome, usuario: garcom.usuario, role: 'garcom' }, JWT_SECRET, { expiresIn: '16h' });
       
       // Define garçom como ONLINE para o rodízio
       const agora = new Date().toISOString();
@@ -2885,7 +2947,7 @@ app.post('/api/login', async (req, res) => {
         httpOnly: true,
         secure: isProd,
         sameSite: isProd ? 'none' : 'lax',
-        maxAge: 1000 * 60 * 60 * 24 * 7 // 7 dias
+        maxAge: 1000 * 60 * 60 * 16 // 16 horas
       });
 
       res.json({ success: true, garcom, token }); 
@@ -3040,7 +3102,7 @@ app.post('/api/acesso/qr', async (req, res) => {
       acesso_id: acesso.id,
       pedido_id: pedidoAtivo ? pedidoAtivo.id : null,
       role: 'cliente' 
-    }, JWT_SECRET, { expiresIn: '6h' });
+    }, JWT_SECRET, { expiresIn: '30d' });
 
     res.json({ 
       success: true,
@@ -3088,7 +3150,7 @@ app.post('/api/acesso/validar', async (req, res) => {
       acesso_id: acesso.id,
       pedido_id: pedidoAtivo ? pedidoAtivo.id : null,
       role: 'cliente' 
-    }, JWT_SECRET, { expiresIn: '6h' });
+    }, JWT_SECRET, { expiresIn: '30d' });
 
     res.json({ 
       success: true,
