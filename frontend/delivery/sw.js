@@ -16,7 +16,7 @@ self.addEventListener('fetch', event => {
     caches.match(event.request).then(response => {
       if (response) return response;
       return fetch(event.request).catch(() => {
-        // Fallback or ignore
+        return new Response("Offline ou erro de rede", { status: 503, statusText: "Service Unavailable" });
       });
     })
   );
