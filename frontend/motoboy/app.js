@@ -17,7 +17,20 @@ const App = {
     },
 
     async init() {
-        console.log('🛵 Inicializando Motoboy App v2.0.3...');
+        console.log('🚀 Inicializando Motoboy App v2.0.3...');
+
+        // VERIFICA OTIMIZAÇÃO DE BATERIA (Evita suspensão do Pusher e FCM)
+        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+            try {
+                const { AndroidBatteryOptimization } = Capacitor.Plugins;
+                if (AndroidBatteryOptimization) {
+                    const { isIgnoringBatteryOptimizations } = await AndroidBatteryOptimization.isIgnoringBatteryOptimizations();
+                    if (!isIgnoringBatteryOptimizations) {
+                        await AndroidBatteryOptimization.requestIgnoreBatteryOptimization();
+                    }
+                }
+            } catch(e) { console.warn('Aviso Bateria:', e); }
+        }
         
         if (!this.checkAuth()) return;
 

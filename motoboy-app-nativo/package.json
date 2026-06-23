@@ -16,7 +16,8 @@
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/local-notifications": "^8.2.0",
     "@capacitor/push-notifications": "^8.1.1",
-    "@capacitor/status-bar": "^8.0.2"
+    "@capacitor/status-bar": "^8.0.2",
+    "@capawesome-team/capacitor-android-battery-optimization": "^8.0.1"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.6",
