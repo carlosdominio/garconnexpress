@@ -718,14 +718,22 @@ function logout() {
             if (BatteryOptimization) {
                 const { enabled } = await BatteryOptimization.isBatteryOptimizationEnabled();
                 if (enabled) {
-                    const userAgreed = confirm("Atenção à Bateria 🔋\n\nPara não perder pedidos com a tela desligada, o aplicativo pedirá permissão para rodar sem limites de bateria.\n\nPressione OK e depois escolha 'Permitir' na janela do celular.");
-                    if (userAgreed) {
-                        try {
-                            await BatteryOptimization.requestIgnoreBatteryOptimization();
-                        } catch(e) {
-                            await BatteryOptimization.openBatteryOptimizationSettings();
+                    Swal.fire({
+                        title: 'Atenção à Bateria 🔋',
+                        text: 'Para não perder pedidos com a tela desligada, o aplicativo não pode sofrer economia de energia. Clique abaixo e permita ignorar as otimizações.',
+                        icon: 'warning',
+                        confirmButtonText: 'CONFIGURAR BATERIA',
+                        confirmButtonColor: '#e67e22',
+                        allowOutsideClick: false
+                    }).then(async (result) => {
+                        if (result.isConfirmed) {
+                            try {
+                                await BatteryOptimization.requestIgnoreBatteryOptimization();
+                            } catch(e) {
+                                await BatteryOptimization.openBatteryOptimizationSettings();
+                            }
                         }
-                    }
+                    });
                 }
             }
         } catch(e) { console.warn('Aviso Bateria:', e); }
