@@ -289,6 +289,7 @@ const App = {
         },
 
         playAlert() {
+            if (document.hidden) return; // Evita conflito com som nativo em segundo plano
             if (!App.state.soundEnabled) return;
             this.audio.play().catch(e => console.log('Áudio bloqueado:', e));
         },
