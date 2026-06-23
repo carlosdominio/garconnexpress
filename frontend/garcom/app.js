@@ -112,8 +112,11 @@ async function registerNativePush() {
       
       // Tenta tocar o som manualmente se estiver em primeiro plano
       try {
-        const audio = new Audio('notificacao.mp3');
-        await audio.play();
+        if (Date.now() - ultimoSomTocado > 2000) {
+          ultimoSomTocado = Date.now();
+          const audio = new Audio('notificacao.mp3');
+          await audio.play();
+        }
       } catch (e) { console.error("Erro ao tocar áudio foreground:", e); }
 
       // Vibração Nativa (Haptics)
@@ -591,6 +594,7 @@ async function atualizarStatusCaixa() {
 
 let somAtivo = localStorage.getItem('garcom_som_ativo') !== 'false';
 let audioDesbloqueado = false;
+let ultimoSomTocado = 0;
 const audioNotificacao = new Audio('/notificacao.mp3');
 
 function atualizarIconeSom() {
@@ -616,6 +620,8 @@ function alternarSom() {
 
 function tocarCampainha(suave = false) {
   if (somAtivo && audioDesbloqueado) {
+    if (Date.now() - ultimoSomTocado < 2000) return; // Evita eco/duplicidade com FCM
+    ultimoSomTocado = Date.now();
     audioNotificacao.volume = suave ? 0.4 : 1.0;
     audioNotificacao.currentTime = 0;
     audioNotificacao.play().catch(e => console.warn('Erro ao tocar áudio:', e));
