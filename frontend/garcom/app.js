@@ -27,22 +27,12 @@ document.addEventListener('DOMContentLoaded', async () => {
          if (BatteryOptimization) {
              const { enabled } = await BatteryOptimization.isBatteryOptimizationEnabled();
              if (enabled) {
-                 Swal.fire({
-                     title: 'Atenção à Bateria 🔋',
-                     text: 'Para não perder pedidos com a tela desligada, o aplicativo não pode sofrer economia de energia. Clique abaixo e permita ignorar as otimizações.',
-                     icon: 'warning',
-                     confirmButtonText: 'CONFIGURAR BATERIA',
-                     confirmButtonColor: '#e67e22',
-                     allowOutsideClick: false
-                 }).then(async (result) => {
-                     if (result.isConfirmed) {
-                         try {
-                             await BatteryOptimization.requestIgnoreBatteryOptimization();
-                         } catch(e) {
-                             await BatteryOptimization.openBatteryOptimizationSettings();
-                         }
-                     }
-                 });
+                 await mostrarAlerta("Para não perder pedidos com a tela desligada, o aplicativo pedirá permissão para rodar sem limites de bateria. Pressione Fechar e depois escolha 'Permitir' na janela do celular.", "Atenção à Bateria", "🔋");
+                 try {
+                     await BatteryOptimization.requestIgnoreBatteryOptimization();
+                 } catch(e) {
+                     await BatteryOptimization.openBatteryOptimizationSettings();
+                 }
              }
          }
      } catch(e) { console.warn('Aviso Bateria:', e); }
