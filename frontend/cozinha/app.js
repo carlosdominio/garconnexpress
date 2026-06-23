@@ -684,7 +684,7 @@ async function realizarLogin() {
             if (btn) btn.disabled = false;
             if (btnText) btnText.innerText = "Entrar";
         } else {
-            exibirErroLogin("Usuário ou senha incorretos!");
+            exibirErroLogin("Usuário ou senha incorretos.\n\nPor favor, verifique os dados digitados e tente novamente. Caso o erro persista, confirme suas credenciais com a gerência.");
             if (btn) btn.disabled = false;
             if (btnText) btnText.innerText = "Entrar";
         }
@@ -697,21 +697,13 @@ async function realizarLogin() {
 }
 
 function exibirErroLogin(mensagem) {
-    const errorDiv = document.getElementById('login-error');
-    const loginBox = document.querySelector('.login-box');
-    
-    if (errorDiv) {
-        errorDiv.innerText = mensagem;
-        errorDiv.style.display = 'block';
-    } else {
-        mostrarToast(mensagem, "error");
-    }
-    
-    if (loginBox) {
-        loginBox.classList.remove('shake');
-        void loginBox.offsetWidth; // Trigger reflow para reiniciar animação
-        loginBox.classList.add('shake');
-    }
+    Swal.fire({
+        title: 'Acesso Negado',
+        text: mensagem,
+        icon: 'error',
+        confirmButtonColor: '#e74c3c',
+        confirmButtonText: 'Tentar Novamente'
+    });
 }
 
 function logout() {
