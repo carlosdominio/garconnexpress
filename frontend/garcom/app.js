@@ -776,7 +776,6 @@ async function configurarPusher() {
       console.log('📢 Evento recebido: chamado-garcom', data);
       tocarCampainha();
       mostrarAlerta(data.mensagem, "🛎️ CHAMADO DE CLIENTE", "🛎️");
-      exibirNotificacaoNativa("🛎️ CHAMADO DE CLIENTE", data.mensagem, `chamado-${data.mesa_id}`);
     });
 
     channel.bind('menu-atualizado', (data) => {
@@ -789,14 +788,12 @@ async function configurarPusher() {
       console.log('📢 Evento recebido: rascunho-recebido', data);
       tocarCampainha();
       mostrarRascunho(data);
-      exibirNotificacaoNativa("📝 RASCUNHO RECEBIDO", `Mesa ${data.mesa_numero} enviou itens para o carrinho.`, `rascunho-${data.mesa_id}`);
     });
 
     channel.bind('solicitacao-fechamento-cliente', (data) => {
       console.log('📢 Evento recebido: solicitacao-fechamento-cliente', data);
       tocarCampainha();
       mostrarAlerta(data.mensagem, "🙋‍♂️ SOLICITAÇÃO DE FECHAMENTO", "💰");
-      exibirNotificacaoNativa("💰 SOLICITAÇÃO DE FECHAMENTO", data.mensagem, `fechamento-${data.mesa_id}`);
       
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => carregarMesas(), 50);
