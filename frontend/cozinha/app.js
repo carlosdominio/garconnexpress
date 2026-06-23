@@ -661,23 +661,24 @@ async function realizarLogin() {
         }
         
         // Se falhar como admin, tenta como garçom
-        res = await fetch('/api/login', {
+        const response = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ usuario, senha })
         });
-        
-        if (res.ok) {
-            data = await res.json();
+
+        if (response.ok) {
+            const data = await response.json();
             localStorage.setItem('cozinha_logado', 'true');
-            localStorage.setItem('cozinha_token', data.token);
-            mostrarToast("Login realizado com sucesso!", "success");
+            if (data.token) localStorage.setItem('cozinha_token', data.token); // Usa o token de admin provisoriamente
+            if (btn) btn.disabled = false;
             location.reload();
         } else {
-            exibirErroLogin("Usuário ou senha incorretos!");
+            const errorData = await response.json().catch(() => ({}));
+            const msgErro = errorData.error || "Usuário ou senha incorretos!";
+            exibirErroLogin(msgErro);
             if (btn) btn.disabled = false;
-            if (btnText) btnText.innerText = "Entrar";
-        }
+        }    if (btnText) btnText.innerText = "Entrar";
     } catch (e) {
         console.error(e);
         exibirErroLogin("Erro de conexão ao realizar login.");

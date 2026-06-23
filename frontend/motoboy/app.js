@@ -102,9 +102,8 @@ const App = {
                     body: JSON.stringify({ usuario, senha })
                 });
 
-                const data = await res.json();
-
-                if (data.success) {
+                if (res.ok) {
+                    const data = await res.json();
                     localStorage.setItem('motoboy_token', data.token);
                     localStorage.setItem('motoboy_user', JSON.stringify(data.garcom));
                     
@@ -118,7 +117,6 @@ const App = {
 
                     setTimeout(() => location.reload(), 2000);
                 } else {
-                    console.log('❌ Login falhou: Resposta do servidor indicou falha.');
                     Swal.fire({
                         title: 'Acesso Negado',
                         text: 'Usuário ou senha incorretos. Verifique seus dados e tente novamente.',
