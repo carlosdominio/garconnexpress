@@ -1460,6 +1460,7 @@ function abrirCardapio() {
   exibirResumoPedido();
   exibirMenu('todas');
 }
+
 function toggleCarrinho() {
   const modal = document.getElementById('modal-carrinho');
   if (!modal) return;
@@ -1485,6 +1486,7 @@ function voltarParaMesas() {
         document.getElementById('pedido').classList.add('hidden');
         document.getElementById('mesas').classList.remove('hidden');
         document.getElementById('btn-header-mesas').style.display = 'none';
+        document.getElementById('modal-carrinho').style.display = 'none';
         pedidoAtual = [];
         mesaAtual = null;
         pedidoAbertoNaMesa = null;
