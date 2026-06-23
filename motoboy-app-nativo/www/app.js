@@ -22,11 +22,26 @@ const App = {
         // VERIFICA OTIMIZAÇÃO DE BATERIA (Evita suspensão do Pusher e FCM)
         if (window.Capacitor && window.Capacitor.isNativePlatform()) {
             try {
-                const { AndroidBatteryOptimization } = Capacitor.Plugins;
-                if (AndroidBatteryOptimization) {
-                    const { isIgnoringBatteryOptimizations } = await AndroidBatteryOptimization.isIgnoringBatteryOptimizations();
-                    if (!isIgnoringBatteryOptimizations) {
-                        await AndroidBatteryOptimization.requestIgnoreBatteryOptimization();
+                const { BatteryOptimization } = Capacitor.Plugins;
+                if (BatteryOptimization) {
+                    const { enabled } = await BatteryOptimization.isBatteryOptimizationEnabled();
+                    if (enabled) {
+                        Swal.fire({
+                            title: 'Atenção à Bateria 🔋',
+                            text: 'Para não perder nenhum pedido com a tela desligada, o aplicativo não pode sofrer economia de energia. Clique abaixo e permita ignorar as otimizações.',
+                            icon: 'warning',
+                            confirmButtonText: 'CONFIGURAR BATERIA',
+                            confirmButtonColor: '#e67e22',
+                            allowOutsideClick: false
+                        }).then(async (result) => {
+                            if (result.isConfirmed) {
+                                try {
+                                    await BatteryOptimization.requestIgnoreBatteryOptimization();
+                                } catch(e) {
+                                    await BatteryOptimization.openBatteryOptimizationSettings();
+                                }
+                            }
+                        });
                     }
                 }
             } catch(e) { console.warn('Aviso Bateria:', e); }
