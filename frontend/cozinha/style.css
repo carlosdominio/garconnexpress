@@ -672,3 +672,7 @@ input:checked + .slider:before {
     animation: errorShake 0.5s cubic-bezier(.36,.07,.19,.97) both;
 }
 
+
+/* Fix Modal Swal2 Z-Index */
+.swal2-container { z-index: 999999 !important; }
+
