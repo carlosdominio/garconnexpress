@@ -681,7 +681,12 @@ async function safePusherTrigger(channel, event, data) {
           targets.push({ app: 'cozinha', title: caixaTitulo, msg: pushMsg });
           targets.push({ app: 'motoboy', title: caixaTitulo, msg: pushMsg });
         } else if (isDelivery) {
-          targets.push({ app: 'motoboy', title: 'Delivery Express', msg: pushMsg });
+          if (event === 'pedido-cancelado' && enviaCozinha) {
+             // Se for cancelamento de delivery E tem item de cozinha, NÃO envia push pro motoboy.
+             // A notificação de cancelamento vai apenas para a cozinha (configurado abaixo).
+          } else {
+            targets.push({ app: 'motoboy', title: 'Delivery Express', msg: pushMsg });
+          }
         } else {
           targets.push({ app: 'garcom', title: 'GarçomExpress', msg: pushMsg });
         }

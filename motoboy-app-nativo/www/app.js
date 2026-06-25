@@ -444,6 +444,7 @@ const App = {
                 this.channel.bind('pedido-cancelado', (data) => {
                     const pId = String(data.pedido_id || data.id || (data.pedido ? data.pedido.id : '') || '');
                     if (String(data.garcom_id) !== 'DELIVERY' && !(data.pedido && String(data.pedido.garcom_id) === 'DELIVERY')) return;
+                    if (data.para_cozinha === true) return; // Cozinha já vai lidar com o cancelamento
                     App.loadPedidos();
                     if (pId) {
                         App.notifications.showLocal(`❌ PEDIDO REMOVIDO`, `O pedido #${pId} foi cancelado.`, `cancelado_${pId}`);
