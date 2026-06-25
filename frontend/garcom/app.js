@@ -2173,7 +2173,7 @@ function adicionarNotificacaoPainel(mensagem, titulo, tipo) {
   historicoNotificacoes.unshift({
     id: Date.now(),
     mensagem: mensagem,
-    titulo: titulo || 'Notifica��o',
+    titulo: titulo || 'Notificação',
     tipo: tipo,
     hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   });
@@ -2197,7 +2197,7 @@ function renderizarListaNotificacoes() {
   const lista = document.getElementById('lista-notificacoes');
   if (!lista) return;
   if (historicoNotificacoes.length === 0) {
-    lista.innerHTML = '<div id="notificacao-vazia" style="text-align: center; color: #7f8c8d; padding: 20px 0; font-size: 0.9rem;">Nenhuma nova notifica��o.</div>';
+    lista.innerHTML = '<div id="notificacao-vazia" style="text-align: center; color: #7f8c8d; padding: 20px 0; font-size: 0.9rem;">Nenhuma nova notificação.</div>';
     return;
   }
   

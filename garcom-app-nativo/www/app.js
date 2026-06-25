@@ -2267,7 +2267,7 @@ function renderizarListaNotificacoes() {
   const lista = document.getElementById('lista-notificacoes');
   if (!lista) return;
   if (historicoNotificacoes.length === 0) {
-    lista.innerHTML = '<div id="notificacao-vazia" style="text-align: center; color: #7f8c8d; padding: 20px 0; font-size: 0.9rem;">Nenhuma nova notifica��o.</div>';
+    lista.innerHTML = '<div id="notificacao-vazia" style="text-align: center; color: #7f8c8d; padding: 20px 0; font-size: 0.9rem;">Nenhuma nova notificação.</div>';
     return;
   }
   
