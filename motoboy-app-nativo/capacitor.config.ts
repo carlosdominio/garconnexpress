@@ -5,6 +5,8 @@ const config: CapacitorConfig = {
   appName: 'Motoboy Express',
   webDir: 'www',
   server: {
+    url: 'https://garconnexpress.vercel.app/app-motoboy',
+    cleartext: true,
     androidScheme: 'https'
   },
   plugins: {
@@ -18,6 +20,15 @@ const config: CapacitorConfig = {
       smallIcon: "ic_stat_notification",
       iconColor: "#488AFF",
       sound: "notificacao.mp3"
+    },
+    SplashScreen: {
+      launchShowDuration: 4000,
+      launchAutoHide: true,
+      backgroundColor: "#f1f2f6",
+      androidSplashResourceName: "splash",
+      showSpinner: true,
+      androidSpinnerStyle: "large",
+      spinnerColor: "#e74c3c"
     }
   }
 };

@@ -75,6 +75,9 @@ const App = {
 
         setTimeout(() => {
             if (ov) ov.classList.add('hidden');
+            if (window.Capacitor && window.Capacitor.Plugins.SplashScreen) {
+                window.Capacitor.Plugins.SplashScreen.hide();
+            }
         }, 600);
     },
 
@@ -85,6 +88,9 @@ const App = {
             if (screen) screen.style.display = 'flex';
             document.body.style.overflow = 'hidden';
             if (ov) ov.classList.add('hidden'); // Esconde o loading para mostrar o login
+            if (window.Capacitor && window.Capacitor.Plugins.SplashScreen) {
+                window.Capacitor.Plugins.SplashScreen.hide();
+            }
             this.setupLoginForm();
             return false;
         }
