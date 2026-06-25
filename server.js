@@ -1286,6 +1286,19 @@ app.use(express.static(path.join(__dirname, 'frontend'), {
     }
   }
 }));
+
+const noCacheHeaders = {
+  setHeaders: (res, path) => {
+    if (path.endsWith('.html') || path.endsWith('.js') || path.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+};
+app.use('/app-motoboy', express.static(path.join(__dirname, 'motoboy-app-nativo', 'www'), noCacheHeaders));
+app.use('/app-cozinha', express.static(path.join(__dirname, 'cozinha-app-nativo', 'www'), noCacheHeaders));
+app.use('/app-garcom', express.static(path.join(__dirname, 'garcom-app-nativo', 'www'), noCacheHeaders));
 app.get('/', (req, res) => res.redirect('/garcom'));
 app.get('/garcom', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'garcom', 'index.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'admin', 'index.html')));

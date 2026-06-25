@@ -14,5 +14,9 @@
       "iconColor": "#27ae60",
       "sound": "notificacao.mp3"
     }
+  },
+  "server": {
+    "url": "https://garconnexpress.vercel.app/app-garcom",
+    "cleartext": true
   }
 }

@@ -3,6 +3,8 @@
   "appName": "CozinhaExpress",
   "webDir": "www",
   "server": {
+    "url": "https://garconnexpress.vercel.app/app-cozinha",
+    "cleartext": true,
     "androidScheme": "https"
   },
   "plugins": {
