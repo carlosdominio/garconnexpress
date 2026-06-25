@@ -2207,13 +2207,13 @@ function renderizarListaNotificacoes() {
     if (notif.tipo === 'error' || notif.tipo === 'erro') corBorda = '#e74c3c';
     if (notif.tipo === 'warning') corBorda = '#f1c40f';
     
-    return \<div style=\"background: white; border-left: 4px solid \; padding: 10px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 4px;\">
-      <div style=\"display: flex; justify-content: space-between; align-items: center;\">
-        <strong style=\"font-size: 0.85rem; color: #2c3e50;\">\</strong>
-        <span style=\"font-size: 0.7rem; color: #95a5a6;\">\</span>
+    return `<div style="background: white; border-left: 4px solid ${corBorda}; padding: 10px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 4px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <strong style="font-size: 0.85rem; color: #2c3e50;">${notif.titulo}</strong>
+        <span style="font-size: 0.7rem; color: #95a5a6;">${notif.hora}</span>
       </div>
-      <span style=\"font-size: 0.85rem; color: #555;\">\</span>
-    </div>\;
+      <span style="font-size: 0.85rem; color: #555;">${notif.mensagem}</span>
+    </div>`;
   }).join('');
 }
 
