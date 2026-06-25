@@ -2305,3 +2305,17 @@ function limparNotificacoes() {
   document.getElementById('painel-notificacoes').style.display = 'none';
 }
 
+
+
+// --- FECHAR PAINEL AO CLICAR FORA ---
+document.addEventListener('click', function(event) {
+    const painel = document.getElementById('painel-notificacoes');
+    if (!painel || painel.style.display === 'none') return;
+    
+    if (!painel.contains(event.target)) {
+        const clicouNoSino = event.target.closest('[onclick*="togglePainelNotificacoes"]');
+        if (!clicouNoSino) {
+            painel.style.display = 'none';
+        }
+    }
+});

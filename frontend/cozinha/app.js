@@ -863,3 +863,17 @@ document.addEventListener('click', () => {
         console.log('🔊 Áudio preparado!');
     }).catch(e => console.log('Erro ao preparar áudio:', e));
 }, { once: true });
+
+
+// --- FECHAR PAINEL AO CLICAR FORA ---
+document.addEventListener('click', function(event) {
+    const painel = document.getElementById('painel-notificacoes');
+    if (!painel || painel.style.display === 'none') return;
+    
+    if (!painel.contains(event.target)) {
+        const clicouNoSino = event.target.closest('[onclick*="togglePainelNotificacoes"]');
+        if (!clicouNoSino) {
+            painel.style.display = 'none';
+        }
+    }
+});
