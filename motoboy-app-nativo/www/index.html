@@ -11,8 +11,35 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800;900&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        .loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+            z-index: 2147483647; display: flex; align-items: center; justify-content: center;
+        }
+        .loading-overlay.hidden { display: none !important; }
+        .loading-content { text-align: center; display: flex; flex-direction: column; align-items: center; }
+        .spinner-motoboy {
+            width: 60px; height: 60px;
+            border: 6px solid #fdf2e9; border-top-color: #e67e22; border-radius: 50%;
+            animation: spinMotoboy 1s linear infinite; margin-bottom: 15px;
+        }
+        @keyframes spinMotoboy {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body>
+    <!-- Tela de Carregamento -->
+    <div id="loading-app" class="loading-overlay hidden">
+        <div class="loading-content">
+            <div class="spinner-motoboy"></div>
+            <h3 id="loading-text" style="color: #2c3e50; font-size: 1.2rem; font-weight: 800; margin: 0;">Carregando...</h3>
+        </div>
+    </div>
+    
     <header>
         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 500px; margin: 0 auto; height: 100%;">
             <h1 style="margin: 0; font-size: 1.2rem; margin-left: 10px;"><i class="fas fa-shipping-fast"></i> MOTOBOY PRO</h1>
@@ -81,6 +108,22 @@
         </div>
         <div id="container-entregues" class="pedidos-container"></div>
     </main>
+
+    <!-- Modal de Alerta de Cancelamento -->
+    <div id="modal-cancelamento" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-icon">🚨</span>
+                <h2>PEDIDO CANCELADO!</h2>
+            </div>
+            <div id="modal-mensagem" class="modal-body">
+                O pedido foi cancelado pelo administrador.
+            </div>
+            <div class="modal-footer">
+                <button onclick="document.getElementById('modal-cancelamento').classList.remove('active')" class="btn-fechar-modal">ENTENDIDO</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Scripts -->
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>

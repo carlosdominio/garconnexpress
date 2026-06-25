@@ -18,6 +18,13 @@ const App = {
 
     async init() {
         console.log('🚀 Inicializando Motoboy App v2.0.3...');
+        
+        const ov = document.getElementById('loading-app');
+        const ovMsg = document.getElementById('loading-text');
+        if (ov && ovMsg) {
+            ov.classList.remove('hidden');
+            ovMsg.textContent = 'Sincronizando entregas...';
+        }
 
         // VERIFICA OTIMIZAÇÃO DE BATERIA (Evita suspensão do Pusher e FCM)
         if (window.Capacitor && window.Capacitor.isNativePlatform()) {
@@ -65,13 +72,19 @@ const App = {
         if (!localStorage.getItem('audio_unlocked')) {
             this.ui.requestAudioUnlock();
         }
+
+        setTimeout(() => {
+            if (ov) ov.classList.add('hidden');
+        }, 600);
     },
 
     checkAuth() {
         const screen = document.getElementById('login-screen');
+        const ov = document.getElementById('loading-app');
         if (!this.state.token) {
             if (screen) screen.style.display = 'flex';
             document.body.style.overflow = 'hidden';
+            if (ov) ov.classList.add('hidden'); // Esconde o loading para mostrar o login
             this.setupLoginForm();
             return false;
         }
@@ -90,23 +103,22 @@ const App = {
             const senha = document.getElementById('login-pass').value;
             const btn = document.getElementById('btn-login-submit');
 
-            if (!usuario || !senha) {
-                Swal.fire({
-                    title: 'Atenção',
-                    text: 'Por favor, preencha todos os campos antes de entrar.',
-                    icon: 'warning',
-                    confirmButtonColor: '#e67e22',
-                    customClass: { container: 'my-swal-container' }
-                });
-                return;
-            }
-
             if (btn) {
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENTRANDO...';
             }
 
-            try {
+            const ov = document.getElementById('loading-app');
+            const ovMsg = document.getElementById('loading-text');
+            if (ov && ovMsg) {
+                ov.classList.remove('hidden');
+                ovMsg.textContent = 'Entrando...';
+            }
+
+            // Atraso de 600ms para a tela de carregamento aparecer
+            setTimeout(async () => {
+                try {
+
                 const res = await fetch(`${API_BASE_URL}/api/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -119,31 +131,25 @@ const App = {
                     localStorage.setItem('motoboy_token', data.token);
                     localStorage.setItem('motoboy_user', JSON.stringify(data.garcom));
                     
-                    Swal.fire({
-                        title: 'Acesso Autorizado',
-                        text: `Olá ${data.garcom.nome}, bom trabalho!`,
-                        icon: 'success',
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
+                    if (ovMsg) ovMsg.textContent = 'Carregando entregas do sistema...';
+                    setTimeout(() => location.reload(), 400);
 
-                    setTimeout(() => location.reload(), 2000);
                 } else if (res.status === 429) {
+                    if (ov) ov.classList.add('hidden');
                     Swal.fire({
                         title: 'Sistema de Segurança',
                         text: 'Muitas tentativas incorretas. Conta bloqueada por 15 minutos.',
                         icon: 'warning',
                         confirmButtonColor: '#e67e22',
                         confirmButtonText: 'OK',
-                        customClass: {
-                            container: 'my-swal-container'
-                        }
+                        customClass: { container: 'my-swal-container' }
                     });
                     if (btn) {
                         btn.disabled = false;
                         btn.innerHTML = 'ENTRAR NO APP <i class="fas fa-arrow-right"></i>';
                     }
                 } else {
+                    if (ov) ov.classList.add('hidden');
                     console.log('❌ Login falhou: Resposta do servidor indicou falha.');
                     Swal.fire({
                         title: 'Acesso Negado',
@@ -151,9 +157,7 @@ const App = {
                         icon: 'error',
                         confirmButtonColor: '#e74c3c',
                         confirmButtonText: 'TENTAR NOVAMENTE',
-                        customClass: {
-                            container: 'my-swal-container'
-                        }
+                        customClass: { container: 'my-swal-container' }
                     });
                     if (btn) {
                         btn.disabled = false;
@@ -161,21 +165,21 @@ const App = {
                     }
                 }
             } catch (err) {
+                if (ov) ov.classList.add('hidden');
                 console.error('❌ Erro na requisição de login (catch block):', err);
                 Swal.fire({
                     title: 'Erro de Conexão',
                     text: 'Não foi possível conectar ao servidor. Verifique sua internet.',
                     icon: 'warning',
                     confirmButtonText: 'OK',
-                    customClass: {
-                        container: 'my-swal-container'
-                    }
+                    customClass: { container: 'my-swal-container' }
                 });
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = 'ENTRAR NO APP <i class="fas fa-arrow-right"></i>';
                 }
             }
+            }, 600); // fim setTimeout login
         };
     },
 
@@ -225,9 +229,18 @@ const App = {
         });
 
         if (isConfirmed) {
-            localStorage.removeItem('motoboy_token');
-            localStorage.removeItem('motoboy_user');
-            location.reload();
+            const ov = document.getElementById('loading-app');
+            const ovMsg = document.getElementById('loading-text');
+            if (ov && ovMsg) {
+                ov.classList.remove('hidden');
+                ovMsg.textContent = 'Saindo da conta...';
+            }
+            
+            setTimeout(() => {
+                localStorage.removeItem('motoboy_token');
+                localStorage.removeItem('motoboy_user');
+                location.reload();
+            }, 500);
         }
     },
 
@@ -259,7 +272,11 @@ const App = {
 
             // Limpa ao voltar para primeiro plano OU ao ir para segundo plano (ao sair do app)
             document.addEventListener('visibilitychange', async () => {
-                if (document.visibilityState === 'visible' || document.visibilityState === 'hidden') {
+                if (document.visibilityState === 'visible') {
+                    await this.clearNotifications();
+                    // Sincroniza o status do caixa ao voltar ao primeiro plano
+                    App.checkCaixaStatus();
+                } else if (document.visibilityState === 'hidden') {
                     await this.clearNotifications();
                 }
             });
@@ -287,6 +304,13 @@ const App = {
             });
 
             PushNotifications.addListener('pushNotificationReceived', (notification) => {
+                // Se for um evento de caixa, atualiza o status imediatamente
+                if (notification.data && notification.data.event === 'status-caixa-atualizado') {
+                    console.log('📲 [FCM Background] Caixa atualizado (Motoboy):', notification.data);
+                    App.checkCaixaStatus();
+                    return;
+                }
+
                 App.loadPedidos();
                 const pId = String(notification.data?.pedido_id || '');
                 const status = String(notification.data?.status || '');
@@ -313,6 +337,11 @@ const App = {
 
             PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
                 console.log('Push action performed:', notification);
+                // Se clicou em notificação de caixa, sincroniza
+                if (notification.notification && notification.notification.data && notification.notification.data.event === 'status-caixa-atualizado') {
+                    App.checkCaixaStatus();
+                    return;
+                }
                 App.loadPedidos();
             });
         },
@@ -406,6 +435,13 @@ const App = {
                     App.loadPedidos();
                     if (pId) {
                         App.notifications.showLocal(`❌ PEDIDO REMOVIDO`, `O pedido #${pId} foi cancelado.`, `cancelado_${pId}`);
+                        const modal = document.getElementById('modal-cancelamento');
+                        const modalMsg = document.getElementById('modal-mensagem');
+                        if (modal && modalMsg) {
+                            modalMsg.innerHTML = `O Delivery <strong>#${pId}</strong> foi cancelado!<br><br><span style="font-size: 1rem; color: #7f8c8d;">Detalhe: ${data.mensagem || 'Cancelado pelo administrador.'}</span>`;
+                            modal.classList.add('active');
+                            App.audio.playBell(); // Toca o som para alertar o motoboy
+                        }
                     }
                 });
             } catch (e) { console.error('Erro Pusher:', e); }

@@ -402,7 +402,7 @@ async function confirmarConclusaoPedido() {
     }
 }
 
-function mostrarNotificacaoCancelamento(mensagem, pedidoId) {
+function mostrarNotificacaoCancelamento(mensagem, pedidoId, mesaNumero, isDelivery) {
     console.log(`🗑️ Verificando cancelamento do pedido ${pedidoId}...`);
     
     if (pedidoId) {
@@ -419,13 +419,15 @@ function mostrarNotificacaoCancelamento(mensagem, pedidoId) {
         });
     }
 
+    const strMesa = isDelivery ? 'DELIVERY' : (mesaNumero ? `Mesa ${mesaNumero}` : 'BALCÃO');
+
     // A validação agora é feita pelo backend (data.para_cozinha), logo se o evento chegou aqui, a cozinha DEVE ser avisada
-    mostrarToast(`❌ PEDIDO CANCELADO: Mesa ${mensagem.split('Mesa ')[1] || pedidoId}`, 'erro');
+    mostrarToast(`❌ PEDIDO CANCELADO: ${strMesa}`, 'erro');
     const modal = document.getElementById('modal-cancelamento');
     const modalMsg = document.getElementById('modal-mensagem');
     
     if (modal && modalMsg) {
-        modalMsg.innerText = mensagem;
+        modalMsg.innerHTML = `O Pedido <strong>#${pedidoId} (${strMesa})</strong> foi cancelado!<br><br><span style="font-size: 1rem; color: #7f8c8d;">Detalhe: ${mensagem}</span>`;
         modal.classList.add('active');
         tocarSomNotificacao('campainha');
     }
@@ -470,8 +472,9 @@ async function configurarPusher() {
             if (data.para_cozinha === false) return;
 
             const idParaCancelar = data.id || data.pedido_id;
+            const isDelivery = data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY');
             if (idParaCancelar) {
-                mostrarNotificacaoCancelamento(data.mensagem || `Pedido #${idParaCancelar} cancelado`, idParaCancelar);
+                mostrarNotificacaoCancelamento(data.mensagem || `Cancelado pelo Admin`, idParaCancelar, data.mesa_numero, isDelivery);
             }
             
             clearTimeout(timeoutPusher);
@@ -501,7 +504,8 @@ async function configurarPusher() {
             console.log('📢 Status atualizado recebido:', data);
             if (data && data.status === 'cancelado') {
                 const idParaCancelar = data.pedido_id || data.id;
-                mostrarNotificacaoCancelamento(data.mensagem || `Pedido #${idParaCancelar} CANCELADO pelo Admin`, idParaCancelar);
+                const isDelivery = data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY');
+                mostrarNotificacaoCancelamento(data.mensagem || `Cancelado pelo Admin`, idParaCancelar, data.mesa_numero, isDelivery);
             } else if (data && (data.status === 'itens_atualizados' || data.status === 'itens_adicionados')) {
                 const card = document.getElementById(`pedido-card-${data.pedido_id || data.id}`);
                 if (card) {
