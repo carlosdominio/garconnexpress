@@ -972,6 +972,7 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
  * @param {number} duracao - Tempo em ms (padrão 5s)
  */
 function mostrarToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
+  if (typeof adicionarNotificacaoPainel === 'function') adicionarNotificacaoPainel(msg, titulo, tipo);
   let container = document.getElementById('toast-container');
   if (!container) {
     container = document.createElement('div');
@@ -2163,3 +2164,74 @@ function verQRCodeMesa() {
   fecharOpcoes();
   mostrarAlerta(html, "QR CODE DA MESA", "📱");
 }
+
+
+// --- SINO DE NOTIFICA��ES ---
+let historicoNotificacoes = [];
+
+function adicionarNotificacaoPainel(mensagem, titulo, tipo) {
+  historicoNotificacoes.unshift({
+    id: Date.now(),
+    mensagem: mensagem,
+    titulo: titulo || 'Notifica��o',
+    tipo: tipo,
+    hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  });
+  if (historicoNotificacoes.length > 50) historicoNotificacoes.pop(); // Limita a 50 itens
+  atualizarBadgeNotificacoes();
+  renderizarListaNotificacoes();
+}
+
+function atualizarBadgeNotificacoes() {
+  const badge = document.getElementById('badge-notificacoes');
+  if (!badge) return;
+  if (historicoNotificacoes.length > 0) {
+    badge.innerText = historicoNotificacoes.length > 99 ? '99+' : historicoNotificacoes.length;
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function renderizarListaNotificacoes() {
+  const lista = document.getElementById('lista-notificacoes');
+  if (!lista) return;
+  if (historicoNotificacoes.length === 0) {
+    lista.innerHTML = '<div id="notificacao-vazia" style="text-align: center; color: #7f8c8d; padding: 20px 0; font-size: 0.9rem;">Nenhuma nova notifica��o.</div>';
+    return;
+  }
+  
+  lista.innerHTML = historicoNotificacoes.map(notif => {
+    let corBorda = '#3498db';
+    if (notif.tipo === 'success' || notif.tipo === 'sucesso') corBorda = '#2ecc71';
+    if (notif.tipo === 'error' || notif.tipo === 'erro') corBorda = '#e74c3c';
+    if (notif.tipo === 'warning') corBorda = '#f1c40f';
+    
+    return \<div style=\"background: white; border-left: 4px solid \; padding: 10px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 4px;\">
+      <div style=\"display: flex; justify-content: space-between; align-items: center;\">
+        <strong style=\"font-size: 0.85rem; color: #2c3e50;\">\</strong>
+        <span style=\"font-size: 0.7rem; color: #95a5a6;\">\</span>
+      </div>
+      <span style=\"font-size: 0.85rem; color: #555;\">\</span>
+    </div>\;
+  }).join('');
+}
+
+function togglePainelNotificacoes() {
+  const painel = document.getElementById('painel-notificacoes');
+  const badge = document.getElementById('badge-notificacoes');
+  if (painel.style.display === 'none') {
+    painel.style.display = 'flex';
+    if (badge) badge.style.display = 'none'; // Zera visualmente o contador ao abrir
+  } else {
+    painel.style.display = 'none';
+  }
+}
+
+function limparNotificacoes() {
+  historicoNotificacoes = [];
+  atualizarBadgeNotificacoes();
+  renderizarListaNotificacoes();
+  document.getElementById('painel-notificacoes').style.display = 'none';
+}
+
