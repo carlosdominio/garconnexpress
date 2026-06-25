@@ -63,9 +63,6 @@ const App = {
         this.loadPedidos();
 
         this.ui.updateSoundIcon();
-        if (!localStorage.getItem('audio_unlocked')) {
-            this.ui.requestAudioUnlock();
-        }
     },
 
     checkAuth() {
@@ -496,20 +493,7 @@ const App = {
             document.getElementById('painel-notificacoes').style.display = 'none';
         },
 
-        requestAudioUnlock() {
-            Swal.fire({
-                title: 'Ativar Alertas?',
-                text: 'Clique para permitir o som de novos pedidos.',
-                icon: 'info',
-                confirmButtonText: 'ATIVAR ÁUDIO',
-                confirmButtonColor: '#e67e22'
-            }).then((r) => {
-                if (r.isConfirmed) {
-                    localStorage.setItem('audio_unlocked', 'true');
-                    App.notifications.playAlert();
-                }
-            });
-        },
+
 
         renderPedidos() {
             const sections = {
