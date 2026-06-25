@@ -643,17 +643,7 @@ async function atualizarStatusCaixa() {
     caixaAberto = !!caixa;
     
     const badge = document.getElementById('caixa-status-badge');
-    const screenFechado = document.getElementById('closed-screen');
 
-    if (screenFechado) {
-        if (!caixaAberto) {
-            screenFechado.style.display = 'flex';
-            atualizarBloqueioScroll();
-        } else {
-            screenFechado.style.display = 'none';
-            atualizarBloqueioScroll();
-        }
-    }
 
     if (!badge) return;
     
