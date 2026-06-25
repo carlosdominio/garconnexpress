@@ -278,7 +278,7 @@ app.get('/api/cron/cardapio', async (req, res) => {
     try {
         // --- FAXINA DE MESAS E PEDIDOS ÓRFÃOS ---
         await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE garcom_id IS NOT NULL AND garcom_id NOT IN (SELECT usuario FROM garcons WHERE usuario IS NOT NULL)");
-        await query("UPDATE pedidos SET status = 'cancelado' WHERE status NOT IN ('entregue', 'cancelado') AND garcom_id IS NOT NULL AND garcom_id != 'ADMIN' AND garcom_id != 'QRCODE' AND garcom_id NOT IN (SELECT usuario FROM garcons WHERE usuario IS NOT NULL)");
+        await query("UPDATE pedidos SET status = 'cancelado' WHERE status NOT IN ('entregue', 'cancelado') AND garcom_id IS NOT NULL AND garcom_id != 'ADMIN' AND garcom_id != 'QRCODE' AND garcom_id != 'DELIVERY' AND garcom_id NOT IN (SELECT usuario FROM garcons WHERE usuario IS NOT NULL)");
         // --- FAXINA AUTOMÁTICA DIÁRIA ---
         const hoje = new Date().toISOString().substring(0, 10);
         const rFaxina = await query("SELECT valor FROM sistema_config WHERE chave = 'ultima_faxina'");
