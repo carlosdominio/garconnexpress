@@ -599,7 +599,7 @@ async function safePusherTrigger(channel, event, data) {
     
     // Calcula previamente se é para a cozinha para injetar no websocket
     let enviaCozinha = false;
-    if (event === 'novo-pedido' || event === 'pedido-cancelado' || (event === 'status-atualizado' && data.status === 'cancelado')) {
+    if (event === 'novo-pedido' || event === 'pedido-cancelado') {
       const pId = data.pedido_id || data.id || (data.pedido ? data.pedido.id : null);
       if (pId) {
         if (event === 'novo-pedido') {
@@ -609,7 +609,7 @@ async function safePusherTrigger(channel, event, data) {
             const itensIds = data.itens ? data.itens.map(i => i.menu_id) : [];
             enviaCozinha = await checkTemItemCozinha(itensIds);
           }
-        } else if (event === 'pedido-cancelado' || (event === 'status-atualizado' && data.status === 'cancelado')) {
+        } else if (event === 'pedido-cancelado') {
           try {
             const itensCancelados = (await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [pId])).rows;
             const itensIds = itensCancelados.map(i => i.menu_id);
@@ -650,7 +650,7 @@ async function safePusherTrigger(channel, event, data) {
         else if (event === 'solicitacao-fechamento-cliente') pushMsg = `💰 FECHAMENTO: ${mesaFormatada}`;
         else if (event === 'status-atualizado') {
            if (data.status === 'cancelado') {
-               pushMsg = `❌ ${mesaFormatada} PEDIDO CANCELADO`;
+               return true; // Deixa que o evento 'pedido-cancelado' envie a notificação, evita duplicidade.
            } else if (data.status === 'entregue') {
                if (isDelivery) {
                    pushMsg = `✅ PEDIDO ENTREGUE E FINALIZADO: ${mesaFormatada}`;
@@ -687,7 +687,7 @@ async function safePusherTrigger(channel, event, data) {
         }
 
         // Adiciona a cozinha como alvo se houver itens para cozinha ou se o pedido foi cancelado
-        if (event === 'novo-pedido' || event === 'pedido-cancelado' || (event === 'status-atualizado' && data.status === 'cancelado')) {
+        if (event === 'novo-pedido' || event === 'pedido-cancelado') {
           // enviaCozinha já foi calculado lá em cima!
           if (enviaCozinha) {
             const cozinhaMsg = event === 'novo-pedido' 
@@ -2574,20 +2574,21 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
           status: status, // envia 'cancelado' ou 'entregue'
           mesa_id: pm.mesa_id 
         });
-        
-        if (status === 'cancelado') {
-          console.log(`❌ Pedido ${id} cancelado pelo Admin. Notificando globalmente...`);
-          await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
-            id: id,
-            pedido_id: id, 
-            mesa_numero: mesaNum,
-            garcom_id: pm.garcom_id,
-            mensagem: `🚨 O Pedido #${id} (Mesa ${mesaNum}) foi CANCELADO pelo Admin.` 
-          });
-        }
+    }
+
+    if (status === 'cancelado') {
+      console.log(`❌ Pedido ${id} cancelado pelo Admin. Notificando globalmente...`);
+      await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
+        id: id,
+        pedido_id: id, 
+        mesa_numero: mesaNum,
+        garcom_id: pm ? pm.garcom_id : null,
+        mensagem: `🚨 O Pedido #${id} (Mesa ${mesaNum}) foi CANCELADO pelo Admin.` 
+      });
+    } else {
+      await notifyStatus(id, null, status);
     }
     
-    await notifyStatus(id, null, status);
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
