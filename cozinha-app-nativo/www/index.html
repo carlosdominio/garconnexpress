@@ -64,8 +64,14 @@
         <div class="header-content">
             <h1>🍳 Painel da Cozinha</h1>
             <div class="header-controls">
+                <!-- Sino de Notificações -->
+                <div style="position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer; background: rgba(255,255,255,0.1); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0;" onclick="togglePainelNotificacoes()">
+                    <span style="font-size: 1.1rem; user-select: none;">🔔</span>
+                    <span id="badge-notificacoes" style="display: none; position: absolute; top: -5px; right: -5px; background: #e74c3c; color: white; font-size: 0.65rem; font-weight: bold; border-radius: 50%; width: 18px; height: 18px; align-items: center; justify-content: center; line-height: 1;">0</span>
+                </div>
+
                 <div class="toggle-container" style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2);">
-                    <span id="label-som" style="color: white; font-size: 0.9rem; font-weight: bold;">SOM</span>
+                    <span id="label-som" style="color: white; font-size: 0.9rem; font-weight: bold;">MUDO</span>
                     <label class="switch">
                         <input type="checkbox" id="check-som" onchange="alternarSom()">
                         <span class="slider"></span>
@@ -76,6 +82,17 @@
             </div>
         </div>
     </header>
+
+    <!-- Painel de Notificações -->
+    <div id="painel-notificacoes" style="display: none; position: fixed; top: 70px; right: 10px; width: 320px; max-height: 400px; background: white; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); z-index: 10000; flex-direction: column; overflow: hidden; border: 1px solid #eee;">
+        <div style="padding: 15px; background: #2c3e50; color: white; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-size: 1rem; font-weight: bold;">🔔 Notificações</h3>
+            <button onclick="limparNotificacoes()" style="background: transparent; border: none; color: #ff6b6b; font-size: 0.85rem; font-weight: bold; cursor: pointer; padding: 5px;">Limpar Tudo</button>
+        </div>
+        <div id="lista-notificacoes" style="padding: 10px; overflow-y: auto; flex-grow: 1; max-height: 340px; background: #f8f9fa; display: flex; flex-direction: column; gap: 8px;">
+            <div id="notificacao-vazia" style="text-align: center; color: #7f8c8d; padding: 20px 0; font-size: 0.9rem;">Nenhuma nova notificação.</div>
+        </div>
+    </div>
 
 
     <!-- Tela de Caixa Fechado (Full Screen) -->
