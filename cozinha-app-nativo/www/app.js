@@ -405,34 +405,29 @@ async function confirmarConclusaoPedido() {
 function mostrarNotificacaoCancelamento(mensagem, pedidoId) {
     console.log(`🗑️ Verificando cancelamento do pedido ${pedidoId}...`);
     
-    let estavaNaTela = false;
-
     if (pedidoId) {
         const card = document.getElementById(`pedido-card-${pedidoId}`);
         if (card) {
             card.remove();
-            estavaNaTela = true;
         }
         
         const todosCards = document.querySelectorAll('.card-pedido');
         todosCards.forEach(c => {
             if (c.innerText.includes(`#${pedidoId}`)) {
                 c.remove();
-                estavaNaTela = true;
             }
         });
     }
 
-    if (estavaNaTela) {
-        mostrarToast(`❌ PEDIDO CANCELADO: Mesa ${mensagem.split('Mesa ')[1] || pedidoId}`, 'erro');
-        const modal = document.getElementById('modal-cancelamento');
-        const modalMsg = document.getElementById('modal-mensagem');
-        
-        if (modal && modalMsg) {
-            modalMsg.innerText = mensagem;
-            modal.classList.add('active');
-            tocarSomNotificacao('campainha');
-        }
+    // A validação agora é feita pelo backend (data.para_cozinha), logo se o evento chegou aqui, a cozinha DEVE ser avisada
+    mostrarToast(`❌ PEDIDO CANCELADO: Mesa ${mensagem.split('Mesa ')[1] || pedidoId}`, 'erro');
+    const modal = document.getElementById('modal-cancelamento');
+    const modalMsg = document.getElementById('modal-mensagem');
+    
+    if (modal && modalMsg) {
+        modalMsg.innerText = mensagem;
+        modal.classList.add('active');
+        tocarSomNotificacao('campainha');
     }
 }
 
@@ -470,6 +465,10 @@ async function configurarPusher() {
 
         canal.bind('pedido-cancelado', (data) => {
             console.log('📢 Pedido cancelado recebido:', data);
+            
+            // O backend injeta isso para nos dizer se a cozinha tem itens afetados
+            if (data.para_cozinha === false) return;
+
             const idParaCancelar = data.id || data.pedido_id;
             if (idParaCancelar) {
                 mostrarNotificacaoCancelamento(data.mensagem || `Pedido #${idParaCancelar} cancelado`, idParaCancelar);

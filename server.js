@@ -596,6 +596,32 @@ async function safePusherTrigger(channel, event, data) {
   }
   try {
     console.log(`📡 [Pusher] Enviando: Canal=${channel}, Evento=${event}`);
+    
+    // Calcula previamente se é para a cozinha para injetar no websocket
+    let enviaCozinha = false;
+    if (event === 'novo-pedido' || event === 'pedido-cancelado') {
+      const pId = data.pedido_id || data.id || (data.pedido ? data.pedido.id : null);
+      if (pId) {
+        if (event === 'novo-pedido') {
+          if (data.para_cozinha !== undefined) {
+            enviaCozinha = data.para_cozinha;
+          } else {
+            const itensIds = data.itens ? data.itens.map(i => i.menu_id) : [];
+            enviaCozinha = await checkTemItemCozinha(itensIds);
+          }
+        } else if (event === 'pedido-cancelado') {
+          try {
+            const itensCancelados = (await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [pId])).rows;
+            const itensIds = itensCancelados.map(i => i.menu_id);
+            enviaCozinha = await checkTemItemCozinha(itensIds);
+          } catch (e) {
+            enviaCozinha = true; // Fallback se der erro
+          }
+        }
+      }
+      data.para_cozinha = enviaCozinha; // INJETA NO WEBSOCKET
+    }
+
     // No Vercel, precisamos de uma confirmação real do envio
     await pusher.trigger(channel, event, data);
     console.log(`✅ [Pusher] Sucesso: ${event}`);
@@ -660,26 +686,7 @@ async function safePusherTrigger(channel, event, data) {
 
         // Adiciona a cozinha como alvo se houver itens para cozinha ou se o pedido foi cancelado
         if (event === 'novo-pedido' || event === 'pedido-cancelado') {
-          const pId = data.pedido_id || data.id || (data.pedido ? data.pedido.id : null);
-          let enviaCozinha = false;
-          if (pId) {
-            if (event === 'novo-pedido') {
-              if (data.para_cozinha !== undefined) {
-                enviaCozinha = data.para_cozinha;
-              } else {
-                const itensIds = data.itens ? data.itens.map(i => i.menu_id) : [];
-                enviaCozinha = await checkTemItemCozinha(itensIds);
-              }
-            } else if (event === 'pedido-cancelado') {
-              try {
-                const itensCancelados = (await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [pId])).rows;
-                const itensIds = itensCancelados.map(i => i.menu_id);
-                enviaCozinha = await checkTemItemCozinha(itensIds);
-              } catch (e) {
-                enviaCozinha = true; // Fallback se der erro
-              }
-            }
-          }
+          // enviaCozinha já foi calculado lá em cima!
           if (enviaCozinha) {
             const cozinhaMsg = event === 'novo-pedido' 
               ? `🍳 NOVO PEDIDO: ${mesaFormatada}` 
