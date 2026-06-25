@@ -687,7 +687,7 @@ async function safePusherTrigger(channel, event, data) {
         }
 
         // Adiciona a cozinha como alvo se houver itens para cozinha ou se o pedido foi cancelado
-        if (event === 'novo-pedido' || event === 'pedido-cancelado') {
+        if (event === 'novo-pedido' || event === 'pedido-cancelado' || (event === 'status-atualizado' && data.status === 'cancelado')) {
           // enviaCozinha já foi calculado lá em cima!
           if (enviaCozinha) {
             const cozinhaMsg = event === 'novo-pedido' 
