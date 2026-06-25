@@ -419,13 +419,6 @@ function mostrarNotificacaoCancelamento(mensagem, pedidoId, mesaNumero, isDelive
         });
     }
 
-    // A pedido do cliente: O aplicativo da cozinha NÃO deve exibir o modal de cancelamento para pedidos do Delivery.
-    // O aplicativo do motoboy é quem mostra isso. A cozinha apenas remove o card da tela (código acima) silenciosamente.
-    if (isDelivery) {
-        console.log(`🔇 Cancelamento silencioso na cozinha para o delivery #${pedidoId}.`);
-        return;
-    }
-
     const strMesa = mesaNumero ? `Mesa ${mesaNumero}` : 'BALCÃO';
 
     // A validação agora é feita pelo backend (data.para_cozinha), logo se o evento chegou aqui, a cozinha DEVE ser avisada
@@ -510,6 +503,7 @@ async function configurarPusher() {
         canal.bind('status-atualizado', (data) => {
             console.log('📢 Status atualizado recebido:', data);
             if (data && data.status === 'cancelado') {
+                if (data.para_cozinha === false) return; // Trava de segurança: não notifica cozinha se não houver itens de cozinha
                 const idParaCancelar = data.pedido_id || data.id;
                 const isDelivery = data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY');
                 mostrarNotificacaoCancelamento(data.mensagem || `Cancelado pelo Admin`, idParaCancelar, data.mesa_numero, isDelivery);

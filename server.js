@@ -599,7 +599,7 @@ async function safePusherTrigger(channel, event, data) {
     
     // Calcula previamente se é para a cozinha para injetar no websocket
     let enviaCozinha = false;
-    if (event === 'novo-pedido' || event === 'pedido-cancelado') {
+    if (event === 'novo-pedido' || event === 'pedido-cancelado' || (event === 'status-atualizado' && data.status === 'cancelado')) {
       const pId = data.pedido_id || data.id || (data.pedido ? data.pedido.id : null);
       if (pId) {
         if (event === 'novo-pedido') {
@@ -609,7 +609,7 @@ async function safePusherTrigger(channel, event, data) {
             const itensIds = data.itens ? data.itens.map(i => i.menu_id) : [];
             enviaCozinha = await checkTemItemCozinha(itensIds);
           }
-        } else if (event === 'pedido-cancelado') {
+        } else if (event === 'pedido-cancelado' || (event === 'status-atualizado' && data.status === 'cancelado')) {
           try {
             const itensCancelados = (await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [pId])).rows;
             const itensIds = itensCancelados.map(i => i.menu_id);
