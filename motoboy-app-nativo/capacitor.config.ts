@@ -5,8 +5,6 @@ const config: CapacitorConfig = {
   appName: 'Motoboy Express',
   webDir: 'www',
   server: {
-    url: 'https://garconnexpress.vercel.app/app-motoboy',
-    cleartext: true,
     androidScheme: 'https'
   },
   plugins: {
