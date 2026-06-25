@@ -23,14 +23,18 @@ const admin = require('firebase-admin');
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 // --- Configuração VAPID (Web Push - Navegador) ---
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BMyiv6uhCaW8LUu4EsraMpa-aiSYPEScoustJawyZDCgW0JmT9_UH4cQipSyEY5RZVNQuNvEu7cfNfumLAn_0i8';
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'E4g3M62wJcFlgy8IeJzB_VlKE6fkfvTqETIall5pce4';
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
 
-webpush.setVapidDetails(
-  'mailto:contato@garconnexpress.com',
-  VAPID_PUBLIC_KEY,
-  VAPID_PRIVATE_KEY
-);
+if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+  console.warn("⚠️ AVISO: VAPID keys para Web Push ausentes nas variáveis de ambiente!");
+} else {
+  webpush.setVapidDetails(
+    'mailto:contato@garconnexpress.com',
+    VAPID_PUBLIC_KEY,
+    VAPID_PRIVATE_KEY
+  );
+}
 
 // --- Configuração Firebase Admin (App Nativo Android/iOS) ---
 try {
@@ -120,10 +124,25 @@ app.use(helmet({
 
 // Middleware manual para garantir que OPTIONS responda sempre com sucesso e headers corretos
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  const allowedOrigins = [
+    'https://garconnexpress.vercel.app',
+    'http://localhost:3000',
+    'http://localhost',
+    'capacitor://localhost',
+    'http://10.0.2.2'
+  ];
+  const origin = req.headers.origin;
+  
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+  } else if (!origin) {
+    // Para requisições server-to-server ou app nativo antigo
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept, Origin');
-  res.header('Access-Control-Allow-Credentials', 'true');
   
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
@@ -2026,22 +2045,35 @@ app.post('/api/pedidos', orderLimiter, async (req, res) => {
           await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
       }
     }
-    for (const item of itens) {
-      const p = (await query("SELECT nome, estoque FROM menu WHERE id = ?", [item.menu_id])).rows[0];
-      if (p && p.estoque !== -1 && p.estoque < item.quantidade) return res.status(400).json({ error: `Estoque insuficiente: ${p.nome}` });
-    }
-    const subtotal = itens.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
+    let subtotalReal = 0;
 
-    // Se for delivery e vier total no body, usa ele. Caso contrário, calcula (Subtotal + 3.00 se delivery).
-    let total;
-    if (req.body.total !== undefined) {
-      total = req.body.total;
-    } else {
-      if (garcom_id === 'DELIVERY') {
-        total = subtotal + 3.00;
-      } else {
-        total = deveCobrarTaxa ? Math.round(subtotal * 1.10 * 100) / 100 : subtotal;
+    for (const item of itens) {
+      // 1. Validação Antifraude: Bloqueia Quantidade Zero ou Negativa
+      if (!item.quantidade || item.quantidade <= 0) {
+        return res.status(400).json({ error: `Quantidade inválida (menor ou igual a zero) detectada.` });
       }
+
+      // 2. Busca o preço oficial no Banco (Ignora o preço enviado pelo cliente)
+      const p = (await query("SELECT nome, estoque, preco FROM menu WHERE id = ?", [item.menu_id])).rows[0];
+      if (!p) {
+        return res.status(400).json({ error: `Produto não encontrado: ID ${item.menu_id}` });
+      }
+      
+      if (p.estoque !== -1 && p.estoque < item.quantidade) {
+        return res.status(400).json({ error: `Estoque insuficiente: ${p.nome}` });
+      }
+
+      // 3. Cálculo Seguro do Subtotal
+      const precoOficial = parseFloat(p.preco) || 0;
+      subtotalReal += (precoOficial * item.quantidade);
+    }
+
+    // 4. Cálculo do Total Seguro (Ignora req.body.total enviado pelo cliente)
+    let total;
+    if (garcom_id === 'DELIVERY') {
+      total = subtotalReal + 3.00;
+    } else {
+      total = deveCobrarTaxa ? Math.round(subtotalReal * 1.10 * 100) / 100 : subtotalReal;
     }
 
     let pedidoId;
@@ -2252,6 +2284,15 @@ app.put('/api/pedidos/:id/adicionar', async (req, res) => {
     const pOrig = (await query("SELECT cobrar_taxa FROM pedidos WHERE id = ?", [id])).rows[0];
     const deveTaxa = cobrar_taxa !== undefined ? cobrar_taxa : (pOrig ? pOrig.cobrar_taxa : true);
     for (const item of itens) {
+      // 1. Validação Antifraude: Bloqueia Quantidade Zero ou Negativa
+      if (!item.quantidade || item.quantidade <= 0) {
+        return res.status(400).json({ error: `Quantidade inválida (menor ou igual a zero) detectada.` });
+      }
+      
+      const p = (await query("SELECT estoque FROM menu WHERE id = ?", [item.menu_id])).rows[0];
+      if (!p) return res.status(400).json({ error: `Produto não encontrado: ID ${item.menu_id}` });
+      if (p.estoque !== -1 && p.estoque < item.quantidade) return res.status(400).json({ error: `Estoque insuficiente.` });
+
       const exist = await query('SELECT id, quantidade FROM pedido_itens WHERE pedido_id = ? AND menu_id = ? AND observacao = ? AND status = ?', [id, item.menu_id, item.observacao || '', 'pendente']);
       if (exist.rows.length > 0) await query('UPDATE pedido_itens SET quantidade = ? WHERE id = ?', [exist.rows[0].quantidade + item.quantidade, exist.rows[0].id]);
       else await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES (?, ?, ?, ?, ?)', [id, item.menu_id, item.quantidade, item.observacao || '', 'pendente']);
@@ -2259,7 +2300,7 @@ app.put('/api/pedidos/:id/adicionar', async (req, res) => {
       await verificarEstoqueBaixo(item.menu_id);
     }
     const tItens = (await query("SELECT i.quantidade, m.preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
-    const sub = tItens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+    const sub = tItens.reduce((sum, i) => sum + ((parseFloat(i.preco) || 0) * i.quantidade), 0);
     const tot = deveTaxa ? Math.round(sub * 1.10 * 100) / 100 : sub;
     const agora = new Date().toISOString();
 
