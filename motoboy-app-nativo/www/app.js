@@ -330,8 +330,8 @@ const App = {
                     App.state.notifiedEvents.add(eventKey);
                     setTimeout(() => App.state.notifiedEvents.delete(eventKey), 15000);
                     
-                    this.playAlert();
-                    App.ui.showToast(notification.body || 'Novo alerta!', 'info', notification.title);
+                    // this.playAlert(); // Removido para evitar duplicidade com o Pusher (quando o app tá aberto)
+                    // App.ui.showToast(notification.body || 'Novo alerta!', 'info', notification.title);
                 }
             });
 

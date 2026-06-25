@@ -9,7 +9,7 @@ const config: CapacitorConfig = {
   },
   plugins: {
     PushNotifications: {
-      presentationOptions: ["badge"]
+      presentationOptions: []
     },
     StatusBar: {
       overlaysWebView: false

@@ -610,12 +610,12 @@ async function registerNativePush() {
         if (typeof exibirNotificacaoNativa === 'function') {
           exibirNotificacaoNativa('⚠️ ATRASO NA COZINHA', notification.body || 'Um pedido está atrasado!', `atraso-cozinha-fcm`);
         }
-        if (typeof tocarSomNotificacao === 'function') tocarSomNotificacao();
+        // if (typeof tocarSomNotificacao === 'function') tocarSomNotificacao(); // Removido para evitar duplicidade
         if (typeof carregarPedidos === 'function') carregarPedidos();
         return;
       }
 
-      tocarCampainha();
+      // tocarCampainha(); // Removido para evitar som duplo com o websocket
       if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
         try {
           await window.Capacitor.Plugins.Haptics.vibrate();

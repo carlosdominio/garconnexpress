@@ -135,13 +135,7 @@ async function registerNativePush() {
       }
 
       // Tenta tocar o som manualmente se estiver em primeiro plano
-      try {
-        if (Date.now() - ultimoSomTocado > 2000) {
-          ultimoSomTocado = Date.now();
-          const audio = new Audio('notificacao.mp3');
-          await audio.play();
-        }
-      } catch (e) { console.error("Erro ao tocar áudio foreground:", e); }
+      // Removido a pedido do usuário: o websocket (Pusher) já cuida dos alertas sonoros com o app aberto!
 
       // Vibração Nativa (Haptics)
       if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
