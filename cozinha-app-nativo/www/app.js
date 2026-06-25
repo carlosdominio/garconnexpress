@@ -403,7 +403,7 @@ async function confirmarConclusaoPedido() {
 }
 
 function mostrarNotificacaoCancelamento(mensagem, pedidoId, mesaNumero, isDelivery) {
-    console.log(`🗑️ Verificando cancelamento do pedido ${pedidoId}...`);
+    console.log(`🗑️ Verificando cancelamento do pedido ${pedidoId}... isDelivery=${isDelivery}`);
     
     if (pedidoId) {
         const card = document.getElementById(`pedido-card-${pedidoId}`);
@@ -419,7 +419,14 @@ function mostrarNotificacaoCancelamento(mensagem, pedidoId, mesaNumero, isDelive
         });
     }
 
-    const strMesa = isDelivery ? 'DELIVERY' : (mesaNumero ? `Mesa ${mesaNumero}` : 'BALCÃO');
+    // A pedido do cliente: O aplicativo da cozinha NÃO deve exibir o modal de cancelamento para pedidos do Delivery.
+    // O aplicativo do motoboy é quem mostra isso. A cozinha apenas remove o card da tela (código acima) silenciosamente.
+    if (isDelivery) {
+        console.log(`🔇 Cancelamento silencioso na cozinha para o delivery #${pedidoId}.`);
+        return;
+    }
+
+    const strMesa = mesaNumero ? `Mesa ${mesaNumero}` : 'BALCÃO';
 
     // A validação agora é feita pelo backend (data.para_cozinha), logo se o evento chegou aqui, a cozinha DEVE ser avisada
     mostrarToast(`❌ PEDIDO CANCELADO: ${strMesa}`, 'erro');
