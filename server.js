@@ -602,7 +602,7 @@ async function safePusherTrigger(channel, event, data) {
     
     // --- WEB PUSH NATIVO (BACKGROUND) E FCM (NATIVO ANDROID/IOS) ---
     // Dispara notificação nativa para todos os garçons inscritos quando houver eventos cruciais
-    const eventsToPush = ['novo-pedido', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto', 'rascunho-recebido', 'solicitacao-fechamento-cliente', 'status-atualizado'];
+    const eventsToPush = ['novo-pedido', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto', 'rascunho-recebido', 'solicitacao-fechamento-cliente', 'status-atualizado', 'status-caixa-atualizado'];
     if (eventsToPush.includes(event)) {
       try {
         const subs = (await query("SELECT * FROM push_subscriptions")).rows;
@@ -640,11 +640,19 @@ async function safePusherTrigger(channel, event, data) {
                return true; // Ignora outros status para não "notificar pra tudo"
            }
         }
+        else if (event === 'status-caixa-atualizado') pushMsg = data.status === 'fechado' ? '🔴 O caixa foi FECHADO. Atendimento encerrado.' : '🟢 O caixa foi ABERTO. Bom trabalho!';
         else pushMsg = `Notificação: ${event}`;
 
         // Mapeia os alvos que devem receber a notificação
         const targets = [];
-        if (isDelivery) {
+
+        // Fechamento/abertura de caixa vai para TODOS os apps simultaneamente
+        if (event === 'status-caixa-atualizado') {
+          const caixaTitulo = data.status === 'fechado' ? '💰 CAIXA FECHADO' : '💰 CAIXA ABERTO';
+          targets.push({ app: 'garcom',  title: caixaTitulo, msg: pushMsg });
+          targets.push({ app: 'cozinha', title: caixaTitulo, msg: pushMsg });
+          targets.push({ app: 'motoboy', title: caixaTitulo, msg: pushMsg });
+        } else if (isDelivery) {
           targets.push({ app: 'motoboy', title: 'Delivery Express', msg: pushMsg });
         } else {
           targets.push({ app: 'garcom', title: 'GarçomExpress', msg: pushMsg });
