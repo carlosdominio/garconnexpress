@@ -592,7 +592,25 @@ async function registerNativePush() {
 
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 Notificação recebida (Cozinha):', notification);
-      
+
+      // Verifica se é um evento de fechamento de caixa
+      if (notification.data && notification.data.event === 'status-caixa-atualizado') {
+        console.log('📲 [FCM Background] Caixa atualizado (Cozinha):', notification.data);
+        if (typeof verificarCaixa === 'function') verificarCaixa();
+        return;
+      }
+
+      // Verifica se é um evento de pedido atrasado
+      if (notification.data && notification.data.event === 'pedido-atrasado') {
+        console.log('📲 [FCM Background] Pedido atrasado (Cozinha):', notification.data);
+        if (typeof exibirNotificacaoNativa === 'function') {
+          exibirNotificacaoNativa('⚠️ ATRASO NA COZINHA', notification.body || 'Um pedido está atrasado!', `atraso-cozinha-fcm`);
+        }
+        if (typeof tocarSomNotificacao === 'function') tocarSomNotificacao();
+        if (typeof carregarPedidos === 'function') carregarPedidos();
+        return;
+      }
+
       tocarCampainha();
       if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
         try {
@@ -604,7 +622,18 @@ async function registerNativePush() {
     });
 
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-      console.log('🖱️ Clique na notificação detectado:', notification);
+      console.log('🖱️ Clique na notificação detectado (Cozinha):', notification);
+      // Se clicou em notificação de caixa, sincroniza
+      if (notification.notification && notification.notification.data && notification.notification.data.event === 'status-caixa-atualizado') {
+        if (typeof verificarCaixa === 'function') verificarCaixa();
+        return;
+      }
+      
+      // Se clicou na notificação de atraso, carrega os pedidos
+      if (notification.notification && notification.notification.data && notification.notification.data.event === 'pedido-atrasado') {
+        if (typeof carregarPedidos === 'function') carregarPedidos();
+        return;
+      }
       if (typeof carregarPedidos === 'function') carregarPedidos();
     });
 
@@ -622,7 +651,21 @@ function iniciarApp() {
     if (isNativeApp) {
         limparNotificacoesNativas();
         registerNativePush();
+
+        // Sincroniza o status do caixa sempre que o app voltar ao primeiro plano
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            console.log('👀 [Cozinha] Voltou ao foco. Verificando caixa e pedidos...');
+            if (typeof verificarCaixa === 'function') verificarCaixa();
+            if (typeof carregarPedidos === 'function') carregarPedidos();
+          }
+        });
     }
+
+    const ov = document.getElementById('loading-app');
+    setTimeout(() => {
+        if (ov) ov.classList.add('hidden');
+    }, 600);
 }
 
 async function realizarLogin() {
@@ -642,7 +685,15 @@ async function realizarLogin() {
     if (btn) btn.disabled = true;
     if (btnText) btnText.innerText = "Entrando...";
     
-    try {
+    const ov = document.getElementById('loading-app');
+    const ovMsg = document.getElementById('loading-text');
+    if (ov && ovMsg) {
+        ov.classList.remove('hidden');
+        ovMsg.textContent = 'Entrando...';
+    }
+
+    setTimeout(async () => {
+        try {
         // Tenta fazer login como Admin primeiro
         let res = await fetch('/api/admin/login', {
             method: 'POST',
@@ -656,7 +707,8 @@ async function realizarLogin() {
             localStorage.setItem('cozinha_logado', 'true');
             localStorage.setItem('cozinha_token', data.token);
             mostrarToast("Login realizado com sucesso!", "success");
-            location.reload();
+            if (ovMsg) ovMsg.textContent = 'Carregando pedidos...';
+            setTimeout(() => location.reload(), 400);
             return;
         }
         
@@ -672,8 +724,10 @@ async function realizarLogin() {
             localStorage.setItem('cozinha_logado', 'true');
             localStorage.setItem('cozinha_token', data.token);
             mostrarToast("Login realizado com sucesso!", "success");
-            location.reload();
+            if (ovMsg) ovMsg.textContent = 'Carregando pedidos...';
+            setTimeout(() => location.reload(), 400);
         } else if (res.status === 429) {
+            if (ov) ov.classList.add('hidden');
             Swal.fire({
                 title: 'Sistema de Segurança',
                 text: 'Muitas tentativas incorretas. Conta bloqueada por 15 minutos.',
@@ -684,16 +738,19 @@ async function realizarLogin() {
             if (btn) btn.disabled = false;
             if (btnText) btnText.innerText = "Entrar";
         } else {
+            if (ov) ov.classList.add('hidden');
             exibirErroLogin("Usuário ou senha incorretos.\n\nPor favor, verifique os dados digitados e tente novamente. Caso o erro persista, confirme suas credenciais com a gerência.");
             if (btn) btn.disabled = false;
             if (btnText) btnText.innerText = "Entrar";
         }
     } catch (e) {
+        if (ov) ov.classList.add('hidden');
         console.error(e);
         exibirErroLogin("Erro de conexão ao realizar login.");
         if (btn) btn.disabled = false;
         if (btnText) btnText.innerText = "Entrar";
     }
+    }, 600); // Fim do setTimeout do login
 }
 
 function exibirErroLogin(mensagem) {
@@ -706,10 +763,31 @@ function exibirErroLogin(mensagem) {
     });
 }
 
-function logout() {
-    localStorage.removeItem('cozinha_logado');
-    localStorage.removeItem('cozinha_token');
-    location.reload();
+async function logout() {
+    const confirm = await Swal.fire({
+        title: 'Sair do Painel?',
+        text: 'Você precisará fazer login novamente para acessar a cozinha.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#95a5a6',
+        confirmButtonText: 'Sim, sair',
+        cancelButtonText: 'Cancelar'
+    });
+
+    if (confirm.isConfirmed) {
+        const ov = document.getElementById('loading-app');
+        const ovMsg = document.getElementById('loading-text');
+        if (ov && ovMsg) {
+            ov.classList.remove('hidden');
+            ovMsg.textContent = 'Saindo do painel...';
+        }
+        setTimeout(() => {
+            localStorage.removeItem('cozinha_logado');
+            localStorage.removeItem('cozinha_token');
+            location.reload();
+        }, 500);
+    }
 }
 
 // Bateria (executa solto no boot nativo)
@@ -748,6 +826,13 @@ function verificarSessao() {
     const telaLogin = document.getElementById('tela-login');
     const header = document.getElementById('main-header');
     const container = document.getElementById('pedidos-container');
+    const ov = document.getElementById('loading-app');
+    const ovMsg = document.getElementById('loading-text');
+
+    if (ov && ovMsg) {
+        ov.classList.remove('hidden');
+        ovMsg.textContent = 'Sincronizando painel da cozinha...';
+    }
     
     if (logado && token) {
         if (telaLogin) telaLogin.style.display = 'none';
@@ -758,6 +843,7 @@ function verificarSessao() {
         if (telaLogin) telaLogin.style.display = 'flex';
         if (header) header.style.display = 'none';
         if (container) container.style.display = 'none';
+        if (ov) ov.classList.add('hidden'); // Esconde o loading caso precise exibir o login
     }
 }
 

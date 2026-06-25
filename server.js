@@ -874,60 +874,84 @@ async function checkAndNotifyDelayedOrders() {
 
     for (const p of delayedOrders) {
       const isDelivery = p.garcom_id === 'DELIVERY';
-      const targetApp = isDelivery ? 'motoboy' : 'garcom';
-      const pushTitle = isDelivery ? '🔥 MOTOBOY: ENTREGA ATRASADA!' : '🔥 GARÇOM: PEDIDO ATRASADO!';
-      
       const mesaName = p.mesa_numero ? (String(p.mesa_numero).toUpperCase().includes('MESA') ? p.mesa_numero : `Mesa ${p.mesa_numero}`) : 'BALCÃO';
-      const pushMsg = isDelivery 
-        ? `O pedido de entrega #${p.id} está parado há mais de 10 minutos!` 
-        : `O pedido da ${mesaName} (#${p.id}) está parado há mais de 10 minutos!`;
+      
+      const targets = [];
+      
+      if (isDelivery) {
+        targets.push({ app: 'motoboy', title: '🔥 MOTOBOY: ENTREGA ATRASADA!', msg: `O pedido de entrega #${p.id} está parado há mais de 10 minutos!` });
+      } else {
+        targets.push({ app: 'garcom', title: '🔥 GARÇOM: PEDIDO ATRASADO!', msg: `O pedido da ${mesaName} (#${p.id}) está parado há mais de 10 minutos!` });
+      }
+      
+      // Verifica se o pedido atrasado tem itens para a cozinha
+      let enviaCozinha = false;
+      try {
+        const itens = (await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [p.id])).rows;
+        if (itens && itens.length > 0) {
+          const itensIds = itens.map(i => i.menu_id);
+          enviaCozinha = await checkTemItemCozinha(itensIds);
+        }
+      } catch (e) {
+        console.error("Erro ao checar itens da cozinha no atraso:", e);
+      }
+
+      if (enviaCozinha) {
+        targets.push({ app: 'cozinha', title: '🔥 COZINHA: PEDIDO ATRASADO!', msg: `O pedido #${p.id} (${mesaName}) está aguardando há mais de 10 minutos!` });
+      }
 
       // Atualiza de forma atômica para evitar envios duplicados por concorrência
       const updateRes = await query("UPDATE pedidos SET notificado_atraso = 1 WHERE id = ? AND (notificado_atraso = 0 OR notificado_atraso IS NULL)", [p.id]);
       if (updateRes.changes === 0) continue; // Já foi notificado por outro processo/requisição
 
       // Envia notificações para todos os dispositivos correspondentes
-      const sentEndpoints = new Set();
-      for (const sub of subs) {
-        if (sub.app_type !== targetApp) continue;
-        if (sentEndpoints.has(sub.endpoint)) continue;
-        sentEndpoints.add(sub.endpoint);
+      for (const target of targets) {
+        const targetApp = target.app;
+        const pushTitle = target.title;
+        const pushMsg = target.msg;
+        
+        const sentEndpoints = new Set();
+        for (const sub of subs) {
+          if (sub.app_type !== targetApp) continue;
+          if (sentEndpoints.has(sub.endpoint)) continue;
+          sentEndpoints.add(sub.endpoint);
 
-        if (sub.endpoint.includes('fcm.googleapis.com') || sub.endpoint.startsWith('https://')) {
-          const payload = JSON.stringify({ title: pushTitle, body: pushMsg, event: 'status-atualizado' });
-          const pushSubscription = {
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh || '', auth: sub.auth || '' }
-          };
-          webpush.sendNotification(pushSubscription, payload).catch(e => console.error('Erro WebPush Atraso:', e.message));
-        } else {
-          if (admin.apps.length > 0) {
-            const message = {
-              notification: { title: pushTitle, body: pushMsg },
-              data: {
-                event: 'status-atualizado',
-                sound: 'notificacao',
-                pedido_id: String(p.id),
-                status: 'atrasado'
-              },
-              android: {
-                priority: 'high',
-                notification: {
-                  sound: 'notificacao',
-                  channelId: 'pedidos',
-                  defaultSound: false
-                }
-              },
-              token: sub.endpoint
+          if (sub.endpoint.includes('fcm.googleapis.com') || sub.endpoint.startsWith('https://')) {
+            const payload = JSON.stringify({ title: pushTitle, body: pushMsg, event: 'pedido-atrasado' });
+            const pushSubscription = {
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh || '', auth: sub.auth || '' }
             };
-            let firebaseAppToUse = admin;
-            if (targetApp === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) {
-              firebaseAppToUse = admin.app('motoboy');
-            } else if (targetApp === 'cozinha' && admin.apps.find(a => a.name === 'cozinha')) {
-              firebaseAppToUse = admin.app('cozinha');
+            webpush.sendNotification(pushSubscription, payload).catch(e => console.error('Erro WebPush Atraso:', e.message));
+          } else {
+            if (admin.apps.length > 0) {
+              const message = {
+                notification: { title: pushTitle, body: pushMsg },
+                data: {
+                  event: 'pedido-atrasado',
+                  sound: 'notificacao',
+                  pedido_id: String(p.id),
+                  status: 'atrasado'
+                },
+                android: {
+                  priority: 'high',
+                  notification: {
+                    sound: 'notificacao',
+                    channelId: 'pedidos',
+                    defaultSound: false
+                  }
+                },
+                token: sub.endpoint
+              };
+              let firebaseAppToUse = admin;
+              if (targetApp === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) {
+                firebaseAppToUse = admin.app('motoboy');
+              } else if (targetApp === 'cozinha' && admin.apps.find(a => a.name === 'cozinha')) {
+                firebaseAppToUse = admin.app('cozinha');
+              }
+              
+              firebaseAppToUse.messaging().send(message).catch(e => console.error('Erro FCM Atraso:', e.message));
             }
-            
-            firebaseAppToUse.messaging().send(message).catch(e => console.error('Erro FCM Atraso:', e.message));
           }
         }
       }
