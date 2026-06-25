@@ -619,7 +619,7 @@ async function atualizarStatusCaixa() {
   } catch (e) { console.error('Erro status caixa:', e); }
 }
 
-let somAtivo = localStorage.getItem('garcom_som_ativo') !== 'false';
+let somAtivo = localStorage.getItem('garcom_som_ativo') === 'true';
 let audioDesbloqueado = false;
 let ultimoSomTocado = 0;
 const audioNotificacao = new Audio('/notificacao.mp3');
