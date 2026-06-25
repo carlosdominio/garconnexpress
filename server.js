@@ -649,7 +649,9 @@ async function safePusherTrigger(channel, event, data) {
         else if (event === 'rascunho-recebido') pushMsg = `📝 RASCUNHO: ${mesaFormatada}`;
         else if (event === 'solicitacao-fechamento-cliente') pushMsg = `💰 FECHAMENTO: ${mesaFormatada}`;
         else if (event === 'status-atualizado') {
-           if (data.status === 'entregue') {
+           if (data.status === 'cancelado') {
+               pushMsg = `❌ ${mesaFormatada} PEDIDO CANCELADO`;
+           } else if (data.status === 'entregue') {
                if (isDelivery) {
                    pushMsg = `✅ PEDIDO ENTREGUE E FINALIZADO: ${mesaFormatada}`;
                } else {
