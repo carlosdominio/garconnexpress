@@ -638,7 +638,7 @@ async function carregarConfigCozinha() {
 
 async function atualizarStatusCaixa() {
   try {
-    const res = await fetch('/api/caixa/status');
+    const res = await fetch(`/api/caixa/status?_t=${new Date().getTime()}`);
     const caixa = await res.json();
     caixaAberto = !!caixa;
     

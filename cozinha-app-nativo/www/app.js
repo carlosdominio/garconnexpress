@@ -194,7 +194,7 @@ async function carregarPedidos() {
 
 async function verificarCaixa() {
     try {
-        const res = await fetch('/api/caixa/status');
+        const res = await fetch(`/api/caixa/status?_t=${new Date().getTime()}`);
         const caixa = await res.json();
         
         const container = document.getElementById('pedidos-container');

@@ -211,7 +211,7 @@ const App = {
 
     async checkCaixaStatus() {
         try {
-            const res = await fetch(`${API_BASE_URL}/api/caixa/status`);
+            const res = await fetch(`${API_BASE_URL}/api/caixa/status?_t=${new Date().getTime()}`);
             const status = await res.json();
             this.state.caixaAberto = !!status;
             const screen = document.getElementById('closed-screen');
