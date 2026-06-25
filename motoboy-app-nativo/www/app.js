@@ -12,8 +12,9 @@ const App = {
         user: JSON.parse(localStorage.getItem('motoboy_user') || '{}'),
         pedidos: [],
         caixaAberto: true,
-        soundEnabled: localStorage.getItem('motoboy_sound') !== 'false',
-        notifiedEvents: new Set() // Para evitar duplicidade estrita (evento + id)
+        soundEnabled: localStorage.getItem('motoboy_sound') === 'true',
+        notifiedEvents: new Set(), // Para evitar duplicidade estrita (evento + id)
+        notificacoes: []
     },
 
     async init() {
@@ -393,6 +394,18 @@ const App = {
             } else {
                 App.ui.showToast("Som silenciado.", "warning");
             }
+        },
+        toggleSoundManual() {
+            const check = document.getElementById('check-som');
+            App.state.soundEnabled = check ? check.checked : !App.state.soundEnabled;
+            localStorage.setItem('motoboy_sound', App.state.soundEnabled);
+            App.ui.updateSoundIcon();
+            if (App.state.soundEnabled) {
+                this.playAlert();
+                App.ui.showToast("Som ativado!", "success");
+            } else {
+                App.ui.showToast("Som silenciado.", "warning");
+            }
         }
     },
 
@@ -470,10 +483,72 @@ const App = {
     // --- UI ---
     ui: {
         updateSoundIcon() {
-            const btn = document.getElementById('btn-toggle-sound');
-            if (!btn) return;
-            btn.innerHTML = App.state.soundEnabled ? '<i class="fas fa-bell"></i>' : '<i class="fas fa-bell-slash"></i>';
-            btn.className = App.state.soundEnabled ? 'btn-icon' : 'btn-icon muted';
+            const check = document.getElementById('check-som');
+            const label = document.getElementById('label-som');
+            if (check) check.checked = App.state.soundEnabled;
+            if (label) {
+                label.innerText = App.state.soundEnabled ? '🔊 SOM' : '🔇 MUDO';
+                label.style.color = App.state.soundEnabled ? '#2ecc71' : '#bdc3c7';
+            }
+        },
+        adicionarNotificacaoPainel(mensagem, titulo, tipo) {
+            App.state.notificacoes.unshift({
+                id: Date.now(),
+                mensagem: mensagem,
+                titulo: titulo || 'Notificação',
+                tipo: tipo,
+                hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+            });
+            if (App.state.notificacoes.length > 50) App.state.notificacoes.pop();
+            this.atualizarBadgeNotificacoes();
+            this.renderizarListaNotificacoes();
+        },
+        atualizarBadgeNotificacoes() {
+            const badge = document.getElementById('badge-notificacoes');
+            if (!badge) return;
+            if (App.state.notificacoes.length > 0) {
+                badge.innerText = App.state.notificacoes.length > 99 ? '99+' : App.state.notificacoes.length;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        },
+        renderizarListaNotificacoes() {
+            const lista = document.getElementById('lista-notificacoes');
+            if (!lista) return;
+            if (App.state.notificacoes.length === 0) {
+                lista.innerHTML = '<div id="notificacao-vazia" style="text-align: center; color: #7f8c8d; padding: 20px 0; font-size: 0.9rem;">Nenhuma nova notificação.</div>';
+                return;
+            }
+            lista.innerHTML = App.state.notificacoes.map(notif => {
+                let corBorda = '#3498db';
+                if (notif.tipo === 'success' || notif.tipo === 'sucesso') corBorda = '#2ecc71';
+                if (notif.tipo === 'error' || notif.tipo === 'erro') corBorda = '#e74c3c';
+                if (notif.tipo === 'warning') corBorda = '#f1c40f';
+                return `<div style="background: white; border-left: 4px solid ${corBorda}; padding: 10px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 4px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="font-size: 0.85rem; color: #2c3e50;">${notif.titulo}</strong>
+                        <span style="font-size: 0.7rem; color: #95a5a6;">${notif.hora}</span>
+                    </div>
+                    <span style="font-size: 0.85rem; color: #555;">${notif.mensagem}</span>
+                </div>`;
+            }).join('');
+        },
+        togglePainelNotificacoes() {
+            const painel = document.getElementById('painel-notificacoes');
+            const badge = document.getElementById('badge-notificacoes');
+            if (painel.style.display === 'none') {
+                painel.style.display = 'flex';
+                if (badge) badge.style.display = 'none';
+            } else {
+                painel.style.display = 'none';
+            }
+        },
+        limparNotificacoes() {
+            App.state.notificacoes = [];
+            this.atualizarBadgeNotificacoes();
+            this.renderizarListaNotificacoes();
+            document.getElementById('painel-notificacoes').style.display = 'none';
         },
 
         requestAudioUnlock() {
@@ -602,6 +677,7 @@ const App = {
         },
 
         showToast(msg, tipo = 'success', titulo = '') {
+            if (typeof this.adicionarNotificacaoPainel === 'function') this.adicionarNotificacaoPainel(msg, titulo, tipo);
             let c = document.getElementById('toast-container');
             if (!c) { c = document.createElement('div'); c.id = 'toast-container'; document.body.appendChild(c); }
             const t = document.createElement('div');
