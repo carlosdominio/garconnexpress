@@ -214,7 +214,11 @@ const App = {
             const res = await fetch(`${API_BASE_URL}/api/caixa/status?_t=${new Date().getTime()}`);
             const status = await res.json();
             this.state.caixaAberto = !!status;
-
+            const screen = document.getElementById('closed-screen');
+            if (screen) {
+                screen.style.display = this.state.caixaAberto ? 'none' : 'flex';
+                document.body.style.overflow = this.state.caixaAberto ? '' : 'hidden';
+            }
         } catch (e) { console.error("Erro status caixa:", e); }
     },
 

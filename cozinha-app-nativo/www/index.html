@@ -78,7 +78,15 @@
     </header>
 
 
-
+    <!-- Tela de Caixa Fechado (Full Screen) -->
+    <div id="closed-screen" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f1f2f6; z-index: 9999; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px;">
+        <div style="background: white; padding: 50px 30px; border-radius: 30px; box-shadow: 0 15px 45px rgba(0,0,0,0.15); max-width: 500px; width: 100%;">
+            <div style="font-size: 6rem; margin-bottom: 25px;">😴</div>
+            <h1 style="color: #2c3e50; margin-bottom: 15px; font-size: 2rem; font-weight: 800;">Cozinha em Pausa</h1>
+            <p style="font-size: 1.2rem; color: #7f8c8d; line-height: 1.6; margin-bottom: 30px;">O caixa está fechado no momento. A cozinha não processará novos pedidos até que o sistema seja aberto.</p>
+            <div style="display: inline-block; padding: 10px 25px; background: #e74c3c; color: white; border-radius: 50px; font-weight: bold; font-size: 0.9rem; letter-spacing: 1px;">MODO STANDBY ATIVO</div>
+        </div>
+    </div>
 
     <main id="pedidos-container">
         <!-- Os pedidos serão inseridos aqui dinamicamente -->
