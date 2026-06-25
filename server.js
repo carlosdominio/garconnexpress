@@ -465,7 +465,7 @@ const rateLimit = require('express-rate-limit');
 // Limitador Global (Anti-DDoS)
 const globalLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutos
-  max: 1000,
+  max: 3000,
   message: { error: 'Muitas requisições. Tente novamente mais tarde.' }
 });
 app.use('/api/', globalLimiter);
@@ -473,21 +473,21 @@ app.use('/api/', globalLimiter);
 // Limitador de Login (Anti-Força Bruta)
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 5,
+  max: 30,
   message: { error: 'Muitas tentativas de login incorretas. Conta bloqueada por 15 minutos.' }
 });
 
 // Limitador de Pedidos (Anti-Spam Delivery)
 const orderLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutos
-  max: 5, // Limite de 5 pedidos a cada 10 min
+  max: 50, // Limite de 5 pedidos a cada 10 min
   skip: (req) => {
-    // Pula o rate limit se for garçom ou admin (eles não têm limite de lançar pedidos)
+    // Pula o rate limit se for garçom, admin ou cliente validado (QR Code)
     const token = req.cookies.admin_token || req.cookies.garcom_token || req.cookies.token || (req.headers.authorization && req.headers.authorization.split(' ')[1]);
     if (token) {
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            if (decoded.role === 'admin' || decoded.role === 'garcom') return true;
+            return true; // Se tem token válido, permite
         } catch (e) { return false; }
     }
     return false;
