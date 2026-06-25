@@ -2236,7 +2236,20 @@ function verQRCodeMesa() {
 if (window.Capacitor && window.Capacitor.Plugins.SplashScreen) { window.Capacitor.Plugins.SplashScreen.hide(); }
 
 
+// --- SINO DE NOTIFICAÇÕES ---
+let historicoNotificacoes = [];
 
+function adicionarNotificacaoPainel(mensagem, titulo, tipo) {
+  historicoNotificacoes.unshift({
+    id: Date.now(),
+    mensagem: mensagem,
+    titulo: titulo || 'Notificação',
+    tipo: tipo,
+    hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  });
+  if (historicoNotificacoes.length > 50) historicoNotificacoes.pop(); // Limita a 50 itens
+  atualizarBadgeNotificacoes();
+  renderizarListaNotificacoes();
 }
 
 function atualizarBadgeNotificacoes() {
