@@ -841,7 +841,6 @@ async function configurarPusher() {
       
       if (data.status === 'fechado') {
         tocarCampainha();
-        mostrarAlerta("O caixa foi fechado pelo administrador. O atendimento está encerrado.", "💰 CAIXA FECHADO", "🛑");
       } else if (data.status === 'aberto') {
         tocarCampainha(true); // Som suave
         mostrarToast("O caixa foi aberto! Bom trabalho.");
