@@ -879,3 +879,5 @@ document.addEventListener('click', () => {
         console.log('🔊 Áudio preparado!');
     }).catch(e => console.log('Erro ao preparar áudio:', e));
 }, { once: true });
+
+if (window.Capacitor && window.Capacitor.Plugins.SplashScreen) { window.Capacitor.Plugins.SplashScreen.hide(); }

@@ -7,8 +7,34 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="style.css?v=1.0.9">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        .loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #ffffff;
+            z-index: 2147483647; display: flex; align-items: center; justify-content: center;
+        }
+        .loading-overlay.hidden { display: none !important; }
+        .loading-content { text-align: center; display: flex; flex-direction: column; align-items: center; }
+        .spinner-cozinha {
+            width: 60px; height: 60px;
+            border: 6px solid #f1f2f6; border-top-color: #2c3e50; border-radius: 50%;
+            animation: spinCozinha 1s linear infinite; margin-bottom: 15px;
+        }
+        @keyframes spinCozinha {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body>
+    <!-- Tela de Carregamento -->
+    <div id="loading-app" class="loading-overlay hidden">
+        <div class="loading-content">
+            <div class="spinner-cozinha"></div>
+            <h3 id="loading-text" style="color: #2c3e50; font-size: 1.2rem; font-weight: 800; margin: 0;">Carregando...</h3>
+        </div>
+    </div>
+
     <!-- Tela de Login -->
     <div id="tela-login" class="tela-login" style="display: none;">
         <div class="login-box">

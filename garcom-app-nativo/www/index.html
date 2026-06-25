@@ -11,8 +11,80 @@
   <meta name="theme-color" content="#2c3e50">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  
+  <style>
+    /* TELA DE CARREGAMENTO CARDÁPIO (MAX Z-INDEX) */
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(241, 242, 246, 0.98);
+      backdrop-filter: blur(5px);
+      z-index: 2147483647; /* Máximo possível para garantir ficar na frente */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 1;
+      visibility: visible;
+    }
+    .loading-overlay.hidden {
+      display: none !important;
+      pointer-events: none;
+    }
+    .loading-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transform: scale(1.1);
+    }
+    .spinner-cardapio {
+      width: 60px;
+      height: 60px;
+      border: 6px solid #e0e0e0;
+      border-top: 6px solid #e74c3c;
+      border-radius: 50%;
+      animation: spinCardapio 0.8s linear infinite;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    @keyframes spinCardapio {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    @keyframes saidaEntrar {
+      from { opacity: 0; transform: scale(0.9); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    /* Modal de saída sempre na frente de tudo, inclusive do resumo do pedido */
+    #tela-saida {
+      z-index: 2147483647 !important;
+      animation: saidaEntrar 0.22s ease !important;
+      overflow-y: hidden !important;
+      max-height: none !important;
+    }
+  </style>
 </head>
 <body>
+  <!-- Tela de Carregamento do Cardápio -->
+  <div id="loading-cardapio" class="loading-overlay hidden">
+    <div class="loading-content">
+      <div class="spinner-cardapio"></div>
+      <h3 style="color: #2c3e50; margin-top: 15px; font-size: 1.2rem; font-weight: 800;">Carregando Cardápio...</h3>
+    </div>
+  </div>
+
+  <!-- Tela de Confirmação de Saída -->
+  <div id="tela-saida" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:2147483647; background:rgba(0,0,0,0.75); align-items:center; justify-content:center; padding:20px; box-sizing:border-box;">
+    <div style="background:white; border-radius:20px; padding:32px 24px; width:100%; max-width:340px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+      <div style="width:64px; height:64px; background:#fff1f0; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:1.8rem; border:2px solid #ffd5d0;">🚪</div>
+      <h2 style="color:#333; margin:0 0 8px; font-size:1.3rem; font-weight:900;">Sair do aplicativo?</h2>
+      <p style="color:#888; margin:0 0 24px; font-size:0.9rem; line-height:1.5;">Você será desconectado e precisará fazer login novamente.</p>
+      <button onclick="confirmarSaida()" style="width:100%; background:#e74c3c; color:white; border:none; padding:14px; border-radius:12px; font-size:1rem; font-weight:700; cursor:pointer; margin-bottom:10px;">🚪 Confirmar Saída</button>
+      <button onclick="cancelarSaida()" style="width:100%; background:#95a5a6; color:white; border:none; padding:14px; border-radius:12px; font-size:1rem; font-weight:700; cursor:pointer;">Cancelar</button>
+    </div>
+  </div>
+
   <!-- Tela de Login -->
   <div id="tela-login" class="tela-login">
     <div class="login-box">
@@ -137,7 +209,7 @@
     <h2 id="modal-mesa-titulo">Mesa X</h2>
     
     <button class="btn-opcoes btn-ver-itens" onclick="verItensDaMesa()" style="background-color: #f1c40f; color: #2c3e50;">📋 Ver Itens Pedidos</button>
-    <button class="btn-opcoes btn-adicionar" onclick="abrirCardapioAdicionar()">➕ Adicionar mais itens</button>
+    <button class="btn-opcoes btn-adicionar" onclick="document.getElementById('modal-opcoes').style.display='none'; document.getElementById('loading-cardapio').classList.remove('hidden'); setTimeout(function(){ abrirCardapioAdicionar(); }, 300);">➕ Adicionar mais itens</button>
     <button class="btn-opcoes btn-gerar-qr" onclick="verQRCodeMesa()" style="background-color: #9b59b6; color: white;">📱 Ver QR Code da Mesa</button>
     <button class="btn-opcoes btn-gerar-codigo" onclick="gerarCodigoAcesso()" style="background-color: #3498db; color: white;">🔑 Gerar Código p/ Cliente</button>
     <button class="btn-opcoes btn-cancelar-codigo" onclick="cancelarCodigoAcesso()" style="background-color: #e67e22; color: white; display: none;">🚫 Cancelar Código/Acesso</button>

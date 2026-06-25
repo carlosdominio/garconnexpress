@@ -3,6 +3,8 @@
   "appName": "CozinhaExpress",
   "webDir": "www",
   "server": {
+    "url": "https://garconnexpress.vercel.app/app-cozinha",
+    "cleartext": true,
     "androidScheme": "https"
   },
   "plugins": {
@@ -13,6 +15,15 @@
       "smallIcon": "ic_stat_notification",
       "iconColor": "#e74c3c",
       "sound": "notificacao.mp3"
+    },
+    "SplashScreen": {
+      "launchShowDuration": 4000,
+      "launchAutoHide": true,
+      "backgroundColor": "#f1f2f6",
+      "androidSplashResourceName": "splash",
+      "showSpinner": true,
+      "androidSpinnerStyle": "large",
+      "spinnerColor": "#e74c3c"
     }
   }
 }

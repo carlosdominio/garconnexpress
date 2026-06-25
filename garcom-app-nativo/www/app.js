@@ -127,6 +127,13 @@ async function registerNativePush() {
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 Notificação recebida:', notification);
       
+      // Verifica se é um evento de status de caixa
+      if (notification.data && notification.data.event === 'status-caixa-atualizado') {
+        console.log('📲 [FCM Background] Recebido evento de caixa:', notification.data);
+        if (typeof atualizarStatusCaixa === 'function') atualizarStatusCaixa();
+        return;
+      }
+
       // Tenta tocar o som manualmente se estiver em primeiro plano
       try {
         if (Date.now() - ultimoSomTocado > 2000) {
@@ -149,6 +156,11 @@ async function registerNativePush() {
     // --- NOVO: TRATAMENTO DE CLIQUE NA NOTIFICAÇÃO ---
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
       console.log('🖱️ Clique na notificação detectado:', notification);
+      // Se clicou em uma notificação de caixa, sincroniza o status
+      if (notification.notification && notification.notification.data && notification.notification.data.event === 'status-caixa-atualizado') {
+        if (typeof atualizarStatusCaixa === 'function') atualizarStatusCaixa();
+        return;
+      }
       // Ao clicar, garante que os dados estão atualizados
       if (typeof carregarMesas === 'function') carregarMesas();
       // Tenta focar na janela do app (nativo já faz isso, mas aqui reforçamos)
@@ -345,8 +357,9 @@ document.addEventListener('visibilitychange', () => {
     console.log('👀 App voltou ao foco! Sincronizando dados...');
     requestWakeLock(); // Refaz o lock caso tenha se perdido
     
-    // Força atualização das mesas imediatamente
+    // Força atualização das mesas e status do caixa imediatamente
     carregarMesas();
+    if (typeof atualizarStatusCaixa === 'function') atualizarStatusCaixa();
     
     // Força a reconexão do Web Socket se estiver desconectado
     if (pusherInstancia && pusherInstancia.connection.state !== 'connected') {
@@ -505,13 +518,21 @@ async function realizarLogin() {
 
   if (!usuario || !senha) return await mostrarAlerta("Preencha todos os campos", "Aviso", "⚠️");
 
-  // Ativar Loading
+  // Ativar Loading do botão
   if (btnLogin) btnLogin.disabled = true;
   if (spinner) spinner.style.display = 'inline-block';
   if (btnText) btnText.textContent = 'Entrando...';
 
-  try {
-    const res = await fetch('/api/login', {
+  // Mostrar tela cheia de carregamento
+  var ov = document.getElementById('loading-cardapio');
+  var ovMsg = ov ? ov.querySelector('h3') : null;
+  if (ov) ov.classList.remove('hidden');
+  if (ovMsg) ovMsg.textContent = 'Entrando...';
+
+  // Espera um tempinho (600ms) para garantir que a interface atualize e a mensagem seja lida
+  setTimeout(async () => {
+    try {
+      const res = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ usuario, senha })
@@ -522,14 +543,20 @@ async function realizarLogin() {
       garcomLogado = data.garcom;
       localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
       if (data.token) localStorage.setItem('garcom_token', data.token); // Salva token
-      location.reload();
+      
+      // Muda a mensagem na mesma tela de carregamento
+      if (ovMsg) ovMsg.textContent = 'Carregando mesas do cardápio...';
+      setTimeout(function() { location.reload(); }, 400);
     } else if (res.status === 429) {
+      if (ov) ov.classList.add('hidden'); // esconde overlay no erro
       await mostrarAlerta("Muitas tentativas incorretas. Conta bloqueada por 15 minutos.", "Atenção (Segurança)", "🔒");
       // Resetar Loading em caso de erro
       if (btnLogin) btnLogin.disabled = false;
       if (spinner) spinner.style.display = 'none';
       if (btnText) btnText.textContent = 'Entrar';
+
     } else {
+      if (ov) ov.classList.add('hidden'); // esconde overlay no erro
       await mostrarAlerta("Usuário ou senha incorretos.\n\nPor favor, verifique os dados digitados e tente novamente. Caso o erro persista, confirme suas credenciais com a gerência do restaurante.", "Acesso Negado", "❌");
       // Resetar Loading em caso de erro
       if (btnLogin) btnLogin.disabled = false;
@@ -537,6 +564,7 @@ async function realizarLogin() {
       if (btnText) btnText.textContent = 'Entrar';
     }
   } catch (err) {
+    if (ov) ov.classList.add('hidden'); // esconde overlay no erro
     console.error("Erro no login:", err);
     await mostrarAlerta("Erro de conexão com o servidor.", "Erro", "❌");
     // Resetar Loading em caso de erro de rede
@@ -544,9 +572,26 @@ async function realizarLogin() {
     if (spinner) spinner.style.display = 'none';
     if (btnText) btnText.textContent = 'Entrar';
   }
+  }, 600); // Fim do setTimeout de 600ms
 }
 
-async function logout() {
+function logout() {
+  var modal = document.getElementById('tela-saida');
+  modal.style.display = 'flex';
+}
+
+function cancelarSaida() {
+  document.getElementById('tela-saida').style.display = 'none';
+}
+
+async function confirmarSaida() {
+  // Mostra loading antes de sair
+  var ov = document.getElementById('loading-cardapio');
+  var ovMsg = ov ? ov.querySelector('h3') : null;
+  if (ov) ov.classList.remove('hidden');
+  if (ovMsg) ovMsg.textContent = 'Saindo...';
+  document.getElementById('tela-saida').style.display = 'none';
+
   await fetch('/api/logout', { method: 'POST' });
   localStorage.removeItem('garcom_logado');
   localStorage.removeItem('garcom_token');
@@ -554,6 +599,12 @@ async function logout() {
 }
 
 async function iniciarApp() {
+  // Mostra overlay de carregamento enquanto carrega as mesas
+  var ov = document.getElementById('loading-cardapio');
+  var ovMsg = ov ? ov.querySelector('h3') : null;
+  if (ov) ov.classList.remove('hidden');
+  if (ovMsg) ovMsg.textContent = 'Carregando mesas do cardápio...';
+
   await carregarConfigCozinha();
   await carregarMenu();
   await carregarMesas();
@@ -561,6 +612,12 @@ async function iniciarApp() {
   atualizarIconeSom();
   configurarEventos();
   configurarPusher();
+
+  // Esconde overlay depois que tudo carregou
+  setTimeout(function() {
+    if (ov) ov.classList.add('hidden');
+    if (ovMsg) ovMsg.textContent = 'Carregando Cardápio...';
+  }, 500);
   
   // Atualiza os cronômetros das mesas a cada 1 segundo (visual apenas)
   setInterval(() => {
@@ -1454,11 +1511,24 @@ function fecharOpcoes() {
 }
 
 function abrirCardapioAdicionar() {
-  fecharOpcoes();
-  abrirCardapio();
+  // 1. fecha o modal imediatamente
+  document.getElementById('modal-opcoes').style.display = 'none';
+  atualizarBloqueioScroll();
+
+  // 2. mostra o overlay AGORA, antes de qualquer coisa pesada
+  var ov = document.getElementById('loading-cardapio');
+  if (ov) ov.classList.remove('hidden');
+
+  // 3. libera o event loop por 300ms para o browser pintar o overlay
+  setTimeout(function() {
+    abrirCardapio();
+  }, 300);
 }
 
 function abrirCardapio() {
+  var ov = document.getElementById('loading-cardapio');
+  if (ov) ov.classList.remove('hidden');
+
   const mesaTxt = document.getElementById('mesa-atual');
   
   // SEGURANÇA: Se mesaAtual for null, tenta recuperar pelo título do modal antes de crashar
@@ -1496,6 +1566,11 @@ function abrirCardapio() {
   window.pedidoObservacaoGeral = ''; // Reset observação geral
   exibirResumoPedido();
   exibirMenu('todas');
+
+  // Esconde o overlay depois que tudo carregou
+  setTimeout(function() {
+    if (ov) ov.classList.add('hidden');
+  }, 800);
 }
 
 function toggleCarrinho() {
@@ -2163,3 +2238,5 @@ function verQRCodeMesa() {
   fecharOpcoes();
   mostrarAlerta(html, "QR CODE DA MESA", "📱");
 }
+
+if (window.Capacitor && window.Capacitor.Plugins.SplashScreen) { window.Capacitor.Plugins.SplashScreen.hide(); }

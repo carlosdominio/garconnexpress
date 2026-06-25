@@ -3,16 +3,27 @@
   "appName": "GarçomExpress",
   "webDir": "www",
   "server": {
+    "url": "https://garconnexpress.vercel.app/app-garcom",
+    "cleartext": true,
     "androidScheme": "https"
   },
   "plugins": {
     "PushNotifications": {
-      "presentationOptions": ["badge"]
+      "presentationOptions": ["badge", "sound", "alert"]
     },
     "LocalNotifications": {
       "smallIcon": "ic_stat_notification",
       "iconColor": "#27ae60",
       "sound": "notificacao.mp3"
+    },
+    "SplashScreen": {
+      "launchShowDuration": 4000,
+      "launchAutoHide": true,
+      "backgroundColor": "#f1f2f6",
+      "androidSplashResourceName": "splash",
+      "showSpinner": true,
+      "androidSpinnerStyle": "large",
+      "spinnerColor": "#e74c3c"
     }
   }
 }
