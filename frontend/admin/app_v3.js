@@ -5917,7 +5917,8 @@ function atualizarBadgeNotificacoes() {
     document.title = `(${naoLidas}) ${baseTitle}`;
     
     const numTxt = naoLidas > 9 ? '9+' : naoLidas;
-    const svgAlert = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#2c3e50"/><path d="M20 70 L80 70 Q80 30 50 30 Q20 30 20 70 Z" fill="#27ae60"/><rect x="18" y="70" width="64" height="5" rx="2" fill="#ecf0f1"/><circle cx="50" cy="28" r="4" fill="#ecf0f1"/><circle cx="80" cy="20" r="20" fill="#e74c3c"/><text x="80" y="27" font-family="Arial" font-size="20" font-weight="bold" fill="white" text-anchor="middle">${numTxt}</text></svg>`;
+    // Bolinha vermelha e texto gigantes para serem legíveis em 16x16 pixels
+    const svgAlert = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#2c3e50"/><path d="M20 70 L80 70 Q80 30 50 30 Q20 30 20 70 Z" fill="#27ae60"/><rect x="18" y="70" width="64" height="5" rx="2" fill="#ecf0f1"/><circle cx="50" cy="28" r="4" fill="#ecf0f1"/><circle cx="75" cy="25" r="35" fill="#e74c3c"/><text x="75" y="38" font-family="Arial" font-size="38" font-weight="bold" fill="white" text-anchor="middle">${numTxt}</text></svg>`;
     changeFavicon("data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgAlert))));
   } else {
     badge.classList.add('hidden');
