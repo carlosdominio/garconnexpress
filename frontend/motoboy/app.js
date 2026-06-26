@@ -12,7 +12,7 @@ const App = {
         user: JSON.parse(localStorage.getItem('motoboy_user') || '{}'),
         pedidos: [],
         caixaAberto: true,
-        soundEnabled: localStorage.getItem('motoboy_sound') === 'true',
+        soundEnabled: localStorage.getItem('motoboy_sound') !== 'false',
         notifiedEvents: new Set(), // Para evitar duplicidade estrita (evento + id)
         notificacoes: []
     },
@@ -63,9 +63,7 @@ const App = {
         this.loadPedidos();
 
         this.ui.updateSoundIcon();
-        if (!localStorage.getItem('audio_unlocked')) {
-            this.ui.requestAudioUnlock();
-        }
+        localStorage.setItem('audio_unlocked', 'true');
     },
 
     checkAuth() {
