@@ -249,7 +249,50 @@ const App = {
         },
 
         async init() {
-            if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return;
+            if (!window.Capacitor || !window.Capacitor.isNativePlatform()) {
+                // --- FALLBACK PARA PWA (WEB PUSH) ---
+                if ('serviceWorker' in navigator && 'PushManager' in window) {
+                    try {
+                        const reg = await navigator.serviceWorker.ready;
+                        let subscription = await reg.pushManager.getSubscription();
+                        if (!subscription) {
+                            const response = await fetch(`${API_BASE_URL}/api/vapid-publicKey`);
+                            const data = await response.json();
+                            
+                            // Função auxiliar inline para converter a chave VAPID
+                            const urlBase64ToUint8Array = (base64String) => {
+                                const padding = '='.repeat((4 - base64String.length % 4) % 4);
+                                const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+                                const rawData = window.atob(base64);
+                                const outputArray = new Uint8Array(rawData.length);
+                                for (let i = 0; i < rawData.length; ++i) {
+                                    outputArray[i] = rawData.charCodeAt(i);
+                                }
+                                return outputArray;
+                            };
+                            
+                            const convertedVapidKey = urlBase64ToUint8Array(data.publicKey);
+                            subscription = await reg.pushManager.subscribe({
+                                userVisibleOnly: true,
+                                applicationServerKey: convertedVapidKey
+                            });
+                        }
+                        
+                        await fetch(`${API_BASE_URL}/api/subscribe`, {
+                            method: 'POST',
+                            body: JSON.stringify({ ...subscription.toJSON(), app_type: 'motoboy' }),
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${App.state.token}`
+                            }
+                        });
+                        console.log('✅ Web Push (Background Nativo) ativado para o PWA do Motoboy!');
+                    } catch (e) {
+                        console.error('❌ Falha ao inscrever no Web Push (PWA):', e);
+                    }
+                }
+                return;
+            }
 
             const { PushNotifications } = Capacitor.Plugins;
 
