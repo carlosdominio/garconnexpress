@@ -242,9 +242,15 @@
                 });
 
                 ch.bind('status-atualizado', (data) => {
-                    console.log('📢 Status de pedido atualizado:', data);
-                    if (pedidoAtivoId && data.pedido_id == pedidoAtivoId) {
+                    if (data.pedido_id && String(data.pedido_id) === String(pedidoAtivoId)) {
                         updateTrackingUI(data.status, data.pedido_id);
+                    }
+                });
+                
+                ch.bind('pedido-cancelado', (data) => {
+                    const pId = String(data.pedido_id || data.id || (data.pedido ? data.pedido.id : '') || '');
+                    if (pId === String(pedidoAtivoId)) {
+                        updateTrackingUI('cancelado', pId);
                     }
                 });
             } catch (e) { console.error('Erro Pusher:', e); }
