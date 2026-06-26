@@ -763,15 +763,15 @@ async function safePusherTrigger(channel, event, data) {
                    },
                    data: {
                      event: event,
-                     sound: 'notificacao',
+                     sound: 'notificacao.mp3',
                      pedido_id: pId,
                      status: statusVal
                    },
                    android: {
                      priority: 'high',
                      notification: {
-                       sound: 'notificacao',
-                       channelId: 'pedidos',
+                       sound: 'notificacao.mp3',
+                       channelId: 'pedidos_v3',
                        defaultSound: false
                      }
                    },
@@ -987,8 +987,8 @@ async function checkAndNotifyDelayedOrders() {
                 android: {
                   priority: 'high',
                   notification: {
-                    sound: 'notificacao',
-                    channelId: 'pedidos_v2',
+                    sound: 'notificacao.mp3',
+                    channelId: 'pedidos_v3',
                     defaultSound: false
                   }
                 },
