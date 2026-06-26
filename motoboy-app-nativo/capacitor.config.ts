@@ -30,6 +30,11 @@ const config: CapacitorConfig = {
       androidSpinnerStyle: "large",
       spinnerColor: "#e74c3c"
     }
+  },
+  cordova: {
+    preferences: {
+      MediaPlaybackRequiresUserAction: "false"
+    }
   }
 };
 
