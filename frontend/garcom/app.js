@@ -601,6 +601,7 @@ async function atualizarStatusCaixa() {
     if (screenFechado) {
         if (!caixaAberto) {
             screenFechado.style.display = 'flex';
+            if (typeof limparNotificacoes === 'function') limparNotificacoes();
             atualizarBloqueioScroll();
         } else {
             screenFechado.style.display = 'none';

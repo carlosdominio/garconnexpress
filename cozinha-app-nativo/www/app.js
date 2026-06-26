@@ -204,6 +204,7 @@ async function verificarCaixa() {
             if (container) container.style.display = 'none';
             if (closedScreen) closedScreen.style.display = 'flex';
             if (header) header.style.opacity = '0.3';
+            if (typeof limparNotificacoes === 'function') limparNotificacoes();
             return false;
         }
         

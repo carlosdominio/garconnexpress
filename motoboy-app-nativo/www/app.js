@@ -218,6 +218,9 @@ const App = {
                 screen.style.display = this.state.caixaAberto ? 'none' : 'flex';
                 document.body.style.overflow = this.state.caixaAberto ? '' : 'hidden';
             }
+            if (!this.state.caixaAberto) {
+                if (typeof this.ui.limparNotificacoes === 'function') this.ui.limparNotificacoes();
+            }
         } catch (e) { console.error("Erro status caixa:", e); }
     },
 
