@@ -661,7 +661,7 @@ async function safePusherTrigger(channel, event, data) {
         // Determina se o evento é para o Motoboy (Delivery) ou Garçom
         const isDelivery = data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY');
 
-        if (event === 'novo-pedido') pushMsg = `🚀 NOVO PEDIDO: ${mesaFormatada}`;
+        if (event === 'novo-pedido') pushMsg = data.is_addition ? `➕ ITEM ADICIONADO: ${mesaFormatada}` : `🚀 NOVO PEDIDO: ${mesaFormatada}`;
         else if (event === 'pedido-cancelado') pushMsg = `❌ ${mesaFormatada} PEDIDO CANCELADO`;
         else if (event === 'chamado-garcom') pushMsg = `🛎️ CHAMADO: ${mesaFormatada}`;
         else if (event === 'pedido-pronto') pushMsg = `🍳 PRONTO: ${mesaFormatada}`;
@@ -714,9 +714,10 @@ async function safePusherTrigger(channel, event, data) {
         if (event === 'novo-pedido' || event === 'pedido-cancelado') {
           // enviaCozinha já foi calculado lá em cima!
           if (enviaCozinha) {
-            const cozinhaMsg = event === 'novo-pedido' 
-              ? `🍳 NOVO PEDIDO: ${mesaFormatada}` 
-              : `❌ ${mesaFormatada} PEDIDO CANCELADO`;
+            let cozinhaMsg = `❌ ${mesaFormatada} PEDIDO CANCELADO`;
+            if (event === 'novo-pedido') {
+              cozinhaMsg = data.is_addition ? `➕ ITEM ADICIONADO: A ${mesaFormatada} pediu mais itens!` : `🍳 NOVO PEDIDO: ${mesaFormatada}`;
+            }
             targets.push({ app: 'cozinha', title: 'CozinhaExpress', msg: cozinhaMsg });
           }
         }
@@ -2344,6 +2345,7 @@ app.put('/api/pedidos/:id/adicionar', async (req, res) => {
       safePusherTrigger('garconnexpress', 'menu-atualizado', {}),
       safePusherTrigger('garconnexpress', 'novo-pedido', { 
         para_cozinha: temItemCozinha,
+        is_addition: true,
         pedido: { id: id, mesa_numero: mesaNum, status: 'recebido', garcom_id: pMesa ? pMesa.garcom_id : null } 
       })
     ]);
