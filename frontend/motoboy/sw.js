@@ -1,4 +1,4 @@
-const CACHE_NAME = 'motoboy-cache-v3';
+const CACHE_NAME = 'motoboy-cache-v4';
 const urlsToCache = [
   'index.html',
   'style.css',
@@ -30,18 +30,8 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-  if (event.request.method !== 'GET' || event.request.url.includes('/api/') || event.request.url.includes('pusher.com')) {
-    return;
-  }
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        return response || fetch(event.request).catch(err => {
-          console.warn('Fetch failed in SW:', event.request.url, err);
-          return new Response('', { status: 503, statusText: 'Offline' });
-        });
-      })
-  );
+  // Deixa o navegador fazer o fetch nativo.
+  // Evita bugs de CORS e falhas no Capacitor WebView (503 Service Unavailable).
 });
 
 self.addEventListener('push', event => {
