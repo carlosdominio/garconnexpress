@@ -46,7 +46,7 @@ const container = document.getElementById('pedidos-container');
 const audioNotificacao = new Audio('/notificacao.mp3');
 const statusConexao = document.getElementById('status-conexao');
 
-let somAtivo = localStorage.getItem('cozinha_som_ativo') === 'true';
+let somAtivo = localStorage.getItem('cozinha_som_ativo') !== 'false';
 let audioDesbloqueado = false;
 
 function atualizarIconeSom() {
