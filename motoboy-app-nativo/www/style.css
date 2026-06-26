@@ -431,6 +431,7 @@ main {
     position: relative;
     pointer-events: auto;
     transform: translateY(-150%);
+    overflow: hidden !important;
 }
 
 .toast-notificacao.show { transform: translateY(0) !important; }
