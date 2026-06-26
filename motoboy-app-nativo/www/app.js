@@ -676,16 +676,48 @@ const App = {
             } catch (e) { btn.disabled = false; }
         },
 
-        showToast(msg, tipo = 'success', titulo = '') {
+        showToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
             if (typeof this.adicionarNotificacaoPainel === 'function') this.adicionarNotificacaoPainel(msg, titulo, tipo);
             let c = document.getElementById('toast-container');
             if (!c) { c = document.createElement('div'); c.id = 'toast-container'; document.body.appendChild(c); }
+            
             const t = document.createElement('div');
-            t.className = `toast-notificacao ${tipo}`;
-            t.innerHTML = `<div class="toast-content"><strong>${titulo || ''}</strong><br>${msg}</div>`;
+            let classeTipo = tipo;
+            if (tipo === 'sucesso') classeTipo = 'success';
+            if (tipo === 'erro') classeTipo = 'error';
+            
+            t.className = `toast-notificacao ${classeTipo}`;
+            
+            const icones = {
+                success: '✅',
+                error: '❌',
+                warning: '⚠️',
+                info: 'ℹ️'
+            };
+            
+            const html = `
+                <div class="toast-icon">${icones[classeTipo] || '🔔'}</div>
+                <div class="toast-content">
+                    ${titulo ? `<strong class="toast-title">${titulo}</strong>` : ''}
+                    <span class="toast-msg">${msg}</span>
+                </div>
+                <button class="toast-close">&times;</button>
+            `;
+            t.innerHTML = html;
             c.appendChild(t);
+            
             setTimeout(() => t.classList.add('show'), 10);
-            setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 4000);
+            
+            const autoClose = setTimeout(() => {
+                t.classList.remove('show');
+                setTimeout(() => { if (t.parentNode) t.remove(); }, 400);
+            }, duracao);
+            
+            t.querySelector('.toast-close').onclick = () => {
+                clearTimeout(autoClose);
+                t.classList.remove('show');
+                setTimeout(() => { if (t.parentNode) t.remove(); }, 400);
+            };
         }
     }
 };

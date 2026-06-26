@@ -215,27 +215,295 @@ main {
 /* Fix for SweetAlert2 behind login screen */
 .swal2-container {
     z-index: 99999 !important;
+    color: var(--text);
+    padding-bottom: 40px;
+    line-height: 1.6;
+}
+
+header {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: white;
+    padding: 20px 15px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    border-bottom-left-radius: 20px;
+    border-bottom-right-radius: 20px;
+}
+
+header h1 {
+    font-size: 1.3rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.btn-icon {
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    color: white;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: all 0.2s;
+}
+
+.btn-icon:active {
+    transform: scale(0.9);
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.btn-icon.muted {
+    background: rgba(0, 0, 0, 0.2);
+    color: rgba(255, 255, 255, 0.5);
+}
+
+main {
+    padding: 20px 15px;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.section-title {
+    margin: 25px 0 10px;
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--text-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.badge {
+    background: white;
+    color: var(--primary);
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.pedidos-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Card Styling */
+.pedido-card {
+    background: var(--card-bg);
+    border-radius: 18px;
+    padding: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.03);
+    border: 1px solid rgba(0,0,0,0.02);
+}
+
+.pedido-card.a-caminho { border-left: 5px solid var(--success); }
+.pedido-card.pendente { border-left: 5px solid #f1c40f; }
+.pedido-card.entregue { opacity: 0.7; background-color: #f8f9fa; }
+
+.pedido-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-weight: 800;
+}
+
+.pedido-id { color: var(--primary); font-size: 1.1rem; }
+.pedido-total { color: var(--text); font-size: 1.1rem; }
+
+.status-badge {
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 900;
+    margin-left: 5px;
+    vertical-align: middle;
+}
+.status-badge.pendente { background: #fef9e7; color: #f39c12; border: 1px solid #f39c12; }
+.status-badge.a-caminho { background: #eafaf1; color: #27ae60; border: 1px solid #27ae60; }
+.status-badge.entregue { background: #ebf5fb; color: #2980b9; border: 1px solid #2980b9; }
+
+.pedido-time {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-light);
+    margin-top: 2px;
+}
+
+.pedido-body { margin-bottom: 15px; }
+
+.cliente-info {
+    display: block;
+    font-size: 1.05rem;
+    color: var(--secondary);
+    margin-bottom: 4px;
+}
+
+.endereco-info { font-size: 0.9rem; color: #7f8c8d; margin-bottom: 8px; line-height: 1.4; }
+.endereco-info i { color: var(--danger); margin-right: 4px; }
+
+.pedido-itens { 
+    font-size: 0.85rem; 
+    color: #34495e; 
+    font-weight: 600;
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 8px;
+}
+
+.item-row { margin-bottom: 3px; }
+
+.btn-entregar {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 12px;
+    background: var(--success);
+    color: white;
+    font-weight: 800;
+    font-size: 0.9rem;
+    cursor: pointer;
+    box-shadow: 0 4px 0 #27ae60;
+    transition: 0.1s;
+}
+
+.btn-entregar:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #27ae60;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 30px 10px;
+    color: var(--text-light);
+    font-size: 0.8rem;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 15px;
+    border: 1px dashed #ddd;
+}
+
+/* Toast Container */
+#toast-container {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    right: 20px;
+    z-index: 999999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+/* Fix for SweetAlert2 behind login screen */
+.swal2-container {
+    z-index: 99999 !important;
 }
 .my-swal-container {
     z-index: 99999 !important;
 }
 
 .toast-notificacao {
-    background: white;
-    padding: 12px 15px;
-    border-radius: 12px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-    border-left: 5px solid var(--primary);
-    transform: translateY(-150%);
-    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    background: rgba(255, 255, 255, 0.85) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.1), 0 5px 15px rgba(0,0,0,0.05) !important;
+    border-left: none !important;
+    border: 1px solid rgba(255,255,255,0.4) !important;
+    padding: 16px !important;
+    gap: 15px !important;
+    transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+    display: flex;
+    align-items: center;
+    position: relative;
     pointer-events: auto;
+    transform: translateY(-150%);
 }
 
-.toast-notificacao.show { transform: translateY(0); }
-.toast-notificacao.warning { border-left-color: #f1c40f; }
-.toast-notificacao.info { border-left-color: #3498db; }
+.toast-notificacao.show { transform: translateY(0) !important; }
 
-.toast-content { font-size: 0.85rem; color: #333; }
+.toast-notificacao::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    border-radius: 20px 0 0 20px;
+}
+
+.toast-notificacao.success::before { background: linear-gradient(to bottom, #00b09b, #96c93d); }
+.toast-notificacao.error::before { background: linear-gradient(to bottom, #ff0844, #ffb199); }
+.toast-notificacao.warning::before { background: linear-gradient(to bottom, #f6d365, #fda085); }
+.toast-notificacao.info::before { background: linear-gradient(to bottom, #4facfe, #00f2fe); }
+
+.toast-notificacao .toast-icon {
+    width: 42px !important;
+    height: 42px !important;
+    border-radius: 12px !important;
+    font-size: 1.4rem !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05) !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.toast-notificacao.success .toast-icon { background: linear-gradient(135deg, #e0f2f1 0%, #b2dfdb 100%) !important; color: #00897b !important; }
+.toast-notificacao.error .toast-icon { background: linear-gradient(135deg, #fce4ec 0%, #f8bbd0 100%) !important; color: #d81b60 !important; }
+.toast-notificacao.warning .toast-icon { background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%) !important; color: #f39c12 !important; }
+.toast-notificacao.info .toast-icon { background: linear-gradient(135deg, #e1f5fe 0%, #b3e5fc 100%) !important; color: #039be5 !important; }
+
+.toast-notificacao .toast-title {
+    font-size: 0.95rem !important;
+    color: #2c3e50 !important;
+    margin-bottom: 3px !important;
+    display: block;
+}
+
+.toast-notificacao .toast-msg {
+    font-size: 0.85rem !important;
+    color: #7f8c8d !important;
+}
+
+.toast-notificacao .toast-close {
+    background: #f1f2f6 !important;
+    border-radius: 50% !important;
+    width: 26px !important;
+    height: 26px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: #95a5a6 !important;
+    transition: all 0.2s !important;
+    position: absolute;
+    top: 10px !important;
+    right: 10px !important;
+    border: none;
+    cursor: pointer;
+}
+
+.toast-notificacao .toast-close:hover {
+    background: #e74c3c !important;
+    color: white !important;
+}
+
+.toast-content {
+    display: flex;
+    flex-direction: column;
+}
 /* Modal de Cancelamento */
 .modal {
     display: none;
