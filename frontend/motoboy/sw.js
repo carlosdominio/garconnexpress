@@ -3,8 +3,7 @@ const urlsToCache = [
   'index.html',
   'style.css',
   'app.js',
-  'favicon.svg',
-  '../notificacao.mp3'
+  'favicon.svg'
 ];
 
 self.addEventListener('install', event => {

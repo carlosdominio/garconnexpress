@@ -12,12 +12,5 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
-  event.respondWith(
-    caches.match(event.request).then(response => {
-      if (response) return response;
-      return fetch(event.request).catch(() => {
-        return new Response("Offline ou erro de rede", { status: 503, statusText: "Service Unavailable" });
-      });
-    })
-  );
+  // O navegador fará o fetch nativamente, sem Service Worker interferindo
 });
