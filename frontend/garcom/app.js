@@ -790,6 +790,7 @@ async function configurarPusher() {
       
       if (data.status === 'fechado') {
         tocarCampainha();
+        if (typeof limparNotificacoes === 'function') limparNotificacoes();
         mostrarAlerta("O caixa foi fechado pelo administrador. O atendimento está encerrado.", "💰 CAIXA FECHADO", "🛑");
       } else if (data.status === 'aberto') {
         tocarCampainha(true); // Som suave

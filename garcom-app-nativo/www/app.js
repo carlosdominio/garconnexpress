@@ -841,6 +841,7 @@ async function configurarPusher() {
       
       if (data.status === 'fechado') {
         tocarCampainha();
+        if (typeof limparNotificacoes === 'function') limparNotificacoes(); // Limpa o histórico de notificações da noite
       } else if (data.status === 'aberto') {
         tocarCampainha(true); // Som suave
         mostrarToast("O caixa foi aberto! Bom trabalho.");
