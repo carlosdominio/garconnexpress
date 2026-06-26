@@ -5899,14 +5899,25 @@ function atualizarBadgeNotificacoes() {
 
   const naoLidas = notificacoesGerais.filter(n => !n.lida).length;
   const baseTitle = "GarçonExpress - Admin";
+  const favIconLink = document.getElementById('dynamic-favicon');
 
   if (naoLidas > 0) {
     badge.innerText = naoLidas > 99 ? '99+' : naoLidas;
     badge.classList.remove('hidden');
     document.title = `(${naoLidas}) ${baseTitle}`;
+    
+    if (favIconLink) {
+      const numTxt = naoLidas > 9 ? '9+' : naoLidas;
+      const svgAlert = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#2c3e50"/><path d="M20 70 L80 70 Q80 30 50 30 Q20 30 20 70 Z" fill="#27ae60"/><rect x="18" y="70" width="64" height="5" rx="2" fill="#ecf0f1"/><circle cx="50" cy="28" r="4" fill="#ecf0f1"/><circle cx="80" cy="20" r="20" fill="#e74c3c"/><text x="80" y="27" font-family="Arial" font-size="20" font-weight="bold" fill="white" text-anchor="middle">${numTxt}</text></svg>`;
+      favIconLink.href = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgAlert)));
+    }
   } else {
     badge.classList.add('hidden');
     document.title = baseTitle;
+    
+    if (favIconLink) {
+      favIconLink.href = "favicon.svg";
+    }
   }
 }
 
