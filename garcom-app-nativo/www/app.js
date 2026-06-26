@@ -704,9 +704,32 @@ function tocarCampainha(suave = false) {
   if (somAtivo && audioDesbloqueado) {
     if (Date.now() - ultimoSomTocado < 2000) return; // Evita eco/duplicidade com FCM
     ultimoSomTocado = Date.now();
-    audioNotificacao.volume = suave ? 0.4 : 1.0;
-    audioNotificacao.currentTime = 0;
-    audioNotificacao.play().catch(e => console.warn('Erro ao tocar áudio:', e));
+    
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      // Plim suave estilo WhatsApp
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1320, audioCtx.currentTime + 0.08);
+      
+      gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(suave ? 0.2 : 0.6, audioCtx.currentTime + 0.02);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+      
+      osc.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.3);
+    } catch (e) {
+      // Fallback
+      audioNotificacao.volume = suave ? 0.3 : 0.8;
+      audioNotificacao.currentTime = 0;
+      audioNotificacao.play().catch(err => console.warn('Erro ao tocar áudio:', err));
+    }
   }
 }
 
