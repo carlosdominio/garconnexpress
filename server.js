@@ -2656,13 +2656,18 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
 });
 app.get('/api/menu', ensureDbInitialized, async (req, res) => {
   try {
-    const { admin } = req.query;
+    const { admin, garcom } = req.query;
     let querySql = 'SELECT * FROM menu';
     
     if (admin !== 'true') {
-      // Camada 1: SQL - Filtra no banco (Visível = 1 E (Ilimitado -1 OU Maior que 0))
       const visivelValue = isPostgres ? 'TRUE' : '1';
-      querySql += ` WHERE visivel = ${visivelValue} AND (estoque = -1 OR (estoque IS NOT NULL AND estoque > 0))`;
+      if (garcom === 'true') {
+        // Garçom vê tudo que é visível (incluindo estoque 0)
+        querySql += ` WHERE visivel = ${visivelValue}`;
+      } else {
+        // Cliente (Cardápio via QRCode) não vê estoque 0
+        querySql += ` WHERE visivel = ${visivelValue} AND (estoque = -1 OR (estoque IS NOT NULL AND estoque > 0))`;
+      }
     }
     
     querySql += ' ORDER BY categoria ASC, nome ASC';
@@ -2671,7 +2676,7 @@ app.get('/api/menu', ensureDbInitialized, async (req, res) => {
     let menu = menuRes.rows;
 
     // Camada 2: JavaScript - Filtro de segurança extra para clientes
-    if (admin !== 'true') {
+    if (admin !== 'true' && garcom !== 'true') {
       menu = menu.filter(item => {
         const est = parseInt(item.estoque);
         return item.visivel && (est === -1 || est > 0);

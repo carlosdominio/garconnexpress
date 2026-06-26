@@ -1024,7 +1024,7 @@ function fecharToast(el) {
 }
 
 async function carregarMenu() {
-  const res = await fetch('/api/menu');
+  const res = await fetch('/api/menu?garcom=true');
   if (!res.ok) return; // Evita crash se não autenticado
   menu = await res.json();
   if (Array.isArray(menu)) {
