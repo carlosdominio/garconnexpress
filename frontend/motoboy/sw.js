@@ -1,4 +1,4 @@
-const CACHE_NAME = 'motoboy-cache-v2';
+const CACHE_NAME = 'motoboy-cache-v3';
 const urlsToCache = [
   'index.html',
   'style.css',
@@ -8,6 +8,7 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(urlsToCache))
@@ -24,7 +25,7 @@ self.addEventListener('activate', event => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
 });
 
