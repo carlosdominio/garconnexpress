@@ -128,7 +128,14 @@
             <span id="caixa-status-badge" class="badge-caixa" style="display:none;"></span>
           </div>
         </div>
-        <button onclick="logout()" style="width: auto; background: rgba(255,255,255,0.1); color: #fff; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.3); padding: 5px 10px; border-radius: 6px; margin-bottom: 0; font-weight: bold; flex-shrink: 0;">SAIR</button>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <!-- Sino de Notificações -->
+          <div style="position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer; background: rgba(255,255,255,0.1); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0;" onclick="togglePainelNotificacoes()">
+            <span style="font-size: 1.1rem; user-select: none;">🔔</span>
+            <span id="badge-notificacoes" style="display: none; position: absolute; top: -5px; right: -5px; background: #e74c3c; color: white; font-size: 0.65rem; font-weight: bold; border-radius: 50%; width: 18px; height: 18px; align-items: center; justify-content: center; line-height: 1;">0</span>
+          </div>
+          <button onclick="logout()" style="width: auto; background: rgba(255,255,255,0.1); color: #fff; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.3); padding: 5px 10px; border-radius: 6px; margin-bottom: 0; font-weight: bold; flex-shrink: 0;">SAIR</button>
+        </div>
       </div>
       <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
         <button id="btn-header-mesas" onclick="voltarParaMesas()" style="display:none; width: auto; background: #e74c3c; color: #fff; font-size: 0.8rem; border: none; padding: 6px 12px; border-radius: 6px; margin-bottom: 0; font-weight: bold; align-items: center; gap: 8px;">
@@ -137,11 +144,7 @@
           </svg>
           MESAS
         </button>
-        <!-- Sino de Notificações -->
-        <div style="position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer; background: rgba(255,255,255,0.1); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); margin-right: 5px; flex-shrink: 0;" onclick="togglePainelNotificacoes()">
-          <span style="font-size: 1.1rem; user-select: none;">🔔</span>
-          <span id="badge-notificacoes" style="display: none; position: absolute; top: -5px; right: -5px; background: #e74c3c; color: white; font-size: 0.65rem; font-weight: bold; border-radius: 50%; width: 18px; height: 18px; align-items: center; justify-content: center; line-height: 1;">0</span>
-        </div>
+
 
         <div class="toggle-container" style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0; white-space: nowrap;">
           <span id="label-som" style="color: white; font-size: 0.75rem; font-weight: bold;">SOM</span>
