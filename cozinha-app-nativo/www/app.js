@@ -580,18 +580,20 @@ async function registerNativePush() {
     await PushNotifications.register();
 
     PushNotifications.addListener('registration', async (token) => {
-      console.log('🔥 Token FCM recebido (Cozinha):', token.value);
-      await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          endpoint: token.value,
-          keys: { p256dh: '', auth: '' },
-          app_type: 'cozinha'
-        })
-      });
+      console.log('🔔 Token FCM recebido (Cozinha):', token.value);
+      try {
+        await fetch('/api/subscribe-cozinha', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            endpoint: token.value
+          })
+        });
+      } catch (e) {
+        console.error('Erro ao sincronizar token Cozinha:', e);
+      }
     });
 
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {

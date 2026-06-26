@@ -876,6 +876,23 @@ app.post('/api/subscribe-motoboy', isAuthenticated, async (req, res) => {
   }
 });
 
+// Endpoint específico para o app Cozinha
+app.post('/api/subscribe-cozinha', isAuthenticated, async (req, res) => {
+  const { endpoint } = req.body;
+  const garcomId = req.user.id || req.user.usuario;
+  try {
+    if (!endpoint) return res.status(400).json({ error: 'Endpoint/token é obrigatório.' });
+    await query("DELETE FROM push_subscriptions WHERE endpoint = ?", [endpoint]);
+    await query("DELETE FROM push_subscriptions WHERE garcom_id = ? AND app_type = 'cozinha'", [garcomId]);
+    await query("INSERT INTO push_subscriptions (garcom_id, endpoint, app_type) VALUES (?, ?, 'cozinha')", [garcomId, endpoint]);
+    res.status(201).json({ success: true });
+  } catch (error) {
+    console.error("Erro ao salvar inscrição cozinha:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 let lastDelayedCheck = 0;
 
 async function checkAndNotifyDelayedOrders() {
