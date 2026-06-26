@@ -396,8 +396,7 @@ const App = {
             }
         },
         toggleSoundManual() {
-            const check = document.getElementById('check-som');
-            App.state.soundEnabled = check ? check.checked : !App.state.soundEnabled;
+            App.state.soundEnabled = !App.state.soundEnabled;
             localStorage.setItem('motoboy_sound', App.state.soundEnabled);
             App.ui.updateSoundIcon();
             if (App.state.soundEnabled) {
@@ -483,12 +482,19 @@ const App = {
     // --- UI ---
     ui: {
         updateSoundIcon() {
-            const check = document.getElementById('check-som');
-            const label = document.getElementById('label-som');
-            if (check) check.checked = App.state.soundEnabled;
-            if (label) {
-                label.innerText = App.state.soundEnabled ? '🔊 SOM' : '🔇 MUDO';
-                label.style.color = App.state.soundEnabled ? '#2ecc71' : '#bdc3c7';
+            const icone = document.getElementById('icone-som');
+            const btn = document.getElementById('btn-som');
+            if (icone) {
+                icone.className = App.state.soundEnabled ? 'fas fa-volume-up' : 'fas fa-volume-mute';
+            }
+            if (btn) {
+                if (App.state.soundEnabled) {
+                    btn.style.background = 'rgba(255,255,255,1)';
+                    btn.style.color = '#e67e22';
+                } else {
+                    btn.style.background = 'rgba(255,255,255,0.2)';
+                    btn.style.color = 'white';
+                }
             }
         },
         adicionarNotificacaoPainel(mensagem, titulo, tipo) {

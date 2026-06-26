@@ -51,14 +51,10 @@
                     <span id="badge-notificacoes" style="display: none; position: absolute; top: -5px; right: -5px; background: #c0392b; color: white; font-size: 0.65rem; font-weight: bold; border-radius: 50%; width: 18px; height: 18px; align-items: center; justify-content: center; line-height: 1;">0</span>
                 </div>
 
-                <!-- Chave de Som -->
-                <div class="toggle-container" style="display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.2); padding: 5px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.3); flex-shrink: 0; white-space: nowrap;">
-                    <span id="label-som" style="color: white; font-size: 0.65rem; font-weight: bold;">MUDO</span>
-                    <label class="switch" style="transform: scale(0.8); margin: 0;">
-                        <input type="checkbox" id="check-som" onchange="App.notifications.toggleSoundManual()">
-                        <span class="slider"></span>
-                    </label>
-                </div>
+                <!-- Botão de Som -->
+                <button id="btn-som" onclick="App.notifications.toggleSoundManual()" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.5); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; backdrop-filter: blur(5px);">
+                    <i id="icone-som" class="fas fa-volume-mute" style="font-size: 1.1rem;"></i>
+                </button>
 
                 <button onclick="App.logout()" class="btn-icon" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3);" title="Sair">
                     <i class="fas fa-sign-out-alt"></i>
