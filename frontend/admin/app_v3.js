@@ -5898,11 +5898,15 @@ function atualizarBadgeNotificacoes() {
   if (!badge) return;
 
   const naoLidas = notificacoesGerais.filter(n => !n.lida).length;
+  const baseTitle = "GarçonExpress - Admin";
+
   if (naoLidas > 0) {
-    badge.innerText = naoLidas;
+    badge.innerText = naoLidas > 99 ? '99+' : naoLidas;
     badge.classList.remove('hidden');
+    document.title = `(${naoLidas}) ${baseTitle}`;
   } else {
     badge.classList.add('hidden');
+    document.title = baseTitle;
   }
 }
 
