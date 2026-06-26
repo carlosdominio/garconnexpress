@@ -558,9 +558,9 @@ async function registerNativePush() {
 
     if (window.Capacitor.getPlatform() === 'android') {
       await PushNotifications.createChannel({
-        id: 'pedidos_v3',
+        id: 'pedidos_v4',
         name: 'Pedidos Cozinha',
-        sound: 'notificacao.mp3',
+        sound: 'notificacao',
         importance: 5,
         visibility: 1,
         vibration: true

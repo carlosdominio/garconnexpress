@@ -86,10 +86,10 @@ async function registerNativePush() {
     // Cria o canal de notificação com o som personalizado no Android
     if (window.Capacitor.getPlatform() === 'android') {
       await PushNotifications.createChannel({
-        id: 'pedidos_v3',
-        name: 'Alertas de Pedidos (Prioridade)',
+        id: 'pedidos_v4',
+        name: 'Alertas de Pedidos (Campainha)',
         description: 'Notificações de novos pedidos e chamados',
-        sound: 'notificacao.mp3',
+        sound: 'notificacao',
         importance: 5,
         visibility: 1,
         vibration: true
@@ -670,7 +670,13 @@ async function atualizarStatusCaixa() {
   } catch (e) { console.error('Erro status caixa:', e); }
 }
 
-let somAtivo = localStorage.getItem('garcom_som_ativo') === 'true';
+let somAtivo = localStorage.getItem('garcom_som_ativo');
+if (somAtivo === null) {
+  somAtivo = true; // Ativado por padrão
+  localStorage.setItem('garcom_som_ativo', 'true');
+} else {
+  somAtivo = somAtivo === 'true';
+}
 let audioDesbloqueado = false;
 let ultimoSomTocado = 0;
 const audioNotificacao = new Audio('/notificacao.mp3');
