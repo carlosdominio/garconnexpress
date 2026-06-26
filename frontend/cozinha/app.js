@@ -79,30 +79,8 @@ function tocarCampainha() {
     if (document.hidden) return; // Android FCM toca o som pesado quando oculto
 
     if (somAtivo) {
-        try {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            const osc = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            
-            // Plim suave estilo WhatsApp
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(1320, audioCtx.currentTime + 0.08);
-            
-            gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-            gainNode.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 0.02);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
-            
-            osc.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.3);
-        } catch (e) {
-            audioNotificacao.currentTime = 0;
-            audioNotificacao.play().catch(err => console.log('Áudio bloqueado:', err));
-        }
+        audioNotificacao.currentTime = 0;
+        audioNotificacao.play().catch(err => console.log('Áudio bloqueado:', err));
     }
 }
 
