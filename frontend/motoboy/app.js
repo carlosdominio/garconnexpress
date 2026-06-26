@@ -259,6 +259,11 @@ const App = {
                             const response = await fetch(`${API_BASE_URL}/api/vapid-publicKey`);
                             const data = await response.json();
                             
+                            if (!data.publicKey || data.publicKey.trim() === '') {
+                                console.warn('⚠️ Web Push desativado: Chave VAPID_PUBLIC_KEY não configurada no servidor Vercel.');
+                                return;
+                            }
+                            
                             // Função auxiliar inline para converter a chave VAPID
                             const urlBase64ToUint8Array = (base64String) => {
                                 const padding = '='.repeat((4 - base64String.length % 4) % 4);

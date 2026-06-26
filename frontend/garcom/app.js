@@ -181,6 +181,10 @@ async function subscribeToPush() {
     if (!subscription) {
       const response = await fetch('/api/vapid-publicKey');
       const data = await response.json();
+      if (!data.publicKey || data.publicKey.trim() === '') {
+        console.warn('⚠️ Web Push desativado: Chave VAPID_PUBLIC_KEY não configurada no servidor Vercel.');
+        return;
+      }
       const convertedVapidKey = urlBase64ToUint8Array(data.publicKey);
       
       subscription = await reg.pushManager.subscribe({
