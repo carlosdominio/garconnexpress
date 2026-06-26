@@ -86,8 +86,8 @@ async function registerNativePush() {
     // Cria o canal de notificação com o som personalizado no Android
     if (window.Capacitor.getPlatform() === 'android') {
       await PushNotifications.createChannel({
-        id: 'pedidos',
-        name: 'Alertas de Pedidos',
+        id: 'pedidos_v2',
+        name: 'Alertas de Pedidos (Novo)',
         description: 'Notificações de novos pedidos e chamados',
         sound: 'notificacao',
         importance: 5,

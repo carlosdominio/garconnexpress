@@ -988,7 +988,7 @@ async function checkAndNotifyDelayedOrders() {
                   priority: 'high',
                   notification: {
                     sound: 'notificacao',
-                    channelId: 'pedidos',
+                    channelId: 'pedidos_v2',
                     defaultSound: false
                   }
                 },
