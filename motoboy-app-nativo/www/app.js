@@ -379,7 +379,31 @@ const App = {
         playAlert() {
             if (document.hidden) return; // Evita conflito com som nativo em segundo plano
             if (!App.state.soundEnabled) return;
-            this.audio.play().catch(e => console.log('Áudio bloqueado:', e));
+            
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                
+                // Plim suave estilo WhatsApp
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1320, audioCtx.currentTime + 0.08);
+                
+                gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 0.02);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+                
+                osc.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.3);
+            } catch (e) {
+                this.audio.currentTime = 0;
+                this.audio.play().catch(err => console.log('Áudio bloqueado:', err));
+            }
         },
 
         toggleSound() {

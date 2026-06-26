@@ -78,9 +78,10 @@ function alternarSom() {
 function tocarCampainha() {
     if (document.hidden) return; // Android FCM toca o som pesado quando oculto
 
-    if (somAtivo && audioDesbloqueado) {
+    if (somAtivo) {
         try {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
             const osc = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
             
@@ -100,10 +101,7 @@ function tocarCampainha() {
             osc.stop(audioCtx.currentTime + 0.3);
         } catch (e) {
             audioNotificacao.currentTime = 0;
-            audioNotificacao.play().catch(err => {
-                console.warn('Erro ao tocar áudio:', err);
-                audioDesbloqueado = false; 
-            });
+            audioNotificacao.play().catch(err => console.log('Áudio bloqueado:', err));
         }
     }
 }

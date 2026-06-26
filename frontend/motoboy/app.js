@@ -347,6 +347,7 @@ const App = {
             
             try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
                 const osc = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
                 
