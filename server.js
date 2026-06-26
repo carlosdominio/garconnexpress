@@ -3009,7 +3009,7 @@ app.post('/api/admin/login', loginLimiter, async (req, res) => {
       const admin = result.rows[0];
       delete admin.senha;
       
-      const token = jwt.sign({ id: admin.id, usuario: admin.usuario, role: 'admin' }, JWT_SECRET, { expiresIn: '2h' });
+      const token = jwt.sign({ id: admin.id, usuario: admin.usuario, role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
       
       const isProd = process.env.NODE_ENV === 'production';
       res.cookie('admin_token', token, {
@@ -3033,7 +3033,7 @@ app.post('/api/login', loginLimiter, async (req, res) => {
       const garcom = result.rows[0];
       delete garcom.senha;
       
-      const token = jwt.sign({ id: garcom.id, nome: garcom.nome, usuario: garcom.usuario, role: 'garcom' }, JWT_SECRET, { expiresIn: '16h' });
+      const token = jwt.sign({ id: garcom.id, nome: garcom.nome, usuario: garcom.usuario, role: 'garcom' }, JWT_SECRET, { expiresIn: '15d' });
       
       // Define garçom como ONLINE para o rodízio
       const agora = new Date().toISOString();
