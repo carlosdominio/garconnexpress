@@ -654,7 +654,7 @@ function alternarSom() {
   }
   
   // Notificação visual (balão/toast)
-  mostrarToast(somAtivo ? "🔊 Som Ativado (Teste ✅)" : "🔇 Som Desativado");
+  mostrarToast(somAtivo ? "🔊 Som Ativado" : "🔇 Som Desativado");
 }
 
 function tocarCampainha(suave = false) {

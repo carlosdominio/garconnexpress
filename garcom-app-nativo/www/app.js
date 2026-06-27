@@ -718,7 +718,7 @@ function alternarSom() {
     audioNotificacao.currentTime = 0;
     audioNotificacao.play().catch(e => console.warn(e));
   }
-  mostrarToast(somAtivo ? "?? Som Ativado (Teste ?)" : "?? Som Desativado");
+  mostrarToast(somAtivo ? "🔊 Som Ativado" : "🔇 Som Desativado");
 }
 
 function tocarCampainha(suave = false) {
@@ -728,7 +728,7 @@ function tocarCampainha(suave = false) {
     ultimoSomTocado = Date.now();
     audioNotificacao.volume = suave ? 0.3 : 1.0;
     audioNotificacao.currentTime = 0;
-    audioNotificacao.play().catch(err => console.warn('Erro ao tocar �udio:', err));
+    audioNotificacao.play().catch(err => console.warn('Erro ao tocar �udio:', err));
   }
 } 
 
