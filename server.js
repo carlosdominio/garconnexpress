@@ -742,10 +742,12 @@ async function safePusherTrigger(channel, event, data) {
             }
             sentEndpoints.add(sub.endpoint);
 
-            // Roteamento correto: usa is_native salvo no banco para evitar confusão
-            // Tokens FCM nativos (Capacitor) começam com 'https://fcm.googleapis.com' e eram
-            // erroneamente tratados como Web Push — sem canal, sem som personalizado.
-            const isNativeSub = sub.is_native === 1 || sub.is_native === true;
+            // Roteamento híbrido: is_native=1 OU token que não é URL https:// (FCM nativo)
+            // Tokens FCM nativos: 'dGD0abc...:APA91b...' — não começam com https://
+            // Web Push (browser): 'https://fcm.googleapis.com/...' ou 'https://updates.push...' 
+            // Motoboy/Cozinha têm is_native=0 mas são tokens FCM nativos → checa URL também
+            const isNativeSub = sub.is_native === 1 || sub.is_native === true ||
+              (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
             if (!isNativeSub) {
                // Web Push (navegador / PWA)
                const payload = JSON.stringify({ title: pushTitle, body: currentPushMsg, event });
@@ -775,7 +777,7 @@ async function safePusherTrigger(channel, event, data) {
                      priority: 'high',
                      notification: {
                        sound: 'notificacao',
-                       channelId: 'pedidos',
+                       channelId: 'garcom_v1',
                        defaultSound: false
                      }
                    },
@@ -972,7 +974,8 @@ async function checkAndNotifyDelayedOrders() {
           if (sentEndpoints.has(sub.endpoint)) continue;
           sentEndpoints.add(sub.endpoint);
 
-          const isNativeSubAtraso = sub.is_native === 1 || sub.is_native === true;
+          const isNativeSubAtraso = sub.is_native === 1 || sub.is_native === true ||
+            (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
           if (!isNativeSubAtraso) {
             // Web Push (navegador / PWA)
             const payload = JSON.stringify({ title: pushTitle, body: pushMsg, event: 'pedido-atrasado' });
@@ -995,7 +998,7 @@ async function checkAndNotifyDelayedOrders() {
                   priority: 'high',
                   notification: {
                     sound: 'notificacao',
-                    channelId: 'pedidos',
+                    channelId: 'garcom_v1',
                     defaultSound: false
                   }
                 },

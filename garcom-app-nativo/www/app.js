@@ -85,8 +85,13 @@ async function registerNativePush() {
 
     // Cria o canal de notificação com o som personalizado no Android
     if (window.Capacitor.getPlatform() === 'android') {
+      // Apaga canais antigos (Android não permite atualizar som de canal existente)
+      try { await PushNotifications.deleteChannel({ id: 'pedidos' }); } catch(e) {}
+      try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}
+
+      // Cria canal novo 'garcom_v1' — ID nunca usado antes = criação fresh com som correto
       await PushNotifications.createChannel({
-        id: 'pedidos',
+        id: 'garcom_v1',
         name: 'Alertas de Pedidos (Campainha)',
         description: 'Notificações de novos pedidos e chamados',
         sound: 'notificacao.mp3',
