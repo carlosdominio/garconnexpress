@@ -730,9 +730,7 @@ function tocarCampainha(suave = false) {
     audioNotificacao.currentTime = 0;
     audioNotificacao.play().catch(err => console.warn('Erro ao tocar áudio:', err));
   }
-}
-  }
-}
+} 
 
 async function configurarPusher() {
   try {
@@ -2344,5 +2342,6 @@ document.addEventListener('click', function(event) {
         }
     }
 });
+
 
 
