@@ -758,7 +758,7 @@ async function safePusherTrigger(channel, event, data) {
                    auth: sub.auth || ''
                  }
                };
-               webpush.sendNotification(pushSubscription, payload).catch(e => { if (e.statusCode === 410 || e.statusCode === 404 || e.message.includes('unexpected response code') || e.message.includes('unsubscribed')) { console.log('Removendo endpoint inativo (WebPush)'); query('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]).catch(err => console.error(err.message)); } });
+               await webpush.sendNotification(pushSubscription, payload).catch(e => { if (e.statusCode === 410 || e.statusCode === 404 || e.message.includes('unexpected response code') || e.message.includes('unsubscribed')) { console.log('Removendo endpoint inativo (WebPush)'); query('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]).catch(err => console.error(err.message)); } });
             } else {
                // Tratamento para Token Nativo (Capacitor/Firebase SDK)
                if (admin.apps.length > 0) {
@@ -800,7 +800,7 @@ async function safePusherTrigger(channel, event, data) {
                    firebaseAppToUse = admin.app('cozinha');
                  }
 
-                 firebaseAppToUse.messaging().send(message)
+                 await firebaseAppToUse.messaging().send(message)
                    .then((response) => {
                      console.log(`✅ FCM Nativo (${targetApp}) enviado:`, response);
                    })
@@ -983,7 +983,7 @@ async function checkAndNotifyDelayedOrders() {
               endpoint: sub.endpoint,
               keys: { p256dh: sub.p256dh || '', auth: sub.auth || '' }
             };
-            webpush.sendNotification(pushSubscription, payload).catch(e => { if (e.statusCode === 410 || e.statusCode === 404 || e.message.includes('unexpected response code') || e.message.includes('unsubscribed')) { console.log('Removendo endpoint inativo (Atraso)'); query('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]).catch(err => console.error(err.message)); } });
+            await webpush.sendNotification(pushSubscription, payload).catch(e => { if (e.statusCode === 410 || e.statusCode === 404 || e.message.includes('unexpected response code') || e.message.includes('unsubscribed')) { console.log('Removendo endpoint inativo (Atraso)'); query('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]).catch(err => console.error(err.message)); } });
           } else {
             if (admin.apps.length > 0) {
               const message = {
@@ -1011,7 +1011,7 @@ async function checkAndNotifyDelayedOrders() {
                 firebaseAppToUse = admin.app('cozinha');
               }
               
-              firebaseAppToUse.messaging().send(message).catch(e => console.error('Erro FCM Atraso:', e.message));
+              await firebaseAppToUse.messaging().send(message).catch(e => console.error('Erro FCM Atraso:', e.message));
             }
           }
         }
