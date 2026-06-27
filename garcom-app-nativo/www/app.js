@@ -685,6 +685,16 @@ if (somAtivo === null) {
 let audioDesbloqueado = false;
 let ultimoSomTocado = 0;
 const audioNotificacao = new Audio('/notificacao.mp3');
+document.body.addEventListener('click', function unlockAudio() {
+  if (audioNotificacao) {
+    audioNotificacao.play().then(() => {
+      audioNotificacao.pause();
+      audioNotificacao.currentTime = 0;
+    }).catch(() => {});
+  }
+  document.body.removeEventListener('click', unlockAudio);
+}, { once: true });
+
 
 function atualizarIconeSom() {
   const check = document.getElementById('check-som');
@@ -2354,3 +2364,4 @@ document.addEventListener('click', function(event) {
         }
     }
 });
+
