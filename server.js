@@ -768,19 +768,19 @@ async function safePusherTrigger(channel, event, data) {
                      body: currentPushMsg
                    },
                    data: {
-                     event: event,
-                     sound: 'notificacao',
-                     pedido_id: pId,
-                     status: statusVal
-                   },
+                      event: event,
+                      sound: 'notificacao.mp3',
+                      pedido_id: pId,
+                      status: statusVal
+                    },
                    android: {
-                     priority: 'high',
-                     notification: {
-                       sound: 'notificacao',
-                       channelId: 'garcom_v1',
-                       defaultSound: false
-                     }
-                   },
+                      priority: 'high',
+                      notification: {
+                        sound: 'notificacao.mp3',
+                        channelId: targetApp === 'garcom' ? 'garcom_v1' : 'pedidos',
+                        defaultSound: false
+                      }
+                    },
                    apns: {
                      payload: {
                        aps: {
@@ -3649,3 +3649,4 @@ app.listen(PORT, () => console.log(`Rodando na porta ${PORT}`));
 // forced push 2026-06-22 12:01:52
 
 // trigger redeploy after reconnect 2026-06-22 12:07:02
+
