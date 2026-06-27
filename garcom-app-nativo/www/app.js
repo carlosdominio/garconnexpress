@@ -726,7 +726,7 @@ function tocarCampainha(suave = false) {
   if (somAtivo && audioDesbloqueado) {
     if (Date.now() - ultimoSomTocado < 2000) return;
     ultimoSomTocado = Date.now();
-    audioNotificacao.volume = 1.0;
+    audioNotificacao.volume = suave ? 0.3 : 1.0;
     audioNotificacao.currentTime = 0;
     audioNotificacao.play().catch(err => console.warn('Erro ao tocar áudio:', err));
   }
@@ -2342,6 +2342,7 @@ document.addEventListener('click', function(event) {
         }
     }
 });
+
 
 
 
