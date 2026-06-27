@@ -2684,9 +2684,10 @@ app.put('/api/pedidos/:id/status', async (req, res) => {
         garcom_id: pm ? pm.garcom_id : null,
         mensagem: `🚨 O Pedido #${id} (Mesa ${mesaNum}) foi CANCELADO pelo Admin.` 
       });
-    } else {
-      await notifyStatus(id, null, status);
     }
+    
+    // Sempre notifica a alteração de status (inclusive cancelado, para o painel admin atualizar a tela)
+    await notifyStatus(id, null, status);
     
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
     res.json({ success: true });
