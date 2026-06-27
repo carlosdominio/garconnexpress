@@ -742,8 +742,12 @@ async function safePusherTrigger(channel, event, data) {
             }
             sentEndpoints.add(sub.endpoint);
 
-            if (sub.endpoint.includes('fcm.googleapis.com') || sub.endpoint.startsWith('https://')) {
-               // Web Push logic (could also be filtered here if needed, but the focus is Native FCM)
+            // Roteamento correto: usa is_native salvo no banco para evitar confusão
+            // Tokens FCM nativos (Capacitor) começam com 'https://fcm.googleapis.com' e eram
+            // erroneamente tratados como Web Push — sem canal, sem som personalizado.
+            const isNativeSub = sub.is_native === 1 || sub.is_native === true;
+            if (!isNativeSub) {
+               // Web Push (navegador / PWA)
                const payload = JSON.stringify({ title: pushTitle, body: currentPushMsg, event });
                const pushSubscription = {
                  endpoint: sub.endpoint,
@@ -844,8 +848,9 @@ app.post('/api/subscribe', isAuthenticated, async (req, res) => {
     // Insere o novo registro atualizado
     const p256dh = subscription.keys?.p256dh || '';
     const auth = subscription.keys?.auth || '';
-    await query("INSERT INTO push_subscriptions (garcom_id, endpoint, p256dh, auth, app_type) VALUES (?, ?, ?, ?, ?)", 
-      [garcomId, subscription.endpoint, p256dh, auth, appType]);
+    const isNative = subscription.isNative ? 1 : 0; // Salva se é token FCM nativo ou Web Push
+    await query("INSERT INTO push_subscriptions (garcom_id, endpoint, p256dh, auth, app_type, is_native) VALUES (?, ?, ?, ?, ?, ?)", 
+      [garcomId, subscription.endpoint, p256dh, auth, appType, isNative]);
 
     res.status(201).json({ success: true });
   } catch (error) {
@@ -967,7 +972,9 @@ async function checkAndNotifyDelayedOrders() {
           if (sentEndpoints.has(sub.endpoint)) continue;
           sentEndpoints.add(sub.endpoint);
 
-          if (sub.endpoint.includes('fcm.googleapis.com') || sub.endpoint.startsWith('https://')) {
+          const isNativeSubAtraso = sub.is_native === 1 || sub.is_native === true;
+          if (!isNativeSubAtraso) {
+            // Web Push (navegador / PWA)
             const payload = JSON.stringify({ title: pushTitle, body: pushMsg, event: 'pedido-atrasado' });
             const pushSubscription = {
               endpoint: sub.endpoint,
@@ -1200,6 +1207,7 @@ async function initDb() {
     
     // Migrações garantidas para todos os bancos
     await addCol('push_subscriptions', 'app_type', "TEXT DEFAULT 'garcom'");
+    await addCol('push_subscriptions', 'is_native', 'INTEGER DEFAULT 0'); // 1 = token FCM nativo (Capacitor), 0 = Web Push
     await addCol('mesas', 'garcom_id', 'TEXT');
     await addCol('pedidos', 'forma_pagamento', 'TEXT');
     await addCol('pedidos', 'desconto', 'REAL DEFAULT 0');
