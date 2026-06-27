@@ -619,9 +619,7 @@ async function iniciarApp() {
   }, 500);
   
   // Atualiza os cronômetros das mesas a cada 1 segundo (visual apenas)
-  setInterval(() => {
-    exibirMesas();
-  }, 1000);
+  setInterval(() => { exibirMesas(); }, 60000);
 
   // Recarrega os dados das mesas a cada 60 segundos para garantir sincronia
   setInterval(() => {
@@ -1260,8 +1258,12 @@ function exibirMesas() {
 }
 
 async function mostrarOpcoesMesa(mesa) {
-  // Reset
   pedidoAbertoNaMesa = null;
+  document.getElementById('modal-mesa-titulo').textContent = 'Aguarde...';
+  document.getElementById('modal-opcoes').style.display = 'block';
+  atualizarBloqueioScroll();
+  await new Promise(r => setTimeout(r, 10));
+
 
   if (mesa.status === 'ocupada' || mesa.status === 'fechando') {
     try {
