@@ -1019,6 +1019,16 @@ async function checkAndNotifyDelayedOrders() {
   }
 }
 
+// --- ROTA DEBUG TEMPORÁRIA: INSPECIONA TOKENS NO BANCO ---
+app.get('/api/debug/push-subs', ensureDbInitialized, async (req, res) => {
+  try {
+    const subs = (await query("SELECT id, garcom_id, app_type, is_native, LENGTH(endpoint) as endpoint_len, LEFT(endpoint, 30) as endpoint_preview, created_at FROM push_subscriptions ORDER BY created_at DESC")).rows;
+    res.json({ total: subs.length, subs });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // --- ROTA CRON MANUAL DE MONITORAMENTO DE PEDIDOS ATRASADOS (>10 MIN) ---
 app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) => {
   await checkAndNotifyDelayedOrders();
