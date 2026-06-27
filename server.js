@@ -775,7 +775,7 @@ async function safePusherTrigger(channel, event, data) {
                      priority: 'high',
                      notification: {
                        sound: 'notificacao',
-                       channelId: 'pedidos_v4',
+                       channelId: 'pedidos',
                        defaultSound: false
                      }
                    },
@@ -995,7 +995,7 @@ async function checkAndNotifyDelayedOrders() {
                   priority: 'high',
                   notification: {
                     sound: 'notificacao',
-                    channelId: 'pedidos_v4',
+                    channelId: 'pedidos',
                     defaultSound: false
                   }
                 },
