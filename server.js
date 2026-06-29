@@ -1038,6 +1038,20 @@ app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) 
   res.json({ message: "Verificação de atrasos executada." });
 });
 
+// Helper para buscar taxa de serviço dinamicamente
+async function getTaxaServicoMultiplicador() {
+  try {
+    const res = await query("SELECT valor FROM sistema_config WHERE chave = 'taxa_servico'");
+    if (res.rows && res.rows.length > 0 && res.rows[0].valor) {
+      const taxa = parseFloat(res.rows[0].valor);
+      if (!isNaN(taxa)) return 1 + (taxa / 100);
+    }
+  } catch (e) {
+    console.error("Erro ao buscar taxa de serviço:", e);
+  }
+  return 1.10; // default 10%
+}
+
 async function verificarEstoqueBaixo(menuId) {
   try {
     const item = (await query("SELECT id, nome, estoque FROM menu WHERE id = ?", [menuId])).rows[0];
@@ -1714,7 +1728,8 @@ app.put('/api/pedidos/:id/taxa', async (req, res) => {
   try {
     const todosItens = (await query("SELECT i.quantidade, m.preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
     const subtotal = todosItens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
-    const total = cobrar_taxa ? Math.round(subtotal * 1.10 * 100) / 100 : subtotal;
+    const taxaMultiplicador = await getTaxaServicoMultiplicador();
+    const total = cobrar_taxa ? Math.round(subtotal * taxaMultiplicador * 100) / 100 : subtotal;
 
     const taxaBanco = isPostgres ? cobrar_taxa : (cobrar_taxa ? 1 : 0);
     await query("UPDATE pedidos SET total = ?, cobrar_taxa = ? WHERE id = ?", [total, taxaBanco, id]);
@@ -2015,7 +2030,8 @@ app.delete('/api/pedidos/itens/:id', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.delete('/api/pedidos/:id', async (req, res) => {
+app.delete('/api/pedidos/:id', isAuthenticated, async (req, res) => {
+  if (req.user && req.user.role === 'cliente') return res.status(403).json({ error: 'Clientes não podem deletar pedidos.' });
   const { id } = req.params;
   try {
     const pedido = (await query("SELECT p.mesa_id, p.garcom_id, p.status, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
@@ -2049,8 +2065,9 @@ app.delete('/api/pedidos/:id', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.post('/api/pedidos', orderLimiter, async (req, res) => {
-  const { mesa_id, garcom_id, itens, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, metodo_pagamento, valor_recebido, troco } = req.body;
+app.post('/api/pedidos', orderLimiter, isAuthenticated, async (req, res) => {
+  let { mesa_id, garcom_id, itens, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, metodo_pagamento, valor_recebido, troco } = req.body;
+  if (req.user && req.user.role === 'cliente') { mesa_id = req.user.mesa_id; garcom_id = null; }
   const deveCobrarTaxa = cobrar_taxa !== false;
   try {
     const caixaAberto = (await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'")).rows[0];
@@ -2112,7 +2129,8 @@ app.post('/api/pedidos', orderLimiter, async (req, res) => {
     if (garcom_id === 'DELIVERY') {
       total = subtotalReal + 3.00;
     } else {
-      total = deveCobrarTaxa ? Math.round(subtotalReal * 1.10 * 100) / 100 : subtotalReal;
+      const taxaMultiplicador = await getTaxaServicoMultiplicador();
+      total = deveCobrarTaxa ? Math.round(subtotalReal * taxaMultiplicador * 100) / 100 : subtotalReal;
     }
 
     let pedidoId;
@@ -2173,10 +2191,18 @@ app.post('/api/pedidos', orderLimiter, async (req, res) => {
       } else {
         console.log(`ℹ️ Mesa ${mesaIdNum} já possui código de acesso ativo (ID: ${acessoExistente.id}, Código: ${acessoExistente.codigo}). Mantendo sessão.`);
       }
-    }    for (const item of itens) {
-      await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES (?, ?, ?, ?, ?)', [pedidoId, item.menu_id, item.quantidade, item.observacao || '', 'pendente']);
-      await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?", [item.quantidade, item.menu_id]);
-      await verificarEstoqueBaixo(item.menu_id);
+    }    if (itens.length > 0) {
+      const placeholders = itens.map(() => '(?, ?, ?, ?, ?)').join(', ');
+      const values = [];
+      for (const item of itens) {
+        values.push(pedidoId, item.menu_id, item.quantidade, item.observacao || '', 'pendente');
+      }
+      await query(`INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES ${placeholders}`, values);
+
+      for (const item of itens) {
+        await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?", [item.quantidade, item.menu_id]);
+        await verificarEstoqueBaixo(item.menu_id);
+      }
     }
     let mesaNum = 'BALCÃO';
     if (mesa_id) { 
@@ -2259,15 +2285,24 @@ app.put('/api/pedidos/:id/atualizar-itens', async (req, res) => {
     }
     await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [id]);
     let novoSub = 0;
-    for (const item of itens) {
-      await query("INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES (?, ?, ?, ?, ?)", [id, item.menu_id, item.quantidade, item.observacao || '', item.status || 'pendente']);
-      await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?", [item.quantidade, item.menu_id]);
-      await verificarEstoqueBaixo(item.menu_id);
-      const pMenu = (await query("SELECT preco FROM menu WHERE id = ?", [item.menu_id])).rows[0];
-      if (pMenu) novoSub += (pMenu.preco * item.quantidade);
+    if (itens.length > 0) {
+      const placeholders = itens.map(() => '(?, ?, ?, ?, ?)').join(', ');
+      const values = [];
+      for (const item of itens) {
+        values.push(id, item.menu_id, item.quantidade, item.observacao || '', item.status || 'pendente');
+      }
+      await query(`INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES ${placeholders}`, values);
+
+      for (const item of itens) {
+        await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?", [item.quantidade, item.menu_id]);
+        await verificarEstoqueBaixo(item.menu_id);
+        const pMenu = (await query("SELECT preco FROM menu WHERE id = ?", [item.menu_id])).rows[0];
+        if (pMenu) novoSub += (pMenu.preco * item.quantidade);
+      }
     }
     const pedido = (await query("SELECT cobrar_taxa FROM pedidos WHERE id = ?", [id])).rows[0];
-    const total = (pedido && pedido.cobrar_taxa) ? Math.round(novoSub * 1.10 * 100) / 100 : novoSub;
+    const taxaMultiplicador = await getTaxaServicoMultiplicador();
+    const total = (pedido && pedido.cobrar_taxa) ? Math.round(novoSub * taxaMultiplicador * 100) / 100 : novoSub;
     
     // Determina o status do pedido com base nos itens:
     const temPendente = itens.some(i => i.status === 'pendente' || i.status === 'pronto');
@@ -2316,7 +2351,7 @@ app.put('/api/pedidos/:id/atualizar-itens', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.put('/api/pedidos/:id/adicionar', async (req, res) => {
+app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { itens, cobrar_taxa, observacao } = req.body;
   try {
@@ -2340,7 +2375,8 @@ app.put('/api/pedidos/:id/adicionar', async (req, res) => {
     }
     const tItens = (await query("SELECT i.quantidade, m.preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
     const sub = tItens.reduce((sum, i) => sum + ((parseFloat(i.preco) || 0) * i.quantidade), 0);
-    const tot = deveTaxa ? Math.round(sub * 1.10 * 100) / 100 : sub;
+    const taxaMultiplicador = await getTaxaServicoMultiplicador();
+    const tot = deveTaxa ? Math.round(sub * taxaMultiplicador * 100) / 100 : sub;
     const agora = new Date().toISOString();
 
     // Busca o status atual para saber se deve resetar o cronômetro
@@ -2459,7 +2495,8 @@ app.put('/api/pedidos/:id/solicitar-fechamento', async (req, res) => {
       const deveTaxa = pOrig ? pOrig.cobrar_taxa : true;
       const tItens = (await query("SELECT i.quantidade, m.preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
       const sub = tItens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
-      totalFinal = deveTaxa ? Math.round(sub * 1.10 * 100) / 100 : sub;
+      const taxaMultiplicador = await getTaxaServicoMultiplicador();
+      totalFinal = deveTaxa ? Math.round(sub * taxaMultiplicador * 100) / 100 : sub;
     }
 
     const pagamentosStr = pagamentos_detalhados ? JSON.stringify(pagamentos_detalhados) : null;
@@ -2592,7 +2629,8 @@ app.post('/api/pedidos/:id/pagamento-parcial', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.put('/api/pedidos/:id/status', async (req, res) => {
+app.put('/api/pedidos/:id/status', isAuthenticated, async (req, res) => {
+  if (req.user && req.user.role === 'cliente') return res.status(403).json({ error: 'Clientes não podem alterar status de pedidos.' });
   const { id } = req.params;
   const { status, pagamentos_detalhados } = req.body;
   try {
@@ -3025,7 +3063,10 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
 
     // Aplica taxa de serviço (baseada na preferência do último pedido ou se algum deles cobrar)
     const cobrarTaxa = pedidosSessao.some(p => p.cobrar_taxa === 1 || p.cobrar_taxa === true);
-    if (cobrarTaxa) totalReal = Math.round(totalReal * 1.10 * 100) / 100;
+    if (cobrarTaxa) {
+      const taxaMultiplicador = await getTaxaServicoMultiplicador();
+      totalReal = Math.round(totalReal * taxaMultiplicador * 100) / 100;
+    }
 
     const pedidoConsolidado = {
       ...ultimoPedido,
@@ -3338,8 +3379,9 @@ app.get('/api/acesso/check', async (req, res) => {
   }
 });
 // Cliente solicita atendimento do garçom
-app.post('/api/cliente/chamar-garcom', async (req, res) => {
-  const { mesa_id, mesa_numero } = req.body;
+app.post('/api/cliente/chamar-garcom', isAuthenticated, async (req, res) => {
+  const mesa_id = req.user.role === 'cliente' ? req.user.mesa_id : req.body.mesa_id;
+  const mesa_numero = req.user.role === 'cliente' ? req.user.mesa_numero : req.body.mesa_numero;
   try {
     await safePusherTrigger('garconnexpress', 'chamado-garcom', {
       mesa_id,
@@ -3357,8 +3399,10 @@ app.post('/api/cliente/chamar-garcom', async (req, res) => {
 });
 
 // Cliente envia rascunho do pedido (pré-seleção)
-app.post('/api/cliente/enviar-rascunho', async (req, res) => {
-  const { mesa_id, mesa_numero, itens } = req.body;
+app.post('/api/cliente/enviar-rascunho', isAuthenticated, async (req, res) => {
+  const { itens } = req.body;
+  const mesa_id = req.user.role === 'cliente' ? req.user.mesa_id : req.body.mesa_id;
+  const mesa_numero = req.user.role === 'cliente' ? req.user.mesa_numero : req.body.mesa_numero;
   try {
     // BLOQUEIO DEFINITIVO: Verifica status real da mesa
     if (mesa_id) {
@@ -3397,9 +3441,13 @@ app.post('/api/cliente/enviar-rascunho', async (req, res) => {
     }
 
     // Insere os itens do rascunho para que o cliente possa vê-los em "Meus Pedidos"
-    for (const item of itens) {
-      await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES (?, ?, ?, ?, ?)', 
-        [pedidoRascunhoId, item.menu_id, item.quantidade, '', 'rascunho']);
+    if (itens.length > 0) {
+      const placeholders = itens.map(() => '(?, ?, ?, ?, ?)').join(', ');
+      const values = [];
+      for (const item of itens) {
+        values.push(pedidoRascunhoId, item.menu_id, item.quantidade, '', 'rascunho');
+      }
+      await query(`INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES ${placeholders}`, values);
     }
 
     const itensFormatados = itens.map(i => `${i.quantidade}x ${i.nome}`).join('\n');

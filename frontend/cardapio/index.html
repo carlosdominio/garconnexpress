@@ -829,7 +829,7 @@
             try { 
                 const res = await fetch('/api/cliente/enviar-rascunho', { 
                     method:'POST', 
-                    headers:{'Content-Type':'application/json'}, 
+                    headers:{'Content-Type':'application/json', 'Authorization': `Bearer ${sessionMesa.token}`}, 
                     body:JSON.stringify({ 
                         mesa_id:sessionMesa.mesa_id, 
                         mesa_numero:sessionMesa.mesa_numero, 
@@ -965,7 +965,7 @@
         }
         async function chamarGarcom() {
             if (await Swal.fire({ title: 'Chamar Garçom?', icon: 'question', showCancelButton: true, confirmButtonColor: '#ff4757' }).then(r => r.isConfirmed)) {
-                showLoading(true); try { await fetch('/api/cliente/chamar-garcom', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ mesa_id:sessionMesa.mesa_id, mesa_numero:sessionMesa.mesa_numero }) }); Swal.fire('Enviado','Garçom notificado!','success'); } finally { showLoading(false); }
+                showLoading(true); try { await fetch('/api/cliente/chamar-garcom', { method:'POST', headers:{'Content-Type':'application/json', 'Authorization': `Bearer ${sessionMesa.token}`}, body:JSON.stringify({ mesa_id:sessionMesa.mesa_id, mesa_numero:sessionMesa.mesa_numero }) }); Swal.fire('Enviado','Garçom notificado!','success'); } finally { showLoading(false); }
             }
         }
         function showLoading(s) { document.getElementById('loading').style.display=s?'flex':'none'; }
