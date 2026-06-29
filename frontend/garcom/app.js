@@ -344,18 +344,25 @@ async function requestWakeLock() {
 }
 
 // --- VISIBILITY SYNC (Reconexão Agressiva ao voltar ao app) ---
+let lastSyncTime = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
-    console.log('👀 App voltou ao foco! Sincronizando dados...');
     requestWakeLock(); // Refaz o lock caso tenha se perdido
     
-    // Força atualização das mesas imediatamente
-    carregarMesas();
-    
-    // Força a reconexão do Web Socket se estiver desconectado
-    if (pusherInstancia && pusherInstancia.connection.state !== 'connected') {
-      console.log('🔌 Reconectando Pusher...');
-      pusherInstancia.connect();
+    const now = Date.now();
+    // Evita múltiplas chamadas em menos de 5 segundos
+    if (now - lastSyncTime > 5000) {
+        lastSyncTime = now;
+        console.log('👀 App voltou ao foco! Sincronizando dados...');
+        
+        // Força atualização das mesas imediatamente
+        carregarMesas();
+        
+        // Força a reconexão do Web Socket se estiver desconectado
+        if (pusherInstancia && pusherInstancia.connection.state !== 'connected') {
+          console.log('🔌 Reconectando Pusher...');
+          pusherInstancia.connect();
+        }
     }
   }
 });

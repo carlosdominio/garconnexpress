@@ -14,10 +14,6 @@ self.addEventListener('install', event => {
   );
 });
 
-self.addEventListener('fetch', event => {
-  // Ignora o fetch para que o navegador lide nativamente com isso
-  // (Previne erros 503 e CORS com APIs externas ou WebSockets como Pusher)
-});
 
 // Limpar caches antigos e assumir abas abertas
 self.addEventListener('activate', event => {
