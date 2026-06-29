@@ -456,6 +456,8 @@ async function sendWhatsAppMessage(text, targetNumber = null) {
       uniqueNumbers.forEach(num => {
         // Renomeia o chat caso seja a primeira vez ou tenha perdido o nome
         whatsappSocket.emit('rename_chat', { jid: num + '@s.whatsapp.net', name: 'Notificações Meu zap 🔔' });
+        // Fixa a conversa (PIN) no WhatsApp para sempre ficar no topo
+        whatsappSocket.emit('pin_chat', { jid: num + '@s.whatsapp.net' });
         // Envia para o bot usando apenas os dígitos (formato que funcionou nos testes)
         // O bot cuidará do roteamento interno.
         whatsappSocket.emit('send_msg', { number: num, text: text });
@@ -553,7 +555,7 @@ if (isPostgres) {
       },
       max: 10, // Aumentado para lidar com múltiplas requisições simultâneas em Serverless
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000, // Timeout rápido para falhar e dar retry se necessário
+      connectionTimeoutMillis: 10000, // Tempo de espera maior (10s) para o banco de dados acordar sem dar erro
     });
     
     db.on('error', (err) => {
