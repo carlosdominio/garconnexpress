@@ -281,6 +281,15 @@ console.error = function(...args) {
         url = API_BASE_URL + url;
         args[0] = url;
     }
+    
+    // Tratamento OFFLINE-FIRST
+    if (!navigator.onLine && typeof window.salvarPedidoOffline === 'function') {
+        const method = (args[1] && args[1].method) ? args[1].method.toUpperCase() : 'GET';
+        if (method === 'POST' || method === 'PUT') {
+            console.log("🌐 Sem internet. Salvando requisição no IndexedDB para sincronizar depois:", url);
+            return await window.salvarPedidoOffline(url, args[1]);
+        }
+    }
 
     if (token) {
       if (!args[1]) args[1] = {};
@@ -296,6 +305,14 @@ console.error = function(...args) {
         console.error(`❌ ERRO DE FETCH [${response.status}] URL:`, args[0]);
         const text = await response.clone().text().catch(() => 'Erro ao ler corpo da resposta');
         console.error('📄 CORPO DO ERRO:', text.substring(0, 200));
+        
+        // Remove eternal loaders
+        document.querySelectorAll('button:disabled').forEach(b => b.disabled = false);
+        document.querySelectorAll('.loading, .loader, .spinner').forEach(l => l.style.display = 'none');
+        
+        if (response.status >= 500) {
+            if (typeof mostrarToast === 'function') mostrarToast("Erro no servidor. Tente novamente.", 'error');
+        }
       }
 
       if ((response.status === 401 || response.status === 403) && !args[0].includes('/api/login')) {
@@ -314,6 +331,11 @@ console.error = function(...args) {
       if (typeof mostrarAlerta === 'function') {
         mostrarAlerta(`Erro de conexão com o servidor remoto.\n\nDetalhe: ${error.message}\nURL: ${args[0]}`, "Falha de Conexão", "🌐");
       }
+      
+      // Remove eternal loaders
+      document.querySelectorAll('button:disabled').forEach(b => b.disabled = false);
+      document.querySelectorAll('.loading, .loader, .spinner').forEach(l => l.style.display = 'none');
+
       throw error;
     }
   };
@@ -805,7 +827,7 @@ async function configurarPusher() {
     });
 
     channel.bind('status-caixa-atualizado', (data) => {
-      console.log('📢 Evento recebido: status-caixa-atualizado', data);
+      console.log('🔗 Evento recebido: status-caixa-atualizado', data);
       atualizarStatusCaixa();
       
       if (data.status === 'fechado') {
@@ -816,6 +838,20 @@ async function configurarPusher() {
         tocarCampainha(true); // Som suave
         mostrarToast("O caixa foi aberto! Bom trabalho.");
       }
+    });
+    
+    // Desconecta o garçom à força se o caixa fechar (Regra de Negócio Fase 2)
+    channel.bind('caixa-encerrado', async () => {
+      console.log('🚨 CAIXA ENCERRADO! Deslogando garçom...');
+      if (typeof mostrarAlerta === 'function') {
+        mostrarAlerta("O expediente foi encerrado pelo Administrador. Você será desconectado em segurança.", "Expediente Encerrado", "🔒");
+      }
+      setTimeout(async () => {
+        try { await fetch('/api/logout', { method: 'POST' }); } catch(e){}
+        localStorage.removeItem('garcom_logado');
+        localStorage.removeItem('garcom_token');
+        window.location.reload();
+      }, 3000);
     });
 
     channel.bind('garcom-status-alterado', (data) => {

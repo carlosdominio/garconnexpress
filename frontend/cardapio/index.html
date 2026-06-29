@@ -888,7 +888,7 @@
                     section.innerHTML += `
                         <div class="menu-item" style="position: relative;">
                             <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
-                                ${i.imagem ? `<img src="${i.imagem}" class="item-img">` : `<div class="item-placeholder">${i.nome[0]}</div>`}
+                                ${i.imagem ? `<img src="${i.imagem}" class="item-img" loading="lazy">` : `<div class="item-placeholder">${i.nome[0]}</div>`}
                                 ${promoBadge}
                             </div>
                             <div class="item-info"><h3>${i.nome}</h3><p class="desc">${i.descricao||''}</p><div class="price">${priceHtml}</div>

@@ -63,6 +63,8 @@ try {
 
   // Inicializa App Secundário (Motoboy) se houver configuração
   const hasMotoboyApp = admin.apps.find(app => app.name === 'motoboy');
+
+
   if (!hasMotoboyApp) {
     let serviceAccountMotoboy;
     if (process.env.FIREBASE_SERVICE_ACCOUNT_MOTOBOY) {
@@ -121,6 +123,13 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: false
 }));
+
+// --- CORREÇÃO DE ERRO LOCAL (VERCEL ANALYTICS MOCK) ---
+// Impede erro 404 e erro de MIME Type no console do navegador rodando localmente
+app.use('/_vercel', (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript');
+    res.send('// Mock local do Vercel Analytics para evitar erro no console');
+});
 
 // Middleware manual para garantir que OPTIONS responda sempre com sucesso e headers corretos
 app.use((req, res, next) => {
@@ -509,12 +518,22 @@ const orderLimiter = rateLimit({
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
             return true; // Se tem token válido, permite
-        } catch (e) { return false; }
+        } catch (e) {
+            return false;
+        }
     }
     return false;
   },
-  message: { error: 'Você está fazendo pedidos rápido demais. Aguarde 10 minutos.' }
+  message: { error: 'Limite de pedidos excedido. Tente novamente em breve.' }
 });
+
+// Limitador de Status (Anti-Race Condition para Cozinha/Garçom/Motoboy)
+const statusLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 60, // Limite de 60 alterações por minuto por IP
+  message: { error: 'Calma! Muitas atualizações de status. Aguarde um instante.' }
+});
+
 
 
 // INICIALIZAÇÃO DO PUSHER (Com as novas chaves do usuário)
@@ -1539,7 +1558,7 @@ async function notifyDeliveryStatusToBot(number, status, pedidoId, tempo = null,
   }
 }
 
-app.put('/api/pedidos/:id/cozinha-pronto', isAuthenticated, async (req, res) => {
+app.put('/api/pedidos/:id/cozinha-pronto', statusLimiter, isAuthenticated, async (req, res) => {
   const { id } = req.params;
   try {
     // Marca todos os itens pendentes como 'pronto'
@@ -1603,7 +1622,7 @@ async function getFilterCozinha() {
   }
 }
 
-app.put('/api/pedidos/:id/marcar-entregue', async (req, res) => {
+app.put('/api/pedidos/:id/marcar-entregue', statusLimiter, async (req, res) => {
   const { id } = req.params;
   const { apenasProntos } = req.body;
   try {
@@ -1776,6 +1795,9 @@ app.post('/api/caixa/fechar', async (req, res) => {
 
     // Expira todos os códigos de acesso ativos ao fechar o caixa
     await query("UPDATE codigos_acesso SET status = 'expirado' WHERE status = 'ativo'");
+    
+    // Força a desconexão de todos os garçons
+    await safePusherTrigger('garconnexpress', 'caixa-encerrado', {});
 
     await safePusherTrigger('garconnexpress', 'status-caixa-atualizado', { status: 'fechado' });
 
@@ -1798,7 +1820,7 @@ app.post('/api/caixa/fechar', async (req, res) => {
 // --- CONFIGURAÇÕES DE DELIVERY (CONTROLE INDEPENDENTE) ---
 // --- LIMPANDO DELIVERY ---
 
-app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, async (req, res) => {
+app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, isAuthenticated, async (req, res) => {
   try {
     const pedidosRes = await query(`
       SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome 
@@ -1837,7 +1859,7 @@ app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, async (req, res) =
   }
 });
 
-app.get('/api/pedidos', ensureDbInitialized, async (req, res) => {
+app.get('/api/pedidos', ensureDbInitialized, isAuthenticated, async (req, res) => {
   checkAndNotifyDelayedOrders();
   try {
     const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`);
@@ -1891,7 +1913,7 @@ app.get('/api/pedidos/cozinha', ensureDbInitialized, isAuthenticated, async (req
   }
 });
 
-app.get('/api/pedidos/:id/pagamentos', async (req, res) => {
+app.get('/api/pedidos/:id/pagamentos', isAuthenticated, async (req, res) => {
   try {
     const { id } = req.params;
     // Se a tabela não existir, retorna array vazio em vez de erro 500
@@ -1905,7 +1927,7 @@ app.get('/api/pedidos/:id/pagamentos', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, async (req, res) => {
+app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, isAuthenticated, async (req, res) => {
   try {
     const pedidosRes = await query(`
       SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome 
@@ -1953,7 +1975,7 @@ app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, async (req, res
   }
 });
 
-app.get('/api/pedidos/historico', async (req, res) => {
+app.get('/api/pedidos/historico', isAuthenticated, async (req, res) => {
   try {
     const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status IN ('entregue', 'cancelado') ORDER BY p.created_at DESC LIMIT 50`);
     res.json(result.rows);
@@ -1969,7 +1991,7 @@ app.delete('/api/pedidos/limpar', async (req, res) => {
   } catch (error) { res.status(500).json({ error: "Erro ao limpar: " + error.message }); }
 });
 
-app.get('/api/pedidos/:id', ensureDbInitialized, async (req, res) => {
+app.get('/api/pedidos/:id', ensureDbInitialized, isAuthenticated, async (req, res) => {
   try {
     const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
     if (result.rows.length === 0) {
@@ -1981,7 +2003,7 @@ app.get('/api/pedidos/:id', ensureDbInitialized, async (req, res) => {
   }
 });
 
-app.get('/api/pedidos/:id/itens', ensureDbInitialized, async (req, res) => { 
+app.get('/api/pedidos/:id/itens', ensureDbInitialized, isAuthenticated, async (req, res) => { 
   try {
     const result = await query(`SELECT pi.*, m.nome, m.preco, m.categoria, m.enviar_cozinha, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [req.params.id]);
     res.json(result.rows);
@@ -2070,6 +2092,11 @@ app.delete('/api/pedidos/:id', isAuthenticated, async (req, res) => {
 app.post('/api/pedidos', orderLimiter, isAuthenticated, async (req, res) => {
   let { mesa_id, garcom_id, itens, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, metodo_pagamento, valor_recebido, troco } = req.body;
   if (req.user && req.user.role === 'cliente') { mesa_id = req.user.mesa_id; garcom_id = null; }
+  
+  if (observacao && observacao.length > 500) {
+    return res.status(400).json({ error: 'A observação é muito longa. Limite de 500 caracteres.' });
+  }
+
   const deveCobrarTaxa = cobrar_taxa !== false;
   try {
     const caixaAberto = (await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'")).rows[0];
@@ -2631,7 +2658,7 @@ app.post('/api/pedidos/:id/pagamento-parcial', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.put('/api/pedidos/:id/status', isAuthenticated, async (req, res) => {
+app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, res) => {
   if (req.user && req.user.role === 'cliente') return res.status(403).json({ error: 'Clientes não podem alterar status de pedidos.' });
   const { id } = req.params;
   const { status, pagamentos_detalhados } = req.body;
@@ -2923,59 +2950,13 @@ app.delete('/api/garcons/:id', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.post('/api/mesas', async (req, res) => { 
-  try {
-    await query('INSERT INTO mesas (numero) VALUES (?)', [req.body.numero]); 
-    res.json({ success: true }); 
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
-app.put('/api/mesas/:id/liberar', async (req, res) => { 
-  try { 
-    const mesaId = req.params.id;
-    await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [mesaId]); 
-    await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [mesaId]);
-    
-    // Notifica o cliente para encerrar o acesso
-    await safePusherTrigger('garconnexpress', `deslogar-mesa-${mesaId}`, { 
-      status: 'cancelado',
-      mensagem: "Mesa liberada pelo estabelecimento. Seu acesso foi encerrado." 
-    });
-
-    await notifyStatus(null, mesaId, 'liberada'); 
-    res.json({ success: true }); 
-  } catch (error) { res.status(500).json({ error: error.message }); } 
-});
-app.delete('/api/mesas/:id', async (req, res) => { 
-  try {
-    await query('DELETE FROM mesas WHERE id = ?', [req.params.id]); 
-    res.json({ success: true }); 
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
+// --- ROTAS MODULARIZADAS (REFATORAÇÃO SOLID) ---
+const mesasRouter = require('./routes/mesas')(query, ensureDbInitialized, safePusherTrigger, notifyStatus, checkAndNotifyDelayedOrders);
+app.use('/api/mesas', mesasRouter);
 
 app.get('/api/pedidos/mesa/:mesaId', async (req, res) => { 
   try {
     res.json((await query(`SELECT * FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY created_at DESC LIMIT 1`, [req.params.mesaId])).rows[0] || null); 
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
-app.get('/api/mesas', ensureDbInitialized, async (req, res) => { 
-  checkAndNotifyDelayedOrders();
-  try {
-    res.json((await query(`
-      SELECT m.*, 
-        (SELECT p.id FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as pedido_id,
-        (SELECT p.created_at FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as pedido_created_at, 
-        COALESCE(
-          (SELECT p.garcom_id FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1),
-          m.garcom_id
-        ) as garcom_id,
-        (SELECT p.status FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as pedido_status,
-        (SELECT p.solicitou_fechamento FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as solicitou_fechamento,
-        (SELECT p.fechamento_solicitado_em FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as fechamento_solicitado_em,
-        (SELECT p.fechamento_liberado FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as fechamento_liberado,
-        (SELECT ca.codigo FROM codigos_acesso ca WHERE ca.mesa_id = m.id AND ca.status = 'ativo' ORDER BY ca.id DESC LIMIT 1) as codigo_acesso
-      FROM mesas m ORDER BY m.numero
-    `)).rows); 
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 // Cliente busca seus próprios pedidos ativos
@@ -3403,6 +3384,10 @@ app.post('/api/cliente/chamar-garcom', isAuthenticated, async (req, res) => {
 // Cliente envia rascunho do pedido (pré-seleção)
 app.post('/api/cliente/enviar-rascunho', isAuthenticated, async (req, res) => {
   const { itens } = req.body;
+  if (!itens || itens.length === 0) {
+    return res.status(400).json({ error: 'Carrinho vazio. Adicione pelo menos um item.' });
+  }
+
   const mesa_id = req.user.role === 'cliente' ? req.user.mesa_id : req.body.mesa_id;
   const mesa_numero = req.user.role === 'cliente' ? req.user.mesa_numero : req.body.mesa_numero;
   try {
