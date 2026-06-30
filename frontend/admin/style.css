@@ -1951,8 +1951,8 @@ input:checked + .slider:before {
   animation: piscaBordaEsquerdaAmarela 1.5s infinite ease-in-out !important;
   border-left-width: 8px !important;
   border-left-style: solid !important;
-  border-left-color: #f1c40f; /* SEM !important para que keyframes funcionem */
-  box-shadow: 0 0 15px rgba(241, 196, 15, 0.6) !important;
+  border-left-color: #f1c40f;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important; /* Sombra normal sem brilho amarelo */
 }
 @keyframes piscaBordaEsquerdaAmarela {
   0% { border-left-color: #f1c40f; }
