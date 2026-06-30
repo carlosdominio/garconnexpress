@@ -726,7 +726,7 @@ function tocarCampainha(suave = false) {
     ultimoSomTocado = Date.now();
     audioNotificacao.volume = suave ? 0.3 : 1.0;
     audioNotificacao.currentTime = 0;
-    audioNotificacao.play().catch(err => console.warn('Erro ao tocar �udio:', err));
+    audioNotificacao.play().catch(err => console.warn('Erro ao tocar udio:', err));
   }
 } 
 
@@ -861,6 +861,8 @@ async function configurarPusher() {
       
       if (data.status === 'fechado') {
         tocarCampainha();
+        if (typeof exibirNotificacaoNativa === 'function') exibirNotificacaoNativa("🔒 CAIXA FECHADO", "O caixa foi fechado! Bom descanso.");
+        mostrarAlerta("O caixa foi fechado! Bom descanso.", "🔒 CAIXA FECHADO", "🔒");
         if (typeof limparNotificacoes === 'function') limparNotificacoes(); // Limpa o histórico de notificações da noite
       } else if (data.status === 'aberto') {
         tocarCampainha(true); // Som suave

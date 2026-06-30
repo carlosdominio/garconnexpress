@@ -212,11 +212,17 @@ const App = {
         try {
             const res = await fetch(`${API_BASE_URL}/api/caixa/status?_t=${new Date().getTime()}`);
             const status = await res.json();
-            this.state.caixaAberto = !!status;
+            const wasOpen = this.state.caixaAberto;
+            const isOpenNow = !!status;
+            this.state.caixaAberto = isOpenNow;
             const screen = document.getElementById('closed-screen');
             if (screen) {
-                screen.style.display = this.state.caixaAberto ? 'none' : 'flex';
-                document.body.style.overflow = this.state.caixaAberto ? '' : 'hidden';
+                screen.style.display = isOpenNow ? 'none' : 'flex';
+                document.body.style.overflow = isOpenNow ? '' : 'hidden';
+                
+                if (!isOpenNow && wasOpen === true) {
+                    App.showLocal("🔒 CAIXA FECHADO", "O caixa foi fechado! Bom descanso.", "caixa_fechado");
+                }
             }
             if (!this.state.caixaAberto) {
                 if (typeof this.ui.limparNotificacoes === 'function') this.ui.limparNotificacoes();
