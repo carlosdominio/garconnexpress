@@ -19,6 +19,13 @@ const App = {
 
     async init() {
         console.log('🚀 Inicializando Motoboy App v2.0.3...');
+        
+        const ov = document.getElementById('loading-app');
+        const ovMsg = document.getElementById('loading-text');
+        if (ov && ovMsg) {
+            ov.classList.remove('hidden');
+            ovMsg.textContent = 'Sincronizando entregas...';
+        }
 
         // VERIFICA OTIMIZAÇÃO DE BATERIA (Evita suspensão do Pusher e FCM)
         if (window.Capacitor && window.Capacitor.isNativePlatform()) {
@@ -64,13 +71,25 @@ const App = {
 
         this.ui.updateSoundIcon();
         localStorage.setItem('audio_unlocked', 'true');
+
+        setTimeout(() => {
+            if (ov) ov.classList.add('hidden');
+            if (window.Capacitor && window.Capacitor.Plugins.SplashScreen) {
+                window.Capacitor.Plugins.SplashScreen.hide();
+            }
+        }, 600);
     },
 
     checkAuth() {
         const screen = document.getElementById('login-screen');
+        const ov = document.getElementById('loading-app');
         if (!this.state.token) {
             if (screen) screen.style.display = 'flex';
             document.body.style.overflow = 'hidden';
+            if (ov) ov.classList.add('hidden'); // Esconde o loading para mostrar o login
+            if (window.Capacitor && window.Capacitor.Plugins.SplashScreen) {
+                window.Capacitor.Plugins.SplashScreen.hide();
+            }
             this.setupLoginForm();
             return false;
         }
@@ -89,23 +108,22 @@ const App = {
             const senha = document.getElementById('login-pass').value;
             const btn = document.getElementById('btn-login-submit');
 
-            if (!usuario || !senha) {
-                Swal.fire({
-                    title: 'Atenção',
-                    text: 'Por favor, preencha todos os campos antes de entrar.',
-                    icon: 'warning',
-                    confirmButtonColor: '#e67e22',
-                    customClass: { container: 'my-swal-container' }
-                });
-                return;
-            }
-
             if (btn) {
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENTRANDO...';
             }
 
-            try {
+            const ov = document.getElementById('loading-app');
+            const ovMsg = document.getElementById('loading-text');
+            if (ov && ovMsg) {
+                ov.classList.remove('hidden');
+                ovMsg.textContent = 'Entrando...';
+            }
+
+            // Atraso de 600ms para a tela de carregamento aparecer
+            setTimeout(async () => {
+                try {
+
                 const res = await fetch(`${API_BASE_URL}/api/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -118,31 +136,25 @@ const App = {
                     localStorage.setItem('motoboy_token', data.token);
                     localStorage.setItem('motoboy_user', JSON.stringify(data.garcom));
                     
-                    Swal.fire({
-                        title: 'Acesso Autorizado',
-                        text: `Olá ${data.garcom.nome}, bom trabalho!`,
-                        icon: 'success',
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
+                    if (ovMsg) ovMsg.textContent = 'Carregando entregas do sistema...';
+                    setTimeout(() => location.reload(), 400);
 
-                    setTimeout(() => location.reload(), 2000);
                 } else if (res.status === 429) {
+                    if (ov) ov.classList.add('hidden');
                     Swal.fire({
                         title: 'Sistema de Segurança',
                         text: 'Muitas tentativas incorretas. Conta bloqueada por 15 minutos.',
                         icon: 'warning',
                         confirmButtonColor: '#e67e22',
                         confirmButtonText: 'OK',
-                        customClass: {
-                            container: 'my-swal-container'
-                        }
+                        customClass: { container: 'my-swal-container' }
                     });
                     if (btn) {
                         btn.disabled = false;
                         btn.innerHTML = 'ENTRAR NO APP <i class="fas fa-arrow-right"></i>';
                     }
                 } else {
+                    if (ov) ov.classList.add('hidden');
                     console.log('❌ Login falhou: Resposta do servidor indicou falha.');
                     Swal.fire({
                         title: 'Acesso Negado',
@@ -150,9 +162,7 @@ const App = {
                         icon: 'error',
                         confirmButtonColor: '#e74c3c',
                         confirmButtonText: 'TENTAR NOVAMENTE',
-                        customClass: {
-                            container: 'my-swal-container'
-                        }
+                        customClass: { container: 'my-swal-container' }
                     });
                     if (btn) {
                         btn.disabled = false;
@@ -160,21 +170,21 @@ const App = {
                     }
                 }
             } catch (err) {
+                if (ov) ov.classList.add('hidden');
                 console.error('❌ Erro na requisição de login (catch block):', err);
                 Swal.fire({
                     title: 'Erro de Conexão',
                     text: 'Não foi possível conectar ao servidor. Verifique sua internet.',
                     icon: 'warning',
                     confirmButtonText: 'OK',
-                    customClass: {
-                        container: 'my-swal-container'
-                    }
+                    customClass: { container: 'my-swal-container' }
                 });
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = 'ENTRAR NO APP <i class="fas fa-arrow-right"></i>';
                 }
             }
+            }, 600); // fim setTimeout login
         };
     },
 
@@ -200,22 +210,16 @@ const App = {
 
     async checkCaixaStatus() {
         try {
-            const res = await fetch(`${API_BASE_URL}/api/caixa/status`);
+            const res = await fetch(`${API_BASE_URL}/api/caixa/status?_t=${new Date().getTime()}`);
             const status = await res.json();
-            const wasOpen = this.state.caixaAberto;
-            const isOpenNow = !!status;
-            this.state.caixaAberto = isOpenNow;
-            
+            this.state.caixaAberto = !!status;
             const screen = document.getElementById('closed-screen');
             if (screen) {
-                screen.style.display = isOpenNow ? 'none' : 'flex';
-                document.body.style.overflow = isOpenNow ? '' : 'hidden';
-                
-                if (!isOpenNow && wasOpen === true) {
-                    App.ui.showToast("O caixa foi fechado! Bom descanso.", "error", "🔒 CAIXA FECHADO");
-                } else if (isOpenNow && wasOpen === false) {
-                    App.ui.showToast("O caixa foi aberto! Bom trabalho.", "success", "✅ CAIXA ABERTO");
-                }
+                screen.style.display = this.state.caixaAberto ? 'none' : 'flex';
+                document.body.style.overflow = this.state.caixaAberto ? '' : 'hidden';
+            }
+            if (!this.state.caixaAberto) {
+                if (typeof this.ui.limparNotificacoes === 'function') this.ui.limparNotificacoes();
             }
         } catch (e) { console.error("Erro status caixa:", e); }
     },
@@ -233,9 +237,18 @@ const App = {
         });
 
         if (isConfirmed) {
-            localStorage.removeItem('motoboy_token');
-            localStorage.removeItem('motoboy_user');
-            location.reload();
+            const ov = document.getElementById('loading-app');
+            const ovMsg = document.getElementById('loading-text');
+            if (ov && ovMsg) {
+                ov.classList.remove('hidden');
+                ovMsg.textContent = 'Saindo da conta...';
+            }
+            
+            setTimeout(() => {
+                localStorage.removeItem('motoboy_token');
+                localStorage.removeItem('motoboy_user');
+                location.reload();
+            }, 500);
         }
     },
 
@@ -258,55 +271,7 @@ const App = {
         },
 
         async init() {
-            if (!window.Capacitor || !window.Capacitor.isNativePlatform()) {
-                // --- FALLBACK PARA PWA (WEB PUSH) ---
-                if ('serviceWorker' in navigator && 'PushManager' in window) {
-                    try {
-                        const reg = await navigator.serviceWorker.ready;
-                        let subscription = await reg.pushManager.getSubscription();
-                        if (!subscription) {
-                            const response = await fetch(`${API_BASE_URL}/api/vapid-publicKey`);
-                            const data = await response.json();
-                            
-                            if (!data.publicKey || data.publicKey.trim() === '') {
-                                console.warn('⚠️ Web Push desativado: Chave VAPID_PUBLIC_KEY não configurada no servidor Vercel.');
-                                return;
-                            }
-                            
-                            // Função auxiliar inline para converter a chave VAPID
-                            const urlBase64ToUint8Array = (base64String) => {
-                                const padding = '='.repeat((4 - base64String.length % 4) % 4);
-                                const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
-                                const rawData = window.atob(base64);
-                                const outputArray = new Uint8Array(rawData.length);
-                                for (let i = 0; i < rawData.length; ++i) {
-                                    outputArray[i] = rawData.charCodeAt(i);
-                                }
-                                return outputArray;
-                            };
-                            
-                            const convertedVapidKey = urlBase64ToUint8Array(data.publicKey);
-                            subscription = await reg.pushManager.subscribe({
-                                userVisibleOnly: true,
-                                applicationServerKey: convertedVapidKey
-                            });
-                        }
-                        
-                        await fetch(`${API_BASE_URL}/api/subscribe`, {
-                            method: 'POST',
-                            body: JSON.stringify({ ...subscription.toJSON(), app_type: 'motoboy' }),
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${App.state.token}`
-                            }
-                        });
-                        console.log('✅ Web Push (Background Nativo) ativado para o PWA do Motoboy!');
-                    } catch (e) {
-                        console.error('❌ Falha ao inscrever no Web Push (PWA):', e);
-                    }
-                }
-                return;
-            }
+            if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return;
 
             const { PushNotifications } = Capacitor.Plugins;
 
@@ -315,7 +280,11 @@ const App = {
 
             // Limpa ao voltar para primeiro plano OU ao ir para segundo plano (ao sair do app)
             document.addEventListener('visibilitychange', async () => {
-                if (document.visibilityState === 'visible' || document.visibilityState === 'hidden') {
+                if (document.visibilityState === 'visible') {
+                    await this.clearNotifications();
+                    // Sincroniza o status do caixa ao voltar ao primeiro plano
+                    App.checkCaixaStatus();
+                } else if (document.visibilityState === 'hidden') {
                     await this.clearNotifications();
                 }
             });
@@ -343,6 +312,13 @@ const App = {
             });
 
             PushNotifications.addListener('pushNotificationReceived', (notification) => {
+                // Se for um evento de caixa, atualiza o status imediatamente
+                if (notification.data && notification.data.event === 'status-caixa-atualizado') {
+                    console.log('📲 [FCM Background] Caixa atualizado (Motoboy):', notification.data);
+                    App.checkCaixaStatus();
+                    return;
+                }
+
                 App.loadPedidos();
                 const pId = String(notification.data?.pedido_id || '');
                 const status = String(notification.data?.status || '');
@@ -362,13 +338,18 @@ const App = {
                     App.state.notifiedEvents.add(eventKey);
                     setTimeout(() => App.state.notifiedEvents.delete(eventKey), 15000);
                     
-                    this.playAlert();
-                    App.ui.showToast(notification.body || 'Novo alerta!', 'info', notification.title);
+                    // this.playAlert(); // Removido para evitar duplicidade com o Pusher (quando o app tá aberto)
+                    // App.ui.showToast(notification.body || 'Novo alerta!', 'info', notification.title);
                 }
             });
 
             PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
                 console.log('Push action performed:', notification);
+                // Se clicou em notificação de caixa, sincroniza
+                if (notification.notification && notification.notification.data && notification.notification.data.event === 'status-caixa-atualizado') {
+                    App.checkCaixaStatus();
+                    return;
+                }
                 App.loadPedidos();
             });
         },
@@ -418,8 +399,7 @@ const App = {
             }
         },
         toggleSoundManual() {
-            const check = document.getElementById('check-som');
-            App.state.soundEnabled = check ? check.checked : !App.state.soundEnabled;
+            App.state.soundEnabled = !App.state.soundEnabled;
             localStorage.setItem('motoboy_sound', App.state.soundEnabled);
             App.ui.updateSoundIcon();
             if (App.state.soundEnabled) {
@@ -452,7 +432,19 @@ const App = {
                     if (['cancelado', 'pronto', 'servido', 'saiu_entrega'].includes(data.status) && pId) {
                         let title = 'Motoboy Pro';
                         let body = `Pedido #${pId} atualizado!`;
-                        if (data.status === 'cancelado') { title = '❌ PEDIDO CANCELADO'; body = `Pedido #${pId} foi cancelado.`; }
+                        if (data.status === 'cancelado') { 
+                            title = '❌ PEDIDO CANCELADO'; 
+                            body = `Pedido #${pId} foi cancelado.`; 
+                            
+                            // Mostrar modal gigante também no status-atualizado
+                            const modal = document.getElementById('modal-cancelamento');
+                            const modalMsg = document.getElementById('modal-mensagem');
+                            if (modal && modalMsg) {
+                                modalMsg.innerHTML = `O Delivery <strong>#${pId}</strong> foi cancelado!<br><br><span style="font-size: 1rem; color: #7f8c8d;">Detalhe: Cancelado pelo administrador.</span>`;
+                                modal.classList.add('active');
+                                App.audio.playBell();
+                            }
+                        }
                         if (data.status === 'pronto') { title = '🍳 PEDIDO PRONTO'; body = `Pedido #${pId} pronto na cozinha.`; }
                         if (data.status === 'servido' || data.status === 'saiu_entrega') { title = '🛵 A CAMINHO'; body = `Pedido #${pId} saiu para entrega!`; }
                         
@@ -473,9 +465,17 @@ const App = {
                 this.channel.bind('pedido-cancelado', (data) => {
                     const pId = String(data.pedido_id || data.id || (data.pedido ? data.pedido.id : '') || '');
                     if (String(data.garcom_id) !== 'DELIVERY' && !(data.pedido && String(data.pedido.garcom_id) === 'DELIVERY')) return;
+                    if (data.para_cozinha === true) return; // Cozinha já vai lidar com o cancelamento
                     App.loadPedidos();
                     if (pId) {
                         App.notifications.showLocal(`❌ PEDIDO REMOVIDO`, `O pedido #${pId} foi cancelado.`, `cancelado_${pId}`);
+                        const modal = document.getElementById('modal-cancelamento');
+                        const modalMsg = document.getElementById('modal-mensagem');
+                        if (modal && modalMsg) {
+                            modalMsg.innerHTML = `O Delivery <strong>#${pId}</strong> foi cancelado!<br><br><span style="font-size: 1rem; color: #7f8c8d;">Detalhe: ${data.mensagem || 'Cancelado pelo administrador.'}</span>`;
+                            modal.classList.add('active');
+                            App.audio.playBell(); // Toca o som para alertar o motoboy
+                        }
                     }
                 });
             } catch (e) { console.error('Erro Pusher:', e); }
@@ -485,12 +485,19 @@ const App = {
     // --- UI ---
     ui: {
         updateSoundIcon() {
-            const check = document.getElementById('check-som');
-            const label = document.getElementById('label-som');
-            if (check) check.checked = App.state.soundEnabled;
-            if (label) {
-                label.innerText = App.state.soundEnabled ? '🔊 SOM' : '🔇 MUDO';
-                label.style.color = App.state.soundEnabled ? '#2ecc71' : '#bdc3c7';
+            const icone = document.getElementById('icone-som');
+            const btn = document.getElementById('btn-som');
+            if (icone) {
+                icone.className = App.state.soundEnabled ? 'fas fa-volume-up' : 'fas fa-volume-mute';
+            }
+            if (btn) {
+                if (App.state.soundEnabled) {
+                    btn.style.background = 'rgba(255,255,255,1)';
+                    btn.style.color = '#e67e22';
+                } else {
+                    btn.style.background = 'rgba(255,255,255,0.2)';
+                    btn.style.color = 'white';
+                }
             }
         },
         adicionarNotificacaoPainel(mensagem, titulo, tipo) {
@@ -678,16 +685,48 @@ const App = {
             } catch (e) { btn.disabled = false; }
         },
 
-        showToast(msg, tipo = 'success', titulo = '') {
+        showToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
             if (typeof this.adicionarNotificacaoPainel === 'function') this.adicionarNotificacaoPainel(msg, titulo, tipo);
             let c = document.getElementById('toast-container');
             if (!c) { c = document.createElement('div'); c.id = 'toast-container'; document.body.appendChild(c); }
+            
             const t = document.createElement('div');
-            t.className = `toast-notificacao ${tipo}`;
-            t.innerHTML = `<div class="toast-content"><strong>${titulo || ''}</strong><br>${msg}</div>`;
+            let classeTipo = tipo;
+            if (tipo === 'sucesso') classeTipo = 'success';
+            if (tipo === 'erro') classeTipo = 'error';
+            
+            t.className = `toast-notificacao ${classeTipo}`;
+            
+            const icones = {
+                success: '✅',
+                error: '❌',
+                warning: '⚠️',
+                info: 'ℹ️'
+            };
+            
+            const html = `
+                <div class="toast-icon">${icones[classeTipo] || '🔔'}</div>
+                <div class="toast-content">
+                    ${titulo ? `<strong class="toast-title">${titulo}</strong>` : ''}
+                    <span class="toast-msg">${msg}</span>
+                </div>
+                <button class="toast-close">&times;</button>
+            `;
+            t.innerHTML = html;
             c.appendChild(t);
+            
             setTimeout(() => t.classList.add('show'), 10);
-            setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 4000);
+            
+            const autoClose = setTimeout(() => {
+                t.classList.remove('show');
+                setTimeout(() => { if (t.parentNode) t.remove(); }, 400);
+            }, duracao);
+            
+            t.querySelector('.toast-close').onclick = () => {
+                clearTimeout(autoClose);
+                t.classList.remove('show');
+                setTimeout(() => { if (t.parentNode) t.remove(); }, 400);
+            };
         }
     }
 };

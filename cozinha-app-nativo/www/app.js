@@ -193,7 +193,7 @@ async function carregarPedidos() {
 
 async function verificarCaixa() {
     try {
-        const res = await fetch('/api/caixa/status');
+        const res = await fetch(`/api/caixa/status?_t=${new Date().getTime()}`);
         const caixa = await res.json();
         
         const container = document.getElementById('pedidos-container');
@@ -204,6 +204,7 @@ async function verificarCaixa() {
             if (container) container.style.display = 'none';
             if (closedScreen) closedScreen.style.display = 'flex';
             if (header) header.style.opacity = '0.3';
+            if (typeof limparNotificacoes === 'function') limparNotificacoes();
             return false;
         }
         
@@ -401,37 +402,34 @@ async function confirmarConclusaoPedido() {
     }
 }
 
-function mostrarNotificacaoCancelamento(mensagem, pedidoId) {
-    console.log(`🗑️ Verificando cancelamento do pedido ${pedidoId}...`);
+function mostrarNotificacaoCancelamento(mensagem, pedidoId, mesaNumero, isDelivery) {
+    console.log(`🗑️ Verificando cancelamento do pedido ${pedidoId}... isDelivery=${isDelivery}`);
     
-    let estavaNaTela = false;
-
     if (pedidoId) {
         const card = document.getElementById(`pedido-card-${pedidoId}`);
         if (card) {
             card.remove();
-            estavaNaTela = true;
         }
         
         const todosCards = document.querySelectorAll('.card-pedido');
         todosCards.forEach(c => {
             if (c.innerText.includes(`#${pedidoId}`)) {
                 c.remove();
-                estavaNaTela = true;
             }
         });
     }
 
-    if (estavaNaTela) {
-        mostrarToast(`❌ PEDIDO CANCELADO: Mesa ${mensagem.split('Mesa ')[1] || pedidoId}`, 'erro');
-        const modal = document.getElementById('modal-cancelamento');
-        const modalMsg = document.getElementById('modal-mensagem');
-        
-        if (modal && modalMsg) {
-            modalMsg.innerText = mensagem;
-            modal.classList.add('active');
-            tocarSomNotificacao('campainha');
-        }
+    const strMesa = mesaNumero ? `Mesa ${mesaNumero}` : 'BALCÃO';
+
+    // A validação agora é feita pelo backend (data.para_cozinha), logo se o evento chegou aqui, a cozinha DEVE ser avisada
+    mostrarToast(`❌ PEDIDO CANCELADO: ${strMesa}`, 'erro');
+    const modal = document.getElementById('modal-cancelamento');
+    const modalMsg = document.getElementById('modal-mensagem');
+    
+    if (modal && modalMsg) {
+        modalMsg.innerHTML = `O Pedido <strong>#${pedidoId} (${strMesa})</strong> foi cancelado!<br><br><span style="font-size: 1rem; color: #7f8c8d;">Detalhe: ${mensagem}</span>`;
+        modal.classList.add('active');
+        tocarSomNotificacao('campainha');
     }
 }
 
@@ -469,9 +467,14 @@ async function configurarPusher() {
 
         canal.bind('pedido-cancelado', (data) => {
             console.log('📢 Pedido cancelado recebido:', data);
+            
+            // O backend injeta isso para nos dizer se a cozinha tem itens afetados
+            if (data.para_cozinha === false) return;
+
             const idParaCancelar = data.id || data.pedido_id;
+            const isDelivery = data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY');
             if (idParaCancelar) {
-                mostrarNotificacaoCancelamento(data.mensagem || `Pedido #${idParaCancelar} cancelado`, idParaCancelar);
+                mostrarNotificacaoCancelamento(data.mensagem || `Cancelado pelo Admin`, idParaCancelar, data.mesa_numero, isDelivery);
             }
             
             clearTimeout(timeoutPusher);
@@ -489,7 +492,7 @@ async function configurarPusher() {
             verificarCaixa();
             if (data.status === 'fechado') {
                 tocarCampainha();
-                mostrarToast("O caixa foi fechado! Bom descanso.", "error", "🔒 CAIXA FECHADO");
+                mostrarToast("O expediente foi encerrado pelo administrador. O caixa está FECHADO.", "error", "💰 CAIXA FECHADO");
             } else if (data.status === 'aberto') {
                 tocarCampainha();
                 mostrarToast("O caixa foi aberto! Bom trabalho.");
@@ -500,8 +503,10 @@ async function configurarPusher() {
         canal.bind('status-atualizado', (data) => {
             console.log('📢 Status atualizado recebido:', data);
             if (data && data.status === 'cancelado') {
+                if (data.para_cozinha === false) return; // Trava de segurança: não notifica cozinha se não houver itens de cozinha
                 const idParaCancelar = data.pedido_id || data.id;
-                mostrarNotificacaoCancelamento(data.mensagem || `Pedido #${idParaCancelar} CANCELADO pelo Admin`, idParaCancelar);
+                const isDelivery = data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY');
+                mostrarNotificacaoCancelamento(data.mensagem || `Cancelado pelo Admin`, idParaCancelar, data.mesa_numero, isDelivery);
             } else if (data && (data.status === 'itens_atualizados' || data.status === 'itens_adicionados')) {
                 const card = document.getElementById(`pedido-card-${data.pedido_id || data.id}`);
                 if (card) {
@@ -553,7 +558,7 @@ async function registerNativePush() {
 
     if (window.Capacitor.getPlatform() === 'android') {
       await PushNotifications.createChannel({
-        id: 'pedidos',
+        id: 'pedidos_v4',
         name: 'Pedidos Cozinha',
         sound: 'notificacao',
         importance: 5,
@@ -575,24 +580,44 @@ async function registerNativePush() {
     await PushNotifications.register();
 
     PushNotifications.addListener('registration', async (token) => {
-      console.log('🔥 Token FCM recebido (Cozinha):', token.value);
-      await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          endpoint: token.value,
-          keys: { p256dh: '', auth: '' },
-          app_type: 'cozinha'
-        })
-      });
+      console.log('🔔 Token FCM recebido (Cozinha):', token.value);
+      try {
+        await fetch('/api/subscribe-cozinha', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            endpoint: token.value
+          })
+        });
+      } catch (e) {
+        console.error('Erro ao sincronizar token Cozinha:', e);
+      }
     });
 
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 Notificação recebida (Cozinha):', notification);
-      
-      tocarCampainha();
+
+      // Verifica se é um evento de fechamento de caixa
+      if (notification.data && notification.data.event === 'status-caixa-atualizado') {
+        console.log('📲 [FCM Background] Caixa atualizado (Cozinha):', notification.data);
+        if (typeof verificarCaixa === 'function') verificarCaixa();
+        return;
+      }
+
+      // Verifica se é um evento de pedido atrasado
+      if (notification.data && notification.data.event === 'pedido-atrasado') {
+        console.log('📲 [FCM Background] Pedido atrasado (Cozinha):', notification.data);
+        if (typeof exibirNotificacaoNativa === 'function') {
+          exibirNotificacaoNativa('⚠️ ATRASO NA COZINHA', notification.body || 'Um pedido está atrasado!', `atraso-cozinha-fcm`);
+        }
+        // if (typeof tocarSomNotificacao === 'function') tocarSomNotificacao(); // Removido para evitar duplicidade
+        if (typeof carregarPedidos === 'function') carregarPedidos();
+        return;
+      }
+
+      // tocarCampainha(); // Removido para evitar som duplo com o websocket
       if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
         try {
           await window.Capacitor.Plugins.Haptics.vibrate();
@@ -603,17 +628,24 @@ async function registerNativePush() {
     });
 
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-      console.log('🖱️ Clique na notificação detectado:', notification);
+      console.log('🖱️ Clique na notificação detectado (Cozinha):', notification);
+      // Se clicou em notificação de caixa, sincroniza
+      if (notification.notification && notification.notification.data && notification.notification.data.event === 'status-caixa-atualizado') {
+        if (typeof verificarCaixa === 'function') verificarCaixa();
+        return;
+      }
+      
+      // Se clicou na notificação de atraso, carrega os pedidos
+      if (notification.notification && notification.notification.data && notification.notification.data.event === 'pedido-atrasado') {
+        if (typeof carregarPedidos === 'function') carregarPedidos();
+        return;
+      }
       if (typeof carregarPedidos === 'function') carregarPedidos();
     });
 
   } catch (error) {
     console.error('❌ Erro Push Nativo:', error);
   }
-}
-
-function inicializar() {
-    console.log('App Cozinha iniciado.');
 }
 
 // --- SINO DE NOTIFICAÇÕES ---
@@ -694,7 +726,21 @@ function iniciarApp() {
     if (isNativeApp) {
         limparNotificacoesNativas();
         registerNativePush();
+
+        // Sincroniza o status do caixa sempre que o app voltar ao primeiro plano
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            console.log('👀 [Cozinha] Voltou ao foco. Verificando caixa e pedidos...');
+            if (typeof verificarCaixa === 'function') verificarCaixa();
+            if (typeof carregarPedidos === 'function') carregarPedidos();
+          }
+        });
     }
+
+    const ov = document.getElementById('loading-app');
+    setTimeout(() => {
+        if (ov) ov.classList.add('hidden');
+    }, 600);
 }
 
 async function realizarLogin() {
@@ -714,7 +760,15 @@ async function realizarLogin() {
     if (btn) btn.disabled = true;
     if (btnText) btnText.innerText = "Entrando...";
     
-    try {
+    const ov = document.getElementById('loading-app');
+    const ovMsg = document.getElementById('loading-text');
+    if (ov && ovMsg) {
+        ov.classList.remove('hidden');
+        ovMsg.textContent = 'Entrando...';
+    }
+
+    setTimeout(async () => {
+        try {
         // Tenta fazer login como Admin primeiro
         let res = await fetch('/api/admin/login', {
             method: 'POST',
@@ -728,7 +782,8 @@ async function realizarLogin() {
             localStorage.setItem('cozinha_logado', 'true');
             localStorage.setItem('cozinha_token', data.token);
             mostrarToast("Login realizado com sucesso!", "success");
-            location.reload();
+            if (ovMsg) ovMsg.textContent = 'Carregando pedidos...';
+            setTimeout(() => location.reload(), 400);
             return;
         }
         
@@ -744,8 +799,10 @@ async function realizarLogin() {
             localStorage.setItem('cozinha_logado', 'true');
             localStorage.setItem('cozinha_token', data.token);
             mostrarToast("Login realizado com sucesso!", "success");
-            location.reload();
+            if (ovMsg) ovMsg.textContent = 'Carregando pedidos...';
+            setTimeout(() => location.reload(), 400);
         } else if (res.status === 429) {
+            if (ov) ov.classList.add('hidden');
             Swal.fire({
                 title: 'Sistema de Segurança',
                 text: 'Muitas tentativas incorretas. Conta bloqueada por 15 minutos.',
@@ -756,16 +813,19 @@ async function realizarLogin() {
             if (btn) btn.disabled = false;
             if (btnText) btnText.innerText = "Entrar";
         } else {
+            if (ov) ov.classList.add('hidden');
             exibirErroLogin("Usuário ou senha incorretos.\n\nPor favor, verifique os dados digitados e tente novamente. Caso o erro persista, confirme suas credenciais com a gerência.");
             if (btn) btn.disabled = false;
             if (btnText) btnText.innerText = "Entrar";
         }
     } catch (e) {
+        if (ov) ov.classList.add('hidden');
         console.error(e);
         exibirErroLogin("Erro de conexão ao realizar login.");
         if (btn) btn.disabled = false;
         if (btnText) btnText.innerText = "Entrar";
     }
+    }, 600); // Fim do setTimeout do login
 }
 
 function exibirErroLogin(mensagem) {
@@ -778,10 +838,31 @@ function exibirErroLogin(mensagem) {
     });
 }
 
-function logout() {
-    localStorage.removeItem('cozinha_logado');
-    localStorage.removeItem('cozinha_token');
-    location.reload();
+async function logout() {
+    const confirm = await Swal.fire({
+        title: 'Sair do Painel?',
+        text: 'Você precisará fazer login novamente para acessar a cozinha.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#95a5a6',
+        confirmButtonText: 'Sim, sair',
+        cancelButtonText: 'Cancelar'
+    });
+
+    if (confirm.isConfirmed) {
+        const ov = document.getElementById('loading-app');
+        const ovMsg = document.getElementById('loading-text');
+        if (ov && ovMsg) {
+            ov.classList.remove('hidden');
+            ovMsg.textContent = 'Saindo do painel...';
+        }
+        setTimeout(() => {
+            localStorage.removeItem('cozinha_logado');
+            localStorage.removeItem('cozinha_token');
+            location.reload();
+        }, 500);
+    }
 }
 
 // Bateria (executa solto no boot nativo)
@@ -820,6 +901,13 @@ function verificarSessao() {
     const telaLogin = document.getElementById('tela-login');
     const header = document.getElementById('main-header');
     const container = document.getElementById('pedidos-container');
+    const ov = document.getElementById('loading-app');
+    const ovMsg = document.getElementById('loading-text');
+
+    if (ov && ovMsg) {
+        ov.classList.remove('hidden');
+        ovMsg.textContent = 'Sincronizando painel da cozinha...';
+    }
     
     if (logado && token) {
         if (telaLogin) telaLogin.style.display = 'none';
@@ -830,6 +918,7 @@ function verificarSessao() {
         if (telaLogin) telaLogin.style.display = 'flex';
         if (header) header.style.display = 'none';
         if (container) container.style.display = 'none';
+        if (ov) ov.classList.add('hidden'); // Esconde o loading caso precise exibir o login
     }
 }
 
@@ -861,6 +950,8 @@ document.addEventListener('click', () => {
         console.log('🔊 Áudio preparado!');
     }).catch(e => console.log('Erro ao preparar áudio:', e));
 }, { once: true });
+
+if (window.Capacitor && window.Capacitor.Plugins.SplashScreen) { window.Capacitor.Plugins.SplashScreen.hide(); }
 
 
 // --- FECHAR PAINEL AO CLICAR FORA ---
