@@ -1950,7 +1950,9 @@ input:checked + .slider:before {
 
 .pedido-card.alerta-fechamento.alerta-borda-pisca-amarela {
   animation: piscaBordaEsquerdaAmarela 1.5s infinite ease-in-out !important;
-  border-left: 8px solid #f1c40f !important;
+  border-left-width: 8px !important;
+  border-left-style: solid !important;
+  border-left-color: #f1c40f; /* SEM !important para que keyframes funcionem */
   box-shadow: 0 0 15px rgba(241, 196, 15, 0.6) !important;
 }
 @keyframes piscaBordaEsquerdaAmarela {
