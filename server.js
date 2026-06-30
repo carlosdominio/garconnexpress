@@ -935,7 +935,7 @@ async function checkAndNotifyDelayedOrders() {
       FROM pedidos p
       LEFT JOIN mesas m ON p.mesa_id = m.id
       WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho', 'servido', 'aguardando_fechamento')
-        AND (p.notificado_atraso = FALSE OR p.notificado_atraso IS NULL)
+        AND (p.notificado_atraso = 0 OR p.notificado_atraso IS NULL)
     `);
 
     const now = new Date();
@@ -1034,7 +1034,7 @@ async function checkAndNotifyDelayedOrders() {
       }
 
       // Atualiza de forma atômica para evitar envios duplicados por concorrência
-      const updateRes = await query("UPDATE pedidos SET notificado_atraso = TRUE WHERE id = ? AND (notificado_atraso = FALSE OR notificado_atraso IS NULL)", [p.id]);
+      const updateRes = await query("UPDATE pedidos SET notificado_atraso = 1 WHERE id = ? AND (notificado_atraso = 0 OR notificado_atraso IS NULL)", [p.id]);
       if (updateRes.changes === 0) continue; // Já foi notificado por outro processo/requisição
 
       // Envia notificações para todos os dispositivos correspondentes
