@@ -3643,6 +3643,37 @@ app.post('/api/config/categorias-cozinha', isAdmin, async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+
+app.get('/api/debug-fcm', ensureDbInitialized, async (req, res) => {
+    try {
+      const now = new Date();
+      const delayedClosureRes = await query("SELECT p.id, p.garcom_id, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, p.notificado_atraso_fechamento FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE (p.status = 'aguardando_fechamento' OR p.solicitou_fechamento = TRUE OR p.solicitou_fechamento = 'true') AND p.fechamento_solicitado_em IS NOT NULL");
+      
+      const debugList = delayedClosureRes.rows.map(p => {
+        let dateStr = p.fechamento_str || '';
+        if (!dateStr.endsWith('Z')) dateStr = dateStr.replace(' ', 'T') + 'Z';
+        const requestedAt = new Date(dateStr);
+        const diffMinutes = (now - requestedAt) / 60000;
+        return {
+          id: p.id,
+          garcom_id: p.garcom_id,
+          notificado_atraso_fechamento: p.notificado_atraso_fechamento,
+          raw_date: p.fechamento_str,
+          parsed_date: requestedAt.toISOString(),
+          now: now.toISOString(),
+          diffMinutes: diffMinutes,
+          isDelayed: diffMinutes >= 5
+        };
+      });
+
+      const subsRes = await query("SELECT id, garcom_id, app_type, is_native FROM push_subscriptions");
+      
+      res.json({ debugList, subs: subsRes.rows });
+    } catch(e) {
+      res.status(500).json({ error: e.message });
+    }
+});
+
 app.get('/api/diag', async (req, res) => {
   try {
     let dbStatus = 'disconnected';
