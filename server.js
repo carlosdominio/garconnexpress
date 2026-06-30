@@ -973,7 +973,7 @@ async function checkAndNotifyDelayedOrders() {
       // Notificacoes FCM/WebPush para Admin
       const sentEndpoints = new Set();
       for (const sub of subs) {
-        if (sub.app_type !== 'admin') continue;
+        if (sub.app_type !== 'garcom' || sub.garcom_id !== p.garcom_id) continue;
         if (sentEndpoints.has(sub.endpoint)) continue;
         sentEndpoints.add(sub.endpoint);
         const isNativeSubAtraso = sub.is_native === 1 || sub.is_native === true || (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
@@ -990,7 +990,7 @@ async function checkAndNotifyDelayedOrders() {
             const message = {
               notification: { title: pushTitle, body: pushMsg },
               data: { event: 'fechamento-atrasado', sound: 'notificacao', pedido_id: String(p.id) },
-              android: { priority: 'high', notification: { sound: 'notificacao', channelId: 'admin_v1', defaultSound: false } },
+              android: { priority: 'high', notification: { sound: 'notificacao', channelId: 'garcom_v1', defaultSound: false } },
               token: sub.endpoint
             };
             await admin.messaging().send(message).catch(e => console.error('Erro FCM Fechamento Atrasado:', e.message));
