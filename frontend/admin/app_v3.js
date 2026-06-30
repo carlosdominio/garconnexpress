@@ -433,9 +433,14 @@ function atualizarCronometrosPedidos() {
     span.textContent = `⏱️ ${minutos} min`;
     span.style.display = '';
     
-    // ALERTA SE PASSAR DE 10 MINUTOS
-    if (minutos >= 10) {
-      card.classList.add('alerta-borda-pisca');
+    // ALERTA DE ATRASO: 5 minutos para fechamento (amarelo), 10 minutos para cozinha (vermelho)
+    const limiteAtraso = isFechamento ? 5 : 10;
+    const classeAlerta = isFechamento ? 'alerta-borda-pisca-amarela' : 'alerta-borda-pisca';
+    const classeLimpar = isFechamento ? 'alerta-borda-pisca' : 'alerta-borda-pisca-amarela';
+
+    if (minutos >= limiteAtraso) {
+      card.classList.add(classeAlerta);
+      card.classList.remove(classeLimpar);
       
       // Toca som e mostra notificação apenas uma vez por pedido quando atinge o atraso
       if (pedidoId && !pedidosAtrasadosNotificados.has(pedidoId)) {
@@ -449,7 +454,8 @@ function atualizarCronometrosPedidos() {
         pedidosAtrasadosNotificados.add(pedidoId);
       }
     } else {
-      card.classList.remove('alerta-borda-pisca');
+      card.classList.remove(classeAlerta);
+      card.classList.remove(classeLimpar);
       if (pedidoId) pedidosAtrasadosNotificados.delete(pedidoId);
     }
   });
