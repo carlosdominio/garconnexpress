@@ -833,7 +833,7 @@ async function configurarPusher() {
       if (data.status === 'fechado') {
         tocarCampainha();
         if (typeof limparNotificacoes === 'function') limparNotificacoes();
-        mostrarAlerta("O caixa foi fechado pelo administrador. O atendimento está encerrado.", "💰 CAIXA FECHADO", "🛑");
+        mostrarAlerta("O caixa foi fechado! Bom descanso.", "🔒 CAIXA FECHADO", "🔒");
       } else if (data.status === 'aberto') {
         tocarCampainha(true); // Som suave
         mostrarToast("O caixa foi aberto! Bom trabalho.");
@@ -844,7 +844,7 @@ async function configurarPusher() {
     channel.bind('caixa-encerrado', async () => {
       console.log('🚨 CAIXA ENCERRADO! Deslogando garçom...');
       if (typeof mostrarAlerta === 'function') {
-        mostrarAlerta("O expediente foi encerrado pelo Administrador. Você será desconectado em segurança.", "Expediente Encerrado", "🔒");
+        mostrarAlerta("O caixa foi fechado! Bom descanso.", "🔒 CAIXA FECHADO", "🔒");
       }
       setTimeout(async () => {
         try { await fetch('/api/logout', { method: 'POST' }); } catch(e){}

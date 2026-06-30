@@ -489,7 +489,7 @@ async function configurarPusher() {
             verificarCaixa();
             if (data.status === 'fechado') {
                 tocarCampainha();
-                mostrarToast("O expediente foi encerrado pelo administrador. O caixa está FECHADO.", "error", "💰 CAIXA FECHADO");
+                mostrarToast("O caixa foi fechado! Bom descanso.", "error", "🔒 CAIXA FECHADO");
             } else if (data.status === 'aberto') {
                 tocarCampainha();
                 mostrarToast("O caixa foi aberto! Bom trabalho.");

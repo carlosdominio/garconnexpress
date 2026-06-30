@@ -202,11 +202,20 @@ const App = {
         try {
             const res = await fetch(`${API_BASE_URL}/api/caixa/status`);
             const status = await res.json();
-            this.state.caixaAberto = !!status;
+            const wasOpen = this.state.caixaAberto;
+            const isOpenNow = !!status;
+            this.state.caixaAberto = isOpenNow;
+            
             const screen = document.getElementById('closed-screen');
             if (screen) {
-                screen.style.display = this.state.caixaAberto ? 'none' : 'flex';
-                document.body.style.overflow = this.state.caixaAberto ? '' : 'hidden';
+                screen.style.display = isOpenNow ? 'none' : 'flex';
+                document.body.style.overflow = isOpenNow ? '' : 'hidden';
+                
+                if (!isOpenNow && wasOpen === true) {
+                    App.ui.showToast("O caixa foi fechado! Bom descanso.", "error", "🔒 CAIXA FECHADO");
+                } else if (isOpenNow && wasOpen === false) {
+                    App.ui.showToast("O caixa foi aberto! Bom trabalho.", "success", "✅ CAIXA ABERTO");
+                }
             }
         } catch (e) { console.error("Erro status caixa:", e); }
     },
