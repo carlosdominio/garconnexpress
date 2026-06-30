@@ -450,6 +450,7 @@ function atualizarCronometrosPedidos() {
         const mesaNome = card.dataset.mesa || `Pedido #${pedidoId}`;
         const motivo = isFechamento ? 'SOLICITOU CONTA' : 'PEDIDO PENDENTE';
         exibirNotificacaoNativa(`⚠️ ATRASO: ${mesaNome}`, `${motivo} há ${minutos} minutos!`, `atraso-${pedidoId}`);
+        mostrarToast(`${motivo} há ${minutos} minutos!`, 'warning', `⚠️ ATRASO: ${mesaNome}`);
 
         pedidosAtrasadosNotificados.add(pedidoId);
       }
