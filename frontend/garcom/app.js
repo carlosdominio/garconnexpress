@@ -555,7 +555,8 @@ async function realizarLogin() {
       garcomLogado = data.garcom;
       localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
       if (data.token) localStorage.setItem('garcom_token', data.token); // Salva token
-      location.reload();
+      if (typeof mostrarToast === 'function') mostrarToast("Login realizado com sucesso!", "success");
+      setTimeout(() => location.reload(), 1000);
     } else if (res.status === 429) {
       await mostrarAlerta("Muitas tentativas incorretas. Conta bloqueada por 15 minutos.", "Atenção (Segurança)", "🔒");
       // Resetar Loading em caso de erro

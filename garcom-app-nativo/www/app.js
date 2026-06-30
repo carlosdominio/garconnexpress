@@ -545,7 +545,7 @@ async function realizarLogin() {
       
       // Muda a mensagem na mesma tela de carregamento
       if (ovMsg) ovMsg.textContent = 'Carregando mesas do cardápio...';
-      setTimeout(function() { location.reload(); }, 400);
+      setTimeout(function() { if (typeof mostrarToast === 'function') mostrarToast("Login realizado com sucesso!", "success"); setTimeout(() => location.reload(), 1000); }, 400);
     } else if (res.status === 429) {
       if (ov) ov.classList.add('hidden'); // esconde overlay no erro
       await mostrarAlerta("Muitas tentativas incorretas. Conta bloqueada por 15 minutos.", "Atenção (Segurança)", "🔒");

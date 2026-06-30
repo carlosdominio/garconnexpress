@@ -137,7 +137,8 @@ const App = {
                     localStorage.setItem('motoboy_user', JSON.stringify(data.garcom));
                     
                     if (ovMsg) ovMsg.textContent = 'Carregando entregas do sistema...';
-                    setTimeout(() => location.reload(), 400);
+                    App.ui.showToast("Login realizado com sucesso!", "success");
+                    setTimeout(() => location.reload(), 1000);
 
                 } else if (res.status === 429) {
                     if (ov) ov.classList.add('hidden');
