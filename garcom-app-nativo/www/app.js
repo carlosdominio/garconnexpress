@@ -151,9 +151,15 @@ async function registerNativePush() {
 
       if (typeof carregarMesas === 'function') carregarMesas();
 
+      // Se for um novo pedido, o Pusher já cuida de tudo no foreground para os outros garçons (e o criador ignora)
+      if (notification.data && notification.data.event === 'novo-pedido') {
+        console.log("Ignorando Toast FCM para novo-pedido no foreground (Pusher já gerencia).");
+        return;
+      }
+
       // Mostra Toast interno com as informações da notificação recebida no foreground
       try {
-        if (notification && (notification.title || notification.body)) {
+        if (notification && (notification.title || notification.body)) || notification.body)) {
           const title = notification.title || 'Alerta';
           const body = notification.body || '';
           const tipo = title.includes('ATRASO') || title.includes('atraso') ? 'warning' : 'info';
@@ -783,6 +789,13 @@ async function configurarPusher() {
     });
 
     channel.bind('novo-pedido', (data) => {
+      // Se fui EU que criei esse pedido, ignora o alerta visual/sonoro para mim mesmo
+      if (data.pedido && data.pedido.garcom_id === garcomLogado.usuario) {
+        console.log("Ignorando notificação de pedido criado por mim mesmo.");
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
       if (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY')) return;
       console.log('📢 Evento recebido: novo-pedido', data);
       // Garçom toca som suave para novos pedidos (ex: pedidos via QR Code)
