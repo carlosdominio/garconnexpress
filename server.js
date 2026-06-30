@@ -1622,7 +1622,7 @@ async function getFilterCozinha() {
   }
 }
 
-app.put('/api/pedidos/:id/marcar-entregue', statusLimiter, async (req, res) => {
+app.put('/api/pedidos/:id/marcar-entregue', statusLimiter, isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { apenasProntos } = req.body;
   try {
@@ -1696,7 +1696,7 @@ app.put('/api/pedidos/:id/marcar-entregue', statusLimiter, async (req, res) => {
   }
 });
 
-app.put('/api/itens/:id/pronto', async (req, res) => {
+app.put('/api/itens/:id/pronto', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   try {
     const item = (await query("SELECT pedido_id, menu_id, quantidade, observacao FROM pedido_itens WHERE id = ?", [id])).rows[0];
@@ -1743,7 +1743,7 @@ app.put('/api/itens/:id/pronto', async (req, res) => {
   }
 });
 
-app.put('/api/pedidos/:id/taxa', async (req, res) => {
+app.put('/api/pedidos/:id/taxa', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { cobrar_taxa } = req.body;
   try {
@@ -1763,7 +1763,7 @@ app.get('/api/caixa/status', ensureDbInitialized, async (req, res) => {
   res.json(result.rows[0] || null);
 });
 
-app.post('/api/caixa/abrir', async (req, res) => {
+app.post('/api/caixa/abrir', isAdmin, async (req, res) => {
   const { valor_inicial } = req.body;
   try {
     const aberto = await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'");
@@ -1780,7 +1780,7 @@ app.post('/api/caixa/abrir', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Erro ao abrir caixa' }); }
 });
 
-app.post('/api/caixa/fechar', async (req, res) => {
+app.post('/api/caixa/fechar', isAdmin, async (req, res) => {
   const { valor_final, id } = req.body;
   try {
     const pedidosAtivos = await query("SELECT id FROM pedidos WHERE status NOT IN ('entregue', 'cancelado')");
@@ -1983,7 +1983,7 @@ app.get('/api/pedidos/historico', isAuthenticated, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-app.delete('/api/pedidos/limpar', async (req, res) => {
+app.delete('/api/pedidos/limpar', isAdmin, async (req, res) => {
   try {
     await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT id FROM pedidos WHERE status IN ('entregue', 'cancelado'))");
     await query("DELETE FROM pedidos WHERE status IN ('entregue', 'cancelado')");
@@ -2013,7 +2013,7 @@ app.get('/api/pedidos/:id/itens', ensureDbInitialized, isAuthenticated, async (r
   }
 });
 
-app.delete('/api/pedidos/itens/:id', async (req, res) => {
+app.delete('/api/pedidos/itens/:id', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   try {
     const item = (await query("SELECT pedido_id, menu_id, quantidade FROM pedido_itens WHERE id = ?", [id])).rows[0];
@@ -2299,7 +2299,7 @@ app.post('/api/pedidos', orderLimiter, isAuthenticated, async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.put('/api/pedidos/:id/atualizar-itens', async (req, res) => {
+app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { itens, observacao } = req.body;
   try {
@@ -2512,7 +2512,7 @@ app.post('/api/cliente/solicitar-conta', async (req, res) => {
   }
 });
 
-app.put('/api/pedidos/:id/solicitar-fechamento', async (req, res) => {
+app.put('/api/pedidos/:id/solicitar-fechamento', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { mesa_id, forma_pagamento, desconto, acrescimo, valor_recebido, troco, total, num_pessoas, valor_por_pessoa, pagamentos_detalhados } = req.body;
   try {
@@ -2554,7 +2554,7 @@ app.put('/api/pedidos/:id/solicitar-fechamento', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.put('/api/pedidos/:id/pessoas', async (req, res) => {
+app.put('/api/pedidos/:id/pessoas', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { num_pessoas } = req.body;
   try {
@@ -2565,7 +2565,7 @@ app.put('/api/pedidos/:id/pessoas', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.post('/api/pedidos/:id/pagamento-fracao', async (req, res) => {
+app.post('/api/pedidos/:id/pagamento-fracao', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { mesa_id, valor_pago, forma_pagamento, num_pessoas_restantes, recebido, troco } = req.body;
   
@@ -2613,7 +2613,7 @@ app.post('/api/pedidos/:id/pagamento-fracao', async (req, res) => {
   }
 });
 
-app.post('/api/pedidos/:id/pagamento-parcial', async (req, res) => {
+app.post('/api/pedidos/:id/pagamento-parcial', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { mesa_id, itens, forma_pagamento, total, num_pessoas, valor_por_pessoa } = req.body;
   try {
@@ -2816,7 +2816,7 @@ app.get('/api/menu', ensureDbInitialized, async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.post('/api/config/ordem-categorias', async (req, res) => {
+app.post('/api/config/ordem-categorias', isAdmin, async (req, res) => {
   const { ordem } = req.body;
   try {
     const valor = JSON.stringify(ordem);
@@ -2830,7 +2830,7 @@ app.post('/api/config/ordem-categorias', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.put('/api/menu/:id', async (req, res) => {
+app.put('/api/menu/:id', isAdmin, async (req, res) => {
   const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao } = req.body;
   const dataValidade = validade && validade.trim() !== "" ? validade : null;
   const envCozinha = enviar_cozinha !== undefined ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
@@ -2845,7 +2845,7 @@ app.put('/api/menu/:id', async (req, res) => {
   }
 });
 
-app.post('/api/menu', async (req, res) => {
+app.post('/api/menu', isAdmin, async (req, res) => {
   const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao } = req.body;
   const envCozinha = enviar_cozinha !== undefined ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
   const isVisivel = visivel !== undefined ? (isPostgres ? visivel : (visivel ? 1 : 0)) : (isPostgres ? true : 1);
@@ -2857,9 +2857,9 @@ app.post('/api/menu', async (req, res) => {
   }
   catch (error) { res.status(500).json({ error: error.message }); }
 });
-app.delete('/api/menu/:id', async (req, res) => { try { await query('DELETE FROM menu WHERE id = ?', [req.params.id]); res.json({ success: true }); } catch (error) { res.status(500).json({ error: error.message }); } });
+app.delete('/api/menu/:id', isAdmin, async (req, res) => { try { await query('DELETE FROM menu WHERE id = ?', [req.params.id]); res.json({ success: true }); } catch (error) { res.status(500).json({ error: error.message }); } });
 
-app.delete('/api/menu/categoria/:categoria', async (req, res) => {
+app.delete('/api/menu/categoria/:categoria', isAdmin, async (req, res) => {
   const { categoria } = req.params;
   try {
     // Usamos UPPER para garantir que pegue variações de caixa se houver (ex: Bebidas vs bebidas)
@@ -2870,7 +2870,7 @@ app.delete('/api/menu/categoria/:categoria', async (req, res) => {
   }
 });
 
-app.put('/api/menu/categoria/:categoria', async (req, res) => {
+app.put('/api/menu/categoria/:categoria', isAdmin, async (req, res) => {
   const { categoria } = req.params;
   const { novoNome } = req.body;
   if (!novoNome) return res.status(400).json({ error: 'Novo nome é obrigatório' });
@@ -2921,7 +2921,7 @@ app.get('/api/garcons', ensureDbInitialized, async (req, res) => {
     res.status(500).json({ error: error.message, stack: error.stack }); 
   }
 });
-app.post('/api/garcons', async (req, res) => { 
+app.post('/api/garcons', isAdmin, async (req, res) => { 
   try {
     const { nome, usuario, senha, telefone, comissao } = req.body; 
     const hashed = await bcrypt.hash(senha || '123', saltRounds); 
@@ -2929,7 +2929,7 @@ app.post('/api/garcons', async (req, res) => {
     res.json({ success: true }); 
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
-app.put('/api/garcons/:id', async (req, res) => {
+app.put('/api/garcons/:id', isAdmin, async (req, res) => {
   try {
     const { nome, usuario, senha, telefone, comissao } = req.body;
     if (senha) {
@@ -2941,7 +2941,7 @@ app.put('/api/garcons/:id', async (req, res) => {
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
-app.delete('/api/garcons/:id', async (req, res) => { 
+app.delete('/api/garcons/:id', isAdmin, async (req, res) => { 
   try {
     const garcom = await query('SELECT usuario FROM garcons WHERE id = ?', [req.params.id]);
     if (garcom.rows && garcom.rows.length > 0) await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE garcom_id = ?", [garcom.rows[0].usuario]);
@@ -3521,7 +3521,7 @@ app.get('/api/whatsapp-status', async (req, res) => {
   }
 });
 
-app.post('/api/whatsapp-toggle', async (req, res) => {
+app.post('/api/whatsapp-toggle', isAdmin, async (req, res) => {
   const { enabled } = req.body;
   try {
     await query("UPDATE sistema_config SET valor = ? WHERE chave = 'whatsapp_enabled'", [enabled ? 'true' : 'false']);
@@ -3531,7 +3531,7 @@ app.post('/api/whatsapp-toggle', async (req, res) => {
   }
 });
 
-app.post('/api/whatsapp-number', async (req, res) => {
+app.post('/api/whatsapp-number', isAdmin, async (req, res) => {
   const { number } = req.body;
   try {
     if (isPostgres) {
@@ -3560,7 +3560,7 @@ app.get('/api/config/categorias-cozinha', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.post('/api/config/categorias-cozinha', async (req, res) => {
+app.post('/api/config/categorias-cozinha', isAdmin, async (req, res) => {
   const { categorias } = req.body;
   try {
     const valor = JSON.stringify(categorias);
@@ -3658,7 +3658,7 @@ app.get('/api/bot-responses', async (req, res) => {
     }
 });
 
-app.post('/api/bot-responses', async (req, res) => {
+app.post('/api/bot-responses', isAdmin, async (req, res) => {
     try {
         const { responses } = req.body;
         const valor = JSON.stringify(responses);
