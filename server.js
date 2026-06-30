@@ -935,7 +935,7 @@ async function checkAndNotifyDelayedOrders() {
       FROM pedidos p
       LEFT JOIN mesas m ON p.mesa_id = m.id
       WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho', 'servido', 'aguardando_fechamento')
-        AND (p.notificado_atraso = 0 OR p.notificado_atraso IS NULL)
+        AND (p.notificado_atraso = FALSE OR p.notificado_atraso IS NULL)
     `);
 
     const now = new Date();
@@ -945,11 +945,65 @@ async function checkAndNotifyDelayedOrders() {
       return diffMinutes >= 10;
     });
 
-    if (delayedOrders.length === 0) return;
-
+    
     // 2. Busca inscrições push de dispositivos
     const subsRes = await query("SELECT * FROM push_subscriptions");
     const subs = subsRes.rows;
+
+    // === NOVAS NOTIFICACOES: FECHAMENTO ATRASADO ===
+    const delayedClosureRes = await query("SELECT p.id, p.garcom_id, p.fechamento_solicitado_em, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE (p.status = 'aguardando_fechamento' OR p.solicitou_fechamento = TRUE OR p.solicitou_fechamento = 'true') AND p.fechamento_solicitado_em IS NOT NULL AND (p.notificado_atraso_fechamento = 0 OR p.notificado_atraso_fechamento IS NULL)");
+    const delayedClosures = delayedClosureRes.rows.filter(p => {
+      const requestedAt = new Date(p.fechamento_solicitado_em);
+      return ((now - requestedAt) / 60000) >= 5;
+    });
+
+    for (const p of delayedClosures) {
+      const mesaName = p.mesa_numero ? (String(p.mesa_numero).toUpperCase().includes('MESA') ? p.mesa_numero : 'Mesa ' + p.mesa_numero) : 'BALCAO';
+      const updateRes = await query("UPDATE pedidos SET notificado_atraso_fechamento = 1 WHERE id = ? AND (notificado_atraso_fechamento = 0 OR notificado_atraso_fechamento IS NULL)", [p.id]);
+      if (updateRes.changes === 0) continue;
+
+      const pushTitle = '⚠️ CAIXA: FECHAMENTO ATRASADO!';
+      const pushMsg = `O fechamento da ${mesaName} foi solicitado há mais de 5 minutos e ainda não foi concluído!`;
+      
+      // Toast pusher para o admin
+      if (typeof safePusherTrigger !== 'undefined') {
+          await safePusherTrigger('garconnexpress', 'fechamento-atrasado', { pedido_id: p.id, mesa_numero: p.mesa_numero, mensagem: pushMsg });
+      }
+
+      // Notificacoes FCM/WebPush para Admin
+      const sentEndpoints = new Set();
+      for (const sub of subs) {
+        if (sub.app_type !== 'admin') continue;
+        if (sentEndpoints.has(sub.endpoint)) continue;
+        sentEndpoints.add(sub.endpoint);
+        const isNativeSubAtraso = sub.is_native === 1 || sub.is_native === true || (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
+        if (!isNativeSubAtraso) {
+          const payload = JSON.stringify({ title: pushTitle, body: pushMsg, event: 'fechamento-atrasado' });
+          const pushSubscription = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh || '', auth: sub.auth || '' } };
+          await webpush.sendNotification(pushSubscription, payload).catch(e => {
+              if (e.statusCode === 410 || e.statusCode === 404 || e.message.includes('unsubscribed')) {
+                  query('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]).catch(err => console.error(err.message));
+              }
+          });
+        } else {
+          if (admin.apps.length > 0) {
+            const message = {
+              notification: { title: pushTitle, body: pushMsg },
+              data: { event: 'fechamento-atrasado', sound: 'notificacao', pedido_id: String(p.id) },
+              android: { priority: 'high', notification: { sound: 'notificacao', channelId: 'admin_v1', defaultSound: false } },
+              token: sub.endpoint
+            };
+            await admin.messaging().send(message).catch(e => console.error('Erro FCM Fechamento Atrasado:', e.message));
+          }
+        }
+      }
+    }
+
+    if (delayedOrders.length === 0) return;
+
+    // 2. Busca inscrições push de dispositivos
+    
+    
 
     for (const p of delayedOrders) {
       const isDelivery = p.garcom_id === 'DELIVERY';
@@ -980,7 +1034,7 @@ async function checkAndNotifyDelayedOrders() {
       }
 
       // Atualiza de forma atômica para evitar envios duplicados por concorrência
-      const updateRes = await query("UPDATE pedidos SET notificado_atraso = 1 WHERE id = ? AND (notificado_atraso = 0 OR notificado_atraso IS NULL)", [p.id]);
+      const updateRes = await query("UPDATE pedidos SET notificado_atraso = TRUE WHERE id = ? AND (notificado_atraso = FALSE OR notificado_atraso IS NULL)", [p.id]);
       if (updateRes.changes === 0) continue; // Já foi notificado por outro processo/requisição
 
       // Envia notificações para todos os dispositivos correspondentes
@@ -1258,6 +1312,7 @@ async function initDb() {
     await addCol('push_subscriptions', 'is_native', 'INTEGER DEFAULT 0'); // 1 = token FCM nativo (Capacitor), 0 = Web Push
     await addCol('mesas', 'garcom_id', 'TEXT');
     await addCol('pedidos', 'forma_pagamento', 'TEXT');
+    await addCol('pedidos', 'notificado_atraso_fechamento', 'INTEGER DEFAULT 0');
     await addCol('pedidos', 'desconto', 'REAL DEFAULT 0');
     await addCol('pedidos', 'acrescimo', 'REAL DEFAULT 0');
     await addCol('pedidos', 'valor_recebido', 'REAL DEFAULT 0');
