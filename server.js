@@ -2306,7 +2306,8 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
     const itensAtuais = (await query("SELECT id, menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
     for (const item of itensAtuais) await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque + ? END WHERE id = ?", [item.quantidade, item.menu_id]);
     for (const item of itens) {
-      const p = (await query("SELECT nome, estoque FROM menu WHERE id = ?", [item.menu_id])).rows[0];
+      if (!item.quantidade || item.quantidade <= 0) return res.status(400).json({ error: 'Quantidade inválida (negativa ou zero)' });
+        const p = (await query("SELECT nome, estoque FROM menu WHERE id = ?", [item.menu_id])).rows[0];
       if (p && p.estoque !== -1 && p.estoque < item.quantidade) {
         for (const itemRoll of itensAtuais) await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?", [itemRoll.quantidade, itemRoll.menu_id]);
         return res.status(400).json({ error: `Estoque insuficiente: ${p.nome}` });
@@ -2570,6 +2571,7 @@ app.post('/api/pedidos/:id/pagamento-fracao', isAuthenticated, async (req, res) 
   const { mesa_id, valor_pago, forma_pagamento, num_pessoas_restantes, recebido, troco } = req.body;
   
   try {
+    if (valor_pago <= 0) return res.status(400).json({ error: 'Valor de pagamento não pode ser negativo ou zero' });
     const cx = (await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'")).rows[0];
     if (!cx) return res.status(400).json({ error: 'CAIXA FECHADO' });
 
@@ -2684,6 +2686,7 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
             
             if (!forma) forma = 'Dinheiro';
             if (!valorParte || isNaN(valorParte)) valorParte = 0;
+            if (valorParte < 0) return res.status(400).json({ error: 'Valor fracionado negativo detectado' });
 
             const col = forma === 'Cartão' ? 'total_cartao' : (forma === 'Pix' ? 'total_pix' : 'total_dinheiro');
             await query(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [valorParte, valorParte, cx.id]);
