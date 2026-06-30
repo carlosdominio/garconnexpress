@@ -85,16 +85,11 @@ async function registerNativePush() {
 
     // Cria o canal de notificação com o som personalizado no Android
     if (window.Capacitor.getPlatform() === 'android') {
-      // Apaga canais antigos (Android não permite atualizar som de canal existente)
-      try { await PushNotifications.deleteChannel({ id: 'pedidos' }); } catch(e) {}
-      try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}
-
-      // Cria canal novo 'garcom_v1' — ID nunca usado antes = criação fresh com som correto
       await PushNotifications.createChannel({
-        id: 'garcom_v1',
-        name: 'Alertas de Pedidos (Campainha)',
+        id: 'pedidos',
+        name: 'Alertas de Pedidos',
         description: 'Notificações de novos pedidos e chamados',
-        sound: 'notificacao.mp3',
+        sound: 'notificacao',
         importance: 5,
         visibility: 1,
         vibration: true
@@ -132,15 +127,14 @@ async function registerNativePush() {
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 Notificação recebida:', notification);
       
-      // Verifica se é um evento de status de caixa
-      if (notification.data && notification.data.event === 'status-caixa-atualizado') {
-        console.log('📲 [FCM Background] Recebido evento de caixa:', notification.data);
-        if (typeof atualizarStatusCaixa === 'function') atualizarStatusCaixa();
-        return;
-      }
-
       // Tenta tocar o som manualmente se estiver em primeiro plano
-      // Removido a pedido do usuário: o websocket (Pusher) já cuida dos alertas sonoros com o app aberto!
+      try {
+        if (Date.now() - ultimoSomTocado > 2000) {
+          ultimoSomTocado = Date.now();
+          const audio = new Audio('notificacao.mp3');
+          await audio.play();
+        }
+      } catch (e) { console.error("Erro ao tocar áudio foreground:", e); }
 
       // Vibração Nativa (Haptics)
       if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
@@ -155,11 +149,6 @@ async function registerNativePush() {
     // --- NOVO: TRATAMENTO DE CLIQUE NA NOTIFICAÇÃO ---
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
       console.log('🖱️ Clique na notificação detectado:', notification);
-      // Se clicou em uma notificação de caixa, sincroniza o status
-      if (notification.notification && notification.notification.data && notification.notification.data.event === 'status-caixa-atualizado') {
-        if (typeof atualizarStatusCaixa === 'function') atualizarStatusCaixa();
-        return;
-      }
       // Ao clicar, garante que os dados estão atualizados
       if (typeof carregarMesas === 'function') carregarMesas();
       // Tenta focar na janela do app (nativo já faz isso, mas aqui reforçamos)
@@ -192,6 +181,10 @@ async function subscribeToPush() {
     if (!subscription) {
       const response = await fetch('/api/vapid-publicKey');
       const data = await response.json();
+      if (!data.publicKey || data.publicKey.trim() === '') {
+        console.warn('⚠️ Web Push desativado: Chave VAPID_PUBLIC_KEY não configurada no servidor Vercel.');
+        return;
+      }
       const convertedVapidKey = urlBase64ToUint8Array(data.publicKey);
       
       subscription = await reg.pushManager.subscribe({
@@ -288,6 +281,15 @@ console.error = function(...args) {
         url = API_BASE_URL + url;
         args[0] = url;
     }
+    
+    // Tratamento OFFLINE-FIRST
+    if (!navigator.onLine && typeof window.salvarPedidoOffline === 'function') {
+        const method = (args[1] && args[1].method) ? args[1].method.toUpperCase() : 'GET';
+        if (method === 'POST' || method === 'PUT') {
+            console.log("🌐 Sem internet. Salvando requisição no IndexedDB para sincronizar depois:", url);
+            return await window.salvarPedidoOffline(url, args[1]);
+        }
+    }
 
     if (token) {
       if (!args[1]) args[1] = {};
@@ -303,6 +305,14 @@ console.error = function(...args) {
         console.error(`❌ ERRO DE FETCH [${response.status}] URL:`, args[0]);
         const text = await response.clone().text().catch(() => 'Erro ao ler corpo da resposta');
         console.error('📄 CORPO DO ERRO:', text.substring(0, 200));
+        
+        // Remove eternal loaders
+        document.querySelectorAll('button:disabled').forEach(b => b.disabled = false);
+        document.querySelectorAll('.loading, .loader, .spinner').forEach(l => l.style.display = 'none');
+        
+        if (response.status >= 500) {
+            if (typeof mostrarToast === 'function') mostrarToast("Erro no servidor. Tente novamente.", 'error');
+        }
       }
 
       if ((response.status === 401 || response.status === 403) && !args[0].includes('/api/login')) {
@@ -321,6 +331,11 @@ console.error = function(...args) {
       if (typeof mostrarAlerta === 'function') {
         mostrarAlerta(`Erro de conexão com o servidor remoto.\n\nDetalhe: ${error.message}\nURL: ${args[0]}`, "Falha de Conexão", "🌐");
       }
+      
+      // Remove eternal loaders
+      document.querySelectorAll('button:disabled').forEach(b => b.disabled = false);
+      document.querySelectorAll('.loading, .loader, .spinner').forEach(l => l.style.display = 'none');
+
       throw error;
     }
   };
@@ -351,19 +366,25 @@ async function requestWakeLock() {
 }
 
 // --- VISIBILITY SYNC (Reconexão Agressiva ao voltar ao app) ---
+let lastSyncTime = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
-    console.log('👀 App voltou ao foco! Sincronizando dados...');
     requestWakeLock(); // Refaz o lock caso tenha se perdido
     
-    // Força atualização das mesas e status do caixa imediatamente
-    carregarMesas();
-    if (typeof atualizarStatusCaixa === 'function') atualizarStatusCaixa();
-    
-    // Força a reconexão do Web Socket se estiver desconectado
-    if (pusherInstancia && pusherInstancia.connection.state !== 'connected') {
-      console.log('🔌 Reconectando Pusher...');
-      pusherInstancia.connect();
+    const now = Date.now();
+    // Evita múltiplas chamadas em menos de 5 segundos
+    if (now - lastSyncTime > 5000) {
+        lastSyncTime = now;
+        console.log('👀 App voltou ao foco! Sincronizando dados...');
+        
+        // Força atualização das mesas imediatamente
+        carregarMesas();
+        
+        // Força a reconexão do Web Socket se estiver desconectado
+        if (pusherInstancia && pusherInstancia.connection.state !== 'connected') {
+          console.log('🔌 Reconectando Pusher...');
+          pusherInstancia.connect();
+        }
     }
   }
 });
@@ -517,21 +538,13 @@ async function realizarLogin() {
 
   if (!usuario || !senha) return await mostrarAlerta("Preencha todos os campos", "Aviso", "⚠️");
 
-  // Ativar Loading do botão
+  // Ativar Loading
   if (btnLogin) btnLogin.disabled = true;
   if (spinner) spinner.style.display = 'inline-block';
   if (btnText) btnText.textContent = 'Entrando...';
 
-  // Mostrar tela cheia de carregamento
-  var ov = document.getElementById('loading-cardapio');
-  var ovMsg = ov ? ov.querySelector('h3') : null;
-  if (ov) ov.classList.remove('hidden');
-  if (ovMsg) ovMsg.textContent = 'Entrando...';
-
-  // Espera um tempinho (600ms) para garantir que a interface atualize e a mensagem seja lida
-  setTimeout(async () => {
-    try {
-      const res = await fetch('/api/login', {
+  try {
+    const res = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ usuario, senha })
@@ -542,20 +555,14 @@ async function realizarLogin() {
       garcomLogado = data.garcom;
       localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
       if (data.token) localStorage.setItem('garcom_token', data.token); // Salva token
-      
-      // Muda a mensagem na mesma tela de carregamento
-      if (ovMsg) ovMsg.textContent = 'Carregando mesas do cardápio...';
-      setTimeout(function() { location.reload(); }, 400);
+      location.reload();
     } else if (res.status === 429) {
-      if (ov) ov.classList.add('hidden'); // esconde overlay no erro
       await mostrarAlerta("Muitas tentativas incorretas. Conta bloqueada por 15 minutos.", "Atenção (Segurança)", "🔒");
       // Resetar Loading em caso de erro
       if (btnLogin) btnLogin.disabled = false;
       if (spinner) spinner.style.display = 'none';
       if (btnText) btnText.textContent = 'Entrar';
-
     } else {
-      if (ov) ov.classList.add('hidden'); // esconde overlay no erro
       await mostrarAlerta("Usuário ou senha incorretos.\n\nPor favor, verifique os dados digitados e tente novamente. Caso o erro persista, confirme suas credenciais com a gerência do restaurante.", "Acesso Negado", "❌");
       // Resetar Loading em caso de erro
       if (btnLogin) btnLogin.disabled = false;
@@ -563,7 +570,6 @@ async function realizarLogin() {
       if (btnText) btnText.textContent = 'Entrar';
     }
   } catch (err) {
-    if (ov) ov.classList.add('hidden'); // esconde overlay no erro
     console.error("Erro no login:", err);
     await mostrarAlerta("Erro de conexão com o servidor.", "Erro", "❌");
     // Resetar Loading em caso de erro de rede
@@ -571,26 +577,9 @@ async function realizarLogin() {
     if (spinner) spinner.style.display = 'none';
     if (btnText) btnText.textContent = 'Entrar';
   }
-  }, 600); // Fim do setTimeout de 600ms
 }
 
-function logout() {
-  var modal = document.getElementById('tela-saida');
-  modal.style.display = 'flex';
-}
-
-function cancelarSaida() {
-  document.getElementById('tela-saida').style.display = 'none';
-}
-
-async function confirmarSaida() {
-  // Mostra loading antes de sair
-  var ov = document.getElementById('loading-cardapio');
-  var ovMsg = ov ? ov.querySelector('h3') : null;
-  if (ov) ov.classList.remove('hidden');
-  if (ovMsg) ovMsg.textContent = 'Saindo...';
-  document.getElementById('tela-saida').style.display = 'none';
-
+async function logout() {
   await fetch('/api/logout', { method: 'POST' });
   localStorage.removeItem('garcom_logado');
   localStorage.removeItem('garcom_token');
@@ -598,12 +587,6 @@ async function confirmarSaida() {
 }
 
 async function iniciarApp() {
-  // Mostra overlay de carregamento enquanto carrega as mesas
-  var ov = document.getElementById('loading-cardapio');
-  var ovMsg = ov ? ov.querySelector('h3') : null;
-  if (ov) ov.classList.remove('hidden');
-  if (ovMsg) ovMsg.textContent = 'Carregando mesas do cardápio...';
-
   await carregarConfigCozinha();
   await carregarMenu();
   await carregarMesas();
@@ -611,15 +594,11 @@ async function iniciarApp() {
   atualizarIconeSom();
   configurarEventos();
   configurarPusher();
-
-  // Esconde overlay depois que tudo carregou
-  setTimeout(function() {
-    if (ov) ov.classList.add('hidden');
-    if (ovMsg) ovMsg.textContent = 'Carregando Cardápio...';
-  }, 500);
   
   // Atualiza os cronômetros das mesas a cada 1 segundo (visual apenas)
-  setInterval(() => { exibirMesas(); }, 60000);
+  setInterval(() => {
+    exibirMesas();
+  }, 1000);
 
   // Recarrega os dados das mesas a cada 60 segundos para garantir sincronia
   setInterval(() => {
@@ -641,7 +620,7 @@ async function carregarConfigCozinha() {
 
 async function atualizarStatusCaixa() {
   try {
-    const res = await fetch(`/api/caixa/status?_t=${new Date().getTime()}`);
+    const res = await fetch('/api/caixa/status');
     const caixa = await res.json();
     caixaAberto = !!caixa;
     
@@ -651,6 +630,7 @@ async function atualizarStatusCaixa() {
     if (screenFechado) {
         if (!caixaAberto) {
             screenFechado.style.display = 'flex';
+            if (typeof limparNotificacoes === 'function') limparNotificacoes();
             atualizarBloqueioScroll();
         } else {
             screenFechado.style.display = 'none';
@@ -673,26 +653,10 @@ async function atualizarStatusCaixa() {
   } catch (e) { console.error('Erro status caixa:', e); }
 }
 
-let somAtivo = localStorage.getItem('garcom_som_ativo');
-if (somAtivo === null) {
-  somAtivo = true; // Ativado por padrão
-  localStorage.setItem('garcom_som_ativo', 'true');
-} else {
-  somAtivo = somAtivo === 'true';
-}
+let somAtivo = localStorage.getItem('garcom_som_ativo') === 'true';
 let audioDesbloqueado = false;
 let ultimoSomTocado = 0;
 const audioNotificacao = new Audio('/notificacao.mp3');
-document.body.addEventListener('click', function unlockAudio() {
-  if (audioNotificacao) {
-    audioNotificacao.play().then(() => {
-      audioNotificacao.pause();
-      audioNotificacao.currentTime = 0;
-    }).catch(() => {});
-  }
-  document.body.removeEventListener('click', unlockAudio);
-}, { once: true });
-
 
 function atualizarIconeSom() {
   const check = document.getElementById('check-som');
@@ -710,25 +674,32 @@ function alternarSom() {
   somAtivo = check ? check.checked : !somAtivo;
   localStorage.setItem('garcom_som_ativo', somAtivo);
   atualizarIconeSom();
+  
   if (somAtivo && audioNotificacao) {
-    audioDesbloqueado = true;
+    audioDesbloqueado = true; // Force unlock
     audioNotificacao.volume = 1.0;
     audioNotificacao.currentTime = 0;
     audioNotificacao.play().catch(e => console.warn(e));
   }
+  
+  // Notificação visual (balão/toast)
   mostrarToast(somAtivo ? "🔊 Som Ativado" : "🔇 Som Desativado");
 }
 
 function tocarCampainha(suave = false) {
+  // Se o app estiver minimizado (segundo plano), não toca o som JS,
+  // pois o próprio Android já vai tocar o som da notificação FCM nativa.
   if (document.hidden) return;
+
   if (somAtivo && audioDesbloqueado) {
-    if (Date.now() - ultimoSomTocado < 2000) return;
+    if (Date.now() - ultimoSomTocado < 2000) return; // Evita eco/duplicidade com FCM
     ultimoSomTocado = Date.now();
-    audioNotificacao.volume = suave ? 0.3 : 1.0;
+    
+    audioNotificacao.volume = 1.0; // Sempre volume máximo
     audioNotificacao.currentTime = 0;
-    audioNotificacao.play().catch(err => console.warn('Erro ao tocar �udio:', err));
+    audioNotificacao.play().catch(err => console.warn('Erro ao tocar áudio:', err));
   }
-} 
+}
 
 async function configurarPusher() {
   try {
@@ -856,16 +827,31 @@ async function configurarPusher() {
     });
 
     channel.bind('status-caixa-atualizado', (data) => {
-      console.log('📢 Evento recebido: status-caixa-atualizado', data);
+      console.log('🔗 Evento recebido: status-caixa-atualizado', data);
       atualizarStatusCaixa();
       
       if (data.status === 'fechado') {
         tocarCampainha();
-        if (typeof limparNotificacoes === 'function') limparNotificacoes(); // Limpa o histórico de notificações da noite
+        if (typeof limparNotificacoes === 'function') limparNotificacoes();
+        mostrarAlerta("O caixa foi fechado! Bom descanso.", "🔒 CAIXA FECHADO", "🔒");
       } else if (data.status === 'aberto') {
         tocarCampainha(true); // Som suave
         mostrarToast("O caixa foi aberto! Bom trabalho.");
       }
+    });
+    
+    // Desconecta o garçom à força se o caixa fechar (Regra de Negócio Fase 2)
+    channel.bind('caixa-encerrado', async () => {
+      console.log('🚨 CAIXA ENCERRADO! Deslogando garçom...');
+      if (typeof mostrarAlerta === 'function') {
+        mostrarAlerta("O caixa foi fechado! Bom descanso.", "🔒 CAIXA FECHADO", "🔒");
+      }
+      setTimeout(async () => {
+        try { await fetch('/api/logout', { method: 'POST' }); } catch(e){}
+        localStorage.removeItem('garcom_logado');
+        localStorage.removeItem('garcom_token');
+        window.location.reload();
+      }, 3000);
     });
 
     channel.bind('garcom-status-alterado', (data) => {
@@ -1258,12 +1244,8 @@ function exibirMesas() {
 }
 
 async function mostrarOpcoesMesa(mesa) {
+  // Reset
   pedidoAbertoNaMesa = null;
-  document.getElementById('modal-mesa-titulo').textContent = 'Aguarde...';
-  document.getElementById('modal-opcoes').style.display = 'block';
-  atualizarBloqueioScroll();
-  await new Promise(r => setTimeout(r, 10));
-
 
   if (mesa.status === 'ocupada' || mesa.status === 'fechando') {
     try {
@@ -1530,24 +1512,11 @@ function fecharOpcoes() {
 }
 
 function abrirCardapioAdicionar() {
-  // 1. fecha o modal imediatamente
-  document.getElementById('modal-opcoes').style.display = 'none';
-  atualizarBloqueioScroll();
-
-  // 2. mostra o overlay AGORA, antes de qualquer coisa pesada
-  var ov = document.getElementById('loading-cardapio');
-  if (ov) ov.classList.remove('hidden');
-
-  // 3. libera o event loop por 300ms para o browser pintar o overlay
-  setTimeout(function() {
-    abrirCardapio();
-  }, 300);
+  fecharOpcoes();
+  abrirCardapio();
 }
 
 function abrirCardapio() {
-  var ov = document.getElementById('loading-cardapio');
-  if (ov) ov.classList.remove('hidden');
-
   const mesaTxt = document.getElementById('mesa-atual');
   
   // SEGURANÇA: Se mesaAtual for null, tenta recuperar pelo título do modal antes de crashar
@@ -1585,11 +1554,6 @@ function abrirCardapio() {
   window.pedidoObservacaoGeral = ''; // Reset observação geral
   exibirResumoPedido();
   exibirMenu('todas');
-
-  // Esconde o overlay depois que tudo carregou
-  setTimeout(function() {
-    if (ov) ov.classList.add('hidden');
-  }, 800);
 }
 
 function toggleCarrinho() {
@@ -2258,10 +2222,8 @@ function verQRCodeMesa() {
   mostrarAlerta(html, "QR CODE DA MESA", "📱");
 }
 
-if (window.Capacitor && window.Capacitor.Plugins.SplashScreen) { window.Capacitor.Plugins.SplashScreen.hide(); }
 
-
-// --- SINO DE NOTIFICAÇÕES ---
+// --- SINO DE NOTIFICA��ES ---
 let historicoNotificacoes = [];
 
 function adicionarNotificacaoPainel(mensagem, titulo, tipo) {
@@ -2344,7 +2306,4 @@ document.addEventListener('click', function(event) {
         }
     }
 });
-
-
-
 
