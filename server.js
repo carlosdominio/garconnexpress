@@ -1883,7 +1883,7 @@ app.post('/api/caixa/fechar', isAdmin, async (req, res) => {
 app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, isAuthenticated, async (req, res) => {
   try {
     const pedidosRes = await query(`
-      SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome 
+      SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, g.nome as garcom_nome 
       FROM pedidos p 
       LEFT JOIN mesas m ON p.mesa_id = m.id
       LEFT JOIN garcons g ON p.garcom_id = g.usuario
@@ -1891,7 +1891,19 @@ app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, isAuthenticated, a
       ORDER BY p.created_at DESC
       `);
     
-    const pedidos = pedidosRes.rows;
+    const pedidos = pedidosRes.rows.map(p => {
+      if (p.created_str) {
+        let dateStr = p.created_str;
+        if (!dateStr.endsWith('Z')) dateStr = dateStr.replace(' ', 'T') + 'Z';
+        p.created_at = dateStr;
+      }
+      if (p.fechamento_str) {
+        let dateStr = p.fechamento_str;
+        if (!dateStr.endsWith('Z')) dateStr = dateStr.replace(' ', 'T') + 'Z';
+        p.fechamento_solicitado_em = dateStr;
+      }
+      return p;
+    });
     if (pedidos.length === 0) return res.json([]);
 
     const pedidoIds = pedidos.map(p => p.id).join(',');
