@@ -1046,6 +1046,9 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
  */
 function mostrarToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
   if (typeof adicionarNotificacaoPainel === 'function') adicionarNotificacaoPainel(msg, titulo, tipo);
+  if (typeof exibirNotificacaoNativa === 'function') {
+      exibirNotificacaoNativa(titulo || (tipo === 'success' ? 'SUCESSO' : tipo.toUpperCase()), msg, 'toast-' + Date.now());
+  }
   let container = document.getElementById('toast-container');
   if (!container) {
     container = document.createElement('div');

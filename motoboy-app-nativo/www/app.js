@@ -696,6 +696,9 @@ const App = {
 
         showToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
             if (typeof this.adicionarNotificacaoPainel === 'function') this.adicionarNotificacaoPainel(msg, titulo, tipo);
+            if (App && App.notifications && typeof App.notifications.showLocal === 'function') {
+                App.notifications.showLocal(titulo || (tipo === 'success' ? 'SUCESSO' : tipo.toUpperCase()), msg, 'toast-' + Date.now());
+            }
             let c = document.getElementById('toast-container');
             if (!c) { c = document.createElement('div'); c.id = 'toast-container'; document.body.appendChild(c); }
             
