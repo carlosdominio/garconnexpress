@@ -861,9 +861,8 @@ async function configurarPusher() {
       
       if (data.status === 'fechado') {
         tocarCampainha();
-        if (typeof exibirNotificacaoNativa === 'function') exibirNotificacaoNativa("🔒 CAIXA FECHADO", "O caixa foi fechado! Bom descanso.");
-        mostrarToast("O caixa foi fechado! Bom descanso.");
-        if (typeof limparNotificacoes === 'function') limparNotificacoes(); // Limpa o histórico de notificações da noite
+        if (typeof limparNotificacoes === 'function') limparNotificacoes();
+        mostrarToast("O caixa foi fechado! Bom descanso.", "error", "🔒 CAIXA FECHADO");
       } else if (data.status === 'aberto') {
         tocarCampainha(true); // Som suave
         mostrarToast("O caixa foi aberto! Bom trabalho.");
@@ -1242,7 +1241,7 @@ function exibirMesas() {
   document.querySelectorAll('.mesa').forEach(mesaEl => {
     mesaEl.onclick = async () => {
       if (!caixaAberto) {
-        await mostrarAlerta("O CAIXA ESTÁ FECHADO!", "Aviso", "⚠️");
+        mostrarToast("O CAIXA ESTÁ FECHADO!", "error", "🔒 AVISO");
         return;
       }
       const mesaSelecionada = mesas.find(m => m.id == mesaEl.dataset.id);
