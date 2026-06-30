@@ -221,7 +221,9 @@ const App = {
                 document.body.style.overflow = isOpenNow ? '' : 'hidden';
                 
                 if (!isOpenNow && wasOpen === true) {
-                    App.showLocal("🔒 CAIXA FECHADO", "O caixa foi fechado! Bom descanso.", "caixa_fechado");
+                    App.ui.showToast("O caixa foi fechado! Bom descanso.", "error", "🔒 CAIXA FECHADO");
+                } else if (isOpenNow && wasOpen === false) {
+                    App.ui.showToast("O caixa foi aberto! Bom trabalho.", "success", "✅ CAIXA ABERTO");
                 }
             }
             if (!this.state.caixaAberto) {
