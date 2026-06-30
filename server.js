@@ -931,7 +931,7 @@ async function checkAndNotifyDelayedOrders() {
   try {
     // 1. Busca pedidos ativos não notificados ainda
     const activeOrdersRes = await query(`
-      SELECT p.id, p.garcom_id, p.created_at, m.numero as mesa_numero
+      SELECT p.id, p.garcom_id, CAST(p.created_at AS TEXT) as created_str, m.numero as mesa_numero
       FROM pedidos p
       LEFT JOIN mesas m ON p.mesa_id = m.id
       WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho', 'servido', 'aguardando_fechamento')
@@ -940,7 +940,9 @@ async function checkAndNotifyDelayedOrders() {
 
     const now = new Date();
     const delayedOrders = activeOrdersRes.rows.filter(p => {
-      const createdAt = new Date(p.created_at);
+      let dateStr = p.created_str || '';
+      if (!dateStr.endsWith('Z')) dateStr = dateStr.replace(' ', 'T') + 'Z';
+      const createdAt = new Date(dateStr);
       const diffMinutes = (now - createdAt) / 60000;
       return diffMinutes >= 10;
     });
@@ -951,9 +953,12 @@ async function checkAndNotifyDelayedOrders() {
     const subs = subsRes.rows;
 
     // === NOVAS NOTIFICACOES: FECHAMENTO ATRASADO ===
-    const delayedClosureRes = await query("SELECT p.id, p.garcom_id, p.fechamento_solicitado_em, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE (p.status = 'aguardando_fechamento' OR p.solicitou_fechamento = TRUE OR p.solicitou_fechamento = 'true') AND p.fechamento_solicitado_em IS NOT NULL AND (p.notificado_atraso_fechamento = 0 OR p.notificado_atraso_fechamento IS NULL)");
+    const delayedClosureRes = await query("SELECT p.id, p.garcom_id, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE (p.status = 'aguardando_fechamento' OR p.solicitou_fechamento = TRUE OR p.solicitou_fechamento = 'true') AND p.fechamento_solicitado_em IS NOT NULL AND (p.notificado_atraso_fechamento = 0 OR p.notificado_atraso_fechamento IS NULL)");
     const delayedClosures = delayedClosureRes.rows.filter(p => {
-      const requestedAt = new Date(p.fechamento_solicitado_em);
+      // Força a string a ser tratada como UTC adicionando o Z, assim previne o driver pg de usar o fuso local da máquina na Vercel
+      let dateStr = p.fechamento_str || '';
+      if (!dateStr.endsWith('Z')) dateStr = dateStr.replace(' ', 'T') + 'Z';
+      const requestedAt = new Date(dateStr);
       return ((now - requestedAt) / 60000) >= 5;
     });
 
