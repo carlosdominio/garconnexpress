@@ -1755,7 +1755,11 @@ function cancelarFechamentoGarcom() {
   }
 }
 
+let isSolicitandoFechamentoGarcom = false;
 async function confirmarSolicitacaoFechamento() {
+  if (isSolicitandoFechamentoGarcom) return;
+  
+  isSolicitandoFechamentoGarcom = true;
   const elTotal = document.getElementById('total-fechamento-garcom');
   const elPessoas = document.getElementById('divisao-pessoas-garcom');
 
@@ -1826,6 +1830,8 @@ async function confirmarSolicitacaoFechamento() {
     }
   } catch (error) {
     await mostrarAlerta("Erro ao enviar solicitação.", "Erro", "❌");
+  } finally {
+    isSolicitandoFechamentoGarcom = false;
   }
 }
 

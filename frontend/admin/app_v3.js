@@ -3919,7 +3919,11 @@ async function renderizarAssentosFechamento() {
   } catch (e) { console.error("Erro ao renderizar:", e); }
 }
 
+let isConfirmandoPagamentoAdmin = false;
 async function confirmarPagamentoAdmin(modo = 'tudo') {
+  if (isConfirmandoPagamentoAdmin) return;
+  isConfirmandoPagamentoAdmin = true;
+  try {
   const idPedido = pedidoParaFecharAdmin.id;
   const idMesa = pedidoParaFecharAdmin.mesa_id;
   const selecionados = itensFechamentoAdmin.filter(i => i.selecionadoFechamento);
@@ -4150,6 +4154,7 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
     console.error(error);
     await mostrarAlerta("❌ Erro: " + error.message, "Erro", "❌");
   }
+  } finally { isConfirmandoPagamentoAdmin = false; }
 }
 
 function imprimirCupomParcialFracao(pedido, itens, valorPago, saldoRestante, pessoasRestantes, cobrarTaxa) {
