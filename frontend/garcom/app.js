@@ -144,6 +144,20 @@ async function registerNativePush() {
       }
 
       if (typeof carregarMesas === 'function') carregarMesas();
+
+      // Mostra Toast interno com as informações da notificação recebida no foreground
+      try {
+        if (notification && (notification.title || notification.body)) {
+          const title = notification.title || 'Alerta';
+          const body = notification.body || '';
+          const tipo = title.includes('ATRASO') || title.includes('atraso') ? 'warning' : 'info';
+          if (typeof mostrarToast === 'function') {
+            mostrarToast(body, tipo, title);
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao exibir toast de notificação foreground:", err);
+      }
     });
 
     // --- NOVO: TRATAMENTO DE CLIQUE NA NOTIFICAÇÃO ---
