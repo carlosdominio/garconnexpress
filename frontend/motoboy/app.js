@@ -11,7 +11,7 @@ const App = {
         token: localStorage.getItem('motoboy_token'),
         user: JSON.parse(localStorage.getItem('motoboy_user') || '{}'),
         pedidos: [],
-        caixaAberto: true,
+        caixaAberto: null,
         soundEnabled: localStorage.getItem('motoboy_sound') !== 'false',
         notifiedEvents: new Set(), // Para evitar duplicidade estrita (evento + id)
         notificacoes: []
@@ -213,22 +213,28 @@ const App = {
         try {
             const res = await fetch(`${API_BASE_URL}/api/caixa/status?_t=${new Date().getTime()}`);
             const status = await res.json();
-            const wasOpen = this.state.caixaAberto;
+            const wasOpen = App.state.caixaAberto;
             const isOpenNow = !!status;
-            this.state.caixaAberto = isOpenNow;
+            
+            if (wasOpen === isOpenNow) return; // Se não mudou, não faz nada
+            
+            App.state.caixaAberto = isOpenNow;
+            
             const screen = document.getElementById('closed-screen');
             if (screen) {
                 screen.style.display = isOpenNow ? 'none' : 'flex';
                 document.body.style.overflow = isOpenNow ? '' : 'hidden';
                 
-                if (!isOpenNow && wasOpen === true) {
-                    App.ui.showToast("O caixa foi fechado! Bom descanso.", "error", "🔒 CAIXA FECHADO");
-                } else if (isOpenNow && wasOpen === false) {
-                    App.ui.showToast("O caixa foi aberto! Bom trabalho.", "success", "✅ CAIXA ABERTO");
+                if (wasOpen !== null) { // Não notifica na primeira carga
+                    if (!isOpenNow) {
+                        App.ui.showToast("O caixa foi fechado! Bom descanso.", "error", "🔒 CAIXA FECHADO");
+                    } else {
+                        App.ui.showToast("O caixa foi aberto! Bom trabalho.", "success", "✅ CAIXA ABERTO");
+                    }
                 }
             }
-            if (!this.state.caixaAberto) {
-                if (typeof this.ui.limparNotificacoes === 'function') this.ui.limparNotificacoes();
+            if (!isOpenNow) {
+                if (typeof App.ui.limparNotificacoes === 'function') App.ui.limparNotificacoes();
             }
         } catch (e) { console.error("Erro status caixa:", e); }
     },
