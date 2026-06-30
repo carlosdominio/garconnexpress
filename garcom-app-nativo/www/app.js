@@ -1166,7 +1166,13 @@ function filtrarMesas(filtro, element) {
   
   if (element) {
     element.classList.add('ativa');
-    element.style.background = filtro === 'fechamentos' ? '#f1c40f' : '#3498db';
+    if (filtro === 'fechamentos') {
+      element.style.background = '#f1c40f'; // Amarelo
+    } else if (filtro === 'ocupadas') {
+      element.style.background = '#e67e22'; // Laranja
+    } else {
+      element.style.background = '#3498db'; // Azul
+    }
   }
   
   exibirMesas();
@@ -1177,6 +1183,7 @@ function exibirMesas() {
   if (!grid) return;
 
   const fechamentosAtivos = mesas.filter(m => m.solicitou_fechamento || m.status === 'fechando');
+  const ocupadasAtivas = mesas.filter(m => m.status === 'ocupada' && !m.solicitou_fechamento && m.status !== 'fechando');
   
   const contadorEl = document.getElementById('contador-fechamentos');
   if (contadorEl) {
@@ -1188,9 +1195,21 @@ function exibirMesas() {
     }
   }
 
+  const contadorOcupadasEl = document.getElementById('contador-ocupadas');
+  if (contadorOcupadasEl) {
+    if (ocupadasAtivas.length > 0) {
+      contadorOcupadasEl.innerText = ocupadasAtivas.length;
+      contadorOcupadasEl.style.display = 'inline-block';
+    } else {
+      contadorOcupadasEl.style.display = 'none';
+    }
+  }
+
   let mesasExibidas = mesas;
   if (filtroMesaAtual === 'fechamentos') {
     mesasExibidas = fechamentosAtivos;
+  } else if (filtroMesaAtual === 'ocupadas') {
+    mesasExibidas = ocupadasAtivas;
   }
 
   grid.innerHTML = mesasExibidas.map(mesa => {
