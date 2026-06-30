@@ -318,8 +318,8 @@ console.error = function(...args) {
     } catch (error) {
       console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
       // Mostra um alerta visual no app para o usuário saber que a conexão falhou
-      if (typeof mostrarAlerta === 'function') {
-        mostrarAlerta(`Erro de conexão com o servidor remoto.\n\nDetalhe: ${error.message}\nURL: ${args[0]}`, "Falha de Conexão", "🌐");
+      if (typeof mostrarToast === 'function') {
+        mostrarToast(`Erro de conexão com o servidor remoto.\n\nDetalhe: ${error.message}\nURL: ${args[0]}`, "error", "Falha de Conexão");
       }
       throw error;
     }
@@ -862,7 +862,7 @@ async function configurarPusher() {
       if (data.status === 'fechado') {
         tocarCampainha();
         if (typeof exibirNotificacaoNativa === 'function') exibirNotificacaoNativa("🔒 CAIXA FECHADO", "O caixa foi fechado! Bom descanso.");
-        mostrarAlerta("O caixa foi fechado! Bom descanso.", "🔒 CAIXA FECHADO", "🔒");
+        mostrarToast("O caixa foi fechado! Bom descanso.");
         if (typeof limparNotificacoes === 'function') limparNotificacoes(); // Limpa o histórico de notificações da noite
       } else if (data.status === 'aberto') {
         tocarCampainha(true); // Som suave

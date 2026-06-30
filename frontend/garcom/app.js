@@ -843,8 +843,8 @@ async function configurarPusher() {
     // Desconecta o garçom à força se o caixa fechar (Regra de Negócio Fase 2)
     channel.bind('caixa-encerrado', async () => {
       console.log('🚨 CAIXA ENCERRADO! Deslogando garçom...');
-      if (typeof mostrarAlerta === 'function') {
-        mostrarAlerta("O caixa foi fechado! Bom descanso.", "🔒 CAIXA FECHADO", "🔒");
+      if (typeof mostrarToast === 'function') {
+        mostrarToast("O caixa foi fechado! Bom descanso.");
       }
       setTimeout(async () => {
         try { await fetch('/api/logout', { method: 'POST' }); } catch(e){}
