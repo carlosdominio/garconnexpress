@@ -153,7 +153,7 @@ async function registerNativePush() {
 
       // Mostra Toast interno com as informações da notificação recebida no foreground
       try {
-        if (notification && (notification.title || notification.body)) || notification.body)) {
+        if (notification && (notification.title || notification.body)) {
           const title = notification.title || 'Alerta';
           const body = notification.body || '';
           const tipo = title.includes('ATRASO') || title.includes('atraso') ? 'warning' : 'info';
@@ -762,7 +762,7 @@ async function configurarPusher() {
 
     channel.bind('novo-pedido', (data) => {
       // Se fui EU que criei esse pedido, ignora o alerta visual/sonoro para mim mesmo
-      if (data.pedido && data.pedido.garcom_id === garcomLogado.usuario) {
+      if (data.pedido && garcomLogado && data.pedido.garcom_id === garcomLogado.usuario) {
         console.log("Ignorando notificação de pedido criado por mim mesmo.");
         clearTimeout(timeoutPusher);
         timeoutPusher = setTimeout(() => carregarMesas(), 50);
