@@ -953,7 +953,7 @@ async function checkAndNotifyDelayedOrders() {
     const subs = subsRes.rows;
 
     // === NOVAS NOTIFICACOES: FECHAMENTO ATRASADO ===
-    const delayedClosureRes = await query("SELECT p.id, p.garcom_id, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE (p.status = 'aguardando_fechamento' OR p.solicitou_fechamento = TRUE OR p.solicitou_fechamento = 'true') AND p.fechamento_solicitado_em IS NOT NULL AND (p.notificado_atraso_fechamento = 0 OR p.notificado_atraso_fechamento IS NULL)");
+    const delayedClosureRes = await query("SELECT p.id, p.garcom_id, g.id as garcom_pk, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id LEFT JOIN garcons g ON (p.garcom_id = g.usuario OR p.garcom_id = CAST(g.id AS TEXT)) WHERE (p.status = 'aguardando_fechamento' OR p.solicitou_fechamento = TRUE OR p.solicitou_fechamento = 'true') AND p.fechamento_solicitado_em IS NOT NULL AND (p.notificado_atraso_fechamento = 0 OR p.notificado_atraso_fechamento IS NULL)");
     const delayedClosures = delayedClosureRes.rows.filter(p => {
       // Força a string a ser tratada como UTC adicionando o Z, assim previne o driver pg de usar o fuso local da máquina na Vercel
       let dateStr = p.fechamento_str || '';
@@ -978,7 +978,7 @@ async function checkAndNotifyDelayedOrders() {
       // Notificacoes FCM/WebPush para Admin
       const sentEndpoints = new Set();
       for (const sub of subs) {
-        if (sub.app_type !== 'garcom' || sub.garcom_id !== p.garcom_id) continue;
+        if (sub.app_type !== 'garcom' || (sub.garcom_id !== p.garcom_id && sub.garcom_id !== String(p.garcom_pk))) continue;
         if (sentEndpoints.has(sub.endpoint)) continue;
         sentEndpoints.add(sub.endpoint);
         const isNativeSubAtraso = sub.is_native === 1 || sub.is_native === true || (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
