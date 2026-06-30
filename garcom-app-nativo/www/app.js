@@ -1195,7 +1195,12 @@ function exibirMesas() {
       // DESTAQUE PARA SOLICITAÇÃO DE FECHAMENTO DO CLIENTE (Prioridade)
       if (mesa.solicitou_fechamento && mesa.status !== 'fechando') {
         classeAlerta = 'solicitacao-fechamento';
-        statusTexto = '🙋‍♂️ SOLICITAÇÃO DE FECHAMENTO';
+        let icone = '🙋‍♂️';
+        if (mesa.forma_pagamento === 'Pix') icone = '💠';
+        else if (mesa.forma_pagamento === 'Cartão') icone = '💳';
+        else if (mesa.forma_pagamento === 'Dinheiro') icone = '💵';
+        else if (mesa.forma_pagamento === 'Múltiplas') icone = '🧾';
+        statusTexto = `${icone} SOLICITAÇÃO FECHAMENTO (${mesa.forma_pagamento || '...'})`;
       } else if (!eMeuPedido && mesa.garcom_id) {
         // SE NÃO É MEU E TEM GARÇOM, BLOQUEIA IMEDIATAMENTE (Independente de pedido_created_at)
         classeBloqueada = 'bloqueada';
@@ -1204,7 +1209,12 @@ function exibirMesas() {
         statusTexto = '📱 AGUARDANDO CLIENTE';
         classeAlerta = 'cliente-acessando';
       } else if (mesa.status === 'fechando') {
-        statusTexto = '💰 AGUARDANDO CAIXA';
+        let icone = '💰';
+        if (mesa.forma_pagamento === 'Pix') icone = '💠';
+        else if (mesa.forma_pagamento === 'Cartão') icone = '💳';
+        else if (mesa.forma_pagamento === 'Dinheiro') icone = '💵';
+        else if (mesa.forma_pagamento === 'Múltiplas') icone = '🧾';
+        statusTexto = `${icone} AGUARDANDO CAIXA (${mesa.forma_pagamento || '...'})`;
         classeAlerta = 'aguardando-fechamento';
       } else if (mesa.pedido_status === 'servido') {
         statusTexto = 'OCUPADA';
