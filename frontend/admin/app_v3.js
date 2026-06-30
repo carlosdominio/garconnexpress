@@ -2686,7 +2686,11 @@ async function exibirPedidos() {
       }
       if ((statusGeral === 'recebido' || (isAguardando && !isDelivery)) && dataBaseCronometro) {
         minutosCronometro = calcularMinutos(dataBaseCronometro);
-        if (minutosCronometro >= 10) classeAlertaAtraso = 'alerta-borda-pisca';
+        if (isAguardando) {
+          if (minutosCronometro >= 5) classeAlertaAtraso = 'alerta-borda-pisca-amarela';
+        } else {
+          if (minutosCronometro >= 10) classeAlertaAtraso = 'alerta-borda-pisca';
+        }
       }
 
       const subtotal = itens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
