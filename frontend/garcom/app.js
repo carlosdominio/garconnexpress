@@ -840,19 +840,7 @@ async function configurarPusher() {
       }
     });
     
-    // Desconecta o garçom à força se o caixa fechar (Regra de Negócio Fase 2)
-    channel.bind('caixa-encerrado', async () => {
-      console.log('🚨 CAIXA ENCERRADO! Deslogando garçom...');
-      if (typeof mostrarToast === 'function') {
-        mostrarToast("O caixa foi fechado! Bom descanso.");
-      }
-      setTimeout(async () => {
-        try { await fetch('/api/logout', { method: 'POST' }); } catch(e){}
-        localStorage.removeItem('garcom_logado');
-        localStorage.removeItem('garcom_token');
-        window.location.reload();
-      }, 3000);
-    });
+    // Deslogar garçom removido para manter a tela de bloqueio visível
 
     channel.bind('garcom-status-alterado', (data) => {
       console.log('📢 Status do garçom alterado remotamente:', data);

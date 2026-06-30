@@ -3,7 +3,7 @@
  * Versão 2.0.3 - Estabilidade Máxima
  */
 
-const API_BASE_URL = 'https://garconnexpress.vercel.app';
+const API_BASE_URL = '';
 const NOTIFICATION_CHANNEL_ID = 'pedidos';
 
 const App = {
