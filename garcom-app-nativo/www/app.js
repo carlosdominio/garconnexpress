@@ -132,6 +132,14 @@ async function registerNativePush() {
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 Notificação recebida:', notification);
       
+      // Se for um evento em tempo real já gerenciado pelo Pusher no foreground, ignore completamente o FCM no foreground
+      const eventosPusher = ['novo-pedido', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto', 'rascunho-recebido', 'solicitacao-fechamento-cliente', 'status-atualizado', 'status-caixa-atualizado', 'garcom-status-alterado'];
+      if (notification.data && eventosPusher.includes(notification.data.event)) {
+        console.log("Ignorando FCM foreground para evento '" + notification.data.event + "' (já tratado pelo Pusher).");
+        if (typeof carregarMesas === 'function') carregarMesas();
+        return;
+      }
+      
       // Verifica se é um evento de status de caixa
       if (notification.data && notification.data.event === 'status-caixa-atualizado') {
         console.log('📲 [FCM Background] Recebido evento de caixa:', notification.data);
@@ -151,11 +159,7 @@ async function registerNativePush() {
 
       if (typeof carregarMesas === 'function') carregarMesas();
 
-      // Se for um novo pedido, o Pusher já cuida de tudo no foreground para os outros garçons (e o criador ignora)
-      if (notification.data && notification.data.event === 'novo-pedido') {
-        console.log("Ignorando Toast FCM para novo-pedido no foreground (Pusher já gerencia).");
-        return;
-      }
+      
 
       // Mostra Toast interno com as informações da notificação recebida no foreground
       try {
