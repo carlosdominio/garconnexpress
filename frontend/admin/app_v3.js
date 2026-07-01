@@ -1589,6 +1589,58 @@ function prepararEdicaoMenu(item) {
   abrirModalItemMenu(item);
 }
 
+// --- CONTROLE DE FILTRO CUSTOMIZADO COM SCROLL ---
+function toggleCustomSelect(event) {
+  event.stopPropagation();
+  const optionsDiv = document.getElementById('custom-select-options');
+  const arrow = document.getElementById('custom-select-arrow');
+  if (!optionsDiv || !arrow) return;
+  
+  const isOpen = optionsDiv.style.display === 'block';
+  optionsDiv.style.display = isOpen ? 'none' : 'block';
+  arrow.innerText = isOpen ? '▼' : '▲';
+}
+
+function sincronizarFiltroCustomizado() {
+  const nativeSelect = document.getElementById('filtro-menu-categoria');
+  const customOptionsDiv = document.getElementById('custom-select-options');
+  const customLabel = document.getElementById('custom-select-label');
+  if (!nativeSelect || !customOptionsDiv) return;
+
+  customOptionsDiv.innerHTML = '';
+
+  Array.from(nativeSelect.options).forEach(opt => {
+    const item = document.createElement('div');
+    item.innerText = opt.innerText;
+    item.style.padding = '8px 12px';
+    item.style.cursor = 'pointer';
+    item.style.fontWeight = opt.style.fontWeight || 'normal';
+    item.style.color = opt.style.color || '#2c3e50';
+    item.style.fontSize = '0.9rem';
+    item.style.transition = 'background 0.15s';
+    
+    item.addEventListener('mouseenter', () => { item.style.background = '#f1f2f6'; });
+    item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
+
+    item.addEventListener('click', () => {
+      nativeSelect.value = opt.value;
+      customLabel.innerText = opt.innerText;
+      customOptionsDiv.style.display = 'none';
+      document.getElementById('custom-select-arrow').innerText = '▼';
+      nativeSelect.dispatchEvent(new Event('change'));
+    });
+
+    customOptionsDiv.appendChild(item);
+  });
+}
+
+document.addEventListener('click', () => {
+  const optionsDiv = document.getElementById('custom-select-options');
+  const arrow = document.getElementById('custom-select-arrow');
+  if (optionsDiv) optionsDiv.style.display = 'none';
+  if (arrow) arrow.innerText = '▼';
+});
+
 async function exibirMenuConfig() {
   const container = document.getElementById('lista-menu-config');
   const selectFiltroCat = document.getElementById('filtro-menu-categoria');
@@ -1625,6 +1677,9 @@ async function exibirMenuConfig() {
       optEstoqueBaixo.style.fontWeight = 'bold';
       optEstoqueBaixo.style.color = '#e67e22';
       selectFiltroCat.appendChild(optEstoqueBaixo);
+
+      // Sincroniza com a interface customizada
+      sincronizarFiltroCustomizado();
     }
 
     const hoje = new Date();
