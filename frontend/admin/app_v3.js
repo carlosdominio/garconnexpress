@@ -2857,7 +2857,7 @@ async function exibirPedidos() {
     }
 
     // --- MESAS OCUPADAS AGUARDANDO CLIENTE ---
-    // Coloca na coluna PENDENTES com card simplificado (sem itens, sem ação de entrega)
+    // Card tamanho padrão na coluna Pendentes — clique abre modal com detalhes
     const mesasAguardando = (mesasPainel || []).filter(m => m.status === 'ocupada' && !m.pedido_id);
     for (const m of mesasAguardando) {
       const card = document.createElement('div');
@@ -2868,38 +2868,24 @@ async function exibirPedidos() {
       card.className = `pedido-card status-recebido`;
       card.style.borderLeft = '6px solid #3498db';
       card.style.background = '#f0f7fc';
-      card.style.cursor = 'default';
+      card.style.cursor = 'pointer';
 
       card.innerHTML = `
         <div class="pedido-header">
           <div>
-            <h3 style="display:flex; align-items:center; gap:8px; margin: 0 0 5px 0;">
+            <h3 style="display:flex; align-items:center; gap:8px; margin:0 0 5px 0;">
               📱 Mesa ${m.numero}
-              <span style="font-size:0.8rem; background:#3498db; padding:2px 8px; border-radius:12px; color:#fff;">
-                ⏱️ ${minutosEspera} min
-              </span>
             </h3>
-            <span class="status-badge" style="background:#3498db; color:white; font-size:0.75rem; font-weight:900; padding:2px 6px; border-radius:4px; text-transform:uppercase;">📱 AGUARDANDO CLIENTE</span>
+            <span class="status-badge" style="background:#3498db; color:white;">📱 AGUARDANDO CLIENTE</span>
             <small style="display:block; margin-top:6px; opacity:0.6;">👤 Garçom: ${m.garcom_id || 'Autônomo'}</small>
           </div>
-          <div style="text-align:right">
-            <div style="font-size: 1.1rem; font-weight: 900; color: #2980b9; background: #d6eaf8; padding: 6px 10px; border-radius: 8px; display:inline-block; border: 1px dashed #3498db;">
-              🔑 ${m.codigo_acesso || '---'}
-            </div>
+          <div style="text-align:right; font-size:1.3rem; font-weight:900; color:#2980b9;">
+            ⏱️ ${minutosEspera}min
           </div>
         </div>
-
-        <div style="margin-top:10px; font-size: 0.88rem; color: #7f8c8d; font-style: italic; line-height:1.4; border-top: 1px solid #d6eaf8; padding-top: 10px;">
-          Aguardando o cliente enviar o primeiro pedido pelo celular.
-        </div>
-
-        <div style="margin-top: 12px; width:100%;">
-          <button onclick="event.stopPropagation(); liberarMesaSemPedido(${m.id}, ${m.numero})"
-                  style="background:#e74c3c; width:100%; padding:10px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #c0392b; border:none; color:white; cursor:pointer; font-size:0.9rem;">
-            🔓 LIBERAR MESA
-          </button>
-        </div>
       `;
+
+      card.addEventListener('click', () => abrirModalMesaAguardando(m.id));
 
       const group = m.garcom_id === 'ADMIN' ? 'balcao' : 'garcom';
       const targetCol = 'pendentes';
@@ -6302,3 +6288,33 @@ async function liberarMesaSemPedido(mesaId, mesaNumero) {
   }
 }
 
+// --- MODAL: MESA AGUARDANDO CLIENTE ---
+let _mesaAguardandoAtual = null;
+
+function abrirModalMesaAguardando(mesaId) {
+  const m = (mesasPainel || []).find(x => x.id == mesaId);
+  if (!m) return;
+
+  _mesaAguardandoAtual = m;
+
+  const minutosEspera = m.codigo_criado_at ? calcularMinutos(m.codigo_criado_at) : 0;
+
+  document.getElementById('mma-titulo').innerText = `📱 Mesa ${m.numero}`;
+  document.getElementById('mma-subtitulo').innerText = `Mesa ${m.numero} — QR Code ativo`;
+  document.getElementById('mma-codigo').innerText = m.codigo_acesso || '----';
+  document.getElementById('mma-tempo').innerText = `${minutosEspera} min`;
+  document.getElementById('mma-garcom').innerText = m.garcom_id || 'Autônomo';
+
+  document.getElementById('modal-mesa-aguardando').style.display = 'flex';
+}
+
+function fecharModalMesaAguardando() {
+  document.getElementById('modal-mesa-aguardando').style.display = 'none';
+  _mesaAguardandoAtual = null;
+}
+
+async function liberarMesaSemPedidoFromModal() {
+  if (!_mesaAguardandoAtual) return;
+  fecharModalMesaAguardando();
+  await liberarMesaSemPedido(_mesaAguardandoAtual.id, _mesaAguardandoAtual.numero);
+}
