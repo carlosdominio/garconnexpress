@@ -693,6 +693,7 @@ async function carregarMesasLancar() {
     '<option value="BALCAO" style="font-weight:bold; color:#27ae60;">🏪 BALCÃO / VENDA DIRETA</option>' +
     '<option value="DELIVERY" style="font-weight:bold; color:#e67e22;">🛵 DELIVERY</option>' +
     mesas.map(m => `<option value="${m.id}">Mesa ${m.numero} (${m.status.toUpperCase()})</option>`).join('');
+  sincronizarFiltroCustomizadoLancar();
 }
 
 function exibirCategoriasLancar() {
@@ -1685,6 +1686,100 @@ function sincronizarFiltroCustomizadoMesas() {
   });
 }
 
+function toggleCustomSelectLancar(event) {
+  event.stopPropagation();
+  const optionsDiv = document.getElementById('custom-select-options-lancar');
+  const arrow = document.getElementById('custom-select-arrow-lancar');
+  if (!optionsDiv || !arrow) return;
+  
+  const isOpen = optionsDiv.style.display === 'block';
+  optionsDiv.style.display = isOpen ? 'none' : 'block';
+  arrow.innerText = isOpen ? '▼' : '▲';
+}
+
+function sincronizarFiltroCustomizadoLancar() {
+  const nativeSelect = document.getElementById('lancar-mesa-select');
+  const customOptionsDiv = document.getElementById('custom-select-options-lancar');
+  const customLabel = document.getElementById('custom-select-label-lancar');
+  if (!nativeSelect || !customOptionsDiv || !customLabel) return;
+
+  customOptionsDiv.innerHTML = '';
+  
+  const selectedOpt = nativeSelect.options[nativeSelect.selectedIndex];
+  if (selectedOpt) customLabel.innerText = selectedOpt.innerText;
+
+  Array.from(nativeSelect.options).forEach(opt => {
+    const item = document.createElement('div');
+    item.innerText = opt.innerText;
+    item.style.padding = '10px 12px';
+    item.style.cursor = 'pointer';
+    item.style.fontWeight = 'bold';
+    item.style.color = '#2c3e50';
+    item.style.fontSize = '0.95rem';
+    item.style.transition = 'background 0.15s';
+    
+    item.addEventListener('mouseenter', () => { item.style.background = '#edf2f7'; });
+    item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
+
+    item.addEventListener('click', () => {
+      nativeSelect.value = opt.value;
+      customLabel.innerText = opt.innerText;
+      customOptionsDiv.style.display = 'none';
+      document.getElementById('custom-select-arrow-lancar').innerText = '▼';
+      nativeSelect.dispatchEvent(new Event('change'));
+    });
+
+    customOptionsDiv.appendChild(item);
+  });
+}
+
+function toggleCustomSelectHistorico(event) {
+  event.stopPropagation();
+  const optionsDiv = document.getElementById('custom-select-options-historico');
+  const arrow = document.getElementById('custom-select-arrow-historico');
+  if (!optionsDiv || !arrow) return;
+  
+  const isOpen = optionsDiv.style.display === 'block';
+  optionsDiv.style.display = isOpen ? 'none' : 'block';
+  arrow.innerText = isOpen ? '▼' : '▲';
+}
+
+function sincronizarFiltroCustomizadoHistorico() {
+  const nativeSelect = document.getElementById('filtro-historico-select');
+  const customOptionsDiv = document.getElementById('custom-select-options-historico');
+  const customLabel = document.getElementById('custom-select-label-historico');
+  if (!nativeSelect || !customOptionsDiv || !customLabel) return;
+
+  customOptionsDiv.innerHTML = '';
+  
+  const selectedOpt = nativeSelect.options[nativeSelect.selectedIndex];
+  if (selectedOpt) customLabel.innerText = selectedOpt.innerText;
+
+  Array.from(nativeSelect.options).forEach(opt => {
+    const item = document.createElement('div');
+    item.innerText = opt.innerText;
+    item.style.padding = '10px 12px';
+    item.style.cursor = 'pointer';
+    item.style.fontWeight = 'bold';
+    item.style.color = '#2d3748';
+    item.style.fontSize = '0.9rem';
+    item.style.transition = 'background 0.15s';
+    
+    item.addEventListener('mouseenter', () => { item.style.background = '#edf2f7'; });
+    item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
+
+    item.addEventListener('click', () => {
+      nativeSelect.value = opt.value;
+      customLabel.innerText = opt.innerText;
+      customOptionsDiv.style.display = 'none';
+      document.getElementById('custom-select-arrow-historico').innerText = '▼';
+      nativeSelect.dispatchEvent(new Event('change'));
+    });
+
+    customOptionsDiv.appendChild(item);
+  });
+}
+
 document.addEventListener('click', () => {
   const optionsDiv = document.getElementById('custom-select-options');
   const arrow = document.getElementById('custom-select-arrow');
@@ -1695,6 +1790,16 @@ document.addEventListener('click', () => {
   const arrowMesas = document.getElementById('custom-select-arrow-mesas');
   if (optionsDivMesas) optionsDivMesas.style.display = 'none';
   if (arrowMesas) arrowMesas.innerText = '▼';
+
+  const optionsDivLancar = document.getElementById('custom-select-options-lancar');
+  const arrowLancar = document.getElementById('custom-select-arrow-lancar');
+  if (optionsDivLancar) optionsDivLancar.style.display = 'none';
+  if (arrowLancar) arrowLancar.innerText = '▼';
+
+  const optionsDivHistorico = document.getElementById('custom-select-options-historico');
+  const arrowHistorico = document.getElementById('custom-select-arrow-historico');
+  if (optionsDivHistorico) optionsDivHistorico.style.display = 'none';
+  if (arrowHistorico) arrowHistorico.innerText = '▼';
 });
 
 async function exibirMenuConfig() {
@@ -2023,6 +2128,7 @@ async function exibirHistorico() {
       }
     }
   }
+  sincronizarFiltroCustomizadoHistorico();
 
   // 3. Renderizar Colunas
   renderizarColunaHistorico('finalizados', pedidosFiltradosHistoricoFinalizados, paginaAtualFinalizados, containerFinalizados);

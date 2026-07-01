@@ -313,9 +313,20 @@
         <div style="display: flex; gap: 1rem; align-items: center; justify-content: space-between; flex-wrap: wrap;">
           <div style="display: flex; gap: 1rem; align-items: center;">
             <h3 style="margin:0; white-space: nowrap; font-size: 1rem;">📍 Iniciar em:</h3>
-            <select id="lancar-mesa-select" style="padding: 8px; border-radius: 10px; border: 2px solid #3498db; font-size: 1rem; width: 220px; font-weight: bold; color: #2c3e50;">
+            <select id="lancar-mesa-select" style="display: none;">
               <option value="">Selecione a Mesa</option>
             </select>
+
+            <!-- DROPDOWN LANÇAR MESA CUSTOMIZADO COM SCROLL -->
+            <div class="custom-select-wrapper-lancar" style="position: relative; min-width: 220px; z-index: 100;">
+              <button id="custom-select-trigger-lancar" type="button" onclick="toggleCustomSelectLancar(event)" style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 10px; border: 2px solid #3498db; font-weight: bold; background: white; color: #2c3e50; cursor: pointer; font-size: 1rem; outline: none; height: 40px;">
+                <span id="custom-select-label-lancar">Selecione a Mesa</span>
+                <span id="custom-select-arrow-lancar" style="font-size: 0.8rem; margin-left: 8px; transition: transform 0.2s;">▼</span>
+              </button>
+              <div id="custom-select-options-lancar" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; right: 0; background: white; border: 1px solid #cbd5e0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 220px; overflow-y: auto; z-index: 999; scrollbar-width: thin;">
+                <!-- Opções injetadas dinamicamente -->
+              </div>
+            </div>
           </div>
           
           <button onclick="enviarPedidoLoteAdmin()" style="padding: 10px 25px; background: #27ae60; color: white; font-size: 1rem; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 0 #219150; transition: 0.2s transform active;">
@@ -582,11 +593,22 @@
                    style="padding: 10px; border-radius: 8px; border: 2px solid #edf2f7; font-size: 0.95rem; width: 150px; font-weight: bold;">
             
             <select id="filtro-historico-select" onchange="document.getElementById('filtro-historico-busca').value=''; filtrarHistorico(this.value)"
-                    style="padding: 10px; border-radius: 8px; border: 2px solid #edf2f7; font-weight: bold; background: white;">
+                    style="display: none;">
               <option value="">Todas</option>
             </select>
+
+            <!-- FILTRO HISTORICO CUSTOMIZADO COM SCROLL -->
+            <div class="custom-select-wrapper-historico" style="position: relative; min-width: 160px; z-index: 10;">
+              <button id="custom-select-trigger-historico" type="button" onclick="toggleCustomSelectHistorico(event)" style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 8px; border: 2px solid #edf2f7; font-weight: bold; background: white; color: #2d3748; cursor: pointer; font-size: 0.95rem; outline: none; height: 42px;">
+                <span id="custom-select-label-historico">Todas</span>
+                <span id="custom-select-arrow-historico" style="font-size: 0.8rem; margin-left: 8px; transition: transform 0.2s;">▼</span>
+              </button>
+              <div id="custom-select-options-historico" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; right: 0; background: white; border: 1px solid #cbd5e0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 220px; overflow-y: auto; z-index: 999; scrollbar-width: thin;">
+                <!-- Opções injetadas dinamicamente -->
+              </div>
+            </div>
             
-            <button onclick="document.getElementById('filtro-historico-busca').value=''; document.getElementById('filtro-historico-select').value=''; filtrarHistorico('');" 
+            <button onclick="document.getElementById('filtro-historico-busca').value=''; document.getElementById('filtro-historico-select').value=''; filtrarHistorico(''); if (typeof sincronizarFiltroCustomizadoHistorico === 'function') sincronizarFiltroCustomizadoHistorico();" 
                     class="btn-ver-tudo">
               LIMPAR
             </button>
