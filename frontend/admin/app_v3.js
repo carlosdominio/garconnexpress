@@ -5627,9 +5627,9 @@ async function abrirModalOpcoes(pedidoId) {
           </button>
         `;
       } else {
-        // Se tudo já foi entregue, mostra apenas o botão de Liberar Mesa em destaque (Verde)
+        // Se tudo já foi entregue, mostra apenas o botão de Liberar Mesa em destaque (Laranja Em Consumo)
         htmlFooter = `
-          <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#27ae60; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #219150; cursor:pointer;">
+          <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#e67e22; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #d35400; cursor:pointer;">
             🔓 LIBERAR MESA
           </button>
         `;
