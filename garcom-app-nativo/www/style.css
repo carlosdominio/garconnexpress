@@ -463,13 +463,31 @@ main {
 
 
 .alerta-atraso {
-
   animation: pisca-alerta 0.8s infinite alternate !important;
-
   border: 3px solid #fff !important;
-
   box-shadow: 0 0 15px rgba(231, 76, 60, 0.6) !important;
+}
 
+.mesa.alerta-atraso-ocupada {
+  animation: pisca-atraso-ocupada 1s infinite alternate !important;
+  border: 3px solid #fff !important;
+  box-shadow: 0 0 15px rgba(231, 76, 60, 0.6) !important;
+}
+
+.mesa.alerta-atraso-liberar {
+  animation: pisca-atraso-liberar 1s infinite alternate !important;
+  border: 3px solid #fff !important;
+  box-shadow: 0 0 15px rgba(231, 76, 60, 0.6) !important;
+}
+
+@keyframes pisca-atraso-ocupada {
+  0% { background-color: #e67e22; color: #fff; }
+  100% { background-color: #e74c3c; color: #fff; }
+}
+
+@keyframes pisca-atraso-liberar {
+  0% { background-color: #f1c40f; color: #2c3e50; }
+  100% { background-color: #e74c3c; color: #fff; }
 }
 
 
