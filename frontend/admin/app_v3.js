@@ -2875,7 +2875,7 @@ async function exibirPedidos() {
           <div>
             <h3 style="display:flex; align-items:center; gap:8px;">
               📱 Mesa ${m.numero}
-              <span class="pedido-cronometro" style="font-size:0.8rem; background:#2c3e50; padding:2px 8px; border-radius:12px; color:#fff;">
+              <span class="pedido-cronometro" data-created-at="${m.codigo_criado_at || ''}" style="font-size:0.8rem; background:#2c3e50; padding:2px 8px; border-radius:12px; color:#fff;">
                 ⏱️ ${minutosEspera} min
               </span>
             </h3>
