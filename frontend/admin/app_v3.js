@@ -2857,7 +2857,7 @@ async function exibirPedidos() {
     }
 
     // --- MESAS OCUPADAS AGUARDANDO CLIENTE ---
-    // Card tamanho padrão na coluna Pendentes — clique abre modal com detalhes
+    // Card estruturalmente idêntico aos outros (pedido-header + pedido-itens + pedido-footer)
     const mesasAguardando = (mesasPainel || []).filter(m => m.status === 'ocupada' && !m.pedido_id);
     for (const m of mesasAguardando) {
       const card = document.createElement('div');
@@ -2873,19 +2873,44 @@ async function exibirPedidos() {
       card.innerHTML = `
         <div class="pedido-header">
           <div>
-            <h3 style="display:flex; align-items:center; gap:8px; margin:0 0 5px 0;">
+            <h3 style="display:flex; align-items:center; gap:8px;">
               📱 Mesa ${m.numero}
+              <span class="pedido-cronometro" style="font-size:0.8rem; background:#2c3e50; padding:2px 8px; border-radius:12px; color:#fff;">
+                ⏱️ ${minutosEspera} min
+              </span>
             </h3>
             <span class="status-badge" style="background:#3498db; color:white;">📱 AGUARDANDO CLIENTE</span>
-            <small style="display:block; margin-top:6px; opacity:0.6;">👤 Garçom: ${m.garcom_id || 'Autônomo'}</small>
+            <small style="display:block; margin-top:4px; opacity:0.6;">📅 Código ativo — aguardando pedido</small>
+            <small style="display:block; font-weight:bold; color: #34495e; margin-top:2px;">👤 Garçom: ${m.garcom_id || 'Autônomo'}</small>
           </div>
-          <div style="text-align:right; font-size:1.3rem; font-weight:900; color:#2980b9;">
-            ⏱️ ${minutosEspera}min
+          <div style="text-align:right">
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+              <div style="background:#d6eaf8; color:#2980b9; border-radius:8px; padding:6px 12px; font-weight:900; font-size:0.95rem; border:1px dashed #3498db;">
+                🔑 ${m.codigo_acesso || '----'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pedido-itens" style="margin-top:12px;">
+          <div style="border-left:4px solid #3498db; background:#d6eaf8; border-radius:6px; padding:10px 12px; font-size:0.9rem; color:#2980b9; font-style:italic;">
+            O cliente está navegando no cardápio. O pedido aparecerá aqui automaticamente quando enviado.
+          </div>
+        </div>
+
+        <div class="pedido-footer">
+          <div class="pedido-actions" style="width: 100%; margin-top: 8px;">
+            <button style="background:#3498db; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #2980b9; border:none; color:white; cursor:pointer;" onclick="event.stopPropagation(); abrirModalMesaAguardando(${m.id})">
+              📱 VER DETALHES DA MESA
+            </button>
           </div>
         </div>
       `;
 
-      card.addEventListener('click', () => abrirModalMesaAguardando(m.id));
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('button')) return;
+        abrirModalMesaAguardando(m.id);
+      });
 
       const group = m.garcom_id === 'ADMIN' ? 'balcao' : 'garcom';
       const targetCol = 'pendentes';
