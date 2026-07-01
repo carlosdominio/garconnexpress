@@ -6340,6 +6340,7 @@ function fecharModalMesaAguardando() {
 
 async function liberarMesaSemPedidoFromModal() {
   if (!_mesaAguardandoAtual) return;
+  const { id, numero } = _mesaAguardandoAtual;
   fecharModalMesaAguardando();
-  await liberarMesaSemPedido(_mesaAguardandoAtual.id, _mesaAguardandoAtual.numero);
+  await liberarMesaSemPedido(id, numero);
 }
