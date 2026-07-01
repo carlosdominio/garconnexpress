@@ -407,6 +407,7 @@ main {
 .mesa.livre { background-color: #27ae60; color: white; border: none; }
 
 .mesa.ocupada { background-color: #f39c12; color: white; border: none; cursor: pointer; opacity: 1; }
+.mesa.ocupada.pendente-entrega { background-color: #e74c3c !important; color: white !important; }
 
 
 

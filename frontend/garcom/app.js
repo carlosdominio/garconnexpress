@@ -1272,8 +1272,13 @@ function exibirMesas() {
       } else if (mesa.pedido_created_at && mesa.pedido_status !== 'servido') {
         const minutos = calcularMinutos(mesa.pedido_created_at);
         cronometroHtml = `<div class="cronometro">⏱️ ${minutos} min</div>`;
-        if (minutos >= 10 && mesa.status !== 'fechando' && !mesa.solicitou_fechamento) {
-          classeAlerta = 'alerta-atraso-ocupada';
+        if (mesa.pedido_status !== 'pronto') {
+          statusTexto = '⏳ AGUARDANDO ENTREGA';
+          if (minutos >= 10 && mesa.status !== 'fechando' && !mesa.solicitou_fechamento) {
+            classeAlerta = 'alerta-atraso-ocupada';
+          } else {
+            classeAlerta = 'pendente-entrega';
+          }
         }
       }
     }
