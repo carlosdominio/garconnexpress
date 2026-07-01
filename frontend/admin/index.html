@@ -701,6 +701,9 @@
           <button class="config-nav-btn" onclick="switchConfigSubTab('cardapio')">
             <i class="fa-solid fa-book-open"></i> Cardápio
           </button>
+          <button class="config-nav-btn" onclick="switchConfigSubTab('categorias')">
+            <i class="fa-solid fa-list-ol"></i> Categorias
+          </button>
           <button class="config-nav-btn" onclick="switchConfigSubTab('cozinha')">
             <i class="fa-solid fa-utensils"></i> Cozinha
           </button>
@@ -783,17 +786,6 @@
           <!-- Sub-seção: Cardápio -->
           <div id="config-sub-cardapio" class="config-sub-section">
             <div style="display: flex; flex-direction: column; gap: 20px;">
-              <!-- Ordem das Categorias -->
-              <div class="config-card">
-                <h3>📂 Ordem das Categorias no Cardápio</h3>
-                <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">Defina a prioridade de exibição das categorias (cima/baixo).</p>
-                <div id="config-ordem-categorias-lista" style="display: flex; flex-direction: column; gap: 8px; background: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; max-height: 400px; overflow-y: auto;">
-                  <!-- Injetado via JS -->
-                  <p style="text-align:center; opacity:0.5;">Carregando categorias...</p>
-                </div>
-                <button onclick="salvarOrdemCategorias()" style="width: 100%; margin-top: 15px; background: #3498db; font-weight: bold;">SALVAR ORDEM</button>
-              </div>
-
               <!-- Gerenciamento de Cardápio -->
               <div class="config-card">
                 <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 2px solid #3498db; padding-bottom: 1rem; gap: 15px;">
@@ -831,6 +823,20 @@
                 </div>
                 <div id="lista-menu-config" class="menu-config-grid"></div>
               </div>
+            </div>
+          </div>
+
+          <!-- Sub-seção: Categorias -->
+          <div id="config-sub-categorias" class="config-sub-section">
+            <!-- Ordem das Categorias -->
+            <div class="config-card">
+              <h3>📂 Ordem das Categorias no Cardápio</h3>
+              <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">Defina a prioridade de exibição das categorias (cima/baixo).</p>
+              <div id="config-ordem-categorias-lista" style="display: flex; flex-direction: column; gap: 8px; background: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; max-height: 400px; overflow-y: auto;">
+                <!-- Injetado via JS -->
+                <p style="text-align:center; opacity:0.5;">Carregando categorias...</p>
+              </div>
+              <button onclick="salvarOrdemCategorias()" style="width: 100%; margin-top: 15px; background: #3498db; font-weight: bold;">SALVAR ORDEM</button>
             </div>
           </div>
 
