@@ -6290,10 +6290,10 @@ function salvarAgendamentoCardapio() {
 
 async function liberarMesaSemPedido(mesaId, mesaNumero) {
   const confirmado = await mostrarConfirmacao(
-    `Deseja realmente liberar a Mesa ${mesaNumero}? O código de acesso atual será expirado.`,
-    "Liberar Mesa",
-    "Liberar",
-    "Cancelar",
+    `Deseja realmente cancelar o código da Mesa ${mesaNumero}? O acesso do cliente será encerrado.`,
+    "Cancelar Código",
+    "Sim, Cancelar",
+    "Voltar",
     "⚠️"
   );
   
@@ -6302,11 +6302,11 @@ async function liberarMesaSemPedido(mesaId, mesaNumero) {
   try {
     const res = await fetch(`/api/mesas/${mesaId}/liberar`, { method: 'PUT' });
     if (res.ok) {
-      mostrarToast(`🔓 Mesa ${mesaNumero} liberada com sucesso!`);
+      mostrarToast(`🚫 Código da Mesa ${mesaNumero} cancelado!`);
       carregarPedidos(); // Recarrega o painel
     } else {
       const err = await res.json();
-      await mostrarAlerta("Erro ao liberar mesa: " + err.error, "Erro", "❌");
+      await mostrarAlerta("Erro ao cancelar código: " + err.error, "Erro", "❌");
     }
   } catch (error) {
     await mostrarAlerta("Erro de conexão", "Erro", "❌");
