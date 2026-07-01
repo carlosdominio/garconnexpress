@@ -1609,19 +1609,24 @@ function sincronizarFiltroCustomizado() {
   const nativeSelect = document.getElementById('filtro-menu-categoria');
   const customOptionsDiv = document.getElementById('custom-select-options');
   const customLabel = document.getElementById('custom-select-label');
-  if (!nativeSelect || !customOptionsDiv) return;
+  if (!nativeSelect || !customOptionsDiv || !customLabel) return;
+
+  // Sincroniza label inicial com o valor selecionado nativamente
+  const selectedOpt = nativeSelect.options[nativeSelect.selectedIndex];
+  if (selectedOpt) customLabel.innerText = selectedOpt.innerText;
 
   customOptionsDiv.innerHTML = '';
 
   Array.from(nativeSelect.options).forEach(opt => {
     const item = document.createElement('div');
     item.innerText = opt.innerText;
-    item.style.padding = '8px 12px';
+    item.style.padding = '8px 20px 8px 12px';
     item.style.cursor = 'pointer';
     item.style.fontWeight = opt.style.fontWeight || 'normal';
     item.style.color = opt.style.color || '#2c3e50';
     item.style.fontSize = '0.9rem';
     item.style.transition = 'background 0.15s';
+    item.style.whiteSpace = 'nowrap';
     
     item.addEventListener('mouseenter', () => { item.style.background = '#f1f2f6'; });
     item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
@@ -1664,12 +1669,13 @@ function sincronizarFiltroCustomizadoMesas() {
   Array.from(nativeSelect.options).forEach(opt => {
     const item = document.createElement('div');
     item.innerText = opt.innerText;
-    item.style.padding = '10px 12px';
+    item.style.padding = '10px 20px 10px 12px';
     item.style.cursor = 'pointer';
     item.style.fontWeight = 'bold';
     item.style.color = '#2d3748';
     item.style.fontSize = '0.9rem';
     item.style.transition = 'background 0.15s';
+    item.style.whiteSpace = 'nowrap';
     
     item.addEventListener('mouseenter', () => { item.style.background = '#edf2f7'; });
     item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
@@ -1711,12 +1717,13 @@ function sincronizarFiltroCustomizadoLancar() {
   Array.from(nativeSelect.options).forEach(opt => {
     const item = document.createElement('div');
     item.innerText = opt.innerText;
-    item.style.padding = '10px 12px';
+    item.style.padding = '10px 20px 10px 12px';
     item.style.cursor = 'pointer';
     item.style.fontWeight = 'bold';
     item.style.color = '#2c3e50';
     item.style.fontSize = '0.95rem';
     item.style.transition = 'background 0.15s';
+    item.style.whiteSpace = 'nowrap';
     
     item.addEventListener('mouseenter', () => { item.style.background = '#edf2f7'; });
     item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
@@ -1758,12 +1765,13 @@ function sincronizarFiltroCustomizadoHistorico() {
   Array.from(nativeSelect.options).forEach(opt => {
     const item = document.createElement('div');
     item.innerText = opt.innerText;
-    item.style.padding = '10px 12px';
+    item.style.padding = '10px 20px 10px 12px';
     item.style.cursor = 'pointer';
     item.style.fontWeight = 'bold';
     item.style.color = '#2d3748';
     item.style.fontSize = '0.9rem';
     item.style.transition = 'background 0.15s';
+    item.style.whiteSpace = 'nowrap';
     
     item.addEventListener('mouseenter', () => { item.style.background = '#edf2f7'; });
     item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });

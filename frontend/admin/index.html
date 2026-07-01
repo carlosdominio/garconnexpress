@@ -320,10 +320,10 @@
             <!-- DROPDOWN LANÇAR MESA CUSTOMIZADO COM SCROLL -->
             <div class="custom-select-wrapper-lancar" style="position: relative; min-width: 220px; z-index: 100;">
               <button id="custom-select-trigger-lancar" type="button" onclick="toggleCustomSelectLancar(event)" style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 10px; border: 2px solid #3498db; font-weight: bold; background: white; color: #2c3e50; cursor: pointer; font-size: 1rem; outline: none; height: 40px;">
-                <span id="custom-select-label-lancar">Selecione a Mesa</span>
+                <span id="custom-select-label-lancar" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; text-align: left; display: block;">Selecione a Mesa</span>
                 <span id="custom-select-arrow-lancar" style="font-size: 0.8rem; margin-left: 8px; transition: transform 0.2s;">▼</span>
               </button>
-              <div id="custom-select-options-lancar" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; right: 0; background: white; border: 1px solid #cbd5e0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 220px; overflow-y: auto; z-index: 999; scrollbar-width: thin;">
+              <div id="custom-select-options-lancar" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; min-width: 100%; width: max-content; right: 0; background: white; border: 1px solid #cbd5e0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 220px; overflow-y: auto; z-index: 999; scrollbar-width: thin;">
                 <!-- Opções injetadas dinamicamente -->
               </div>
             </div>
@@ -466,10 +466,10 @@
             <!-- FILTRO DE MESAS ATIVAS CUSTOMIZADO COM SCROLL -->
             <div class="custom-select-wrapper-mesas" style="position: relative; min-width: 160px; z-index: 10;">
               <button id="custom-select-trigger-mesas" type="button" onclick="toggleCustomSelectMesas(event)" style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 8px; border: 2px solid #edf2f7; font-weight: bold; background: #f8fafc; color: #2d3748; cursor: pointer; font-size: 0.95rem; outline: none; height: 42px;">
-                <span id="custom-select-label-mesas">Todas</span>
+                <span id="custom-select-label-mesas" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; text-align: left; display: block;">Todas</span>
                 <span id="custom-select-arrow-mesas" style="font-size: 0.8rem; margin-left: 8px; transition: transform 0.2s;">▼</span>
               </button>
-              <div id="custom-select-options-mesas" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; right: 0; background: white; border: 1px solid #cbd5e0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 220px; overflow-y: auto; z-index: 999; scrollbar-width: thin;">
+              <div id="custom-select-options-mesas" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; min-width: 100%; width: max-content; right: 0; background: white; border: 1px solid #cbd5e0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 220px; overflow-y: auto; z-index: 999; scrollbar-width: thin;">
                 <!-- Injetado via JS -->
               </div>
             </div>
@@ -600,10 +600,10 @@
             <!-- FILTRO HISTORICO CUSTOMIZADO COM SCROLL -->
             <div class="custom-select-wrapper-historico" style="position: relative; min-width: 160px; z-index: 10;">
               <button id="custom-select-trigger-historico" type="button" onclick="toggleCustomSelectHistorico(event)" style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 8px; border: 2px solid #edf2f7; font-weight: bold; background: white; color: #2d3748; cursor: pointer; font-size: 0.95rem; outline: none; height: 42px;">
-                <span id="custom-select-label-historico">Todas</span>
+                <span id="custom-select-label-historico" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; text-align: left; display: block;">Todas</span>
                 <span id="custom-select-arrow-historico" style="font-size: 0.8rem; margin-left: 8px; transition: transform 0.2s;">▼</span>
               </button>
-              <div id="custom-select-options-historico" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; right: 0; background: white; border: 1px solid #cbd5e0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 220px; overflow-y: auto; z-index: 999; scrollbar-width: thin;">
+              <div id="custom-select-options-historico" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; min-width: 100%; width: max-content; right: 0; background: white; border: 1px solid #cbd5e0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 220px; overflow-y: auto; z-index: 999; scrollbar-width: thin;">
                 <!-- Opções injetadas dinamicamente -->
               </div>
             </div>
@@ -815,10 +815,10 @@
                       <!-- FILTRO CUSTOMIZADO COM SCROLL INTERNO -->
                       <div class="custom-select-wrapper" style="position: relative; min-width: 190px; z-index: 10;">
                         <button id="custom-select-trigger" type="button" onclick="toggleCustomSelect(event)" style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e0; font-weight: bold; background: white; color: #2c3e50; cursor: pointer; font-size: 0.9rem; outline: none; height: 38px;">
-                          <span id="custom-select-label">📂 Todas</span>
+                          <span id="custom-select-label" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; text-align: left; display: block;">📂 Todas</span>
                           <span id="custom-select-arrow" style="font-size: 0.8rem; margin-left: 8px; transition: transform 0.2s;">▼</span>
                         </button>
-                        <div id="custom-select-options" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; right: 0; background: white; border: 1px solid #cbd5e0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 220px; overflow-y: auto; z-index: 999; scrollbar-width: thin;">
+                        <div id="custom-select-options" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; min-width: 100%; width: max-content; right: 0; background: white; border: 1px solid #cbd5e0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 220px; overflow-y: auto; z-index: 999; scrollbar-width: thin;">
                           <!-- Opções injetadas dinamicamente -->
                         </div>
                       </div>
