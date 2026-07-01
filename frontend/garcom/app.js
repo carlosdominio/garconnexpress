@@ -1176,6 +1176,49 @@ function exibirMesas() {
   const fechamentosAtivos = mesas.filter(m => m.solicitou_fechamento || m.status === 'fechando');
   const ocupadasAtivas = mesas.filter(m => m.status === 'ocupada' && !m.solicitou_fechamento && m.status !== 'fechando');
   const livresAtivas = mesas.filter(m => m.status === 'livre' && !m.solicitou_fechamento && m.status !== 'fechando');
+
+  // --- ATUALIZAÇÃO: BLINK DE CATEGORIAS EM ATRASO ---
+  let temAtrasoOcupadas = false;
+  for (const m of ocupadasAtivas) {
+    if (m.pedido_created_at && m.pedido_status !== 'servido' && m.pedido_status !== 'pronto') {
+      const minutos = calcularMinutos(m.pedido_created_at);
+      if (minutos >= 10) {
+        temAtrasoOcupadas = true;
+        break;
+      }
+    }
+  }
+
+  let temAtrasoFechamentos = false;
+  for (const m of fechamentosAtivos) {
+    if (m.fechamento_solicitado_em) {
+      const minutosEspera = calcularMinutos(m.fechamento_solicitado_em);
+      if (minutosEspera >= 5) {
+        temAtrasoFechamentos = true;
+        break;
+      }
+    }
+  }
+
+  const btnOcupadas = document.getElementById('btn-filtro-ocupadas');
+  if (btnOcupadas) {
+    if (temAtrasoOcupadas && filtroMesaAtual !== 'ocupadas') {
+      btnOcupadas.classList.add('alerta-pisca-ocupadas');
+    } else {
+      btnOcupadas.classList.remove('alerta-pisca-ocupadas');
+      if (filtroMesaAtual !== 'ocupadas') btnOcupadas.style.background = '#95a5a6';
+    }
+  }
+
+  const btnFechamentos = document.getElementById('btn-filtro-fechamentos');
+  if (btnFechamentos) {
+    if (temAtrasoFechamentos && filtroMesaAtual !== 'fechamentos') {
+      btnFechamentos.classList.add('alerta-pisca-fechamentos');
+    } else {
+      btnFechamentos.classList.remove('alerta-pisca-fechamentos');
+      if (filtroMesaAtual !== 'fechamentos') btnFechamentos.style.background = '#95a5a6';
+    }
+  }
   
   const contadorEl = document.getElementById('contador-fechamentos');
   if (contadorEl) {
