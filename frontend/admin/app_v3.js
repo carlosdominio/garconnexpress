@@ -62,6 +62,7 @@ window.onerror = function(msg, url, line) {
   
   let cardapio = [];
 let pedidos = [];
+let mesasPainel = [];
 let historico = [];
 let pedidosFiltradosHistoricoFinalizados = [];
 let pedidosFiltradosHistoricoCancelados = [];
@@ -2368,9 +2369,13 @@ async function imprimirResumoDiario() {
 
 async function carregarPedidos() {
   try {
-    const res = await fetch('/api/pedidos/ativos-detalhado');
-    if (!res.ok) return;
-    pedidos = await res.json();
+    const [resPedidos, resMesas] = await Promise.all([
+      fetch('/api/pedidos/ativos-detalhado'),
+      fetch('/api/mesas')
+    ]);
+    
+    if (resPedidos.ok) pedidos = await resPedidos.json();
+    if (resMesas.ok) mesasPainel = await resMesas.json();
     
     // Atualiza o select de mesas com os dados recém carregados
     atualizarSelectMesasAtivas();
@@ -2849,6 +2854,60 @@ async function exibirPedidos() {
 
       lists[group][targetCol].appendChild(card);
       counts[group][targetCol]++;
+    }
+
+    // --- MESAS OCUPADAS AGUARDANDO CLIENTE ---
+    // Coloca na coluna PENDENTES com card simplificado (sem itens, sem ação de entrega)
+    const mesasAguardando = (mesasPainel || []).filter(m => m.status === 'ocupada' && !m.pedido_id);
+    for (const m of mesasAguardando) {
+      const card = document.createElement('div');
+      card.id = `mesa-virtual-card-${m.id}`;
+
+      const minutosEspera = m.codigo_criado_at ? calcularMinutos(m.codigo_criado_at) : 0;
+
+      card.className = `pedido-card status-recebido`;
+      card.style.borderLeft = '6px solid #3498db';
+      card.style.background = '#f0f7fc';
+      card.style.cursor = 'default';
+
+      card.innerHTML = `
+        <div class="pedido-header">
+          <div>
+            <h3 style="display:flex; align-items:center; gap:8px; margin: 0 0 5px 0;">
+              📱 Mesa ${m.numero}
+              <span style="font-size:0.8rem; background:#3498db; padding:2px 8px; border-radius:12px; color:#fff;">
+                ⏱️ ${minutosEspera} min
+              </span>
+            </h3>
+            <span class="status-badge" style="background:#3498db; color:white; font-size:0.75rem; font-weight:900; padding:2px 6px; border-radius:4px; text-transform:uppercase;">📱 AGUARDANDO CLIENTE</span>
+            <small style="display:block; margin-top:6px; opacity:0.6;">👤 Garçom: ${m.garcom_id || 'Autônomo'}</small>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size: 1.1rem; font-weight: 900; color: #2980b9; background: #d6eaf8; padding: 6px 10px; border-radius: 8px; display:inline-block; border: 1px dashed #3498db;">
+              🔑 ${m.codigo_acesso || '---'}
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:10px; font-size: 0.88rem; color: #7f8c8d; font-style: italic; line-height:1.4; border-top: 1px solid #d6eaf8; padding-top: 10px;">
+          Aguardando o cliente enviar o primeiro pedido pelo celular.
+        </div>
+
+        <div style="margin-top: 12px; width:100%;">
+          <button onclick="event.stopPropagation(); liberarMesaSemPedido(${m.id}, ${m.numero})"
+                  style="background:#e74c3c; width:100%; padding:10px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #c0392b; border:none; color:white; cursor:pointer; font-size:0.9rem;">
+            🔓 LIBERAR MESA
+          </button>
+        </div>
+      `;
+
+      const group = m.garcom_id === 'ADMIN' ? 'balcao' : 'garcom';
+      const targetCol = 'pendentes';
+
+      if (lists[group] && lists[group][targetCol]) {
+        lists[group][targetCol].appendChild(card);
+        counts[group][targetCol]++;
+      }
     }
 
     // Atualiza contadores dos títulos das colunas
@@ -6216,5 +6275,30 @@ function salvarAgendamentoCardapio() {
         console.error('Erro ao salvar agendamento:', e);
         mostrarToast('Erro ao salvar agendamento', 'erro');
     });
+}
+
+async function liberarMesaSemPedido(mesaId, mesaNumero) {
+  const confirmado = await mostrarConfirmacao(
+    `Deseja realmente liberar a Mesa ${mesaNumero}? O código de acesso atual será expirado.`,
+    "Liberar Mesa",
+    "Liberar",
+    "Cancelar",
+    "⚠️"
+  );
+  
+  if (!confirmado) return;
+  
+  try {
+    const res = await fetch(`/api/mesas/${mesaId}/liberar`, { method: 'PUT' });
+    if (res.ok) {
+      mostrarToast(`🔓 Mesa ${mesaNumero} liberada com sucesso!`);
+      carregarPedidos(); // Recarrega o painel
+    } else {
+      const err = await res.json();
+      await mostrarAlerta("Erro ao liberar mesa: " + err.error, "Erro", "❌");
+    }
+  } catch (error) {
+    await mostrarAlerta("Erro de conexão", "Erro", "❌");
+  }
 }
 
