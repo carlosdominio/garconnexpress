@@ -1175,17 +1175,25 @@ let filtroMesaAtual = 'todas';
 function filtrarMesas(filtro, element) {
   filtroMesaAtual = filtro;
   
-  // Atualiza visual dos botões de filtro (limpa inline backgrounds para permitir animações)
+  // Atualiza visual dos botões de filtro (define inline cinza para os inativos)
   document.querySelectorAll('.btn-filtro-mesa').forEach(btn => {
     btn.classList.remove('ativa');
-    btn.style.background = '';
-    btn.style.color = '';
+    btn.style.background = '#95a5a6';
+    btn.style.color = 'white';
   });
   
   if (element) {
     element.classList.add('ativa');
-    element.style.background = '';
-    element.style.color = '';
+    if (filtro === 'fechamentos') {
+      element.style.background = '#f1c40f'; // Amarelo
+      element.style.color = '#2c3e50';
+    } else if (filtro === 'ocupadas') {
+      element.style.background = '#e67e22'; // Laranja
+      element.style.color = 'white';
+    } else {
+      element.style.background = '#27ae60'; // Verde (LIVRES)
+      element.style.color = 'white';
+    }
   }
   
   exibirMesas();
@@ -1226,9 +1234,14 @@ function exibirMesas() {
   if (btnOcupadas) {
     if (temAtrasoOcupadas && filtroMesaAtual !== 'ocupadas') {
       btnOcupadas.classList.add('alerta-pisca-ocupadas');
+      btnOcupadas.style.background = ''; // Limpa para permitir a animação CSS
+      btnOcupadas.style.color = '';
     } else {
       btnOcupadas.classList.remove('alerta-pisca-ocupadas');
-      if (filtroMesaAtual !== 'ocupadas') btnOcupadas.style.background = '';
+      if (filtroMesaAtual !== 'ocupadas') {
+        btnOcupadas.style.background = '#95a5a6'; // Restaura cinza inline
+        btnOcupadas.style.color = 'white';
+      }
     }
   }
 
@@ -1236,9 +1249,14 @@ function exibirMesas() {
   if (btnFechamentos) {
     if (temAtrasoFechamentos && filtroMesaAtual !== 'fechamentos') {
       btnFechamentos.classList.add('alerta-pisca-fechamentos');
+      btnFechamentos.style.background = ''; // Limpa para permitir a animação CSS
+      btnFechamentos.style.color = '';
     } else {
       btnFechamentos.classList.remove('alerta-pisca-fechamentos');
-      if (filtroMesaAtual !== 'fechamentos') btnFechamentos.style.background = '';
+      if (filtroMesaAtual !== 'fechamentos') {
+        btnFechamentos.style.background = '#95a5a6'; // Restaura cinza inline
+        btnFechamentos.style.color = 'white';
+      }
     }
   }
   
