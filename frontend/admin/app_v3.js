@@ -1847,6 +1847,14 @@ async function exibirMenuConfig() {
       optEstoqueBaixo.style.color = '#e67e22';
       selectFiltroCat.appendChild(optEstoqueBaixo);
 
+      // Adiciona o filtro virtual de Próximo do Vencimento no Dropdown
+      const optProxVencimento = document.createElement('option');
+      optProxVencimento.value = 'PROXIMO_VENCIMENTO';
+      optProxVencimento.innerText = '⏰ Próximo do Vencimento (≤ 7 dias)';
+      optProxVencimento.style.fontWeight = 'bold';
+      optProxVencimento.style.color = '#f39c12';
+      selectFiltroCat.appendChild(optProxVencimento);
+
       // Sincroniza com a interface customizada
       sincronizarFiltroCustomizado();
     }
@@ -1871,6 +1879,12 @@ async function exibirMenuConfig() {
          matchCat = dataVal < hoje;
       } else if (catSelecionada === 'ESTOQUE_BAIXO') {
          matchCat = m.estoque !== -1 && m.estoque !== null && m.estoque <= 5;
+      } else if (catSelecionada === 'PROXIMO_VENCIMENTO') {
+         if (!m.validade) return false;
+         const dataVal = new Date(m.validade);
+         dataVal.setHours(0,0,0,0);
+         const diffDias = Math.ceil((dataVal - hoje) / (1000 * 60 * 60 * 24));
+         matchCat = diffDias >= 0 && diffDias <= 7;
       } else if (catSelecionada !== '') {
          matchCat = m.categoria.trim().toUpperCase() === catSelecionada;
       }
