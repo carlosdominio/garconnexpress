@@ -2395,6 +2395,41 @@ header {
     transform: rotate(90deg);
 }
 
+
+  to { background-color: #f1c40f !important; color: #2c3e50 !important; box-shadow: 0 0 10px rgba(241, 196, 15, 0.8) !important; }
+}
+
+/* --- ESTILO DAS ABAS DE FILTRO --- */
+.btn-filtro-mesa {
+  position: relative;
+  width: auto;
+  white-space: nowrap;
+  margin-bottom: 0px;
+  padding: 6px 15px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  background-color: #95a5a6; /* Cinza inativo padrão */
+  color: white;
+  transition: all 0.3s ease;
+}
+
+/* Cores das abas ativas */
+.btn-filtro-mesa.ativa[onclick*="todas"] {
+  background-color: #27ae60 !important; /* Verde */
+}
+
+.btn-filtro-mesa.ativa[onclick*="ocupadas"] {
+  background-color: #e67e22 !important; /* Laranja */
+}
+
+.btn-filtro-mesa.ativa[onclick*="fechamentos"] {
+  background-color: #f1c40f !important; /* Amarelo */
+  color: #2c3e50 !important;
+}
+
 /* Blinking animations for category filter buttons */
 .btn-filtro-mesa.alerta-pisca-ocupadas {
   animation: pisca-botao-ocupadas 0.8s infinite alternate !important;
@@ -2405,11 +2440,11 @@ header {
 }
 
 @keyframes pisca-botao-ocupadas {
-  from { background-color: #95a5a6 !important; color: white !important; }
-  to { background-color: #e67e22 !important; color: white !important; box-shadow: 0 0 10px rgba(230, 126, 34, 0.8) !important; }
+  from { background-color: #95a5a6; color: white; }
+  to { background-color: #e67e22; color: white; box-shadow: 0 0 10px rgba(230, 126, 34, 0.8); }
 }
 
 @keyframes pisca-botao-fechamentos {
-  from { background-color: #95a5a6 !important; color: white !important; }
-  to { background-color: #f1c40f !important; color: #2c3e50 !important; box-shadow: 0 0 10px rgba(241, 196, 15, 0.8) !important; }
+  from { background-color: #95a5a6; color: white; }
+  to { background-color: #f1c40f; color: #2c3e50; box-shadow: 0 0 10px rgba(241, 196, 15, 0.8); }
 }

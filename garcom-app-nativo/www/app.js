@@ -1175,21 +1175,17 @@ let filtroMesaAtual = 'todas';
 function filtrarMesas(filtro, element) {
   filtroMesaAtual = filtro;
   
-  // Atualiza visual dos botões de filtro
+  // Atualiza visual dos botões de filtro (limpa inline backgrounds para permitir animações)
   document.querySelectorAll('.btn-filtro-mesa').forEach(btn => {
     btn.classList.remove('ativa');
-    btn.style.background = '#95a5a6';
+    btn.style.background = '';
+    btn.style.color = '';
   });
   
   if (element) {
     element.classList.add('ativa');
-    if (filtro === 'fechamentos') {
-      element.style.background = '#f1c40f'; // Amarelo
-    } else if (filtro === 'ocupadas') {
-      element.style.background = '#e67e22'; // Laranja
-    } else {
-      element.style.background = '#3498db'; // Azul
-    }
+    element.style.background = '';
+    element.style.color = '';
   }
   
   exibirMesas();
@@ -1232,7 +1228,7 @@ function exibirMesas() {
       btnOcupadas.classList.add('alerta-pisca-ocupadas');
     } else {
       btnOcupadas.classList.remove('alerta-pisca-ocupadas');
-      if (filtroMesaAtual !== 'ocupadas') btnOcupadas.style.background = '#95a5a6';
+      if (filtroMesaAtual !== 'ocupadas') btnOcupadas.style.background = '';
     }
   }
 
@@ -1242,7 +1238,7 @@ function exibirMesas() {
       btnFechamentos.classList.add('alerta-pisca-fechamentos');
     } else {
       btnFechamentos.classList.remove('alerta-pisca-fechamentos');
-      if (filtroMesaAtual !== 'fechamentos') btnFechamentos.style.background = '#95a5a6';
+      if (filtroMesaAtual !== 'fechamentos') btnFechamentos.style.background = '';
     }
   }
   
