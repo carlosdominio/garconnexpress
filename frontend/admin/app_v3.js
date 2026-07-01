@@ -2865,7 +2865,7 @@ async function exibirPedidos() {
 
       const minutosEspera = m.codigo_criado_at ? calcularMinutos(m.codigo_criado_at) : 0;
 
-      card.className = `pedido-card status-recebido`;
+      card.className = `pedido-card minimized status-recebido`;
       card.style.borderLeft = '6px solid #3498db';
       card.style.background = '#f0f7fc';
       card.style.cursor = 'pointer';
