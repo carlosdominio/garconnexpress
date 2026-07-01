@@ -1613,10 +1613,18 @@ async function exibirMenuConfig() {
       // Adiciona o filtro virtual de Produtos Vencidos no Dropdown
       const optVencido = document.createElement('option');
       optVencido.value = 'VENCIDOS';
-      optVencido.innerText = '⚠️ Produtos Vencidos';
+      optVencido.innerText = '⏳ Produtos Vencidos';
       optVencido.style.fontWeight = 'bold';
       optVencido.style.color = '#e74c3c';
       selectFiltroCat.appendChild(optVencido);
+
+      // Adiciona o filtro virtual de Estoque Baixo no Dropdown
+      const optEstoqueBaixo = document.createElement('option');
+      optEstoqueBaixo.value = 'ESTOQUE_BAIXO';
+      optEstoqueBaixo.innerText = '⚠️ Estoque Baixo (≤ 5)';
+      optEstoqueBaixo.style.fontWeight = 'bold';
+      optEstoqueBaixo.style.color = '#e67e22';
+      selectFiltroCat.appendChild(optEstoqueBaixo);
     }
 
     const hoje = new Date();
@@ -1637,6 +1645,8 @@ async function exibirMenuConfig() {
          const dataVal = new Date(m.validade);
          dataVal.setHours(0,0,0,0);
          matchCat = dataVal < hoje;
+      } else if (catSelecionada === 'ESTOQUE_BAIXO') {
+         matchCat = m.estoque !== -1 && m.estoque !== null && m.estoque <= 5;
       } else if (catSelecionada !== '') {
          matchCat = m.categoria.trim().toUpperCase() === catSelecionada;
       }
