@@ -1478,7 +1478,23 @@ async function abrirModalItemMenu(item = null) {
     if (document.getElementById('menu-preco-original')) document.getElementById('menu-preco-original').value = item.preco_original || '';
     if (document.getElementById('menu-preco')) document.getElementById('menu-preco').value = item.preco;
     if (document.getElementById('menu-estoque')) document.getElementById('menu-estoque').value = item.estoque;
-    if (document.getElementById('menu-validade')) document.getElementById('menu-validade').value = item.validade || '';
+    if (document.getElementById('menu-validade')) {
+      let valData = '';
+      if (item.validade) {
+        if (typeof item.validade === 'string' && /^\d{4}-\d{2}-\d{2}/.test(item.validade)) {
+          valData = item.validade.substring(0, 10);
+        } else {
+          const d = new Date(item.validade);
+          if (!isNaN(d.getTime())) {
+            const ano = d.getFullYear();
+            const mes = String(d.getMonth() + 1).padStart(2, '0');
+            const dia = String(d.getDate()).padStart(2, '0');
+            valData = `${ano}-${mes}-${dia}`;
+          }
+        }
+      }
+      document.getElementById('menu-validade').value = valData;
+    }
     if (document.getElementById('menu-img')) document.getElementById('menu-img').value = item.imagem;
     if (document.getElementById('menu-enviar-cozinha')) {
         document.getElementById('menu-enviar-cozinha').checked = isItemParaCozinha(item);
