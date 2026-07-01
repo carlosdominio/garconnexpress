@@ -638,13 +638,13 @@ const App = {
 
             if (p.observacao) {
                 const lines = p.observacao.split('\n');
-                const lNome = lines.find(l => l.includes('👤 Cliente:'));
-                const lEnd = lines.find(l => l.includes('🏠 End:'));
-                const lTel = lines.find(l => l.includes('📞 Tel:') || l.includes('📱 WhatsApp:'));
+                const lNome = lines.find(l => /👤\s*Cliente:/i.test(l));
+                const lEnd = lines.find(l => /🏠\s*End:/i.test(l));
+                const lTel = lines.find(l => /(📞\s*Tel:|📱\s*WhatsApp:)/i.test(l));
 
-                if (lNome) cliente = lNome.replace('👤 Cliente:', '').trim();
-                if (lEnd) endereco = lEnd.replace('🏠 End:', '').trim();
-                if (lTel) contato = lTel.replace(/📞 Tel:|📱 WhatsApp:/, '').trim();
+                if (lNome) cliente = lNome.replace(/👤\s*Cliente:/i, '').trim();
+                if (lEnd) endereco = lEnd.replace(/🏠\s*End:/i, '').trim();
+                if (lTel) contato = lTel.replace(/(📞\s*Tel:|📱\s*WhatsApp:)/i, '').trim();
             }
 
             let displayStatus = cat.replace('-', ' ').toUpperCase();

@@ -211,6 +211,7 @@ let intervalPiscaTitulo = null;
 const tituloOriginal = "Admin - GarçomExpress";
 
 document.addEventListener('DOMContentLoaded', async () => {
+  await calcularClockOffset();
   const salvo = localStorage.getItem('admin_logado');
   if (salvo) {
     adminLogado = JSON.parse(salvo);
@@ -385,6 +386,26 @@ async function removerItemEdicao(index) {
   renderizarMenuEdicao(categoriaEdicaoAtual); // Re-renderiza cardápio para atualizar estoque disponível
 }
 
+let serverClockOffset = 0;
+
+async function calcularClockOffset() {
+  try {
+    const start = Date.now();
+    const res = await fetch('/api/diag');
+    if (res.ok) {
+      const data = await res.json();
+      const end = Date.now();
+      const serverTime = new Date(data.timestamp).getTime();
+      const rtt = (end - start) / 2;
+      const estimatedServerTime = serverTime + rtt;
+      serverClockOffset = estimatedServerTime - end;
+      console.log(`⏱️ Sincronização de tempo: Offset calculado em ${serverClockOffset}ms.`);
+    }
+  } catch (e) {
+    console.warn('⚠️ Não foi possível sincronizar o relógio com o servidor:', e);
+  }
+}
+
 function calcularMinutos(dataIso) {
   if (!dataIso) return 0;
   let d = dataIso;
@@ -394,9 +415,9 @@ function calcularMinutos(dataIso) {
     d = d.replace(' ', 'T') + 'Z';
   }
   const data = new Date(d);
-  const agora = new Date();
+  const agora = new Date(Date.now() + serverClockOffset);
   const diffMs = agora - data;
-  return Math.floor(diffMs / 60000);
+  return Math.max(0, Math.floor(diffMs / 60000));
 }
 
 // Controle para não tocar som de atraso repetidamente para o mesmo pedido
