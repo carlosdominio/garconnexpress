@@ -5502,7 +5502,7 @@ async function abrirModalOpcoes(pedidoId) {
   // Cores dinâmicas conforme status
   if (isAguardando) headerBg.style.background = '#f1c40f'; // Amarelo Atenção
   else if (hasPend) headerBg.style.background = '#e74c3c'; // Vermelho Pendente
-  else headerBg.style.background = '#27ae60'; // Verde Servido
+  else headerBg.style.background = '#e67e22'; // Laranja Em Consumo
 
   // 2. TOTAIS E TAXA
   const cobrarTaxaNoPedido = (pedidosStatusTaxa[pedidoId] !== undefined) ? pedidosStatusTaxa[pedidoId] : (pedido.cobrar_taxa || true);
