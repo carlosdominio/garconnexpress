@@ -448,11 +448,22 @@
             </div>
             
             <select id="select-mesas-ativas" onchange="filtrarPorSelect(this.value)"
-                    style="padding: 10px; border-radius: 8px; border: 2px solid #edf2f7; background: #f8fafc; outline: none; cursor: pointer; font-size: 0.95rem; font-weight: bold; color: #2d3748; min-width: 150px;">
+                    style="display: none;">
               <option value="">Todas</option>
             </select>
+
+            <!-- FILTRO DE MESAS ATIVAS CUSTOMIZADO COM SCROLL -->
+            <div class="custom-select-wrapper-mesas" style="position: relative; min-width: 160px; z-index: 10;">
+              <button id="custom-select-trigger-mesas" type="button" onclick="toggleCustomSelectMesas(event)" style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 8px; border: 2px solid #edf2f7; font-weight: bold; background: #f8fafc; color: #2d3748; cursor: pointer; font-size: 0.95rem; outline: none; height: 42px;">
+                <span id="custom-select-label-mesas">Todas</span>
+                <span id="custom-select-arrow-mesas" style="font-size: 0.8rem; margin-left: 8px; transition: transform 0.2s;">▼</span>
+              </button>
+              <div id="custom-select-options-mesas" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; right: 0; background: white; border: 1px solid #cbd5e0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 220px; overflow-y: auto; z-index: 999; scrollbar-width: thin;">
+                <!-- Injetado via JS -->
+              </div>
+            </div>
             
-            <button onclick="document.getElementById('filtro-mesas').value=''; filtrarMesasAtivas(''); document.getElementById('select-mesas-ativas').value=''; filtrarPorSelect('');" 
+            <button onclick="document.getElementById('filtro-mesas').value=''; filtrarMesasAtivas(''); document.getElementById('select-mesas-ativas').value=''; filtrarPorSelect(''); if (typeof sincronizarFiltroCustomizadoMesas === 'function') sincronizarFiltroCustomizadoMesas();" 
                     style="background: #e2e8f0; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; color: #4a5568; font-size: 0.85rem; transition: 0.2s;">
               LIMPAR
             </button>

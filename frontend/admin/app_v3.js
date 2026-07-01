@@ -149,7 +149,10 @@ function switchSubTab(sub) {
   // Limpa o filtro de seleção ao trocar de aba para evitar estados inconsistentes
   filtroSelectMesa = '';
   const select = document.getElementById('select-mesas-ativas');
-  if (select) select.value = '';
+  if (select) {
+    select.value = '';
+    if (typeof sincronizarFiltroCustomizadoMesas === 'function') sincronizarFiltroCustomizadoMesas();
+  }
 
   // Limpa estados de todos os botões
   document.querySelectorAll('.sub-tab-btn').forEach(btn => {
@@ -1634,11 +1637,64 @@ function sincronizarFiltroCustomizado() {
   });
 }
 
+function toggleCustomSelectMesas(event) {
+  event.stopPropagation();
+  const optionsDiv = document.getElementById('custom-select-options-mesas');
+  const arrow = document.getElementById('custom-select-arrow-mesas');
+  if (!optionsDiv || !arrow) return;
+  
+  const isOpen = optionsDiv.style.display === 'block';
+  optionsDiv.style.display = isOpen ? 'none' : 'block';
+  arrow.innerText = isOpen ? '▼' : '▲';
+}
+
+function sincronizarFiltroCustomizadoMesas() {
+  const nativeSelect = document.getElementById('select-mesas-ativas');
+  const customOptionsDiv = document.getElementById('custom-select-options-mesas');
+  const customLabel = document.getElementById('custom-select-label-mesas');
+  if (!nativeSelect || !customOptionsDiv || !customLabel) return;
+
+  customOptionsDiv.innerHTML = '';
+  
+  // Sincroniza label inicial com o valor selecionado nativamente
+  const selectedOpt = nativeSelect.options[nativeSelect.selectedIndex];
+  if (selectedOpt) customLabel.innerText = selectedOpt.innerText;
+
+  Array.from(nativeSelect.options).forEach(opt => {
+    const item = document.createElement('div');
+    item.innerText = opt.innerText;
+    item.style.padding = '10px 12px';
+    item.style.cursor = 'pointer';
+    item.style.fontWeight = 'bold';
+    item.style.color = '#2d3748';
+    item.style.fontSize = '0.9rem';
+    item.style.transition = 'background 0.15s';
+    
+    item.addEventListener('mouseenter', () => { item.style.background = '#edf2f7'; });
+    item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
+
+    item.addEventListener('click', () => {
+      nativeSelect.value = opt.value;
+      customLabel.innerText = opt.innerText;
+      customOptionsDiv.style.display = 'none';
+      document.getElementById('custom-select-arrow-mesas').innerText = '▼';
+      nativeSelect.dispatchEvent(new Event('change'));
+    });
+
+    customOptionsDiv.appendChild(item);
+  });
+}
+
 document.addEventListener('click', () => {
   const optionsDiv = document.getElementById('custom-select-options');
   const arrow = document.getElementById('custom-select-arrow');
   if (optionsDiv) optionsDiv.style.display = 'none';
   if (arrow) arrow.innerText = '▼';
+
+  const optionsDivMesas = document.getElementById('custom-select-options-mesas');
+  const arrowMesas = document.getElementById('custom-select-arrow-mesas');
+  if (optionsDivMesas) optionsDivMesas.style.display = 'none';
+  if (arrowMesas) arrowMesas.innerText = '▼';
 });
 
 async function exibirMenuConfig() {
@@ -2709,6 +2765,7 @@ function atualizarSelectMesasAtivas() {
   } else {
     filtroSelectMesa = '';
   }
+  sincronizarFiltroCustomizadoMesas();
 }
 
 async function exibirPedidos() {
