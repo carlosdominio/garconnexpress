@@ -1182,9 +1182,9 @@ button.btn-entregue { background-color: #95a5a6; }
 }
 
 /* Animações */
-.alerta-fechamento { 
+.pedido-card.alerta-fechamento { 
   background-color: #fff !important; /* Fundo branco fixo */
-  border-left: 8px solid #d4af37; /* REMOVIDO !important para permitir animacao */
+  border-left: 8px solid #f1c40f; /* Cor amarela para combinar com a categoria, sem !important para permitir animacao */
   box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important; /* Mesma sombra das outras mesas */
   opacity: 1 !important;
 }
