@@ -1158,7 +1158,7 @@ function filtrarMesas(filtro, element) {
     } else if (filtro === 'ocupadas') {
       element.style.background = '#e67e22'; // Laranja
     } else {
-      element.style.background = '#3498db'; // Azul
+      element.style.background = '#27ae60'; // Verde (LIVRES)
     }
   }
   
@@ -1171,6 +1171,7 @@ function exibirMesas() {
 
   const fechamentosAtivos = mesas.filter(m => m.solicitou_fechamento || m.status === 'fechando');
   const ocupadasAtivas = mesas.filter(m => m.status === 'ocupada' && !m.solicitou_fechamento && m.status !== 'fechando');
+  const livresAtivas = mesas.filter(m => m.status === 'livre' && !m.solicitou_fechamento && m.status !== 'fechando');
   
   const contadorEl = document.getElementById('contador-fechamentos');
   if (contadorEl) {
@@ -1192,8 +1193,20 @@ function exibirMesas() {
     }
   }
 
-  let mesasExibidas = mesas;
-  if (filtroMesaAtual === 'fechamentos') {
+  const contadorLivresEl = document.getElementById('contador-livres');
+  if (contadorLivresEl) {
+    if (livresAtivas.length > 0) {
+      contadorLivresEl.innerText = livresAtivas.length;
+      contadorLivresEl.style.display = 'inline-block';
+    } else {
+      contadorLivresEl.style.display = 'none';
+    }
+  }
+
+  let mesasExibidas = [];
+  if (filtroMesaAtual === 'todas') {
+    mesasExibidas = livresAtivas;
+  } else if (filtroMesaAtual === 'fechamentos') {
     mesasExibidas = fechamentosAtivos;
   } else if (filtroMesaAtual === 'ocupadas') {
     mesasExibidas = ocupadasAtivas;
