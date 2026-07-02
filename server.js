@@ -1149,6 +1149,112 @@ async function verificarEstoqueBaixo(menuId) {
   }
 }
 
+// ─── HELPER: Abate Estoque com Ficha Técnica ────────────────────────────────
+// Se o item possui ficha técnica (doses/drinks), desconta cada ingrediente.
+// Caso contrário, desconta o próprio item (comportamento original).
+async function abaterEstoquePorFichaTecnica(menuId, quantidadeVendida) {
+  try {
+    const ficha = (await query(
+      'SELECT ingrediente_id, quantidade FROM ficha_tecnica WHERE menu_id = ?',
+      [menuId]
+    )).rows;
+
+    if (ficha && ficha.length > 0) {
+      // Produto com ficha técnica → desconta cada ingrediente
+      for (const linha of ficha) {
+        const qtdDesconto = linha.quantidade * quantidadeVendida;
+        await query(
+          'UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?',
+          [qtdDesconto, linha.ingrediente_id]
+        );
+        await verificarEstoqueBaixo(linha.ingrediente_id);
+      }
+    } else {
+      // Produto simples → desconta diretamente (comportamento original)
+      await query(
+        'UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?',
+        [quantidadeVendida, menuId]
+      );
+    }
+  } catch (e) {
+    console.error('Erro ao abater estoque por ficha técnica:', e.message);
+    // Fallback seguro: tenta desconto direto para não bloquear venda
+    await query(
+      'UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?',
+      [quantidadeVendida, menuId]
+    ).catch(() => {});
+  }
+}
+
+// ─── HELPER: Devolve Estoque com Ficha Técnica ──────────────────────────────
+// Se o item possui ficha técnica (doses/drinks), devolve cada ingrediente.
+// Caso contrário, devolve o próprio item (comportamento original).
+async function retornarEstoquePorFichaTecnica(menuId, quantidadeRetornada) {
+  try {
+    const ficha = (await query(
+      'SELECT ingrediente_id, quantidade FROM ficha_tecnica WHERE menu_id = ?',
+      [menuId]
+    )).rows;
+
+    if (ficha && ficha.length > 0) {
+      for (const linha of ficha) {
+        const qtdRetorno = linha.quantidade * quantidadeRetornada;
+        await query(
+          'UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque + ? END WHERE id = ?',
+          [qtdRetorno, linha.ingrediente_id]
+        );
+      }
+    } else {
+      await query(
+        'UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque + ? END WHERE id = ?',
+        [quantidadeRetornada, menuId]
+      );
+    }
+  } catch (e) {
+    console.error('Erro ao retornar estoque por ficha técnica:', e.message);
+    await query(
+      'UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque + ? END WHERE id = ?',
+      [quantidadeRetornada, menuId]
+    ).catch(() => {});
+  }
+}
+
+// ─── HELPER: Valida se há Estoque Disponível (Incluindo Ficha Técnica) ───────
+async function verificarEstoqueDisponivel(menuId, quantidadeDesejada) {
+  try {
+    const ficha = (await query(
+      'SELECT ft.ingrediente_id, ft.quantidade, m.nome, m.estoque, m.unidade FROM ficha_tecnica ft JOIN menu m ON ft.ingrediente_id = m.id WHERE ft.menu_id = ?',
+      [menuId]
+    )).rows;
+
+    if (ficha && ficha.length > 0) {
+      for (const linha of ficha) {
+        if (linha.estoque !== null && linha.estoque !== undefined && linha.estoque !== -1) {
+          const totalNecessario = linha.quantidade * quantidadeDesejada;
+          if (linha.estoque < totalNecessario) {
+            return {
+              disponivel: false,
+              erro: `⚠️ O ingrediente "${linha.nome}" está com estoque insuficiente.\n\nNecessário para este pedido: ${totalNecessario} ${linha.unidade || 'un'}\nDisponível no estoque: ${linha.estoque} ${linha.unidade || 'un'}`
+            };
+          }
+        }
+      }
+    } else {
+      const p = (await query('SELECT nome, estoque, unidade FROM menu WHERE id = ?', [menuId])).rows[0];
+      if (p && p.estoque !== null && p.estoque !== undefined && p.estoque !== -1 && p.estoque < quantidadeDesejada) {
+        return {
+          disponivel: false,
+          erro: `⚠️ O produto "${p.nome}" não possui estoque suficiente para esta venda.\n\nDisponível atual: ${p.estoque} ${p.unidade || 'un'}`
+        };
+      }
+    }
+    return { disponivel: true };
+  } catch (e) {
+    console.error('Erro ao verificar estoque disponível:', e.message);
+    return { disponivel: true }; // Em caso de erro, permite a venda por segurança
+  }
+}
+
 async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null) {
   try {
     let mesaNum = mesaNumPredefined;
@@ -1245,6 +1351,7 @@ async function initDb() {
     `CREATE TABLE IF NOT EXISTS fluxo_caixa (id SERIAL PRIMARY KEY, data_abertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, data_fechamento TIMESTAMP, valor_inicial REAL NOT NULL, valor_final REAL, status TEXT DEFAULT 'aberto', total_dinheiro REAL DEFAULT 0, total_pix REAL DEFAULT 0, total_cartao REAL DEFAULT 0, total_vendas REAL DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS codigos_acesso (id SERIAL PRIMARY KEY, mesa_id INTEGER, codigo TEXT NOT NULL, status TEXT DEFAULT 'ativo', criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE TABLE IF NOT EXISTS push_subscriptions (id SERIAL PRIMARY KEY, garcom_id TEXT, endpoint TEXT, p256dh TEXT, auth TEXT, app_type TEXT DEFAULT 'garcom', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
+    `CREATE TABLE IF NOT EXISTS ficha_tecnica (id SERIAL PRIMARY KEY, menu_id INTEGER NOT NULL, ingrediente_id INTEGER NOT NULL, quantidade REAL NOT NULL, unidade TEXT DEFAULT 'un')`,
     `CREATE INDEX IF NOT EXISTS idx_pedido_itens_pedido_id ON pedido_itens(pedido_id)`,
     `CREATE INDEX IF NOT EXISTS idx_pedidos_mesa_id ON pedidos(mesa_id)`,
     `CREATE INDEX IF NOT EXISTS idx_pedidos_status ON pedidos(status)`
@@ -1347,6 +1454,9 @@ async function initDb() {
     // Garante que a tabela pagamentos tenha as colunas necessárias
     await addCol('pagamentos', 'recebido', 'REAL DEFAULT 0');
     await addCol('pagamentos', 'troco', 'REAL DEFAULT 0');
+    // Ficha técnica
+    await addCol('menu', 'unidade', "TEXT DEFAULT 'un'");
+    await addCol('menu', 'preco_custo', 'REAL DEFAULT 0');
   } catch (e) { 
     console.error('Erro na migração:', e);
     dbInitError = e;
@@ -2090,7 +2200,7 @@ app.delete('/api/pedidos/itens/:id', isAuthenticated, async (req, res) => {
   try {
     const item = (await query("SELECT pedido_id, menu_id, quantidade FROM pedido_itens WHERE id = ?", [id])).rows[0];
     if (!item) return res.status(404).json({ error: 'Item não encontrado' });
-    await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque + ? END WHERE id = ?", [item.quantidade, item.menu_id]);
+    await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
     await query("DELETE FROM pedido_itens WHERE id = ?", [id]);
     const itensRestantes = (await query("SELECT status FROM pedido_itens WHERE pedido_id = ?", [item.pedido_id])).rows;
     if (itensRestantes.length === 0) {
@@ -2132,7 +2242,7 @@ app.delete('/api/pedidos/:id', isAuthenticated, async (req, res) => {
   try {
     const pedido = (await query("SELECT p.mesa_id, p.garcom_id, p.status, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
     const itens = (await query("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
-    for (const item of itens) await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque + ? END WHERE id = ?", [item.quantidade, item.menu_id]);
+    for (const item of itens) await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
     await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [id]);
     await query("DELETE FROM pedidos WHERE id = ?", [id]);
     
@@ -2218,8 +2328,9 @@ app.post('/api/pedidos', orderLimiter, isAuthenticated, async (req, res) => {
         return res.status(400).json({ error: `Produto não encontrado: ID ${item.menu_id}` });
       }
       
-      if (p.estoque !== -1 && p.estoque < item.quantidade) {
-        return res.status(400).json({ error: `Estoque insuficiente: ${p.nome}` });
+      const checagemEstoque = await verificarEstoqueDisponivel(item.menu_id, item.quantidade);
+      if (!checagemEstoque.disponivel) {
+        return res.status(400).json({ error: checagemEstoque.erro });
       }
 
       // 3. Cálculo Seguro do Subtotal
@@ -2303,7 +2414,7 @@ app.post('/api/pedidos', orderLimiter, isAuthenticated, async (req, res) => {
       await query(`INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES ${placeholders}`, values);
 
       for (const item of itens) {
-        await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?", [item.quantidade, item.menu_id]);
+        await abaterEstoquePorFichaTecnica(item.menu_id, item.quantidade);
         await verificarEstoqueBaixo(item.menu_id);
       }
     }
@@ -2378,13 +2489,14 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
   const { itens, observacao } = req.body;
   try {
     const itensAtuais = (await query("SELECT id, menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
-    for (const item of itensAtuais) await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque + ? END WHERE id = ?", [item.quantidade, item.menu_id]);
+    for (const item of itensAtuais) await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
     for (const item of itens) {
       if (!item.quantidade || item.quantidade <= 0) return res.status(400).json({ error: 'Quantidade inválida (negativa ou zero)' });
-        const p = (await query("SELECT nome, estoque FROM menu WHERE id = ?", [item.menu_id])).rows[0];
-      if (p && p.estoque !== -1 && p.estoque < item.quantidade) {
-        for (const itemRoll of itensAtuais) await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?", [itemRoll.quantidade, itemRoll.menu_id]);
-        return res.status(400).json({ error: `Estoque insuficiente: ${p.nome}` });
+      const checagemEstoque = await verificarEstoqueDisponivel(item.menu_id, item.quantidade);
+      if (!checagemEstoque.disponivel) {
+        // Rollback dos abatimentos prévios antes de retornar o erro de estoque insuficiente
+        for (const itemRoll of itensAtuais) await abaterEstoquePorFichaTecnica(itemRoll.menu_id, itemRoll.quantidade);
+        return res.status(400).json({ error: checagemEstoque.erro });
       }
     }
     await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [id]);
@@ -2398,8 +2510,7 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
       await query(`INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES ${placeholders}`, values);
 
       for (const item of itens) {
-        await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?", [item.quantidade, item.menu_id]);
-        await verificarEstoqueBaixo(item.menu_id);
+        await abaterEstoquePorFichaTecnica(item.menu_id, item.quantidade);
         const pMenu = (await query("SELECT preco FROM menu WHERE id = ?", [item.menu_id])).rows[0];
         if (pMenu) novoSub += (pMenu.preco * item.quantidade);
       }
@@ -2467,15 +2578,13 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
         return res.status(400).json({ error: `Quantidade inválida (menor ou igual a zero) detectada.` });
       }
       
-      const p = (await query("SELECT estoque FROM menu WHERE id = ?", [item.menu_id])).rows[0];
-      if (!p) return res.status(400).json({ error: `Produto não encontrado: ID ${item.menu_id}` });
-      if (p.estoque !== -1 && p.estoque < item.quantidade) return res.status(400).json({ error: `Estoque insuficiente.` });
+      const checagemEstoque = await verificarEstoqueDisponivel(item.menu_id, item.quantidade);
+      if (!checagemEstoque.disponivel) return res.status(400).json({ error: checagemEstoque.erro });
 
       const exist = await query('SELECT id, quantidade FROM pedido_itens WHERE pedido_id = ? AND menu_id = ? AND observacao = ? AND status = ?', [id, item.menu_id, item.observacao || '', 'pendente']);
       if (exist.rows.length > 0) await query('UPDATE pedido_itens SET quantidade = ? WHERE id = ?', [exist.rows[0].quantidade + item.quantidade, exist.rows[0].id]);
       else await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES (?, ?, ?, ?, ?)', [id, item.menu_id, item.quantidade, item.observacao || '', 'pendente']);
-      await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?", [item.quantidade, item.menu_id]);
-      await verificarEstoqueBaixo(item.menu_id);
+      await abaterEstoquePorFichaTecnica(item.menu_id, item.quantidade);
     }
     const tItens = (await query("SELECT i.quantidade, m.preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
     const sub = tItens.reduce((sum, i) => sum + ((parseFloat(i.preco) || 0) * i.quantidade), 0);
@@ -2798,7 +2907,7 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
     if (status === 'cancelado' && prevStatus !== 'cancelado' && prevStatus !== 'rascunho') {
       const itens = (await query("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
       for (const item of itens) {
-        await query("UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque + ? END WHERE id = ?", [item.quantidade, item.menu_id]);
+        await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
       }
       await query("UPDATE pedido_itens SET status = 'cancelado' WHERE pedido_id = ?", [id]);
     }
@@ -2927,14 +3036,68 @@ app.post('/api/menu', isAdmin, async (req, res) => {
   const envCozinha = enviar_cozinha !== undefined ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
   const isVisivel = visivel !== undefined ? (isPostgres ? visivel : (visivel ? 1 : 0)) : (isPostgres ? true : 1);
   const emPromocao = em_promocao !== undefined ? (isPostgres ? em_promocao : (em_promocao ? 1 : 0)) : (isPostgres ? false : 0);
-  try { 
-    await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [nome, categoria, preco, preco_original, descricao, imagem, estoque || -1, validade || null, envCozinha, isVisivel, emPromocao]); 
+  try {
+    let newId = null;
+    if (isPostgres) {
+      const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [nome, categoria, preco, preco_original, descricao, imagem, estoque || -1, validade || null, envCozinha, isVisivel, emPromocao]);
+      newId = result.rows && result.rows[0] ? result.rows[0].id : null;
+    } else {
+      const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [nome, categoria, preco, preco_original, descricao, imagem, estoque || -1, validade || null, envCozinha, isVisivel, emPromocao]);
+      newId = result.lastID || null;
+    }
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
-    res.json({ success: true }); 
+    res.json({ success: true, id: newId });
   }
   catch (error) { res.status(500).json({ error: error.message }); }
 });
 app.delete('/api/menu/:id', isAdmin, async (req, res) => { try { await query('DELETE FROM menu WHERE id = ?', [req.params.id]); res.json({ success: true }); } catch (error) { res.status(500).json({ error: error.message }); } });
+
+// ─── Ficha Técnica (Doses / Drinks) ─────────────────────────────────────────
+app.get('/api/menu/:id/ficha-tecnica', isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ficha = (await query(
+      `SELECT ft.id, ft.ingrediente_id, ft.quantidade, ft.unidade,
+              m.nome AS ingrediente_nome, m.estoque AS ingrediente_estoque, m.unidade AS ingrediente_unidade
+       FROM ficha_tecnica ft
+       JOIN menu m ON ft.ingrediente_id = m.id
+       WHERE ft.menu_id = ?`,
+      [id]
+    )).rows;
+    res.json(ficha);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/menu/:id/ficha-tecnica', isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { itens } = req.body; // Array de { ingrediente_id, quantidade, unidade }
+
+    // Apaga a ficha atual e reinsere
+    await query('DELETE FROM ficha_tecnica WHERE menu_id = ?', [id]);
+
+    if (Array.isArray(itens) && itens.length > 0) {
+      for (const item of itens) {
+        const ingredienteId = parseInt(item.ingrediente_id);
+        const quantidade = parseFloat(item.quantidade);
+        const unidade = item.unidade || 'un';
+
+        if (!ingredienteId || isNaN(quantidade) || quantidade <= 0) continue;
+        await query(
+          'INSERT INTO ficha_tecnica (menu_id, ingrediente_id, quantidade, unidade) VALUES (?, ?, ?, ?)',
+          [id, ingredienteId, quantidade, unidade]
+        );
+      }
+    }
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 
 app.delete('/api/menu/categoria/:categoria', isAdmin, async (req, res) => {
   const { categoria } = req.params;

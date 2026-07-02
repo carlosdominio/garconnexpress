@@ -2249,7 +2249,12 @@ async function enviarPedido() {
       carregarMesas();
     } else {
       const errorData = await res.json();
-      await mostrarAlerta(errorData.error || 'Erro ao enviar pedido', "Erro", "❌");
+      const msg = errorData.error || 'Erro ao enviar pedido';
+      if (msg.includes("⚠️")) {
+        await mostrarAlerta(msg, "Aviso", "⚠️");
+      } else {
+        await mostrarAlerta(msg, "Erro", "❌");
+      }
     }
   } catch (error) { 
     console.error("Erro ao enviar pedido:", error);

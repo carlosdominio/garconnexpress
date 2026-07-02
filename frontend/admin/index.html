@@ -1026,8 +1026,36 @@
           </div>
         </div>
 
+
+        <!-- ⚗️ Bloco: Ficha Técnica / Controle de Dose -->
+        <div id="bloco-ficha-tecnica" style="margin-top: 16px; border: 1.5px solid #c7d2fe; border-radius: 12px; overflow: hidden;">
+          <!-- Header clicável -->
+          <div onclick="toggleFichaTecnica()" style="display:flex; align-items:center; gap:10px; padding: 10px 16px; background: linear-gradient(135deg,#6366f1,#8b5cf6); cursor:pointer; user-select:none;">
+            <input type="checkbox" id="ficha-tecnica-ativo" onclick="event.stopPropagation(); toggleFichaTecnica()" style="width:18px; height:18px; cursor:pointer; accent-color:#fff;">
+            <span style="color:#fff; font-weight:bold; font-size:0.95rem;">⚗️ Ficha Técnica / Controle de Dose</span>
+            <span id="ficha-tecnica-chevron" style="color:#fff; margin-left:auto; font-size:1.1rem;">▼</span>
+          </div>
+          <!-- Corpo colapsável -->
+          <div id="ficha-tecnica-corpo" style="display:none; padding:14px; background:#f5f3ff; flex-direction:column; gap:12px;">
+            <p style="font-size:0.8rem; color:#5b21b6; margin:0 0 8px 0;">
+              Defina os ingredientes consumidos a cada venda deste item. Ex: Dose de Whisky consome 50ml da Garrafa de Whisky.
+            </p>
+
+            <!-- Lista de ingredientes da ficha -->
+            <div id="ficha-tecnica-lista" style="display:flex; flex-direction:column; gap:8px;"></div>
+
+            <!-- Botão adicionar linha -->
+            <button type="button" onclick="adicionarLinhaFicha()" style="background:#6366f1; color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:0.85rem; font-weight:bold; cursor:pointer; width:fit-content;">
+              + Adicionar Ingrediente
+            </button>
+
+            <!-- Info calculada -->
+            <div id="ficha-tecnica-info" style="font-size:0.8rem; color:#7c3aed; background:#ede9fe; padding:8px 12px; border-radius:8px; display:none;"></div>
+          </div>
+
         </div>
 
+      </div>
 
       <!-- Footer Fixo com Botões (Sempre Visível) -->
       <div style="padding: 0.8rem 1.5rem; background: #fff; border-top: 2px solid #e2e8f0; display: flex; gap: 12px; flex-shrink: 0;">

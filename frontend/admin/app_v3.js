@@ -36,9 +36,13 @@ window.onerror = function(msg, url, line) {
     try {
       const response = await originalFetch(...args);
       
-      // DEBUG: Loga erros 400+ para ajudar no diagnóstico
+      // DEBUG: Loga erros 400+ de forma amigável para ajudar no diagnóstico
       if (!response.ok) {
-        console.error(`❌ FETCH ERRO [${response.status}] na URL:`, args[0]);
+        if (response.status === 400 || response.status === 403) {
+          console.warn(`ℹ️ [Aviso de Regra/Validação] Servidor retornou status ${response.status} na URL: ${args[0]}. (Ex: Controle de Estoque ou Caixa Fechado)`);
+        } else {
+          console.error(`❌ FETCH ERRO [${response.status}] na URL:`, args[0]);
+        }
       }
 
       // Ignora o redirecionamento se for uma tentativa de login
@@ -970,7 +974,12 @@ async function enviarPedidoLoteAdmin() {
       };
     } else {
       const err = await res.json();
-      await mostrarAlerta("Erro: " + err.error, "Erro", "❌");
+      const msg = err.error || "Erro ao enviar pedido";
+      if (msg.includes("⚠️")) {
+        await mostrarAlerta(msg, "Aviso", "⚠️");
+      } else {
+        await mostrarAlerta("Erro: " + msg, "Erro", "❌");
+      }
     }
   } catch (e) {
     await mostrarAlerta("Erro de conexão", "Erro", "❌");
@@ -1530,6 +1539,34 @@ async function abrirModalItemMenu(item = null) {
 
   modal.style.display = 'flex';
   document.body.classList.add('modal-open');
+
+  // Reseta e carrega ficha técnica
+  const cbFicha = document.getElementById('ficha-tecnica-ativo');
+  const listaFicha = document.getElementById('ficha-tecnica-lista');
+  const corpoFicha = document.getElementById('ficha-tecnica-corpo');
+  const chevronFicha = document.getElementById('ficha-tecnica-chevron');
+  if (cbFicha) cbFicha.checked = false;
+  if (listaFicha) listaFicha.innerHTML = '';
+  if (corpoFicha) corpoFicha.style.display = 'none';
+  if (chevronFicha) chevronFicha.innerText = '▼';
+  const infoFicha = document.getElementById('ficha-tecnica-info');
+  if (infoFicha) infoFicha.style.display = 'none';
+
+  if (item && item.id) {
+    try {
+      const fichaRes = await fetch(`/api/menu/${item.id}/ficha-tecnica`);
+      if (fichaRes.ok) {
+        const fichaData = await fichaRes.json();
+        if (fichaData && fichaData.length > 0) {
+          if (cbFicha) cbFicha.checked = true;
+          if (corpoFicha) corpoFicha.style.display = 'flex';
+          if (chevronFicha) chevronFicha.innerText = '▲';
+          fichaData.forEach(linha => adicionarLinhaFicha(linha));
+          atualizarInfoFicha();
+        }
+      }
+    } catch (e) { console.warn('Erro ao carregar ficha técnica:', e); }
+  }
 }
 
 async function excluirDoMenuAtual() {
@@ -1596,6 +1633,36 @@ async function processarAcaoMenu() {
   });
 
   if (res.ok) {
+    const savedData = await res.json();
+    const savedId = idItemEdicaoMenu || savedData.id;
+
+    // Salva ficha técnica se ativa
+    if (savedId) {
+      const cbFicha = document.getElementById('ficha-tecnica-ativo');
+      if (cbFicha && cbFicha.checked) {
+        const linhas = document.querySelectorAll('.ficha-linha');
+        const itens = [];
+        linhas.forEach(linha => {
+          const ingId = linha.querySelector('.ficha-ingrediente-select')?.value;
+          const qtd = parseFloat(linha.querySelector('.ficha-quantidade')?.value);
+          const und = linha.querySelector('.ficha-unidade')?.value || 'un';
+          if (ingId && !isNaN(qtd) && qtd > 0) itens.push({ ingrediente_id: ingId, quantidade: qtd, unidade: und });
+        });
+        await fetch(`/api/menu/${savedId}/ficha-tecnica`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itens })
+        });
+      } else {
+        // Limpa ficha se desmarcou
+        await fetch(`/api/menu/${savedId}/ficha-tecnica`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itens: [] })
+        });
+      }
+    }
+
     mostrarToast(idItemEdicaoMenu ? "Item atualizado com sucesso!" : "Item cadastrado com sucesso!");
     fecharModalItemMenu();
     carregarCardapio();
@@ -1607,6 +1674,96 @@ async function processarAcaoMenu() {
 
 function prepararEdicaoMenu(item) {
   abrirModalItemMenu(item);
+}
+
+// ─── FICHA TÉCNICA / CONTROLE DE DOSE ────────────────────────────────────────
+function toggleFichaTecnica() {
+  const cb = document.getElementById('ficha-tecnica-ativo');
+  const corpo = document.getElementById('ficha-tecnica-corpo');
+  const chevron = document.getElementById('ficha-tecnica-chevron');
+  if (!cb || !corpo) return;
+  const ativo = cb.checked;
+  corpo.style.display = ativo ? 'flex' : 'none';
+  if (chevron) chevron.innerText = ativo ? '▲' : '▼';
+  if (!ativo) {
+    document.getElementById('ficha-tecnica-info') && (document.getElementById('ficha-tecnica-info').style.display = 'none');
+  }
+}
+
+function adicionarLinhaFicha(dados = null) {
+  const lista = document.getElementById('ficha-tecnica-lista');
+  if (!lista) return;
+
+  const div = document.createElement('div');
+  div.className = 'ficha-linha';
+  div.style.cssText = 'display:flex; gap:6px; align-items:center; background:#fff; padding:8px; border-radius:8px; border:1px solid #ddd6fe;';
+
+  // Monta as opções de ingredientes a partir do cardapio (variável global)
+  const optsHtml = (cardapio || []).map(i =>
+    `<option value="${i.id}" ${dados && dados.ingrediente_id == i.id ? 'selected' : ''}>${i.nome} (${i.estoque === -1 ? '∞' : i.estoque} ${i.unidade || 'un'})</option>`
+  ).join('');
+
+  div.innerHTML = `
+    <select class="ficha-ingrediente-select" onchange="atualizarInfoFicha()" style="flex:2; padding:6px 8px; border-radius:6px; border:1px solid #c4b5fd; font-size:0.82rem; max-width:200px;">
+      <option value="">Selecione o ingrediente...</option>
+      ${optsHtml}
+    </select>
+    <input type="number" class="ficha-quantidade" placeholder="Qtd" min="0.01" step="0.01"
+      value="${dados ? dados.quantidade : ''}"
+      onchange="atualizarInfoFicha()"
+      style="flex:1; padding:6px; border-radius:6px; border:1px solid #c4b5fd; font-size:0.82rem; min-width:60px; max-width:80px;">
+    <select class="ficha-unidade" style="flex:1; padding:6px; border-radius:6px; border:1px solid #c4b5fd; font-size:0.82rem; min-width:55px; max-width:70px;">
+      <option value="un" ${dados && dados.unidade === 'un' ? 'selected' : ''}>un</option>
+      <option value="ml" ${dados && dados.unidade === 'ml' ? 'selected' : ''}>ml</option>
+      <option value="g" ${dados && dados.unidade === 'g' ? 'selected' : ''}>g</option>
+    </select>
+    <button type="button" onclick="removerLinhaFicha(this)" title="Remover"
+      style="background:#fee2e2; color:#dc2626; border:none; border-radius:6px; padding:5px 9px; cursor:pointer; font-weight:bold; flex-shrink:0;">✕</button>
+  `;
+
+  lista.appendChild(div);
+  atualizarInfoFicha();
+}
+
+function removerLinhaFicha(btn) {
+  btn.closest('.ficha-linha').remove();
+  atualizarInfoFicha();
+}
+
+function atualizarInfoFicha() {
+  const infoDiv = document.getElementById('ficha-tecnica-info');
+  if (!infoDiv) return;
+
+  const linhas = document.querySelectorAll('.ficha-linha');
+  if (linhas.length === 0) { infoDiv.style.display = 'none'; return; }
+
+  let textos = [];
+  linhas.forEach(linha => {
+    const select = linha.querySelector('.ficha-ingrediente-select');
+    const qtdInput = linha.querySelector('.ficha-quantidade');
+    const unidadeSelect = linha.querySelector('.ficha-unidade');
+    if (!select || !select.value || !qtdInput.value) return;
+
+    const nomeIngrediente = select.options[select.selectedIndex]?.text || '';
+    const qtd = parseFloat(qtdInput.value);
+    const und = unidadeSelect?.value || 'un';
+
+    // Calcula quantas doses cabêm no estoque
+    const itemCard = (cardapio || []).find(i => i.id == select.value);
+    if (itemCard && itemCard.estoque > 0 && qtd > 0) {
+      const doses = Math.floor(itemCard.estoque / qtd);
+      textos.push(`🔹 ${nomeIngrediente}: ${qtd} ${und} / venda → ${doses} vendas possíveis no estoque atual`);
+    } else {
+      textos.push(`🔹 ${nomeIngrediente}: ${qtd} ${und} / venda`);
+    }
+  });
+
+  if (textos.length > 0) {
+    infoDiv.innerHTML = textos.join('<br>');
+    infoDiv.style.display = 'block';
+  } else {
+    infoDiv.style.display = 'none';
+  }
 }
 
 // --- CONTROLE DE FILTRO CUSTOMIZADO COM SCROLL ---
@@ -3399,7 +3556,12 @@ async function atualizarStatus(id, status) {
     carregarPedidos();
   } else {
     const err = await res.json();
-    await mostrarAlerta("Erro: " + err.error, "Erro", "❌");
+    const msg = err.error || "Erro ao atualizar status";
+    if (msg.includes("⚠️")) {
+      await mostrarAlerta(msg, "Aviso", "⚠️");
+    } else {
+      await mostrarAlerta("Erro: " + msg, "Erro", "❌");
+    }
   }
 }
 
@@ -3805,7 +3967,13 @@ async function salvarAlteracoes() {
         }, 100);
       }
     } else {
-      mostrarAlerta("Erro ao salvar alterações");
+      const err = await res.json();
+      const msg = err.error || "Erro ao salvar alterações";
+      if (msg.includes("⚠️")) {
+        await mostrarAlerta(msg, "Aviso", "⚠️");
+      } else {
+        await mostrarAlerta("Erro: " + msg, "Erro", "❌");
+      }
     }
   } catch (e) {
     mostrarAlerta("Erro de rede");
