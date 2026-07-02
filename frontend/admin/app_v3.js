@@ -2596,6 +2596,13 @@ async function confirmarRenomearCategoria() {
     if (res.ok) {
       mostrarToast("✅ Categoria renomeada com sucesso!");
       fecharModalRenomearCategoria();
+      
+      // Atualiza a seleção do filtro para a nova categoria renomeada
+      const selectFiltroCat = document.getElementById('filtro-menu-categoria');
+      if (selectFiltroCat) {
+        selectFiltroCat.value = novoNome.trim().toUpperCase();
+      }
+      
       carregarCardapio();
     } else {
       const err = await res.json();
