@@ -583,6 +583,327 @@ function switchConfigSubTab(subTab) {
   if (section) section.classList.add('active');
 }
 
+// ─── RELATÓRIOS DE ESTOQUE ─────────────────────────────────────────────────────
+
+async function carregarRelatoriosEstoque() {
+  const inicio = document.getElementById('rel-data-inicio')?.value || '';
+  const fim = document.getElementById('rel-data-fim')?.value || '';
+  const loading = document.getElementById('rel-loading');
+  const container = document.getElementById('rel-container');
+  
+  if (loading) loading.classList.remove('hidden');
+  if (container) container.classList.add('hidden');
+
+  try {
+    const params = new URLSearchParams();
+    if (inicio) params.set('inicio', inicio);
+    if (fim) params.set('fim', fim);
+    
+    const res = await fetch(`/api/relatorios/estoque?${params.toString()}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    
+    renderRelatorios(data);
+    
+    // Carrega lista de produtos para movimentação manual
+    await carregarProdutosMovimentacao();
+  } catch (err) {
+    console.warn('⚠️ Erro ao carregar relatórios:', err.message);
+    mostrarAlerta('Erro ao carregar relatórios. Tente novamente.', 'erro');
+  } finally {
+    if (loading) loading.classList.add('hidden');
+    if (container) container.classList.remove('hidden');
+  }
+}
+
+function renderRelatorios(data) {
+  // Valor do Estoque
+  const valorEstoqueEl = document.getElementById('rel-valor-estoque');
+  if (valorEstoqueEl) valorEstoqueEl.textContent = `R$ ${(data.valorEstoque || 0).toFixed(2).replace('.', ',')}`;
+  
+  // Totais de Entradas e Perdas
+  let totalEntradas = 0, valorEntradas = 0, totalPerdas = 0, valorPerdas = 0;
+  (data.totais || []).forEach(t => {
+    if (t.tipo === 'entrada') { totalEntradas = parseFloat(t.total_qtd) || 0; valorEntradas = parseFloat(t.total_valor) || 0; }
+    if (t.tipo === 'perda') { totalPerdas = parseFloat(t.total_qtd) || 0; valorPerdas = parseFloat(t.total_valor) || 0; }
+  });
+  
+  const elEntradas = document.getElementById('rel-total-entradas');
+  const elValorEntradas = document.getElementById('rel-valor-entradas');
+  const elPerdas = document.getElementById('rel-total-perdas');
+  const elValorPerdas = document.getElementById('rel-valor-perdas');
+  
+  if (elEntradas) elEntradas.textContent = totalEntradas.toFixed(0);
+  if (elValorEntradas) elValorEntradas.textContent = `R$ ${valorEntradas.toFixed(2).replace('.', ',')}`;
+  if (elPerdas) elPerdas.textContent = totalPerdas.toFixed(0);
+  if (elValorPerdas) elValorPerdas.textContent = `R$ ${valorPerdas.toFixed(2).replace('.', ',')}`;
+  
+  // Lucro Total Estimado
+  let lucroTotal = 0;
+  (data.maisVendidos || []).forEach(p => { lucroTotal += parseFloat(p.lucro_total) || 0; });
+  const elLucro = document.getElementById('rel-lucro-total');
+  if (elLucro) elLucro.textContent = `R$ ${lucroTotal.toFixed(2).replace('.', ',')}`;
+  
+  // Tabela: Mais Vendidos
+  renderTabelaMaisVendidos(data.maisVendidos || []);
+  
+  // Tabela: Consumo por Período
+  renderTabelaConsumo(data.maisVendidos || []);
+  
+  // Tabela: Produtos Parados
+  renderTabelaParados(data.produtosParados || []);
+  
+  // Tabelas: Movimentações Separadas
+  const movs = data.movimentacoes || [];
+  renderTabelaMovimentacoesLista('rel-entradas', movs.filter(m => m.tipo === 'entrada'), 'entrada');
+  renderTabelaMovimentacoesLista('rel-saidas', movs.filter(m => m.tipo === 'saida'), 'saida');
+  renderTabelaMovimentacoesLista('rel-perdas', movs.filter(m => m.tipo === 'perda'), 'perda');
+  
+  // Tabela: Valor do Estoque Detalhado
+  renderTabelaValorEstoqueDetalhado(data.valorEstoqueDetalhado || []);
+}
+
+function renderTabelaMaisVendidos(itens) {
+  const el = document.getElementById('rel-mais-vendidos');
+  if (!el) return;
+  
+  if (itens.length === 0) {
+    el.innerHTML = '<p style="color: #94a3b8; text-align: center; padding: 20px;">Nenhuma venda encontrada no período.</p>';
+    return;
+  }
+  
+  let html = `<table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+    <thead>
+      <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+        <th style="padding: 10px; text-align: left; color: #475569; font-weight: 700;">#</th>
+        <th style="padding: 10px; text-align: left; color: #475569; font-weight: 700;">Produto</th>
+        <th style="padding: 10px; text-align: left; color: #475569; font-weight: 700;">Categoria</th>
+        <th style="padding: 10px; text-align: right; color: #475569; font-weight: 700;">Qtd Vendida</th>
+        <th style="padding: 10px; text-align: right; color: #475569; font-weight: 700;">Preço Venda</th>
+        <th style="padding: 10px; text-align: right; color: #475569; font-weight: 700;">Custo</th>
+        <th style="padding: 10px; text-align: right; color: #475569; font-weight: 700;">Lucro Total</th>
+      </tr>
+    </thead>
+    <tbody>`;
+  
+  itens.forEach((item, i) => {
+    const lucro = parseFloat(item.lucro_total) || 0;
+    const corLucro = lucro >= 0 ? '#059669' : '#dc2626';
+    html += `
+      <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <td style="padding: 10px; color: #94a3b8; font-weight: 700;">${i + 1}</td>
+        <td style="padding: 10px; font-weight: 600; color: #1e293b;">${item.nome}</td>
+        <td style="padding: 10px; color: #64748b;"><span style="background: #e2e8f0; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;">${item.categoria || '-'}</span></td>
+        <td style="padding: 10px; text-align: right; font-weight: 700; color: #2563eb;">${parseFloat(item.total_vendido).toFixed(0)} ${item.unidade || 'un'}</td>
+        <td style="padding: 10px; text-align: right; color: #475569;">R$ ${parseFloat(item.preco).toFixed(2).replace('.', ',')}</td>
+        <td style="padding: 10px; text-align: right; color: #94a3b8;">R$ ${parseFloat(item.preco_custo || 0).toFixed(2).replace('.', ',')}</td>
+        <td style="padding: 10px; text-align: right; font-weight: 700; color: ${corLucro};">R$ ${lucro.toFixed(2).replace('.', ',')}</td>
+      </tr>`;
+  });
+  
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function renderTabelaParados(itens) {
+  const el = document.getElementById('rel-parados');
+  if (!el) return;
+  
+  if (itens.length === 0) {
+    el.innerHTML = '<p style="color: #10b981; text-align: center; padding: 20px;"><i class="fa-solid fa-check-circle"></i> Todos os produtos tiveram vendas no período!</p>';
+    return;
+  }
+  
+  let html = `<table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+    <thead>
+      <tr style="background: #fffbeb; border-bottom: 2px solid #fde68a;">
+        <th style="padding: 10px; text-align: left; color: #92400e; font-weight: 700;">Produto</th>
+        <th style="padding: 10px; text-align: left; color: #92400e; font-weight: 700;">Categoria</th>
+        <th style="padding: 10px; text-align: right; color: #92400e; font-weight: 700;">Estoque Atual</th>
+        <th style="padding: 10px; text-align: right; color: #92400e; font-weight: 700;">Valor Parado</th>
+      </tr>
+    </thead>
+    <tbody>`;
+  
+  itens.forEach(item => {
+    const valorParado = (parseFloat(item.estoque) || 0) * (parseFloat(item.preco_custo) || 0);
+    html += `
+      <tr style="border-bottom: 1px solid #fef3c7;" onmouseover="this.style.background='#fffbeb'" onmouseout="this.style.background=''">
+        <td style="padding: 10px; font-weight: 600; color: #1e293b;">${item.nome}</td>
+        <td style="padding: 10px; color: #64748b;"><span style="background: #fde68a; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;">${item.categoria || '-'}</span></td>
+        <td style="padding: 10px; text-align: right; font-weight: 700; color: #b45309;">${parseFloat(item.estoque).toFixed(0)} ${item.unidade || 'un'}</td>
+        <td style="padding: 10px; text-align: right; color: #dc2626; font-weight: 600;">R$ ${valorParado.toFixed(2).replace('.', ',')}</td>
+      </tr>`;
+  });
+  
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function renderTabelaConsumo(itens) {
+  const el = document.getElementById('rel-consumo');
+  if (!el) return;
+  
+  if (itens.length === 0) {
+    el.innerHTML = '<p style="color: #94a3b8; text-align: center; padding: 20px;">Nenhum consumo registrado no período.</p>';
+    return;
+  }
+  
+  let html = `<table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+    <thead>
+      <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+        <th style="padding: 10px; text-align: left; color: #475569; font-weight: 700;">Produto</th>
+        <th style="padding: 10px; text-align: left; color: #475569; font-weight: 700;">Categoria</th>
+        <th style="padding: 10px; text-align: right; color: #475569; font-weight: 700;">Qtd Consumida (Vendas)</th>
+      </tr>
+    </thead>
+    <tbody>`;
+  
+  itens.forEach((item) => {
+    html += `
+      <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <td style="padding: 10px; font-weight: 600; color: #1e293b;">${item.nome}</td>
+        <td style="padding: 10px; color: #64748b;"><span style="background: #e2e8f0; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;">${item.categoria || '-'}</span></td>
+        <td style="padding: 10px; text-align: right; font-weight: 700; color: #10b981;">${parseFloat(item.total_vendido).toFixed(0)} ${item.unidade || 'un'}</td>
+      </tr>`;
+  });
+  
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function renderTabelaMovimentacoesLista(elementId, movs, tipoMov) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  
+  if (movs.length === 0) {
+    el.innerHTML = '<p style="color: #94a3b8; text-align: center; padding: 20px;">Nenhuma movimentação deste tipo no período.</p>';
+    return;
+  }
+  
+  let html = `<table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+    <thead>
+      <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+        <th style="padding: 10px; text-align: left; color: #475569; font-weight: 700;">Data</th>
+        <th style="padding: 10px; text-align: left; color: #475569; font-weight: 700;">Produto</th>
+        <th style="padding: 10px; text-align: right; color: #475569; font-weight: 700;">Qtd</th>
+        <th style="padding: 10px; text-align: left; color: #475569; font-weight: 700;">Motivo</th>
+      </tr>
+    </thead>
+    <tbody>`;
+  
+  movs.forEach(mov => {
+    const dataFormatada = mov.criado_at ? new Date(mov.criado_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
+    let corTipo = '#475569';
+    let sinal = '';
+    
+    if (tipoMov === 'entrada') { corTipo = '#059669'; sinal = '+'; }
+    else if (tipoMov === 'saida') { corTipo = '#f59e0b'; sinal = '-'; }
+    else if (tipoMov === 'perda') { corTipo = '#dc2626'; sinal = '-'; }
+    
+    html += `
+      <tr style="border-bottom: 1px solid #f1f5f9;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <td style="padding: 10px; color: #64748b; font-size: 0.8rem;">${dataFormatada}</td>
+        <td style="padding: 10px; font-weight: 600; color: #1e293b;">${mov.produto_nome || '-'}</td>
+        <td style="padding: 10px; text-align: right; font-weight: 700; color: ${corTipo};">${sinal}${parseFloat(mov.quantidade).toFixed(0)} ${mov.produto_unidade || 'un'}</td>
+        <td style="padding: 10px; color: #64748b; font-size: 0.8rem;">${mov.motivo || '-'}</td>
+      </tr>`;
+  });
+  
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function renderTabelaValorEstoqueDetalhado(itens) {
+  const el = document.getElementById('rel-valor-estoque-detalhado');
+  if (!el) return;
+  
+  if (itens.length === 0) {
+    el.innerHTML = '<p style="color: #94a3b8; text-align: center; padding: 20px;">Nenhum produto em estoque.</p>';
+    return;
+  }
+  
+  let html = `<table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+    <thead>
+      <tr style="background: #ecfdf5; border-bottom: 2px solid #a7f3d0;">
+        <th style="padding: 10px; text-align: left; color: #065f46; font-weight: 700;">Produto</th>
+        <th style="padding: 10px; text-align: left; color: #065f46; font-weight: 700;">Categoria</th>
+        <th style="padding: 10px; text-align: right; color: #065f46; font-weight: 700;">Qtd Estoque</th>
+        <th style="padding: 10px; text-align: right; color: #065f46; font-weight: 700;">Custo Unitário</th>
+        <th style="padding: 10px; text-align: right; color: #065f46; font-weight: 700;">Valor Total</th>
+      </tr>
+    </thead>
+    <tbody>`;
+  
+  itens.forEach(item => {
+    html += `
+      <tr style="border-bottom: 1px solid #d1fae5;" onmouseover="this.style.background='#ecfdf5'" onmouseout="this.style.background=''">
+        <td style="padding: 10px; font-weight: 600; color: #1e293b;">${item.nome}</td>
+        <td style="padding: 10px; color: #64748b;"><span style="background: #d1fae5; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; color: #065f46;">${item.categoria || '-'}</span></td>
+        <td style="padding: 10px; text-align: right; font-weight: 700; color: #059669;">${parseFloat(item.estoque).toFixed(0)} ${item.unidade || 'un'}</td>
+        <td style="padding: 10px; text-align: right; color: #475569;">R$ ${parseFloat(item.preco_custo || 0).toFixed(2).replace('.', ',')}</td>
+        <td style="padding: 10px; text-align: right; font-weight: 700; color: #047857;">R$ ${parseFloat(item.custo_total || 0).toFixed(2).replace('.', ',')}</td>
+      </tr>`;
+  });
+  
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+async function carregarProdutosMovimentacao() {
+  try {
+    const res = await fetch('/api/menu');
+    if (!res.ok) return;
+    const menu = await res.json();
+    const select = document.getElementById('mov-produto');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">Selecione um produto...</option>';
+    menu.filter(p => p.estoque !== -1).forEach(p => {
+      select.innerHTML += `<option value="${p.id}">${p.nome} (Estoque: ${p.estoque} ${p.unidade || 'un'})</option>`;
+    });
+  } catch (err) {
+    console.warn('⚠️ Erro ao carregar produtos para movimentação:', err.message);
+  }
+}
+
+async function registrarMovimentacao() {
+  const menuId = document.getElementById('mov-produto')?.value;
+  const quantidade = document.getElementById('mov-quantidade')?.value;
+  const tipo = document.getElementById('mov-tipo')?.value;
+  const motivo = document.getElementById('mov-motivo')?.value;
+  
+  if (!menuId || !quantidade || parseFloat(quantidade) <= 0) {
+    mostrarAlerta('⚠️ Selecione um produto e informe a quantidade.', 'aviso');
+    return;
+  }
+  
+  try {
+    const res = await fetch('/api/estoque/movimentacao', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ menu_id: menuId, quantidade, tipo, motivo })
+    });
+    
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Erro desconhecido');
+    }
+    
+    mostrarAlerta('✅ Movimentação registrada com sucesso!', 'sucesso');
+    
+    // Limpa campos
+    document.getElementById('mov-quantidade').value = '';
+    document.getElementById('mov-motivo').value = '';
+    
+    // Recarrega relatórios
+    await carregarRelatoriosEstoque();
+  } catch (err) {
+    console.warn('⚠️ Erro ao registrar movimentação:', err.message);
+    mostrarAlerta(`⚠️ ${err.message}`, 'erro');
+  }
+}
+
 async function carregarStatusWhatsApp() {
   const badge = document.getElementById('whatsapp-status-badge');
   const numberEl = document.getElementById('whatsapp-notify-number');
@@ -1511,6 +1832,11 @@ async function abrirModalItemMenu(item = null) {
     if (document.getElementById('menu-visivel')) document.getElementById('menu-visivel').checked = (item.visivel === true || item.visivel === 1 || item.visivel === null || item.visivel === undefined);
     if (document.getElementById('menu-promocao')) document.getElementById('menu-promocao').checked = (item.em_promocao === true || item.em_promocao === 1);
 
+    // ✅ Carrega preço de custo e unidade corretamente
+    if (document.getElementById('menu-preco-custo')) document.getElementById('menu-preco-custo').value = item.preco_custo || '';
+    if (document.getElementById('menu-unidade')) document.getElementById('menu-unidade').value = item.unidade || 'un';
+    sinalizarUnidadeEstoque();
+
     // Tenta selecionar no dropdown
     const catUpper = item.categoria.trim().toUpperCase();
     if (selectCat.querySelector(`option[value="${catUpper}"]`)) {
@@ -1529,11 +1855,15 @@ async function abrirModalItemMenu(item = null) {
     const btnExcluir = document.getElementById('btn-excluir-item-menu');
     if (btnExcluir) btnExcluir.classList.add('hidden');
     
-    ['menu-nome', 'menu-descricao', 'menu-preco-original', 'menu-preco', 'menu-img', 'menu-validade'].forEach(id => {
+    ['menu-nome', 'menu-descricao', 'menu-preco-original', 'menu-preco', 'menu-img', 'menu-validade', 'menu-preco-custo'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
     if (document.getElementById('menu-estoque')) document.getElementById('menu-estoque').value = '-1';
+    if (document.getElementById('menu-unidade')) document.getElementById('menu-unidade').value = 'un';
+    if (document.getElementById('menu-enviar-cozinha')) document.getElementById('menu-enviar-cozinha').checked = true;
+    if (document.getElementById('menu-visivel')) document.getElementById('menu-visivel').checked = true;
+    if (document.getElementById('menu-promocao')) document.getElementById('menu-promocao').checked = false;
     if (selectCat) selectCat.value = '';
   }
 
@@ -1622,7 +1952,10 @@ async function processarAcaoMenu() {
     return await mostrarAlerta("Por favor, preencha o nome, categoria e preço corretamente.", "Aviso", "⚠️");
   }
 
-  const payload = { nome, descricao, categoria: categoria.toUpperCase(), preco, preco_original, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao };
+  const preco_custo = parseFloat(document.getElementById('menu-preco-custo')?.value) || 0;
+  const unidade = document.getElementById('menu-unidade')?.value || 'un';
+
+  const payload = { nome, descricao, categoria: categoria.toUpperCase(), preco, preco_original, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, preco_custo, unidade };
   const method = idItemEdicaoMenu ? 'PUT' : 'POST';
   const url = idItemEdicaoMenu ? `/api/menu/${idItemEdicaoMenu}` : '/api/menu';
 
@@ -1674,6 +2007,17 @@ async function processarAcaoMenu() {
 
 function prepararEdicaoMenu(item) {
   abrirModalItemMenu(item);
+}
+
+function sinalizarUnidadeEstoque() {
+  const select = document.getElementById('menu-unidade');
+  const label = document.querySelector('label[for="menu-estoque"], label:has(+ #menu-estoque)');
+  const unidade = select ? select.value : 'un';
+  const labelEl = document.getElementById('menu-estoque')?.closest('.modal-form-group')?.querySelector('label');
+  if (labelEl) {
+    const textos = { un: 'Estoque em Unidades (-1 = ilimitado)', ml: 'Estoque em ml (-1 = ilimitado)', g: 'Estoque em g (-1 = ilimitado)' };
+    labelEl.textContent = textos[unidade] || 'Estoque (-1 = ilimitado)';
+  }
 }
 
 // ─── FICHA TÉCNICA / CONTROLE DE DOSE ────────────────────────────────────────
@@ -1995,15 +2339,20 @@ async function exibirMenuConfig() {
     if (!res.ok) return;
     cardapio = await res.json(); // Atualiza variável global
     
-    // 1. POPULA O SELECT DE CATEGORIAS (Se estiver apenas com a opção padrão)
-    if (selectFiltroCat && selectFiltroCat.options.length <= 1) {
+    // 1. POPULA O SELECT DE CATEGORIAS (sempre reconstrói para refletir novas categorias)
+    if (selectFiltroCat) {
+      const catSelecionadaAtual = selectFiltroCat.value; // preserva seleção atual
       const categoriasUnicas = [...new Set(cardapio.map(item => item.categoria.trim().toUpperCase()))].sort();
+
+      // Reconstrói do zero
+      selectFiltroCat.innerHTML = '<option value="">📂 Todas</option>';
       categoriasUnicas.forEach(cat => {
         const opt = document.createElement('option');
         opt.value = cat;
         opt.innerText = cat;
         selectFiltroCat.appendChild(opt);
       });
+
       // Adiciona o filtro virtual de Produtos Vencidos no Dropdown
       const optVencido = document.createElement('option');
       optVencido.value = 'VENCIDOS';
@@ -2027,6 +2376,9 @@ async function exibirMenuConfig() {
       optProxVencimento.style.fontWeight = 'bold';
       optProxVencimento.style.color = '#f39c12';
       selectFiltroCat.appendChild(optProxVencimento);
+
+      // Restaura a seleção anterior (se ainda existir)
+      if (catSelecionadaAtual) selectFiltroCat.value = catSelecionadaAtual;
 
       // Sincroniza com a interface customizada
       sincronizarFiltroCustomizado();
@@ -4052,10 +4404,10 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
     if (!await mostrarConfirmacao(msgHtml, "Atenção: Pedido Incompleto", "Sim, Fechar Conta", "Não, Esperar Cozinha")) {
       return;
     }
-  } else if (itensProntosNaoEntregues.length > 0 || itensForaCozinhaPend.length > 0) {
-    // Caso de itens prontos ou bebidas que não passaram pela cozinha mas não foram marcados como entregues
-    const total = itensProntosNaoEntregues.length + itensForaCozinhaPend.length;
-    if (!await mostrarConfirmacao(`✅ A COZINHA já finalizou tudo! No entanto, ainda há ${total} itens que não foram marcados como ENTREGUES. Deseja prosseguir com o fechamento?`, "Itens Pendentes", "Sim, Prosseguir", "Não, Cancelar")) {
+  } else if (itensProntosNaoEntregues.length > 0) {
+    // Caso de itens prontos (cozinha finalizou) mas não foram marcados como entregues
+    const total = itensProntosNaoEntregues.length;
+    if (!await mostrarConfirmacao(`✅ A COZINHA já finalizou tudo! No entanto, ainda há ${total} ${total === 1 ? 'item' : 'itens'} que não ${total === 1 ? 'foi marcado' : 'foram marcados'} como ENTREGUE${total === 1 ? '' : 'S'}. Deseja prosseguir com o fechamento?`, "Itens Pendentes", "Sim, Prosseguir", "Não, Cancelar")) {
       return;
     }
   }

@@ -1352,6 +1352,7 @@ async function initDb() {
     `CREATE TABLE IF NOT EXISTS codigos_acesso (id SERIAL PRIMARY KEY, mesa_id INTEGER, codigo TEXT NOT NULL, status TEXT DEFAULT 'ativo', criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE TABLE IF NOT EXISTS push_subscriptions (id SERIAL PRIMARY KEY, garcom_id TEXT, endpoint TEXT, p256dh TEXT, auth TEXT, app_type TEXT DEFAULT 'garcom', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE TABLE IF NOT EXISTS ficha_tecnica (id SERIAL PRIMARY KEY, menu_id INTEGER NOT NULL, ingrediente_id INTEGER NOT NULL, quantidade REAL NOT NULL, unidade TEXT DEFAULT 'un')`,
+    `CREATE TABLE IF NOT EXISTS estoque_movimentacoes (id SERIAL PRIMARY KEY, menu_id INTEGER NOT NULL, quantidade REAL NOT NULL, tipo TEXT NOT NULL, motivo TEXT, criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE INDEX IF NOT EXISTS idx_pedido_itens_pedido_id ON pedido_itens(pedido_id)`,
     `CREATE INDEX IF NOT EXISTS idx_pedidos_mesa_id ON pedidos(mesa_id)`,
     `CREATE INDEX IF NOT EXISTS idx_pedidos_status ON pedidos(status)`
@@ -3016,14 +3017,137 @@ app.post('/api/config/ordem-categorias', isAdmin, async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// ─── Relatórios e Auditoria de Estoque ─────────────────────────────────────
+app.get('/api/relatorios/estoque', isAdmin, async (req, res) => {
+  const { inicio, fim } = req.query;
+  const dateInicio = inicio ? `${inicio} 00:00:00` : '1970-01-01 00:00:00';
+  const dateFim = fim ? `${fim} 23:59:59` : '2999-12-31 23:59:59';
+
+  try {
+    // 1. Valor do Estoque Detalhado e Total
+    const valorEstoqueDetalhadoRes = await query(`
+      SELECT id, nome, categoria, estoque, unidade, preco_custo, preco, (estoque * preco_custo) as custo_total 
+      FROM menu 
+      WHERE estoque > 0 
+      ORDER BY custo_total DESC
+    `);
+    const valorEstoque = valorEstoqueDetalhadoRes.rows.reduce((acc, item) => acc + (parseFloat(item.custo_total) || 0), 0);
+
+    // 2. Produtos Mais Vendidos e Lucro Realizado
+    const maisVendidosRes = await query(
+      `SELECT m.id, m.nome, m.categoria, m.unidade, m.preco, m.preco_custo,
+              SUM(pi.quantidade) as total_vendido,
+              SUM(pi.quantidade * (m.preco - m.preco_custo)) as lucro_total
+       FROM pedido_itens pi
+       JOIN menu m ON pi.menu_id = m.id
+       JOIN pedidos p ON pi.pedido_id = p.id
+       WHERE p.status NOT IN ('cancelado', 'rascunho')
+         AND p.created_at >= ?
+         AND p.created_at <= ?
+       GROUP BY m.id, m.nome, m.categoria, m.unidade, m.preco, m.preco_custo
+       ORDER BY total_vendido DESC`,
+      [dateInicio, dateFim]
+    );
+
+    // 3. Produtos Parados (Sem saídas no período selecionado)
+    const produtosParadosRes = await query(
+      `SELECT id, nome, categoria, estoque, unidade, preco_custo
+       FROM menu
+       WHERE estoque > 0
+         AND id NOT IN (
+           SELECT DISTINCT pi.menu_id
+           FROM pedido_itens pi
+           JOIN pedidos p ON pi.pedido_id = p.id
+           WHERE p.status NOT IN ('cancelado', 'rascunho')
+             AND p.created_at >= ?
+             AND p.created_at <= ?
+         )
+       ORDER BY categoria ASC, nome ASC`,
+      [dateInicio, dateFim]
+    );
+
+    // 4. Histórico de Movimentações (Entradas, Saídas, Perdas)
+    const movimentacoesRes = await query(
+      `SELECT em.id, em.menu_id, em.quantidade, em.tipo, em.motivo, em.criado_at,
+              m.nome as produto_nome, m.unidade as produto_unidade
+       FROM estoque_movimentacoes em
+       JOIN menu m ON em.menu_id = m.id
+       WHERE em.criado_at >= ?
+         AND em.criado_at <= ?
+       ORDER BY em.criado_at DESC LIMIT 200`,
+      [dateInicio, dateFim]
+    );
+
+    // 5. Consolidados de Perdas e Entradas
+    const totaisRes = await query(
+      `SELECT em.tipo, SUM(em.quantidade) as total_qtd,
+              SUM(em.quantidade * m.preco_custo) as total_valor
+       FROM estoque_movimentacoes em
+       JOIN menu m ON em.menu_id = m.id
+       WHERE em.criado_at >= ?
+         AND em.criado_at <= ?
+       GROUP BY em.tipo`,
+      [dateInicio, dateFim]
+    );
+
+    res.json({
+      valorEstoque,
+      valorEstoqueDetalhado: valorEstoqueDetalhadoRes.rows,
+      maisVendidos: maisVendidosRes.rows,
+      produtosParados: produtosParadosRes.rows,
+      movimentacoes: movimentacoesRes.rows,
+      totais: totaisRes.rows
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/estoque/movimentacao', isAdmin, async (req, res) => {
+  const { menu_id, quantidade, tipo, motivo } = req.body;
+  const menuId = parseInt(menu_id);
+  const qtd = parseFloat(quantidade);
+
+  if (!menuId || isNaN(qtd) || qtd <= 0 || !['entrada', 'perda', 'saida'].includes(tipo)) {
+    return res.status(400).json({ error: 'Parâmetros inválidos' });
+  }
+
+  try {
+    const p = (await query('SELECT estoque, nome FROM menu WHERE id = ?', [menuId])).rows[0];
+    if (!p) return res.status(404).json({ error: 'Produto não encontrado' });
+
+    // Atualiza estoque se não for ilimitado (-1)
+    if (p.estoque !== -1) {
+      const fator = tipo === 'entrada' ? 1 : -1;
+      const novoEstoque = Math.max(0, p.estoque + (qtd * fator));
+      await query('UPDATE menu SET estoque = ? WHERE id = ?', [novoEstoque, menuId]);
+    }
+
+    // Registra a movimentação
+    await query(
+      'INSERT INTO estoque_movimentacoes (menu_id, quantidade, tipo, motivo) VALUES (?, ?, ?, ?)',
+      [menuId, qtd, tipo, motivo || (tipo === 'entrada' ? 'Entrada manual' : 'Perda manual')]
+    );
+
+    await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+
 app.put('/api/menu/:id', isAdmin, async (req, res) => {
-  const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao } = req.body;
+  const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, unidade, preco_custo } = req.body;
   const dataValidade = validade && validade.trim() !== "" ? validade : null;
   const envCozinha = enviar_cozinha !== undefined ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
   const isVisivel = visivel !== undefined ? (isPostgres ? visivel : (visivel ? 1 : 0)) : (isPostgres ? true : 1);
   const emPromocao = em_promocao !== undefined ? (isPostgres ? em_promocao : (em_promocao ? 1 : 0)) : (isPostgres ? false : 0);
+  const und = unidade || 'un';
+  const custo = parseFloat(preco_custo) || 0.0;
   try {
-    await query('UPDATE menu SET nome = ?, categoria = ?, preco = ?, preco_original = ?, descricao = ?, imagem = ?, estoque = ?, validade = ?, enviar_cozinha = ?, visivel = ?, em_promocao = ? WHERE id = ?', [nome, categoria, preco, preco_original, descricao, imagem, estoque, dataValidade, envCozinha, isVisivel, emPromocao, req.params.id]);
+    await query('UPDATE menu SET nome = ?, categoria = ?, preco = ?, preco_original = ?, descricao = ?, imagem = ?, estoque = ?, validade = ?, enviar_cozinha = ?, visivel = ?, em_promocao = ?, unidade = ?, preco_custo = ? WHERE id = ?', [nome, categoria, preco, preco_original, descricao, imagem, estoque, dataValidade, envCozinha, isVisivel, emPromocao, und, custo, req.params.id]);
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
     res.json({ success: true });
   } catch (error) {
@@ -3032,17 +3156,19 @@ app.put('/api/menu/:id', isAdmin, async (req, res) => {
 });
 
 app.post('/api/menu', isAdmin, async (req, res) => {
-  const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao } = req.body;
+  const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, unidade, preco_custo } = req.body;
   const envCozinha = enviar_cozinha !== undefined ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
   const isVisivel = visivel !== undefined ? (isPostgres ? visivel : (visivel ? 1 : 0)) : (isPostgres ? true : 1);
   const emPromocao = em_promocao !== undefined ? (isPostgres ? em_promocao : (em_promocao ? 1 : 0)) : (isPostgres ? false : 0);
+  const und = unidade || 'un';
+  const custo = parseFloat(preco_custo) || 0.0;
   try {
     let newId = null;
     if (isPostgres) {
-      const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [nome, categoria, preco, preco_original, descricao, imagem, estoque || -1, validade || null, envCozinha, isVisivel, emPromocao]);
+      const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, unidade, preco_custo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [nome, categoria, preco, preco_original, descricao, imagem, estoque || -1, validade || null, envCozinha, isVisivel, emPromocao, und, custo]);
       newId = result.rows && result.rows[0] ? result.rows[0].id : null;
     } else {
-      const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [nome, categoria, preco, preco_original, descricao, imagem, estoque || -1, validade || null, envCozinha, isVisivel, emPromocao]);
+      const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, unidade, preco_custo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [nome, categoria, preco, preco_original, descricao, imagem, estoque || -1, validade || null, envCozinha, isVisivel, emPromocao, und, custo]);
       newId = result.lastID || null;
     }
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
@@ -3903,6 +4029,8 @@ app.get('/api/diag', async (req, res) => {
         `CREATE TABLE IF NOT EXISTS fluxo_caixa (id SERIAL PRIMARY KEY, data_abertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, data_fechamento TIMESTAMP, valor_inicial REAL NOT NULL, valor_final REAL, status TEXT DEFAULT 'aberto', total_dinheiro REAL DEFAULT 0, total_pix REAL DEFAULT 0, total_cartao REAL DEFAULT 0, total_vendas REAL DEFAULT 0)`,
         `CREATE TABLE IF NOT EXISTS codigos_acesso (id SERIAL PRIMARY KEY, mesa_id INTEGER, codigo TEXT NOT NULL, status TEXT DEFAULT 'ativo', criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
         `CREATE TABLE IF NOT EXISTS push_subscriptions (id SERIAL PRIMARY KEY, garcom_id TEXT, endpoint TEXT, p256dh TEXT, auth TEXT, app_type TEXT DEFAULT 'garcom', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS ficha_tecnica (id SERIAL PRIMARY KEY, menu_id INTEGER NOT NULL, ingrediente_id INTEGER NOT NULL, quantidade REAL NOT NULL, unidade TEXT DEFAULT 'un')`,
+        `CREATE TABLE IF NOT EXISTS estoque_movimentacoes (id SERIAL PRIMARY KEY, menu_id INTEGER NOT NULL, quantidade REAL NOT NULL, tipo TEXT NOT NULL, motivo TEXT, criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
         `CREATE INDEX IF NOT EXISTS idx_pedido_itens_pedido_id ON pedido_itens(pedido_id)`,
         `CREATE INDEX IF NOT EXISTS idx_pedidos_mesa_id ON pedidos(mesa_id)`,
         `CREATE INDEX IF NOT EXISTS idx_pedidos_status ON pedidos(status)`

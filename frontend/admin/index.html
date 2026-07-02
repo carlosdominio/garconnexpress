@@ -713,6 +713,9 @@
           <button class="config-nav-btn" onclick="switchConfigSubTab('bottexts')">
             <i class="fa-solid fa-message"></i> Textos do Robô
           </button>
+          <button class="config-nav-btn" onclick="switchConfigSubTab('relatorios')">
+            <i class="fa-solid fa-chart-line"></i> Relatórios
+          </button>
         </aside>
 
         <!-- Conteúdo das Configurações -->
@@ -945,6 +948,132 @@
             </div>
           </div>
 
+          <!-- Sub-seção: Relatórios de Estoque -->
+          <div id="config-sub-relatorios" class="config-sub-section">
+            <div class="config-card">
+              <h3><i class="fa-solid fa-chart-line"></i> Relatórios de Estoque</h3>
+              <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">Acompanhe vendas, estoque, movimentações e lucratividade.</p>
+              
+              <!-- Filtro de Período -->
+              <div style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1.5rem; background: #f1f5f9; padding: 15px; border-radius: 10px;">
+                <div style="flex: 1; min-width: 140px;">
+                  <label style="font-size: 0.8rem; font-weight: 600; color: #475569; display: block; margin-bottom: 4px;">Data Início</label>
+                  <input type="date" id="rel-data-inicio" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
+                </div>
+                <div style="flex: 1; min-width: 140px;">
+                  <label style="font-size: 0.8rem; font-weight: 600; color: #475569; display: block; margin-bottom: 4px;">Data Fim</label>
+                  <input type="date" id="rel-data-fim" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
+                </div>
+                <button onclick="carregarRelatoriosEstoque()" style="padding: 8px 20px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 0.9rem; white-space: nowrap; transition: all 0.2s;" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(99,102,241,0.4)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+                  <i class="fa-solid fa-magnifying-glass-chart"></i> Gerar Relatório
+                </button>
+              </div>
+
+              <!-- Loading -->
+              <div id="rel-loading" class="hidden" style="text-align: center; padding: 40px; color: #8b5cf6;">
+                <i class="fa-solid fa-spinner fa-spin" style="font-size: 2rem;"></i>
+                <p style="margin-top: 10px; font-weight: 600;">Carregando relatórios...</p>
+              </div>
+
+              <!-- Container dos Relatórios -->
+              <div id="rel-container" class="hidden">
+                
+                <!-- Cards Resumo -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 1.5rem;">
+                  <div style="background: linear-gradient(135deg, #059669, #10b981); color: white; padding: 18px; border-radius: 12px; box-shadow: 0 4px 15px rgba(16,185,129,0.3);">
+                    <div style="font-size: 0.8rem; opacity: 0.85; font-weight: 600;">💰 VALOR DO ESTOQUE</div>
+                    <div id="rel-valor-estoque" style="font-size: 1.8rem; font-weight: 900; margin-top: 5px;">R$ 0,00</div>
+                  </div>
+                  <div style="background: linear-gradient(135deg, #2563eb, #3b82f6); color: white; padding: 18px; border-radius: 12px; box-shadow: 0 4px 15px rgba(59,130,246,0.3);">
+                    <div style="font-size: 0.8rem; opacity: 0.85; font-weight: 600;">📦 ENTRADAS</div>
+                    <div id="rel-total-entradas" style="font-size: 1.8rem; font-weight: 900; margin-top: 5px;">0</div>
+                    <div id="rel-valor-entradas" style="font-size: 0.8rem; opacity: 0.85;">R$ 0,00</div>
+                  </div>
+                  <div style="background: linear-gradient(135deg, #dc2626, #ef4444); color: white; padding: 18px; border-radius: 12px; box-shadow: 0 4px 15px rgba(239,68,68,0.3);">
+                    <div style="font-size: 0.8rem; opacity: 0.85; font-weight: 600;">🗑️ PERDAS</div>
+                    <div id="rel-total-perdas" style="font-size: 1.8rem; font-weight: 900; margin-top: 5px;">0</div>
+                    <div id="rel-valor-perdas" style="font-size: 0.8rem; opacity: 0.85;">R$ 0,00</div>
+                  </div>
+                  <div style="background: linear-gradient(135deg, #7c3aed, #a855f7); color: white; padding: 18px; border-radius: 12px; box-shadow: 0 4px 15px rgba(168,85,247,0.3);">
+                    <div style="font-size: 0.8rem; opacity: 0.85; font-weight: 600;">🏆 LUCRO ESTIMADO</div>
+                    <div id="rel-lucro-total" style="font-size: 1.8rem; font-weight: 900; margin-top: 5px;">R$ 0,00</div>
+                  </div>
+                </div>
+
+                <!-- Consumo por Período -->
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                  <h4 style="margin: 0 0 15px 0; color: #1e293b; font-size: 1rem;"><i class="fa-solid fa-utensils" style="color: #10b981;"></i> Consumo por Período</h4>
+                  <div id="rel-consumo" style="overflow-x: auto;">
+                    <p style="color: #94a3b8; text-align: center; padding: 20px;">Clique em "Gerar Relatório" para visualizar.</p>
+                  </div>
+                </div>
+
+                <!-- Entradas -->
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                  <h4 style="margin: 0 0 15px 0; color: #1e293b; font-size: 1rem;"><i class="fa-solid fa-box-open" style="color: #3b82f6;"></i> Entradas</h4>
+                  <div id="rel-entradas" style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
+                    <p style="color: #94a3b8; text-align: center; padding: 20px;">Clique em "Gerar Relatório" para visualizar.</p>
+                  </div>
+                </div>
+
+                <!-- Saídas -->
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                  <h4 style="margin: 0 0 15px 0; color: #1e293b; font-size: 1rem;"><i class="fa-solid fa-dolly" style="color: #f59e0b;"></i> Saídas (Ajustes/Transferências)</h4>
+                  <div id="rel-saidas" style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
+                    <p style="color: #94a3b8; text-align: center; padding: 20px;">Clique em "Gerar Relatório" para visualizar.</p>
+                  </div>
+                </div>
+
+                <!-- Perdas -->
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                  <h4 style="margin: 0 0 15px 0; color: #1e293b; font-size: 1rem;"><i class="fa-solid fa-trash-can" style="color: #ef4444;"></i> Perdas</h4>
+                  <div id="rel-perdas" style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
+                    <p style="color: #94a3b8; text-align: center; padding: 20px;">Clique em "Gerar Relatório" para visualizar.</p>
+                  </div>
+                </div>
+
+                <!-- Valor do Estoque Detalhado -->
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                  <h4 style="margin: 0 0 15px 0; color: #1e293b; font-size: 1rem;"><i class="fa-solid fa-sack-dollar" style="color: #059669;"></i> Valor do Estoque Detalhado</h4>
+                  <div id="rel-valor-estoque-detalhado" style="overflow-x: auto; max-height: 500px; overflow-y: auto;">
+                    <p style="color: #94a3b8; text-align: center; padding: 20px;">Clique em "Gerar Relatório" para visualizar.</p>
+                  </div>
+                </div>
+
+                <!-- Registrar Movimentação Manual -->
+                <div style="background: #fffbeb; border: 2px solid #fbbf24; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                  <h4 style="margin: 0 0 15px 0; color: #92400e; font-size: 1rem;"><i class="fa-solid fa-pen-to-square"></i> Registrar Movimentação Manual</h4>
+                  <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+                    <div style="flex: 2; min-width: 180px;">
+                      <label style="font-size: 0.8rem; font-weight: 600; color: #78350f; display: block; margin-bottom: 4px;">Produto</label>
+                      <select id="mov-produto" style="width: 100%; padding: 8px; border: 1px solid #fbbf24; border-radius: 8px; background: white; font-size: 0.85rem;"></select>
+                    </div>
+                    <div style="flex: 1; min-width: 100px;">
+                      <label style="font-size: 0.8rem; font-weight: 600; color: #78350f; display: block; margin-bottom: 4px;">Quantidade</label>
+                      <input type="number" id="mov-quantidade" min="0.1" step="0.1" placeholder="0" style="width: 100%; padding: 8px; border: 1px solid #fbbf24; border-radius: 8px; font-size: 0.85rem;">
+                    </div>
+                    <div style="flex: 1; min-width: 120px;">
+                      <label style="font-size: 0.8rem; font-weight: 600; color: #78350f; display: block; margin-bottom: 4px;">Tipo</label>
+                      <select id="mov-tipo" style="width: 100%; padding: 8px; border: 1px solid #fbbf24; border-radius: 8px; background: white; font-size: 0.85rem;">
+                        <option value="entrada">📦 Entrada</option>
+                        <option value="saida">📤 Saída</option>
+                        <option value="perda">🗑️ Perda</option>
+                      </select>
+                    </div>
+                    <div style="flex: 2; min-width: 180px;">
+                      <label style="font-size: 0.8rem; font-weight: 600; color: #78350f; display: block; margin-bottom: 4px;">Motivo (Opcional)</label>
+                      <input type="text" id="mov-motivo" placeholder="Ex: Compra fornecedor" style="width: 100%; padding: 8px; border: 1px solid #fbbf24; border-radius: 8px; font-size: 0.85rem;">
+                    </div>
+                    <button onclick="registrarMovimentacao()" style="padding: 8px 20px; background: linear-gradient(135deg, #d97706, #f59e0b); color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 0.85rem; white-space: nowrap; transition: all 0.2s;" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(245,158,11,0.4)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+                      <i class="fa-solid fa-plus"></i> Registrar
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </section>
@@ -995,6 +1124,22 @@
             <input type="number" id="menu-preco-original" placeholder="0.00" step="0.50">
           </div>
         </div>
+
+        <div class="modal-form-row">
+          <div class="modal-form-group">
+            <label>Preço de Custo (Margem)</label>
+            <input type="number" id="menu-preco-custo" placeholder="0.00" step="0.05">
+          </div>
+          <div class="modal-form-group">
+            <label>Unidade de Medida</label>
+            <select id="menu-unidade" onchange="sinalizarUnidadeEstoque()">
+              <option value="un">un (Unidades)</option>
+              <option value="ml">ml (Mililitros)</option>
+              <option value="g">g (Gramas)</option>
+            </select>
+          </div>
+        </div>
+
 
         <div class="modal-form-group">
           <label>Estoque (-1 = ilimitado)</label>
