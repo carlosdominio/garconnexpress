@@ -2491,7 +2491,7 @@ async function exibirMenuConfig() {
                     <strong style="${(m.visivel === false || m.visivel === 0) ? 'color: #95a5a6;' : ''}">${m.nome}</strong>
                     <small>${m.categoria} - ${m.preco_original ? `<span style="text-decoration: line-through; opacity: 0.6; font-size: 0.8rem;">R$ ${m.preco_original.toFixed(2)}</span> ` : ''}<span style="${m.em_promocao ? 'color: #e74c3c; font-weight: bold;' : ''}">R$ ${m.preco.toFixed(2)}</span></small>
                     <small style="color: ${m.estoque === 0 ? '#e74c3c' : '#27ae60'}; font-weight: bold;">
-                      Estoque: ${m.estoque === -1 ? 'Ilimitado' : m.estoque}
+                      Estoque: ${m.estoque === -1 ? 'Ilimitado' : `${m.estoque} ${m.unidade || 'un'}`}
                     </small>
                     <small>${validadeHtml}</small>
                   </div>
