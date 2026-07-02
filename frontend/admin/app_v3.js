@@ -859,8 +859,23 @@ async function carregarProdutosMovimentacao() {
     if (!select) return;
     
     select.innerHTML = '<option value="">Selecione um produto...</option>';
-    menu.filter(p => p.estoque !== -1).forEach(p => {
-      select.innerHTML += `<option value="${p.id}">${p.nome} (Estoque: ${p.estoque} ${p.unidade || 'un'})</option>`;
+    
+    // Agrupa por categoria para facilitar a visualização
+    const comEstoque = menu.filter(p => p.estoque !== -1);
+    const categorias = [...new Set(comEstoque.map(p => p.categoria.trim().toUpperCase()))].sort();
+    
+    categorias.forEach(cat => {
+      const grupo = document.createElement('optgroup');
+      grupo.label = `📂 ${cat}`;
+      comEstoque
+        .filter(p => p.categoria.trim().toUpperCase() === cat)
+        .forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = `${p.nome}  |  Estoque: ${p.estoque} ${p.unidade || 'un'}`;
+          grupo.appendChild(opt);
+        });
+      select.appendChild(grupo);
     });
   } catch (err) {
     console.warn('⚠️ Erro ao carregar produtos para movimentação:', err.message);
