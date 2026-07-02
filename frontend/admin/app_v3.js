@@ -2356,7 +2356,14 @@ async function exibirMenuConfig() {
     
     // 1. POPULA O SELECT DE CATEGORIAS (sempre reconstrói para refletir novas categorias)
     if (selectFiltroCat) {
-      const catSelecionadaAtual = selectFiltroCat.value; // preserva seleção atual
+      let catSelecionadaAtual = selectFiltroCat.value; // preserva seleção atual
+      
+      // Se acabou de ser renomeada, usa a categoria forçada
+      if (window.categoriaForcadaAposRenomear) {
+        catSelecionadaAtual = window.categoriaForcadaAposRenomear;
+        window.categoriaForcadaAposRenomear = null; // limpa após usar
+      }
+      
       const categoriasUnicas = [...new Set(cardapio.map(item => item.categoria.trim().toUpperCase()))].sort();
 
       // Reconstrói do zero
@@ -2597,11 +2604,8 @@ async function confirmarRenomearCategoria() {
       mostrarToast("✅ Categoria renomeada com sucesso!");
       fecharModalRenomearCategoria();
       
-      // Atualiza a seleção do filtro para a nova categoria renomeada
-      const selectFiltroCat = document.getElementById('filtro-menu-categoria');
-      if (selectFiltroCat) {
-        selectFiltroCat.value = novoNome.trim().toUpperCase();
-      }
+      // Salva na variável global temporária para ser aplicada quando o select for reconstruído
+      window.categoriaForcadaAposRenomear = novoNome.trim().toUpperCase();
       
       carregarCardapio();
     } else {
