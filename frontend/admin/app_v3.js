@@ -4925,7 +4925,21 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
       isImpressaoParcialMesa: true,
       total: (subtotalLocal + taxaServico + acrescimo - desconto)
     };
-    imprimirCupom(pedidoParcialMock, selecionados);
+    
+    (async () => {
+      const htmlPrevia = await imprimirCupom(pedidoParcialMock, selecionados, true);
+      document.getElementById('conteudo-previa-bobina').innerHTML = htmlPrevia;
+      
+      const btnReal = document.getElementById('btn-imprimir-real-previa');
+      btnReal.onclick = function() {
+        imprimirCupom(pedidoParcialMock, selecionados);
+        fecharPreviaCupom();
+      };
+      
+      document.getElementById('modal-previa-cupom').style.display = 'flex';
+    })();
+    
+    isConfirmandoPagamentoAdmin = false;
     return;
   }
 
@@ -5934,7 +5948,7 @@ async function reimprimirCupomById(id) {
   }
 }
 
-async function imprimirCupom(pedido, itens) {
+async function imprimirCupom(pedido, itens, isOnlyHtml = false) {
   const container = document.getElementById('cupom-impressao');
   if (!container) return;
   aplicarConfiguracaoImpressao();
@@ -6232,6 +6246,10 @@ async function imprimirCupom(pedido, itens) {
       <p style="margin: 2px 0; font-size: 8pt;">GuGA Bebidas - Sistema de Gestão</p>
     </div>
   `;
+
+  if (isOnlyHtml) {
+    return html;
+  }
 
   container.innerHTML = html;
   setTimeout(() => { window.print(); }, 250);
@@ -7211,4 +7229,8 @@ async function liberarMesaSemPedidoFromModal() {
   const { id, numero } = _mesaAguardandoAtual;
   fecharModalMesaAguardando();
   await liberarMesaSemPedido(id, numero);
+}
+
+function fecharPreviaCupom() {
+  document.getElementById('modal-previa-cupom').style.display = 'none';
 }
