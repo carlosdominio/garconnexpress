@@ -3950,6 +3950,112 @@ app.post('/api/config/categorias-cozinha', isAdmin, async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// ─── ROTAS FCM (BLINDADAS PARA VERCEL) ───────────────────────────────────────
+
+const FCM_DEFAULTS = [
+  { evento: 'novo-pedido', tituloPadrao: '🚀 NOVO PEDIDO', corpoPadrao: '{mesa}', destinatario: 'garcom', variaveis: ['mesa', 'itens'] },
+  { evento: 'item-adicionado', tituloPadrao: '➕ ITEM ADICIONADO', corpoPadrao: '{mesa} pediu mais itens!', destinatario: 'garcom', variaveis: ['mesa', 'item', 'qtd'] },
+  { evento: 'pedido-cancelado', tituloPadrao: '❌ PEDIDO CANCELADO', corpoPadrao: '{mesa}', destinatario: 'cozinha', variaveis: ['mesa', 'item'] },
+  { evento: 'chamado-garcom', tituloPadrao: '🛎️ CHAMADO', corpoPadrao: '{mesa} está chamando!', destinatario: 'garcom', variaveis: ['mesa'] },
+  { evento: 'pedido-pronto', tituloPadrao: '🍳 PRONTO', corpoPadrao: '{mesa}', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
+  { evento: 'solicitacao-fechamento-cliente', tituloPadrao: '💰 FECHAMENTO', corpoPadrao: '{mesa} solicitou a conta', destinatario: 'garcom', variaveis: ['mesa'] },
+  { evento: 'status-caixa-atualizado', tituloPadrao: '💰 CAIXA', corpoPadrao: '{status}', destinatario: 'todos', variaveis: ['status'] }
+];
+
+app.post('/api/fcm-config/listar', ensureDbInitialized, isAdmin, async (req, res) => {
+  try {
+    const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_title_%' OR chave LIKE 'fcm_body_%' OR chave = 'fcm_custom_events'")).rows;
+    const configMap = {};
+    for (const r of configData) configMap[r.chave] = r.valor;
+
+    const sistema = FCM_DEFAULTS.map(d => ({
+      ...d,
+      titulo: configMap[`fcm_title_${d.evento}`] || null,
+      corpo: configMap[`fcm_body_${d.evento}`] || null
+    }));
+
+    const customizados = configMap['fcm_custom_events'] ? JSON.parse(configMap['fcm_custom_events']) : [];
+    res.json({ success: true, sistema, customizados });
+  } catch (error) { 
+    res.json({ success: false, error: 'Falha ao buscar dados no banco', detalhes: error.message }); 
+  }
+});
+
+app.post('/api/fcm-config/salvar-sistema', ensureDbInitialized, isAdmin, async (req, res) => {
+  try {
+    const { templates } = req.body;
+    if (!templates || !Array.isArray(templates)) return res.json({ success: false, error: 'Templates inválidos' });
+    
+    for (const t of templates) {
+      if (t.restaurar) {
+        await query("DELETE FROM sistema_config WHERE chave = $1 OR chave = $2", [`fcm_title_${t.evento}`, `fcm_body_${t.evento}`]);
+      } else {
+        if (isPostgres) {
+          await query("INSERT INTO sistema_config (chave, valor) VALUES ($1, $2) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [`fcm_title_${t.evento}`, t.titulo]);
+          await query("INSERT INTO sistema_config (chave, valor) VALUES ($1, $2) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [`fcm_body_${t.evento}`, t.corpo]);
+        } else {
+          await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES (?, ?)", [`fcm_title_${t.evento}`, t.titulo]);
+          await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES (?, ?)", [`fcm_body_${t.evento}`, t.corpo]);
+        }
+      }
+    }
+    res.json({ success: true });
+  } catch (error) { 
+    res.json({ success: false, error: 'Erro ao salvar configurações do sistema', detalhes: error.message }); 
+  }
+});
+
+app.post('/api/fcm-config/salvar-custom', ensureDbInitialized, isAdmin, async (req, res) => {
+  try {
+    const { id, nome, titulo, corpo, destinatario, ativo, deletar } = req.body;
+    const r = (await query("SELECT valor FROM sistema_config WHERE chave = 'fcm_custom_events'")).rows;
+    let lista = r && r[0] && r[0].valor ? JSON.parse(r[0].valor) : [];
+    
+    if (deletar) {
+      lista = lista.filter(e => e.id !== id);
+    } else {
+      if (!nome || !titulo || !corpo) return res.json({ success: false, error: 'Preencha nome, título e corpo' });
+      const eventId = id || Date.now().toString(36);
+      const idx = lista.findIndex(e => e.id === eventId);
+      const evento = { id: eventId, nome, titulo, corpo, destinatario: destinatario || 'garcom', ativo: ativo !== false, criadoEm: idx >= 0 ? lista[idx].criadoEm : new Date().toISOString() };
+      if (idx >= 0) lista[idx] = evento; else lista.push(evento);
+    }
+
+    const valor = JSON.stringify(lista);
+    if (isPostgres) {
+      await query("INSERT INTO sistema_config (chave, valor) VALUES ('fcm_custom_events', $1) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [valor]);
+    } else {
+      await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('fcm_custom_events', ?)", [valor]);
+    }
+    res.json({ success: true });
+  } catch (error) { 
+    res.json({ success: false, error: 'Erro ao gerenciar evento customizado', detalhes: error.message }); 
+  }
+});
+
+app.post('/api/fcm-config/testar', ensureDbInitialized, isAdmin, async (req, res) => {
+  try {
+    const { titulo, corpo, destinatario } = req.body;
+    if (!titulo || !corpo || !destinatario) return res.json({ success: false, error: 'Campos em branco para teste' });
+    const subs = (await query("SELECT * FROM push_subscriptions WHERE app_type = ?", [destinatario])).rows;
+    let enviados = 0;
+    
+    for (const sub of subs) {
+      const isNativeSub = sub.is_native === 1 || sub.is_native === true || (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
+      if (isNativeSub && admin.apps.length > 0) {
+        const message = { notification: { title: titulo, body: corpo }, data: { event: 'teste-fcm', sound: 'notificacao.mp3' }, android: { priority: 'high', notification: { sound: 'notificacao.mp3', channelId: destinatario === 'garcom' ? 'garcom_v1' : 'pedidos', defaultSound: false } }, token: sub.endpoint };
+        let firebaseApp = admin;
+        if (destinatario === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) firebaseApp = admin.app('motoboy');
+        else if (destinatario === 'cozinha' && admin.apps.find(a => a.name === 'cozinha')) firebaseApp = admin.app('cozinha');
+        await firebaseApp.messaging().send(message).then(() => { enviados++; }).catch(err => console.error('FCM Erro:', err.message));
+      }
+    }
+    res.json({ success: true, enviados, total: subs.length });
+  } catch (error) { 
+    res.json({ success: false, error: 'Falha no disparo do teste', detalhes: error.message }); 
+  }
+});
+
 
 app.get('/api/debug-fcm', ensureDbInitialized, async (req, res) => {
     try {

@@ -592,6 +592,8 @@ function switchConfigSubTab(subTab) {
   // Exibe a seção correspondente
   const section = document.getElementById(`config-sub-${subTab}`);
   if (section) section.classList.add('active');
+
+  if (subTab === 'fcm') carregarNotificacoesFCM();
 }
 
 // ─── RELATÓRIOS DE ESTOQUE ─────────────────────────────────────────────────────
@@ -7256,3 +7258,254 @@ async function liberarMesaSemPedidoFromModal() {
 function fecharPreviaCupom() {
   document.getElementById('modal-previa-cupom').style.display = 'none';
 }
+
+// ─── LÓGICA DO PAINEL FCM (SEGURO E BLINDADO) ───────────────────────────────────
+
+let _fcmCustomEventos = [];
+const FCM_DEST_BADGES = {
+  garcom: { label: 'Garçom', color: '#10b981', emoji: '🤵' },
+  cozinha: { label: 'Cozinha', color: '#f59e0b', emoji: '👨‍🍳' },
+  motoboy: { label: 'Motoboy', color: '#3b82f6', emoji: '🛵' },
+  todos: { label: 'Todos', color: '#8b5cf6', emoji: '📢' }
+};
+
+async function carregarNotificacoesFCM() {
+  const containerSys = document.getElementById('fcm-eventos-sistema');
+  const containerCustom = document.getElementById('fcm-eventos-custom');
+  const alertBox = document.getElementById('fcm-alerta-erro');
+  
+  alertBox.style.display = 'none';
+  containerSys.innerHTML = '<p style="text-align: center; color: #94a3b8; padding: 20px;"><i class="fa-solid fa-spinner fa-spin"></i> Carregando eventos...</p>';
+  containerCustom.innerHTML = '<p style="text-align: center; color: #94a3b8; padding: 20px;"><i class="fa-solid fa-spinner fa-spin"></i> Carregando customizados...</p>';
+
+  try {
+    const ts = new Date().getTime();
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('Token de administrador ausente! Recarregue a página.');
+
+    const res = await fetch(`/api/fcm-config/listar?t=${ts}`, { 
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (!res.ok) {
+      throw new Error(`Erro na rede (Vercel): Status ${res.status}`);
+    }
+
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Erro desconhecido retornado pelo servidor');
+    }
+
+    renderizarEventosSistema(data.sistema);
+    _fcmCustomEventos = data.customizados || [];
+    renderizarEventosCustom(_fcmCustomEventos);
+
+  } catch (err) {
+    console.error('[FCM ERRO]', err);
+    alertBox.textContent = `FALHA GRAVE: ${err.message}. A Vercel bloqueou a requisição ou o servidor caiu.`;
+    alertBox.style.display = 'block';
+    containerSys.innerHTML = `<p style="color:red; text-align:center;">Operação abortada para evitar travamento.</p>`;
+    containerCustom.innerHTML = `<p style="color:red; text-align:center;">Operação abortada para evitar travamento.</p>`;
+  }
+}
+
+function renderizarEventosSistema(eventos) {
+  const container = document.getElementById('fcm-eventos-sistema');
+  if (!container || !Array.isArray(eventos) || !eventos.length) return;
+  
+  container.innerHTML = eventos.map(ev => {
+    const dest = FCM_DEST_BADGES[ev.destinatario] || FCM_DEST_BADGES.todos;
+    const varsHtml = (ev.variaveis || []).map(v => `<code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:0.75rem;color:#6366f1;">{${v}}</code>`).join(' ');
+    const tituloVal = (ev.titulo || ev.tituloPadrao || '').replace(/"/g, '&quot;');
+    const corpoVal = (ev.corpo || ev.corpoPadrao || '').replace(/"/g, '&quot;');
+    return `
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 15px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <span style="font-weight: 700; color: #1e293b; font-size: 0.9rem;">${ev.tituloPadrao.split(' ')[0]} ${ev.evento.replace(/-/g, ' ').toUpperCase()}</span>
+          <span style="font-size: 0.75rem; background: ${dest.color}22; color: ${dest.color}; padding: 2px 10px; border-radius: 20px; font-weight: 600;">${dest.emoji} ${dest.label}</span>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px;">
+          <div style="flex: 1; min-width: 180px;">
+            <label style="font-size: 0.75rem; font-weight: 600; color: #64748b; display: block; margin-bottom: 3px;">Título</label>
+            <input type="text" id="fcm-sys-title-${ev.evento}" value="${tituloVal}" placeholder="${ev.tituloPadrao}" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+          </div>
+          <div style="flex: 2; min-width: 220px;">
+            <label style="font-size: 0.75rem; font-weight: 600; color: #64748b; display: block; margin-bottom: 3px;">Mensagem</label>
+            <input type="text" id="fcm-sys-body-${ev.evento}" value="${corpoVal}" placeholder="${ev.corpoPadrao}" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+          </div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 0.75rem; color: #94a3b8;">Variáveis: ${varsHtml || '<span style="opacity:0.5">nenhuma</span>'}</div>
+          <div style="display: flex; gap: 8px;">
+            <button onclick="testarFCMSistema('${ev.evento}')" style="padding: 5px 12px; background: #10b981; border: none; border-radius: 6px; color: white; font-size: 0.75rem; font-weight: 600; cursor: pointer;">🚀 Testar</button>
+            <button onclick="restaurarPadraoFCM('${ev.evento}')" style="padding: 5px 12px; background: #e2e8f0; border: none; border-radius: 6px; color: #64748b; font-size: 0.75rem; font-weight: 600; cursor: pointer;">↺ Padrão</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function salvarTemplatesFCM() {
+  const btn = event.currentTarget;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> SALVANDO...';
+  const eventos = ['novo-pedido', 'item-adicionado', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto', 'solicitacao-fechamento-cliente', 'status-caixa-atualizado'];
+  const templates = eventos.map(ev => ({
+    evento: ev,
+    titulo: document.getElementById(`fcm-sys-title-${ev}`)?.value,
+    corpo: document.getElementById(`fcm-sys-body-${ev}`)?.value
+  }));
+  try {
+    const res = await fetch('/api/fcm-config/salvar-sistema', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      body: JSON.stringify({ templates })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    alert('✅ Eventos do sistema salvos com sucesso!');
+  } catch (err) {
+    alert('❌ Erro: ' + err.message);
+  } finally {
+    btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> SALVAR EVENTOS DO SISTEMA';
+  }
+}
+
+async function restaurarPadraoFCM(evento) {
+  if (!confirm(`Restaurar o evento '${evento}' para o padrão original?`)) return;
+  try {
+    const res = await fetch('/api/fcm-config/salvar-sistema', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      body: JSON.stringify({ templates: [{ evento, restaurar: true }] })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    carregarNotificacoesFCM();
+  } catch (err) { alert('Erro: ' + err.message); }
+}
+
+async function testarFCMSistema(evento) {
+  const titulo = document.getElementById(`fcm-sys-title-${evento}`).value || document.getElementById(`fcm-sys-title-${evento}`).placeholder;
+  let corpo = document.getElementById(`fcm-sys-body-${evento}`).value || document.getElementById(`fcm-sys-body-${evento}`).placeholder;
+  corpo = corpo.replace('{mesa}', 'Mesa Teste').replace('{item}', 'Pizza').replace('{qtd}', '1').replace('{status}', 'Aberto').replace('{itens}', 'Pizza, Suco');
+  
+  // Acha o destinatario olhando o HTML (gambi segura)
+  const eventoDiv = document.getElementById(`fcm-sys-title-${evento}`).closest('div').parentElement.parentElement;
+  let destinatario = 'garcom';
+  if (eventoDiv.innerHTML.includes('Cozinha')) destinatario = 'cozinha';
+  else if (eventoDiv.innerHTML.includes('Motoboy')) destinatario = 'motoboy';
+  else if (eventoDiv.innerHTML.includes('Todos')) destinatario = 'todos';
+
+  enviarTesteFCM(titulo, corpo, destinatario);
+}
+
+function renderizarEventosCustom(eventos) {
+  const container = document.getElementById('fcm-eventos-custom');
+  if (!container) return;
+  if (!Array.isArray(eventos) || !eventos.length) {
+    container.innerHTML = '<p style="text-align: center; color: #94a3b8; padding: 20px;">Nenhum evento criado.</p>';
+    return;
+  }
+  container.innerHTML = eventos.map(ev => {
+    const dest = FCM_DEST_BADGES[ev.destinatario] || FCM_DEST_BADGES.todos;
+    return `
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 15px; position: relative; opacity: ${ev.ativo ? '1' : '0.6'};">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h5 style="margin: 0; color: #1e293b; font-size: 0.95rem;">${ev.nome} ${!ev.ativo ? '(Inativo)' : ''}</h5>
+          <span style="font-size: 0.75rem; background: ${dest.color}22; color: ${dest.color}; padding: 2px 10px; border-radius: 20px; font-weight: 600;">${dest.emoji} ${dest.label}</span>
+        </div>
+        <p style="font-size: 0.8rem; color: #475569; margin: 0 0 5px 0;"><strong>T:</strong> ${ev.titulo}</p>
+        <p style="font-size: 0.8rem; color: #475569; margin: 0 0 12px 0;"><strong>M:</strong> ${ev.corpo}</p>
+        <div style="display: flex; gap: 8px;">
+          <button onclick="testarFCMCustom('${ev.id}')" style="padding: 5px 12px; background: #10b981; border: none; border-radius: 6px; color: white; font-size: 0.75rem; font-weight: 600; cursor: pointer;">🚀 Testar</button>
+          <button onclick="abrirModalEventoFCM('${ev.id}')" style="padding: 5px 12px; background: #6366f1; border: none; border-radius: 6px; color: white; font-size: 0.75rem; font-weight: 600; cursor: pointer;">✏️ Editar</button>
+          <button onclick="excluirEventoCustomFCM('${ev.id}')" style="padding: 5px 12px; background: #ef4444; border: none; border-radius: 6px; color: white; font-size: 0.75rem; font-weight: 600; cursor: pointer;">🗑️</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function abrirModalEventoFCM(id = null) {
+  document.getElementById('modal-fcm-titulo').textContent = id ? '✏️ Editar Evento' : '✨ Novo Evento Customizado';
+  document.getElementById('fcm-custom-id').value = id || '';
+  if (id) {
+    const ev = _fcmCustomEventos.find(e => e.id === id);
+    if (ev) {
+      document.getElementById('fcm-custom-nome').value = ev.nome;
+      document.getElementById('fcm-custom-titulo').value = ev.titulo;
+      document.getElementById('fcm-custom-corpo').value = ev.corpo;
+      document.getElementById('fcm-custom-destinatario').value = ev.destinatario;
+      document.querySelector(`input[name="fcm-custom-status"][value="${ev.ativo}"]`).checked = true;
+    }
+  } else {
+    document.getElementById('fcm-custom-nome').value = '';
+    document.getElementById('fcm-custom-titulo').value = '';
+    document.getElementById('fcm-custom-corpo').value = '';
+    document.getElementById('fcm-custom-destinatario').value = 'garcom';
+    document.querySelector('input[name="fcm-custom-status"][value="true"]').checked = true;
+  }
+  document.getElementById('modal-evento-fcm').style.display = 'flex';
+}
+
+function fecharModalEventoFCM() {
+  document.getElementById('modal-evento-fcm').style.display = 'none';
+}
+
+async function salvarEventoCustomFCM() {
+  const id = document.getElementById('fcm-custom-id').value;
+  const nome = document.getElementById('fcm-custom-nome').value;
+  const titulo = document.getElementById('fcm-custom-titulo').value;
+  const corpo = document.getElementById('fcm-custom-corpo').value;
+  const destinatario = document.getElementById('fcm-custom-destinatario').value;
+  const ativo = document.querySelector('input[name="fcm-custom-status"]:checked').value === 'true';
+
+  try {
+    const res = await fetch('/api/fcm-config/salvar-custom', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      body: JSON.stringify({ id, nome, titulo, corpo, destinatario, ativo })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    fecharModalEventoFCM();
+    carregarNotificacoesFCM();
+  } catch (err) { alert('Erro: ' + err.message); }
+}
+
+async function excluirEventoCustomFCM(id) {
+  if (!confirm('Excluir este evento customizado?')) return;
+  try {
+    const res = await fetch('/api/fcm-config/salvar-custom', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      body: JSON.stringify({ id, deletar: true })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    carregarNotificacoesFCM();
+  } catch (err) { alert('Erro: ' + err.message); }
+}
+
+function testarFCMCustom(id) {
+  const ev = _fcmCustomEventos.find(e => e.id === id);
+  if (ev) enviarTesteFCM(ev.titulo, ev.corpo, ev.destinatario);
+}
+
+async function enviarTesteFCM(titulo, corpo, destinatario) {
+  try {
+    const res = await fetch('/api/fcm-config/testar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      body: JSON.stringify({ titulo, corpo, destinatario })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    alert(`🚀 Notificação enviada para ${data.enviados} aparelhos (${destinatario}).`);
+  } catch (err) {
+    alert('❌ Erro no disparo: ' + err.message);
+  }
+}
+

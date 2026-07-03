@@ -716,6 +716,9 @@
           <button class="config-nav-btn" onclick="switchConfigSubTab('relatorios')">
             <i class="fa-solid fa-chart-line"></i> Relatórios
           </button>
+          <button class="config-nav-btn" onclick="switchConfigSubTab('fcm')">
+            <i class="fa-solid fa-bell"></i> Push FCM
+          </button>
         </aside>
 
         <!-- Conteúdo das Configurações -->
@@ -1086,6 +1089,40 @@
                   </div>
                 </div>
 
+              </div>
+            </div>
+          </div>
+          </div>
+
+          <!-- Sub-seção: Notificações FCM -->
+          <div id="config-sub-fcm" class="config-sub-section">
+            <div class="config-card">
+              <h3><i class="fa-solid fa-bell"></i> Notificações Push (FCM)</h3>
+              <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1.5rem;">Personalize os alertas enviados para os celulares Android da equipe.</p>
+              
+              <div id="fcm-alerta-erro" style="display: none; background: #fee2e2; border-left: 4px solid #ef4444; color: #991b1b; padding: 12px; margin-bottom: 15px; border-radius: 4px; font-weight: bold;"></div>
+
+              <div style="margin-bottom: 2rem;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; padding-bottom: 10px; border-bottom: 2px solid #e2e8f0;">
+                  <i class="fa-solid fa-gear" style="color: #6366f1; font-size: 1.1rem;"></i>
+                  <h4 style="margin: 0; color: #1e293b; font-size: 1rem;">Eventos do Sistema</h4>
+                  <span style="font-size: 0.75rem; color: #94a3b8; margin-left: auto;">Automáticos</span>
+                </div>
+                <div id="fcm-eventos-sistema" style="display: flex; flex-direction: column; gap: 12px;">
+                  <p style="text-align: center; color: #94a3b8; padding: 20px;"><i class="fa-solid fa-spinner fa-spin"></i> Carregando eventos...</p>
+                </div>
+                <button onclick="salvarTemplatesFCM()" style="width: 100%; margin-top: 15px; padding: 12px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer; transition: all 0.2s;"><i class="fa-solid fa-floppy-disk"></i> SALVAR EVENTOS DO SISTEMA</button>
+              </div>
+              
+              <div>
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; padding-bottom: 10px; border-bottom: 2px solid #e2e8f0;">
+                  <i class="fa-solid fa-wand-magic-sparkles" style="color: #f59e0b; font-size: 1.1rem;"></i>
+                  <h4 style="margin: 0; color: #1e293b; font-size: 1rem;">Eventos Customizados</h4>
+                </div>
+                <button onclick="abrirModalEventoFCM()" style="width: 100%; margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer;"><i class="fa-solid fa-plus"></i> ADICIONAR NOVO EVENTO</button>
+                <div id="fcm-eventos-custom" style="display: flex; flex-direction: column; gap: 12px;">
+                  <p style="text-align: center; color: #94a3b8; padding: 20px;">Nenhum evento criado.</p>
+                </div>
               </div>
             </div>
           </div>
@@ -1654,6 +1691,50 @@
         <button onclick="liberarMesaSemPedidoFromModal()" style="background:#e74c3c; width:100%; padding:14px; font-weight:900; font-size:1.05rem; border-radius:12px; box-shadow:0 5px 0 #c0392b; border:none; color:white; cursor:pointer;">
           🚫 CANCELAR CÓDIGO DA MESA
         </button>
+      </div>
+    </div>
+  </div>
+  <!-- Modal Evento FCM -->
+  <div id="modal-evento-fcm" class="modal">
+    <div class="modal-content" style="max-width: 480px;">
+      <div style="background: linear-gradient(135deg, #f59e0b, #d97706); padding: 1rem 1.5rem; color: white; display: flex; justify-content: space-between; align-items: center;">
+        <h2 id="modal-fcm-titulo" style="margin: 0; font-size: 1.1rem; font-weight: 900;">✨ Evento</h2>
+        <span class="close" onclick="fecharModalEventoFCM()">&times;</span>
+      </div>
+      <div style="padding: 1.5rem;">
+        <div class="modal-form-group" style="margin-bottom: 1rem;">
+          <label>Nome do Evento</label>
+          <input type="text" id="fcm-custom-nome" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        </div>
+        <div class="modal-form-group" style="margin-bottom: 1rem;">
+          <label>Título da Notificação</label>
+          <input type="text" id="fcm-custom-titulo" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        </div>
+        <div class="modal-form-group" style="margin-bottom: 1rem;">
+          <label>Mensagem da Notificação</label>
+          <textarea id="fcm-custom-corpo" rows="3" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;"></textarea>
+        </div>
+        <div class="modal-form-group" style="margin-bottom: 1rem;">
+          <label>Destinatário</label>
+          <select id="fcm-custom-destinatario" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+            <option value="garcom">Garçom</option>
+            <option value="cozinha">Cozinha</option>
+            <option value="motoboy">Motoboy</option>
+            <option value="todos">Todos</option>
+          </select>
+        </div>
+        <div class="modal-form-group" style="margin-bottom: 1.5rem;">
+          <label>Status</label>
+          <div style="display: flex; gap: 20px;">
+            <label><input type="radio" name="fcm-custom-status" value="true" checked> Ativo</label>
+            <label><input type="radio" name="fcm-custom-status" value="false"> Inativo</label>
+          </div>
+        </div>
+        <input type="hidden" id="fcm-custom-id" value="">
+        <div style="display: flex; gap: 10px;">
+          <button onclick="fecharModalEventoFCM()" style="flex: 1; padding: 12px; border: none; border-radius: 8px;">Cancelar</button>
+          <button onclick="salvarEventoCustomFCM()" style="flex: 2; padding: 12px; background: #f59e0b; color: white; border: none; border-radius: 8px; font-weight: bold;">Salvar</button>
+        </div>
       </div>
     </div>
   </div>
