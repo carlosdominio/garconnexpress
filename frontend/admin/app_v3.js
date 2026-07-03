@@ -4393,6 +4393,15 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
     itensFechamentoAdmin = await resItens.json();
   }
 
+  // Garante a ordenação dos itens: pronto/pendente no topo, entregue abaixo
+  const prioridadeStatus = { 'pronto': 1, 'pendente': 2, 'entregue': 3, 'cancelado': 4 };
+  itensFechamentoAdmin.sort((a, b) => {
+    const prioA = prioridadeStatus[a.status] || 99;
+    const prioB = prioridadeStatus[b.status] || 99;
+    if (prioA !== prioB) return prioA - prioB;
+    return (a.id || 0) - (b.id || 0);
+  });
+
   // --- TRAVA DE COZINHA INTELIGENTE ---
   // Filtra itens pendentes (EM PREPARO) que SÃO da cozinha
   const itensCozinhaEmPreparo = itensFechamentoAdmin.filter(i => i.status === 'pendente' && isItemParaCozinha(i));
