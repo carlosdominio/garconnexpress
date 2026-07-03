@@ -5199,15 +5199,24 @@ function fecharModalFechamentoAdmin() {
 function fecharModalMultiPagamento() { 
   document.getElementById('modal-multi-pagamento').style.display = 'none'; 
   document.body.classList.remove('modal-open');
+  if (window.resolveMultiPagamento) {
+    const tempResolve = window.resolveMultiPagamento;
+    window.resolveMultiPagamento = null;
+    tempResolve(null);
+  }
 }
 
 function mostrarModalMultiPagamento(numPessoas, valorPorPessoa, pagamentosGarcom = null) {
   return new Promise(resolve => {
+    window.resolveMultiPagamento = resolve;
     const elV = document.getElementById('multi-pag-valor-pessoa');
     if (elV) elV.innerText = valorPorPessoa.toFixed(2);
     
     const container = document.getElementById('multi-pag-lista-pessoas');
-    if (!container) return resolve(null);
+    if (!container) {
+      window.resolveMultiPagamento = null;
+      return resolve(null);
+    }
 
     container.innerHTML = '';
     for (let i = 1; i <= numPessoas; i++) {
@@ -5295,8 +5304,8 @@ function mostrarModalMultiPagamento(numPessoas, valorPorPessoa, pagamentosGarcom
       }
       
       console.log("✅ Dados capturados para o cupom:", pagamentosDetalhados);
+      window.resolveMultiPagamento = null; // Limpa para evitar resolve(null) ao fechar
       fecharModalMultiPagamento();
-      document.body.classList.remove('modal-open');
       resolve(pagamentosDetalhados);
     };
   });
