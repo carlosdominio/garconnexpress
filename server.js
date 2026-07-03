@@ -1190,12 +1190,53 @@ async function checkAndNotifyDelayedOrders() {
 }
 
 async function checkAndSendScheduledFCM() {
+  const nowMs = Date.now();
+  let lockAcquired;
+  try {
+    if (isPostgres) {
+      await query("INSERT INTO sistema_config (chave, valor) VALUES ('fcm_agenda_lock', '0') ON CONFLICT DO NOTHING");
+      lockAcquired = await query(
+        "UPDATE sistema_config SET valor = ? WHERE chave = 'fcm_agenda_lock' AND (? - CAST(valor AS BIGINT) > 45000 OR valor = '0')",
+        [String(nowMs), nowMs]
+      );
+    } else {
+      await query("INSERT OR IGNORE INTO sistema_config (chave, valor) VALUES ('fcm_agenda_lock', '0')");
+      lockAcquired = await query(
+        "UPDATE sistema_config SET valor = ? WHERE chave = 'fcm_agenda_lock' AND (? - CAST(valor AS INTEGER) > 45000 OR valor = '0')",
+        [String(nowMs), nowMs]
+      );
+    }
+    
+    if (lockAcquired.changes === 0) {
+      return; // Concorrência detectada: outra thread/processo já está processando os agendamentos.
+    }
+  } catch (err) {
+    console.error('Erro ao verificar lock do agendador FCM:', err.message);
+    return;
+  }
+
   try {
     const r = (await query("SELECT valor FROM sistema_config WHERE chave = 'fcm_custom_events'")).rows;
-    if (!r || r.length === 0 || !r[0].valor) return;
+    if (!r || r.length === 0 || !r[0].valor) {
+      // Libera o lock se não tiver nada para fazer
+      if (isPostgres) {
+        await query("INSERT INTO sistema_config (chave, valor) VALUES ('fcm_agenda_lock', '0') ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor");
+      } else {
+        await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('fcm_agenda_lock', '0')");
+      }
+      return;
+    }
     
     let lista = JSON.parse(r[0].valor);
-    if (!Array.isArray(lista) || lista.length === 0) return;
+    if (!Array.isArray(lista) || lista.length === 0) {
+      // Libera o lock
+      if (isPostgres) {
+        await query("INSERT INTO sistema_config (chave, valor) VALUES ('fcm_agenda_lock', '0') ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor");
+      } else {
+        await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('fcm_agenda_lock', '0')");
+      }
+      return;
+    }
     
     const now = new Date();
     let mudou = false;
@@ -1255,6 +1296,17 @@ async function checkAndSendScheduledFCM() {
     }
   } catch (error) {
     console.error('Erro no agendador de FCM:', error.message);
+  } finally {
+    // Libera o lock após terminar o processamento
+    try {
+      if (isPostgres) {
+        await query("INSERT INTO sistema_config (chave, valor) VALUES ('fcm_agenda_lock', '0') ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor");
+      } else {
+        await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('fcm_agenda_lock', '0')");
+      }
+    } catch (e) {
+      console.error('Erro ao liberar lock do agendador FCM:', e.message);
+    }
   }
 }
 
