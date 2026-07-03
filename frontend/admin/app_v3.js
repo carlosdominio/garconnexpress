@@ -4114,6 +4114,16 @@ function fecharModal() {
 function renderizarItensEdicao() {
   const container = document.getElementById('itens-atuais');
   if (!container) return;
+
+  // Ordena os itens: pronto/pendente no topo, entregue abaixo
+  const prioridadeStatus = { 'pronto': 1, 'pendente': 2, 'entregue': 3, 'cancelado': 4 };
+  itensEmEdicao.sort((a, b) => {
+    const prioA = prioridadeStatus[a.status] || 99;
+    const prioB = prioridadeStatus[b.status] || 99;
+    if (prioA !== prioB) return prioA - prioB;
+    return (a.id || 0) - (b.id || 0);
+  });
+
   container.innerHTML = itensEmEdicao.map((item, index) => {
     const isEntregue = item.status === 'entregue';
     const infoMenu = cardapio.find(m => m.id === item.menu_id) || {};
