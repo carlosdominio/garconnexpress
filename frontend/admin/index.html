@@ -1103,25 +1103,25 @@
               <div id="fcm-alerta-erro" style="display: none; background: #fee2e2; border-left: 4px solid #ef4444; color: #991b1b; padding: 12px; margin-bottom: 15px; border-radius: 4px; font-weight: bold;"></div>
 
               <div style="margin-bottom: 2rem;">
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; padding-bottom: 10px; border-bottom: 2px solid #e2e8f0;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 0.5rem; padding-bottom: 5px; border-bottom: 2px solid #e2e8f0;">
                   <i class="fa-solid fa-gear" style="color: #6366f1; font-size: 1.1rem;"></i>
                   <h4 style="margin: 0; color: #1e293b; font-size: 1rem;">Eventos do Sistema</h4>
                   <span style="font-size: 0.75rem; color: #94a3b8; margin-left: auto;">Automáticos</span>
                 </div>
-                <div id="fcm-eventos-sistema" style="display: flex; flex-direction: column; gap: 12px;">
-                  <p style="text-align: center; color: #94a3b8; padding: 20px;"><i class="fa-solid fa-spinner fa-spin"></i> Carregando eventos...</p>
+                <div id="fcm-eventos-sistema" style="display: flex; flex-direction: column; gap: 8px; max-height: 350px; overflow-y: auto; padding-right: 5px;">
+                  <p style="text-align: center; color: #94a3b8; padding: 10px;"><i class="fa-solid fa-spinner fa-spin"></i> Carregando eventos...</p>
                 </div>
-                <button onclick="salvarTemplatesFCM()" style="width: 100%; margin-top: 15px; padding: 12px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer; transition: all 0.2s;"><i class="fa-solid fa-floppy-disk"></i> SALVAR EVENTOS DO SISTEMA</button>
+                <button onclick="salvarTemplatesFCM()" style="width: 100%; margin-top: 10px; padding: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer; transition: all 0.2s; font-size: 0.85rem;"><i class="fa-solid fa-floppy-disk"></i> SALVAR EVENTOS DO SISTEMA</button>
               </div>
               
               <div>
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; padding-bottom: 10px; border-bottom: 2px solid #e2e8f0;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 0.5rem; padding-bottom: 5px; border-bottom: 2px solid #e2e8f0;">
                   <i class="fa-solid fa-wand-magic-sparkles" style="color: #f59e0b; font-size: 1.1rem;"></i>
                   <h4 style="margin: 0; color: #1e293b; font-size: 1rem;">Eventos Customizados</h4>
                 </div>
-                <button onclick="abrirModalEventoFCM()" style="width: 100%; margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer;"><i class="fa-solid fa-plus"></i> ADICIONAR NOVO EVENTO</button>
-                <div id="fcm-eventos-custom" style="display: flex; flex-direction: column; gap: 12px;">
-                  <p style="text-align: center; color: #94a3b8; padding: 20px;">Nenhum evento criado.</p>
+                <button onclick="abrirModalEventoFCM()" style="width: 100%; margin-bottom: 10px; padding: 10px; background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer; font-size: 0.85rem;"><i class="fa-solid fa-plus"></i> ADICIONAR NOVO EVENTO</button>
+                <div id="fcm-eventos-custom" style="display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto; padding-right: 5px;">
+                  <p style="text-align: center; color: #94a3b8; padding: 10px;">Nenhum evento criado.</p>
                 </div>
               </div>
             </div>
@@ -1662,7 +1662,7 @@
   </div>
 
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
-  <script src="app_v3.js?v=1.2.19"></script>
+  <script src="app_v3.js?v=1.2.20"></script>
 
   <!-- Modal: Mesa Aguardando Cliente -->
   <div id="modal-mesa-aguardando" class="modal">
