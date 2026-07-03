@@ -1930,8 +1930,12 @@ app.put('/api/pedidos/:id/taxa', isAuthenticated, async (req, res) => {
 });
 
 app.get('/api/caixa/status', ensureDbInitialized, async (req, res) => {
-  const result = await query("SELECT * FROM fluxo_caixa WHERE status = 'aberto' ORDER BY id DESC LIMIT 1");
-  res.json(result.rows[0] || null);
+  try {
+    const result = await query("SELECT * FROM fluxo_caixa WHERE status = 'aberto' ORDER BY id DESC LIMIT 1");
+    res.json(result.rows[0] || null);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.post('/api/caixa/abrir', isAdmin, async (req, res) => {
