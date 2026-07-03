@@ -1726,15 +1726,16 @@
             <option value="todos">Todos</option>
           </select>
         </div>
-        <div class="modal-form-group" style="margin-bottom: 1rem;">
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; text-transform: none; font-weight: normal;">
-            <input type="checkbox" id="fcm-custom-agendar-check" onchange="document.getElementById('fcm-custom-agenda-container').style.display = this.checked ? 'block' : 'none'">
-            <strong>⏰ Agendar disparo automático?</strong>
-          </label>
+        <div style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 10px; padding: 12px 15px; margin-bottom: 1rem; display: flex; align-items: center; gap: 12px; cursor: pointer;" onclick="const chk = document.getElementById('fcm-custom-agendar-check'); chk.checked = !chk.checked; chk.dispatchEvent(new Event('change'));">
+          <input type="checkbox" id="fcm-custom-agendar-check" onchange="document.getElementById('fcm-custom-agenda-container').style.display = this.checked ? 'block' : 'none'" onclick="event.stopPropagation();" style="width: 18px; height: 18px; cursor: pointer; accent-color: #f59e0b; margin: 0; shrink: 0;">
+          <div style="flex: 1; cursor: pointer;">
+            <strong style="font-size: 0.85rem; color: #78350f; display: block; margin: 0; text-transform: none; letter-spacing: 0; font-weight: 700;">⏰ Agendar disparo automático?</strong>
+            <span style="font-size: 0.72rem; color: #b45309; display: block; margin-top: 2px;">Programe a mensagem para enviar no futuro</span>
+          </div>
         </div>
-        <div id="fcm-custom-agenda-container" class="modal-form-group" style="margin-bottom: 1rem; display: none;">
-          <label>Data e hora do envio</label>
-          <input type="datetime-local" id="fcm-custom-agendado-para" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
+        <div id="fcm-custom-agenda-container" style="margin-bottom: 1rem; display: none; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 12px 15px;">
+          <label style="font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px; margin-top: 0;">📅 Data e hora do envio</label>
+          <input type="datetime-local" id="fcm-custom-agendado-para" style="width: 100%; padding: 10px 12px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; background: white; color: #334155; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#f59e0b';" onblur="this.style.borderColor='#cbd5e1';">
         </div>
         <div class="modal-form-group" style="margin-bottom: 0.5rem;">
           <label>Status</label>
