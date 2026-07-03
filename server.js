@@ -286,6 +286,12 @@ async function verificarHorarioCardapio(hora_abrir, hora_fechar) {
 
 // CRON JOB Roda a cada minuto
 setInterval(async () => {
+    // 1. Agendamento do FCM Customizado
+    try {
+        await checkAndSendScheduledFCM();
+    } catch(e) { console.error("Erro interval FCM:", e); }
+
+    // 2. Horário do Cardápio Automático
     try {
         const rAuto = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_auto'");
         if (!rAuto.rows || rAuto.rows.length === 0 || rAuto.rows[0].valor !== 'true') return;
@@ -304,6 +310,7 @@ setInterval(async () => {
 // ENDPOINT PARA VERCEL CRON JOBS
 app.get('/api/cron/cardapio', async (req, res) => {
     try {
+        await checkAndSendScheduledFCM();
         // --- FAXINA DE MESAS E PEDIDOS ÓRFÃOS ---
         await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE garcom_id IS NOT NULL AND garcom_id NOT IN (SELECT usuario FROM garcons WHERE usuario IS NOT NULL)");
         await query("UPDATE pedidos SET status = 'cancelado' WHERE status NOT IN ('entregue', 'cancelado') AND garcom_id IS NOT NULL AND garcom_id != 'ADMIN' AND garcom_id != 'QRCODE' AND garcom_id != 'DELIVERY' AND garcom_id NOT IN (SELECT usuario FROM garcons WHERE usuario IS NOT NULL)");
@@ -1182,6 +1189,75 @@ async function checkAndNotifyDelayedOrders() {
   }
 }
 
+async function checkAndSendScheduledFCM() {
+  try {
+    const r = (await query("SELECT valor FROM sistema_config WHERE chave = 'fcm_custom_events'")).rows;
+    if (!r || r.length === 0 || !r[0].valor) return;
+    
+    let lista = JSON.parse(r[0].valor);
+    if (!Array.isArray(lista) || lista.length === 0) return;
+    
+    const now = new Date();
+    let mudou = false;
+    
+    for (const ev of lista) {
+      if (ev.ativo && ev.agendadoPara && !ev.enviado) {
+        const dataAgenda = new Date(ev.agendadoPara);
+        if (dataAgenda <= now) {
+          console.log(`⏰ [Agendador FCM] Disparando evento agendado: ${ev.nome}`);
+          
+          const targets = ev.destinatario === 'todos' ? ['garcom', 'cozinha', 'motoboy'] : [ev.destinatario];
+          let totalEnviados = 0;
+          
+          for (const dest of targets) {
+            const subs = (await query("SELECT * FROM push_subscriptions WHERE app_type = ?", [dest])).rows;
+            for (const sub of subs) {
+              const isNativeSub = sub.is_native === 1 || sub.is_native === true || (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
+              if (isNativeSub && admin.apps.length > 0) {
+                const message = {
+                  notification: { title: ev.titulo, body: ev.corpo },
+                  data: { event: 'custom-fcm-agendado', sound: 'notificacao.mp3', event_id: ev.id },
+                  android: { 
+                    priority: 'high', 
+                    notification: { 
+                      sound: 'notificacao.mp3', 
+                      channelId: dest === 'garcom' ? 'garcom_v1' : 'pedidos', 
+                      defaultSound: false 
+                    } 
+                  },
+                  token: sub.endpoint
+                };
+                let firebaseApp = admin;
+                if (dest === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) firebaseApp = admin.app('motoboy');
+                else if (dest === 'cozinha' && admin.apps.find(a => a.name === 'cozinha')) firebaseApp = admin.app('cozinha');
+                
+                await firebaseApp.messaging().send(message).then(() => { totalEnviados++; }).catch(err => console.error('Erro FCM Agendado:', err.message));
+              }
+            }
+          }
+          
+          ev.enviado = true;
+          ev.disparadoEm = now.toISOString();
+          ev.alcanceTotal = totalEnviados;
+          mudou = true;
+        }
+      }
+    }
+    
+    if (mudou) {
+      const valor = JSON.stringify(lista);
+      if (isPostgres) {
+        await query("INSERT INTO sistema_config (chave, valor) VALUES ('fcm_custom_events', $1) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [valor]);
+      } else {
+        await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('fcm_custom_events', ?)", [valor]);
+      }
+      console.log(`⏰ [Agendador FCM] Lista de agendados atualizada no banco.`);
+    }
+  } catch (error) {
+    console.error('Erro no agendador de FCM:', error.message);
+  }
+}
+
 // --- ROTA DEBUG TEMPORÁRIA: INSPECIONA TOKENS NO BANCO ---
 app.get('/api/debug/push-subs', ensureDbInitialized, async (req, res) => {
   try {
@@ -1195,7 +1271,8 @@ app.get('/api/debug/push-subs', ensureDbInitialized, async (req, res) => {
 // --- ROTA CRON MANUAL DE MONITORAMENTO DE PEDIDOS ATRASADOS (>10 MIN) ---
 app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) => {
   await checkAndNotifyDelayedOrders();
-  res.json({ message: "Verificação de atrasos executada." });
+  await checkAndSendScheduledFCM();
+  res.json({ message: "Verificação de atrasos e agendamentos executada." });
 });
 
 // Helper para buscar taxa de serviço dinamicamente
@@ -4095,7 +4172,7 @@ app.post('/api/fcm-config/salvar-sistema', ensureDbInitialized, isAdmin, async (
 
 app.post('/api/fcm-config/salvar-custom', ensureDbInitialized, isAdmin, async (req, res) => {
   try {
-    const { id, nome, titulo, corpo, destinatario, ativo, deletar } = req.body;
+    const { id, nome, titulo, corpo, destinatario, ativo, deletar, agendadoPara } = req.body;
     const r = (await query("SELECT valor FROM sistema_config WHERE chave = 'fcm_custom_events'")).rows;
     let lista = r && r[0] && r[0].valor ? JSON.parse(r[0].valor) : [];
     
@@ -4105,8 +4182,33 @@ app.post('/api/fcm-config/salvar-custom', ensureDbInitialized, isAdmin, async (r
       if (!nome || !titulo || !corpo) return res.json({ success: false, error: 'Preencha nome, título e corpo' });
       const eventId = id || Date.now().toString(36);
       const idx = lista.findIndex(e => e.id === eventId);
-      const evento = { id: eventId, nome, titulo, corpo, destinatario: destinatario || 'garcom', ativo: ativo !== false, criadoEm: idx >= 0 ? lista[idx].criadoEm : new Date().toISOString() };
-      if (idx >= 0) lista[idx] = evento; else lista.push(evento);
+      
+      const evento = { 
+        id: eventId, 
+        nome, 
+        titulo, 
+        corpo, 
+        destinatario: destinatario || 'garcom', 
+        ativo: ativo !== false, 
+        criadoEm: idx >= 0 ? lista[idx].criadoEm : new Date().toISOString(),
+        agendadoPara: agendadoPara || null
+      };
+
+      if (idx >= 0) {
+        const anterior = lista[idx];
+        if (anterior.agendadoPara !== agendadoPara) {
+          evento.enviado = false;
+          evento.disparadoEm = null;
+          evento.alcanceTotal = null;
+        } else {
+          evento.enviado = anterior.enviado;
+          evento.disparadoEm = anterior.disparadoEm;
+          evento.alcanceTotal = anterior.alcanceTotal;
+        }
+        lista[idx] = evento;
+      } else {
+        lista.push(evento);
+      }
     }
 
     const valor = JSON.stringify(lista);

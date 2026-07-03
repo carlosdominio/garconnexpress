@@ -1724,6 +1724,16 @@
             <option value="todos">Todos</option>
           </select>
         </div>
+        <div class="modal-form-group" style="margin-bottom: 1rem;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; text-transform: none; font-weight: normal;">
+            <input type="checkbox" id="fcm-custom-agendar-check" onchange="document.getElementById('fcm-custom-agenda-container').style.display = this.checked ? 'block' : 'none'">
+            <strong>⏰ Agendar disparo automático?</strong>
+          </label>
+        </div>
+        <div id="fcm-custom-agenda-container" class="modal-form-group" style="margin-bottom: 1rem; display: none;">
+          <label>Data e hora do envio</label>
+          <input type="datetime-local" id="fcm-custom-agendado-para" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        </div>
         <div class="modal-form-group" style="margin-bottom: 1.5rem;">
           <label>Status</label>
           <div style="display: flex; gap: 20px;">

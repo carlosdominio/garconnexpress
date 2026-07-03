@@ -7469,6 +7469,19 @@ function renderizarEventosCustom(eventos) {
   }
   container.innerHTML = eventos.map(ev => {
     const dest = FCM_DEST_BADGES[ev.destinatario] || FCM_DEST_BADGES.todos;
+    
+    let statusAgendaHtml = '';
+    if (ev.agendadoPara) {
+      const dataFormatada = new Date(ev.agendadoPara).toLocaleString('pt-BR');
+      if (ev.enviado) {
+        statusAgendaHtml = `<span style="font-size:0.72rem;background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:12px;font-weight:600;display:inline-block;margin-top:5px;">⏰ Disparado em: ${dataFormatada} (${ev.alcanceTotal || 0} aparelhos)</span>`;
+      } else {
+        statusAgendaHtml = `<span style="font-size:0.72rem;background:#fef3c7;color:#b45309;padding:2px 8px;border-radius:12px;font-weight:600;display:inline-block;margin-top:5px;">⏰ Agendado para: ${dataFormatada}</span>`;
+      }
+    } else {
+      statusAgendaHtml = `<span style="font-size:0.72rem;background:#f1f5f9;color:#64748b;padding:2px 8px;border-radius:12px;font-weight:600;display:inline-block;margin-top:5px;">🚀 Envio Imediato (Manual)</span>`;
+    }
+
     return `
       <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 15px; position: relative; opacity: ${ev.ativo ? '1' : '0.6'};">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -7476,7 +7489,8 @@ function renderizarEventosCustom(eventos) {
           <span style="font-size: 0.75rem; background: ${dest.color}22; color: ${dest.color}; padding: 2px 10px; border-radius: 20px; font-weight: 600;">${dest.emoji} ${dest.label}</span>
         </div>
         <p style="font-size: 0.8rem; color: #475569; margin: 0 0 5px 0;"><strong>T:</strong> ${ev.titulo}</p>
-        <p style="font-size: 0.8rem; color: #475569; margin: 0 0 12px 0;"><strong>M:</strong> ${ev.corpo}</p>
+        <p style="font-size: 0.8rem; color: #475569; margin: 0 0 8px 0;"><strong>M:</strong> ${ev.corpo}</p>
+        <div style="margin-bottom: 12px;">${statusAgendaHtml}</div>
         <div style="display: flex; gap: 8px;">
           <button onclick="testarFCMCustom('${ev.id}')" style="padding: 5px 12px; background: #10b981; border: none; border-radius: 6px; color: white; font-size: 0.75rem; font-weight: 600; cursor: pointer;">🚀 Testar</button>
           <button onclick="abrirModalEventoFCM('${ev.id}')" style="padding: 5px 12px; background: #6366f1; border: none; border-radius: 6px; color: white; font-size: 0.75rem; font-weight: 600; cursor: pointer;">✏️ Editar</button>
@@ -7490,6 +7504,15 @@ function renderizarEventosCustom(eventos) {
 function abrirModalEventoFCM(id = null) {
   document.getElementById('modal-fcm-titulo').textContent = id ? '✏️ Editar Evento' : '✨ Novo Evento Customizado';
   document.getElementById('fcm-custom-id').value = id || '';
+  
+  const checkAgenda = document.getElementById('fcm-custom-agendar-check');
+  const agendaContainer = document.getElementById('fcm-custom-agenda-container');
+  const agendaInput = document.getElementById('fcm-custom-agendado-para');
+  
+  checkAgenda.checked = false;
+  agendaContainer.style.display = 'none';
+  agendaInput.value = '';
+
   if (id) {
     const ev = _fcmCustomEventos.find(e => e.id === id);
     if (ev) {
@@ -7498,6 +7521,19 @@ function abrirModalEventoFCM(id = null) {
       document.getElementById('fcm-custom-corpo').value = ev.corpo;
       document.getElementById('fcm-custom-destinatario').value = ev.destinatario;
       document.querySelector(`input[name="fcm-custom-status"][value="${ev.ativo}"]`).checked = true;
+      
+      if (ev.agendadoPara) {
+        checkAgenda.checked = true;
+        agendaContainer.style.display = 'block';
+        
+        const d = new Date(ev.agendadoPara);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        agendaInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+      }
     }
   } else {
     document.getElementById('fcm-custom-nome').value = '';
@@ -7521,11 +7557,19 @@ async function salvarEventoCustomFCM() {
   const destinatario = document.getElementById('fcm-custom-destinatario').value;
   const ativo = document.querySelector('input[name="fcm-custom-status"]:checked').value === 'true';
 
+  const checkAgenda = document.getElementById('fcm-custom-agendar-check').checked;
+  const agendaInput = document.getElementById('fcm-custom-agendado-para').value;
+  
+  let agendadoPara = null;
+  if (checkAgenda && agendaInput) {
+    agendadoPara = new Date(agendaInput).toISOString();
+  }
+
   try {
     const res = await fetch('/api/fcm-config/salvar-custom', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
-      body: JSON.stringify({ id, nome, titulo, corpo, destinatario, ativo })
+      body: JSON.stringify({ id, nome, titulo, corpo, destinatario, ativo, agendadoPara })
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error);
