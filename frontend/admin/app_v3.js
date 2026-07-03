@@ -7350,12 +7350,16 @@ function renderizarEventosSistema(eventos) {
 async function salvarTemplatesFCM() {
   const btn = event.currentTarget;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> SALVANDO...';
-  const eventos = ['novo-pedido', 'item-adicionado', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto', 'solicitacao-fechamento-cliente', 'status-caixa-atualizado'];
-  const templates = eventos.map(ev => ({
-    evento: ev,
-    titulo: document.getElementById(`fcm-sys-title-${ev}`)?.value,
-    corpo: document.getElementById(`fcm-sys-body-${ev}`)?.value
-  }));
+  const inputs = document.querySelectorAll('[id^="fcm-sys-title-"]');
+  const templates = [];
+  inputs.forEach(input => {
+    const ev = input.id.replace('fcm-sys-title-', '');
+    templates.push({
+      evento: ev,
+      titulo: input.value,
+      corpo: document.getElementById(`fcm-sys-body-${ev}`)?.value
+    });
+  });
   try {
     const res = await fetch('/api/fcm-config/salvar-sistema', {
       method: 'POST',

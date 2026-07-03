@@ -722,6 +722,8 @@ async function safePusherTrigger(channel, event, data) {
           msgGarcom = resolveTemplate('pedido-pronto', '🍳 PRONTO', '{mesa}');
         } else if (event === 'solicitacao-fechamento-cliente') {
           msgGarcom = resolveTemplate('solicitacao-fechamento-cliente', '💰 FECHAMENTO', '{mesa} solicitou a conta');
+        } else if (event === 'rascunho-recebido') {
+          msgGarcom = resolveTemplate('rascunho-recebido', '📝 RASCUNHO', '{mesa}');
         } else if (event === 'status-caixa-atualizado') {
           const statusText = data.status === 'fechado' ? 'fechado' : 'aberto';
           const defT = '💰 CAIXA';
@@ -734,20 +736,20 @@ async function safePusherTrigger(channel, event, data) {
             return true; // Deixa que o evento 'pedido-cancelado' envie a notificação, evita duplicidade.
           } else if (data.status === 'entregue') {
             if (isDelivery) {
-              msgMotoboy = { title: 'Delivery Express', body: `✅ PEDIDO ENTREGUE E FINALIZADO: ${mesaFormatada}` };
+              msgMotoboy = resolveTemplate('pedido-entregue', '✅ PEDIDO ENTREGUE', `✅ PEDIDO ENTREGUE E FINALIZADO: ${mesaFormatada}`);
             } else {
               return true; // Ignora para mesas de salão (evita duplicidade de "Entregue")
             }
           } else if (data.status === 'servido') {
             if (isDelivery) {
-              msgMotoboy = { title: 'Delivery Express', body: `🛵 SAIU PARA ENTREGA: ${mesaFormatada}` };
+              msgMotoboy = resolveTemplate('saiu-entrega', '🛵 SAIU PARA ENTREGA', `🛵 SAIU PARA ENTREGA: ${mesaFormatada}`);
             } else {
               return true; // Ignora para salão
             }
           } else if (data.status === 'saiu_entrega') {
-            msgMotoboy = { title: 'Delivery Express', body: `🛵 SAIU PARA ENTREGA: ${mesaFormatada}` };
+            msgMotoboy = resolveTemplate('saiu-entrega', '🛵 SAIU PARA ENTREGA', `🛵 SAIU PARA ENTREGA: ${mesaFormatada}`);
           } else if (data.status === 'liberada') {
-            msgGarcom = { title: 'GarçomExpress', body: `🔓 MESA LIBERADA: ${mesaFormatada}` };
+            msgGarcom = resolveTemplate('mesa-liberada', '🔓 MESA LIBERADA', `🔓 MESA LIBERADA: ${mesaFormatada}`);
           } else {
             return true; // Ignora outros status
           }
@@ -3998,7 +4000,11 @@ const FCM_DEFAULTS = [
   { evento: 'chamado-garcom', tituloPadrao: '🛎️ CHAMADO', corpoPadrao: '{mesa} está chamando!', destinatario: 'garcom', variaveis: ['mesa'] },
   { evento: 'pedido-pronto', tituloPadrao: '🍳 PRONTO', corpoPadrao: '{mesa}', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'solicitacao-fechamento-cliente', tituloPadrao: '💰 FECHAMENTO', corpoPadrao: '{mesa} solicitou a conta', destinatario: 'garcom', variaveis: ['mesa'] },
-  { evento: 'status-caixa-atualizado', tituloPadrao: '💰 CAIXA', corpoPadrao: '{status}', destinatario: 'todos', variaveis: ['status'] }
+  { evento: 'status-caixa-atualizado', tituloPadrao: '💰 CAIXA', corpoPadrao: '{status}', destinatario: 'todos', variaveis: ['status'] },
+  { evento: 'rascunho-recebido', tituloPadrao: '📝 RASCUNHO', corpoPadrao: '{mesa}', destinatario: 'garcom', variaveis: ['mesa'] },
+  { evento: 'mesa-liberada', tituloPadrao: '🔓 MESA LIBERADA', corpoPadrao: '{mesa}', destinatario: 'garcom', variaveis: ['mesa'] },
+  { evento: 'saiu-entrega', tituloPadrao: '🛵 SAIU PARA ENTREGA', corpoPadrao: '{mesa}', destinatario: 'motoboy', variaveis: ['mesa'] },
+  { evento: 'pedido-entregue', tituloPadrao: '✅ PEDIDO ENTREGUE', corpoPadrao: '{mesa}', destinatario: 'motoboy', variaveis: ['mesa'] }
 ];
 
 app.post('/api/fcm-config/listar', ensureDbInitialized, isAdmin, async (req, res) => {
