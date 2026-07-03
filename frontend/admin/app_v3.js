@@ -7280,7 +7280,7 @@ async function carregarNotificacoesFCM() {
 
   try {
     const ts = new Date().getTime();
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('admin_token');
     if (!token) throw new Error('Token de administrador ausente! Recarregue a página.');
 
     const res = await fetch(`/api/fcm-config/listar?t=${ts}`, { 
@@ -7359,7 +7359,7 @@ async function salvarTemplatesFCM() {
   try {
     const res = await fetch('/api/fcm-config/salvar-sistema', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
       body: JSON.stringify({ templates })
     });
     const data = await res.json();
@@ -7377,7 +7377,7 @@ async function restaurarPadraoFCM(evento) {
   try {
     const res = await fetch('/api/fcm-config/salvar-sistema', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
       body: JSON.stringify({ templates: [{ evento, restaurar: true }] })
     });
     const data = await res.json();
@@ -7465,7 +7465,7 @@ async function salvarEventoCustomFCM() {
   try {
     const res = await fetch('/api/fcm-config/salvar-custom', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
       body: JSON.stringify({ id, nome, titulo, corpo, destinatario, ativo })
     });
     const data = await res.json();
@@ -7480,7 +7480,7 @@ async function excluirEventoCustomFCM(id) {
   try {
     const res = await fetch('/api/fcm-config/salvar-custom', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
       body: JSON.stringify({ id, deletar: true })
     });
     const data = await res.json();
@@ -7498,7 +7498,7 @@ async function enviarTesteFCM(titulo, corpo, destinatario) {
   try {
     const res = await fetch('/api/fcm-config/testar', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
       body: JSON.stringify({ titulo, corpo, destinatario })
     });
     const data = await res.json();
