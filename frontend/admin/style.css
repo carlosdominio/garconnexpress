@@ -1664,6 +1664,7 @@ input:checked + .slider:before {
   padding: 20px 10px;
   gap: 8px;
   flex-shrink: 0;
+  overflow-y: auto;
 }
 
 .config-nav-btn {
