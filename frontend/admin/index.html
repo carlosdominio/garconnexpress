@@ -1697,27 +1697,29 @@
   </div>
   <!-- Modal Evento FCM -->
   <div id="modal-evento-fcm" class="modal">
-    <div class="modal-content" style="max-width: 480px;">
-      <div style="background: linear-gradient(135deg, #f59e0b, #d97706); padding: 1rem 1.5rem; color: white; display: flex; justify-content: space-between; align-items: center;">
+    <div class="modal-content" style="max-width: 480px; max-height: 90vh; display: flex; flex-direction: column; padding: 0; overflow: hidden;">
+      <div style="background: linear-gradient(135deg, #f59e0b, #d97706); padding: 1rem 1.5rem; color: white; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
         <h2 id="modal-fcm-titulo" style="margin: 0; font-size: 1.1rem; font-weight: 900;">✨ Evento</h2>
         <span class="close" onclick="fecharModalEventoFCM()">&times;</span>
       </div>
-      <div style="padding: 1.5rem;">
+      
+      <!-- Corpo com Scroll Interno -->
+      <div style="padding: 1.5rem; overflow-y: auto; flex: 1; background: #f8fafc;">
         <div class="modal-form-group" style="margin-bottom: 1rem;">
           <label>Nome do Evento</label>
-          <input type="text" id="fcm-custom-nome" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <input type="text" id="fcm-custom-nome" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
         </div>
         <div class="modal-form-group" style="margin-bottom: 1rem;">
           <label>Título da Notificação</label>
-          <input type="text" id="fcm-custom-titulo" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <input type="text" id="fcm-custom-titulo" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
         </div>
         <div class="modal-form-group" style="margin-bottom: 1rem;">
           <label>Mensagem da Notificação</label>
-          <textarea id="fcm-custom-corpo" rows="3" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;"></textarea>
+          <textarea id="fcm-custom-corpo" rows="3" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; resize: vertical; background: white;"></textarea>
         </div>
         <div class="modal-form-group" style="margin-bottom: 1rem;">
           <label>Destinatário</label>
-          <select id="fcm-custom-destinatario" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <select id="fcm-custom-destinatario" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
             <option value="garcom">Garçom</option>
             <option value="cozinha">Cozinha</option>
             <option value="motoboy">Motoboy</option>
@@ -1732,20 +1734,22 @@
         </div>
         <div id="fcm-custom-agenda-container" class="modal-form-group" style="margin-bottom: 1rem; display: none;">
           <label>Data e hora do envio</label>
-          <input type="datetime-local" id="fcm-custom-agendado-para" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <input type="datetime-local" id="fcm-custom-agendado-para" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
         </div>
-        <div class="modal-form-group" style="margin-bottom: 1.5rem;">
+        <div class="modal-form-group" style="margin-bottom: 0.5rem;">
           <label>Status</label>
-          <div style="display: flex; gap: 20px;">
-            <label><input type="radio" name="fcm-custom-status" value="true" checked> Ativo</label>
-            <label><input type="radio" name="fcm-custom-status" value="false"> Inativo</label>
+          <div style="display: flex; gap: 20px; margin-top: 5px;">
+            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;"><input type="radio" name="fcm-custom-status" value="true" checked> Ativo</label>
+            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;"><input type="radio" name="fcm-custom-status" value="false"> Inativo</label>
           </div>
         </div>
         <input type="hidden" id="fcm-custom-id" value="">
-        <div style="display: flex; gap: 10px;">
-          <button onclick="fecharModalEventoFCM()" style="flex: 1; padding: 12px; border: none; border-radius: 8px;">Cancelar</button>
-          <button onclick="salvarEventoCustomFCM()" style="flex: 2; padding: 12px; background: #f59e0b; color: white; border: none; border-radius: 8px; font-weight: bold;">Salvar</button>
-        </div>
+      </div>
+      
+      <!-- Rodapé Fixo -->
+      <div style="padding: 1rem 1.5rem; background: white; border-top: 1px solid #e2e8f0; display: flex; gap: 10px; flex-shrink: 0;">
+        <button onclick="fecharModalEventoFCM()" style="flex: 1; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #64748b; font-weight: bold; cursor: pointer;">Cancelar</button>
+        <button onclick="salvarEventoCustomFCM()" style="flex: 2; padding: 12px; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">Salvar</button>
       </div>
     </div>
   </div>
