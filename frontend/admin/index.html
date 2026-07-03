@@ -1739,6 +1739,22 @@
       </div>
     </div>
   </div>
+  <!-- Modal de Confirmação FCM -->
+  <div id="modal-confirmacao-fcm" class="modal" style="display: none; align-items: center; justify-content: center; z-index: 9999;">
+    <div class="modal-content" style="max-width: 400px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); overflow: hidden; border: none; background: white;">
+      <div id="confirmacao-fcm-header" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 15px 20px; color: white; display: flex; align-items: center; gap: 10px;">
+        <i id="confirmacao-fcm-icon" class="fa-solid fa-circle-question" style="font-size: 1.3rem;"></i>
+        <h3 id="confirmacao-fcm-titulo" style="margin: 0; color: white; font-size: 1.1rem; font-weight: 700; border: none; padding: 0;">Confirmar Ação</h3>
+      </div>
+      <div style="padding: 20px;">
+        <p id="confirmacao-fcm-mensagem" style="margin: 0 0 20px 0; color: #475569; font-size: 0.95rem; line-height: 1.5; font-weight: 500;"></p>
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button id="confirmacao-fcm-btn-cancelar" style="padding: 10px 18px; border: 1.5px solid #cbd5e1; background: white; color: #64748b; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 0.9rem; outline: none; transition: all 0.2s;">Cancelar</button>
+          <button id="confirmacao-fcm-btn-confirmar" style="padding: 10px 22px; border: none; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 0.9rem; outline: none; transition: all 0.2s;">Confirmar</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
 

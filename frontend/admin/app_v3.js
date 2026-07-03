@@ -7347,6 +7347,60 @@ function renderizarEventosSistema(eventos) {
   }).join('');
 }
 
+// Helper para Caixa de Confirmação Customizada (FCM)
+function mostrarConfirmacaoFCM(titulo, mensagem, tipo = 'pergunta', somenteConfirmar = false) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('modal-confirmacao-fcm');
+    const header = document.getElementById('confirmacao-fcm-header');
+    const icon = document.getElementById('confirmacao-fcm-icon');
+    const titleEl = document.getElementById('confirmacao-fcm-titulo');
+    const msgEl = document.getElementById('confirmacao-fcm-mensagem');
+    const btnConfirmar = document.getElementById('confirmacao-fcm-btn-confirmar');
+    const btnCancelar = document.getElementById('confirmacao-fcm-btn-cancelar');
+
+    titleEl.textContent = titulo;
+    msgEl.textContent = mensagem;
+
+    if (somenteConfirmar) {
+      btnCancelar.style.display = 'none';
+      btnConfirmar.textContent = 'Ok';
+    } else {
+      btnCancelar.style.display = 'block';
+      btnConfirmar.textContent = 'Confirmar';
+    }
+
+    if (tipo === 'perigo') {
+      header.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+      btnConfirmar.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+      icon.className = 'fa-solid fa-triangle-exclamation';
+    } else if (tipo === 'sucesso') {
+      header.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+      btnConfirmar.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+      icon.className = 'fa-solid fa-circle-check';
+    } else if (tipo === 'aviso') {
+      header.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+      btnConfirmar.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+      icon.className = 'fa-solid fa-circle-exclamation';
+    } else {
+      header.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)';
+      btnConfirmar.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)';
+      icon.className = 'fa-solid fa-circle-question';
+    }
+
+    modal.style.display = 'flex';
+
+    const fechar = (confirmado) => {
+      modal.style.display = 'none';
+      btnConfirmar.onclick = null;
+      btnCancelar.onclick = null;
+      resolve(confirmado);
+    };
+
+    btnConfirmar.onclick = () => fechar(true);
+    btnCancelar.onclick = () => fechar(false);
+  });
+}
+
 async function salvarTemplatesFCM() {
   const btn = event.currentTarget;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> SALVANDO...';
@@ -7368,16 +7422,17 @@ async function salvarTemplatesFCM() {
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error);
-    alert('✅ Eventos do sistema salvos com sucesso!');
+    await mostrarConfirmacaoFCM('Sucesso', '✅ Eventos do sistema salvos com sucesso!', 'sucesso', true);
   } catch (err) {
-    alert('❌ Erro: ' + err.message);
+    await mostrarConfirmacaoFCM('Erro', '❌ Erro ao salvar: ' + err.message, 'perigo', true);
   } finally {
     btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> SALVAR EVENTOS DO SISTEMA';
   }
 }
 
 async function restaurarPadraoFCM(evento) {
-  if (!confirm(`Restaurar o evento '${evento}' para o padrão original?`)) return;
+  const confirmou = await mostrarConfirmacaoFCM('Restaurar Padrão', `Deseja realmente restaurar o evento '${evento}' para o padrão original?`, 'pergunta');
+  if (!confirmou) return;
   try {
     const res = await fetch('/api/fcm-config/salvar-sistema', {
       method: 'POST',
@@ -7386,8 +7441,9 @@ async function restaurarPadraoFCM(evento) {
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error);
+    await mostrarConfirmacaoFCM('Sucesso', '↺ Restaurado ao padrão original com sucesso!', 'sucesso', true);
     carregarNotificacoesFCM();
-  } catch (err) { alert('Erro: ' + err.message); }
+  } catch (err) { await mostrarConfirmacaoFCM('Erro', 'Erro: ' + err.message, 'perigo', true); }
 }
 
 async function testarFCMSistema(evento) {
@@ -7395,7 +7451,6 @@ async function testarFCMSistema(evento) {
   let corpo = document.getElementById(`fcm-sys-body-${evento}`).value || document.getElementById(`fcm-sys-body-${evento}`).placeholder;
   corpo = corpo.replace('{mesa}', 'Mesa Teste').replace('{item}', 'Pizza').replace('{qtd}', '1').replace('{status}', 'Aberto').replace('{itens}', 'Pizza, Suco');
   
-  // Acha o destinatario olhando o HTML (gambi segura)
   const eventoDiv = document.getElementById(`fcm-sys-title-${evento}`).closest('div').parentElement.parentElement;
   let destinatario = 'garcom';
   if (eventoDiv.innerHTML.includes('Cozinha')) destinatario = 'cozinha';
@@ -7475,12 +7530,14 @@ async function salvarEventoCustomFCM() {
     const data = await res.json();
     if (!data.success) throw new Error(data.error);
     fecharModalEventoFCM();
+    await mostrarConfirmacaoFCM('Sucesso', '✅ Evento customizado salvo com sucesso!', 'sucesso', true);
     carregarNotificacoesFCM();
-  } catch (err) { alert('Erro: ' + err.message); }
+  } catch (err) { await mostrarConfirmacaoFCM('Erro', 'Erro: ' + err.message, 'perigo', true); }
 }
 
 async function excluirEventoCustomFCM(id) {
-  if (!confirm('Excluir este evento customizado?')) return;
+  const confirmou = await mostrarConfirmacaoFCM('Excluir Evento', 'Deseja realmente excluir este evento customizado? Esta ação não pode ser desfeita.', 'perigo');
+  if (!confirmou) return;
   try {
     const res = await fetch('/api/fcm-config/salvar-custom', {
       method: 'POST',
@@ -7489,8 +7546,9 @@ async function excluirEventoCustomFCM(id) {
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error);
+    await mostrarConfirmacaoFCM('Sucesso', '🗑️ Evento excluído com sucesso!', 'sucesso', true);
     carregarNotificacoesFCM();
-  } catch (err) { alert('Erro: ' + err.message); }
+  } catch (err) { await mostrarConfirmacaoFCM('Erro', 'Erro: ' + err.message, 'perigo', true); }
 }
 
 function testarFCMCustom(id) {
@@ -7499,6 +7557,8 @@ function testarFCMCustom(id) {
 }
 
 async function enviarTesteFCM(titulo, corpo, destinatario) {
+  const confirmou = await mostrarConfirmacaoFCM('Enviar Teste', `Deseja disparar uma notificação de teste para o perfil [${destinatario}]?`, 'pergunta');
+  if (!confirmou) return;
   try {
     const res = await fetch('/api/fcm-config/testar', {
       method: 'POST',
@@ -7507,9 +7567,9 @@ async function enviarTesteFCM(titulo, corpo, destinatario) {
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error);
-    alert(`🚀 Notificação enviada para ${data.enviados} aparelhos (${destinatario}).`);
+    await mostrarConfirmacaoFCM('Sucesso', `🚀 Teste enviado! Alcançou ${data.enviados} dispositivos logados como ${destinatario}.`, 'sucesso', true);
   } catch (err) {
-    alert('❌ Erro no disparo: ' + err.message);
+    await mostrarConfirmacaoFCM('Erro', '❌ Falha ao testar push: ' + err.message, 'perigo', true);
   }
 }
 
