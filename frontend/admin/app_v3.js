@@ -5939,6 +5939,9 @@ async function imprimirCupom(pedido, itens) {
   if (!container) return;
   aplicarConfiguracaoImpressao();
 
+  const isConferencia = !!(pedido.isImpressaoParcialItens || pedido.isImpressaoParcialMesa);
+  const itensFiltrados = isConferencia ? itens.filter(i => i.status === 'entregue') : itens;
+
   // Busca histórico de pagamentos deste pedido no servidor
   let historicoPagos = [];
   try {
@@ -5948,7 +5951,7 @@ async function imprimirCupom(pedido, itens) {
     console.log("📑 Detalhes Imediatos (Memória):", pedido.pagamentos_detalhados_lista);
   } catch (e) { console.error("Erro ao buscar pagamentos:", e); }
 
-  const subtotal = itens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+  const subtotal = itensFiltrados.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
   
   // Verifica se a taxa está ativa para este pedido (Prioridade para o que está no Banco)
   let cobrarTaxaNoCupom = true;
@@ -5992,7 +5995,7 @@ async function imprimirCupom(pedido, itens) {
     ? historicoPagos.slice(0, -novosPagamentosCount) 
     : historicoPagos;
 
-  const isConferencia = !!(pedido.isImpressaoParcialItens || pedido.isImpressaoParcialMesa);
+  // isConferencia já foi definida no início da função
 
   // No fechamento total ou re-impressão, o total de pessoas é exatamente a quantidade de pagamentos.
   // No pagamento de fração (apenas 1 parte) ou Nota Parcial, o total é quem já pagou + quem falta.
@@ -6168,7 +6171,7 @@ async function imprimirCupom(pedido, itens) {
     ${dadosDeliveryHtml}
     
     <div style="font-size: 10pt; margin-bottom: 10px; ${pedido.status === 'cancelado' ? 'text-decoration: line-through; opacity: 0.7;' : ''}">
-      ${itens.map(i => `
+      ${itensFiltrados.map(i => `
         <div style="display:flex; justify-content:space-between; margin-bottom: 2px;">
           <span style="flex:1;">${i.quantidade}x ${i.nome}</span>
           <span style="font-weight:bold;">R$ ${(i.preco * i.quantidade).toFixed(2)}</span>
