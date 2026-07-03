@@ -6157,7 +6157,7 @@ async function imprimirCupom(pedido, itens) {
   }
 
   const html = `
-    <div class="cupom-header" style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px;">
+    <div class="cupom-header" style="text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px;">
       <h2 style="margin:0; font-size: 14pt; font-weight: 900;">GuGA Bebidas</h2>
       <p style="margin:2px 0; font-size: 10pt; font-weight: 700;">
         ${pedido.status === 'cancelado' ? '*** PEDIDO CANCELADO ***' : (isConferencia ? '*** CONTA PARCIAL ***' : 'Comprovante de Pedido')}
@@ -6172,15 +6172,17 @@ async function imprimirCupom(pedido, itens) {
     
     <div style="font-size: 10pt; margin-bottom: 10px; ${pedido.status === 'cancelado' ? 'text-decoration: line-through; opacity: 0.7;' : ''}">
       ${itensFiltrados.map(i => `
-        <div style="display:flex; justify-content:space-between; margin-bottom: 2px;">
-          <span style="flex:1;">${i.quantidade}x ${i.nome}</span>
-          <span style="font-weight:bold;">R$ ${(i.preco * i.quantidade).toFixed(2)}</span>
+        <div style="display:flex; justify-content:space-between; margin-bottom: 3px; align-items: flex-start;">
+          <span style="flex:1; text-align: left; padding-right: 5px;">
+            <strong style="margin-right: 5px;">${i.quantidade}x</strong>${i.nome}
+          </span>
+          <span style="font-weight:bold; flex-shrink: 0;">R$ ${(i.preco * i.quantidade).toFixed(2)}</span>
         </div>
-        ${i.observacao ? `<div style="font-size:9pt; margin-bottom:4px;">&nbsp;&nbsp;- ${i.observacao}</div>` : ''}
+        ${i.observacao ? `<div style="font-size:8.5pt; margin-bottom:5px; margin-left: 15px; opacity: 0.85; font-style: italic;">* ${i.observacao}</div>` : ''}
       `).join('')}
     </div>
 
-    <div class="cupom-footer" style="font-size: 10pt; border-top: 1px dashed #000; padding-top: 5px;">
+    <div class="cupom-footer" style="font-size: 10pt; border-top: 2px dashed #000; padding-top: 5px;">
       <div style="display:flex; justify-content:space-between; opacity: 0.8; font-size: 9pt;">
         <span>SUBTOTAL CONSUMO:</span>
         <span>R$ ${subtotal.toFixed(2)}</span>
@@ -6197,14 +6199,14 @@ async function imprimirCupom(pedido, itens) {
         <span>R$ ${totalGeralMesa.toFixed(2)}</span>
       </div>
 
-      <div style="display:flex; justify-content:space-between; font-weight: 900; margin-top: 5px; font-size: 13pt; border-top: 2px solid #000; padding-top: 4px; background: #eee;">
+      <div style="display:flex; justify-content:space-between; font-weight: 900; margin-top: 6px; font-size: 13pt; border: 2px solid #000; padding: 4px 6px; background: #fff; text-transform: uppercase;">
         <span>${(isReimpressaoHistorico || pedido.isFechamentoFinal) ? 'TOTAL PAGO:' : 'TOTAL A PAGAR:'}</span>
         <span>R$ ${pagoAgora.toFixed(2)}</span>
       </div>
 
       <!-- Detalhes de Pagamento (Forma, Recebido, Troco) -->
       ${!isConferencia ? `
-        <div style="margin-top: 5px; border-top: 1px dashed #000; padding-top: 5px; font-size: 9pt;">
+        <div style="margin-top: 5px; border-top: 2px dashed #000; padding-top: 5px; font-size: 9pt;">
           <div style="display:flex; justify-content:space-between;">
             <span>FORMA DE PAGAMENTO:</span>
             <span style="font-weight:bold;">${(pedido.pagamentos_detalhados_lista || (historicoPagos && historicoPagos.length > 1)) ? 'MÚLTIPLAS / DIVIDIDO' : (pedido.forma_pagamento || 'N/A')}</span>
