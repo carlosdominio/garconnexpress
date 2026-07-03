@@ -672,74 +672,113 @@ async function safePusherTrigger(channel, event, data) {
     if (eventsToPush.includes(event)) {
       try {
         const subs = (await query("SELECT * FROM push_subscriptions")).rows;
-        let pushMsg = '';
         const mesaRaw = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : 'BALCÃO');
         let mesaFormatada = mesaRaw;
         if (mesaRaw !== 'BALCÃO' && !String(mesaRaw).toUpperCase().includes('DELIVERY') && !String(mesaRaw).toUpperCase().includes('MESA')) {
             mesaFormatada = `Mesa ${mesaRaw}`;
         }
-        
+
+        const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_title_%' OR chave LIKE 'fcm_body_%'")).rows;
+        const configMap = {};
+        for (const r of configData) configMap[r.chave] = r.valor;
+
+        const resolveTemplate = (evt, defaultT, defaultB) => {
+          let t = configMap[`fcm_title_${evt}`] || defaultT;
+          let b = configMap[`fcm_body_${evt}`] || defaultB;
+          const mapVars = (str) => {
+            if (!str) return '';
+            const itemsList = data.itens ? data.itens.map(i => `${i.qtd || 1}x ${i.nome || i.titulo || ''}`).join(', ') : '';
+            return str
+              .replace(/{mesa}/g, mesaFormatada)
+              .replace(/{status}/g, data.status === 'fechado' ? 'fechado' : 'aberto')
+              .replace(/{itens}/g, itemsList)
+              .replace(/{item}/g, data.item || '')
+              .replace(/{qtd}/g, data.qtd || '1')
+              .replace(/{pedido_id}/g, String(data.pedido_id || data.id || ''));
+          };
+          return { title: mapVars(t), body: mapVars(b) };
+        };
+
         // Determina se o evento é para o Motoboy (Delivery) ou Garçom
         const isDelivery = data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY');
 
-        if (event === 'novo-pedido') pushMsg = data.is_addition ? `➕ ITEM ADICIONADO: ${mesaFormatada}` : `🚀 NOVO PEDIDO: ${mesaFormatada}`;
-        else if (event === 'pedido-cancelado') pushMsg = `❌ ${mesaFormatada} PEDIDO CANCELADO`;
-        else if (event === 'chamado-garcom') pushMsg = `🛎️ CHAMADO: ${mesaFormatada}`;
-        else if (event === 'pedido-pronto') pushMsg = `🍳 PRONTO: ${mesaFormatada}`;
-        else if (event === 'rascunho-recebido') pushMsg = `📝 RASCUNHO: ${mesaFormatada}`;
-        else if (event === 'solicitacao-fechamento-cliente') pushMsg = `💰 FECHAMENTO: ${mesaFormatada}`;
-        else if (event === 'status-atualizado') {
-           if (data.status === 'cancelado') {
-               return true; // Deixa que o evento 'pedido-cancelado' envie a notificação, evita duplicidade.
-           } else if (data.status === 'entregue') {
-               if (isDelivery) {
-                   pushMsg = `✅ PEDIDO ENTREGUE E FINALIZADO: ${mesaFormatada}`;
-               } else {
-                   return true; // Ignora para mesas de salão (evita duplicidade de "Entregue")
-               }
-           } else if (data.status === 'servido') {
-               // No Delivery, 'servido' significa que o motoboy pegou o pedido e 'Saiu para entrega'
-               pushMsg = isDelivery ? `🛵 SAIU PARA ENTREGA: ${mesaFormatada}` : `✅ ENTREGUE: ${mesaFormatada}`;
-           } else if (data.status === 'saiu_entrega') {
-               pushMsg = `🛵 SAIU PARA ENTREGA: ${mesaFormatada}`;
-           } else if (data.status === 'liberada') {
-               pushMsg = `🔓 MESA LIBERADA: ${mesaFormatada}`;
-           } else {
-               return true; // Ignora outros status para não "notificar pra tudo"
-           }
+        // Compila o título/mensagem padrão de acordo com o template
+        let msgGarcom = { title: 'GarçomExpress', body: '' };
+        let msgCozinha = { title: 'CozinhaExpress', body: '' };
+        let msgMotoboy = { title: 'Delivery Express', body: '' };
+
+        if (event === 'novo-pedido') {
+          const evKey = data.is_addition ? 'item-adicionado' : 'novo-pedido';
+          const defT = data.is_addition ? '➕ ITEM ADICIONADO' : '🚀 NOVO PEDIDO';
+          const defB = data.is_addition ? '{mesa} pediu mais itens!' : '{mesa}';
+          msgGarcom = resolveTemplate(evKey, defT, defB);
+          msgCozinha = resolveTemplate(evKey, defT, defB);
+        } else if (event === 'pedido-cancelado') {
+          msgGarcom = resolveTemplate('pedido-cancelado', '❌ PEDIDO CANCELADO', '{mesa}');
+          msgCozinha = resolveTemplate('pedido-cancelado', '❌ PEDIDO CANCELADO', '{mesa}');
+        } else if (event === 'chamado-garcom') {
+          msgGarcom = resolveTemplate('chamado-garcom', '🛎️ CHAMADO', '{mesa} está chamando!');
+        } else if (event === 'pedido-pronto') {
+          msgGarcom = resolveTemplate('pedido-pronto', '🍳 PRONTO', '{mesa}');
+        } else if (event === 'solicitacao-fechamento-cliente') {
+          msgGarcom = resolveTemplate('solicitacao-fechamento-cliente', '💰 FECHAMENTO', '{mesa} solicitou a conta');
+        } else if (event === 'status-caixa-atualizado') {
+          const statusText = data.status === 'fechado' ? 'fechado' : 'aberto';
+          const defT = '💰 CAIXA';
+          const defB = data.status === 'fechado' ? '🔴 O caixa foi FECHADO. Atendimento encerrado.' : '🟢 O caixa foi ABERTO. Bom trabalho!';
+          msgGarcom = resolveTemplate('status-caixa-atualizado', defT, defB);
+          msgCozinha = resolveTemplate('status-caixa-atualizado', defT, defB);
+          msgMotoboy = resolveTemplate('status-caixa-atualizado', defT, defB);
+        } else if (event === 'status-atualizado') {
+          if (data.status === 'cancelado') {
+            return true; // Deixa que o evento 'pedido-cancelado' envie a notificação, evita duplicidade.
+          } else if (data.status === 'entregue') {
+            if (isDelivery) {
+              msgMotoboy = { title: 'Delivery Express', body: `✅ PEDIDO ENTREGUE E FINALIZADO: ${mesaFormatada}` };
+            } else {
+              return true; // Ignora para mesas de salão (evita duplicidade de "Entregue")
+            }
+          } else if (data.status === 'servido') {
+            if (isDelivery) {
+              msgMotoboy = { title: 'Delivery Express', body: `🛵 SAIU PARA ENTREGA: ${mesaFormatada}` };
+            } else {
+              return true; // Ignora para salão
+            }
+          } else if (data.status === 'saiu_entrega') {
+            msgMotoboy = { title: 'Delivery Express', body: `🛵 SAIU PARA ENTREGA: ${mesaFormatada}` };
+          } else if (data.status === 'liberada') {
+            msgGarcom = { title: 'GarçomExpress', body: `🔓 MESA LIBERADA: ${mesaFormatada}` };
+          } else {
+            return true; // Ignora outros status
+          }
         }
-        else if (event === 'status-caixa-atualizado') pushMsg = data.status === 'fechado' ? '🔴 O caixa foi FECHADO. Atendimento encerrado.' : '🟢 O caixa foi ABERTO. Bom trabalho!';
-        else pushMsg = `Notificação: ${event}`;
 
         // Mapeia os alvos que devem receber a notificação
         const targets = [];
 
         // Fechamento/abertura de caixa vai para TODOS os apps simultaneamente
         if (event === 'status-caixa-atualizado') {
-          const caixaTitulo = data.status === 'fechado' ? '💰 CAIXA FECHADO' : '💰 CAIXA ABERTO';
-          targets.push({ app: 'garcom',  title: caixaTitulo, msg: pushMsg });
-          targets.push({ app: 'cozinha', title: caixaTitulo, msg: pushMsg });
-          targets.push({ app: 'motoboy', title: caixaTitulo, msg: pushMsg });
+          targets.push({ app: 'garcom',  title: msgGarcom.title, msg: msgGarcom.body });
+          targets.push({ app: 'cozinha', title: msgCozinha.title, msg: msgCozinha.body });
+          targets.push({ app: 'motoboy', title: msgMotoboy.title, msg: msgMotoboy.body });
         } else if (isDelivery) {
           if (event === 'pedido-cancelado' && enviaCozinha) {
              // Se for cancelamento de delivery E tem item de cozinha, NÃO envia push pro motoboy.
              // A notificação de cancelamento vai apenas para a cozinha (configurado abaixo).
           } else {
-            targets.push({ app: 'motoboy', title: 'Delivery Express', msg: pushMsg });
+            const bodyMotoboy = msgMotoboy.body || (data.is_addition ? `➕ ITEM ADICIONADO: ${mesaFormatada}` : `🚀 NOVO PEDIDO: ${mesaFormatada}`);
+            targets.push({ app: 'motoboy', title: msgMotoboy.title || 'Delivery Express', msg: bodyMotoboy });
           }
         } else {
-          targets.push({ app: 'garcom', title: 'GarçomExpress', msg: pushMsg });
+          if (msgGarcom.body) {
+            targets.push({ app: 'garcom', title: msgGarcom.title, msg: msgGarcom.body });
+          }
         }
 
         // Adiciona a cozinha como alvo se houver itens para cozinha ou se o pedido foi cancelado
         if (event === 'novo-pedido' || event === 'pedido-cancelado') {
-          // enviaCozinha já foi calculado lá em cima!
-          if (enviaCozinha) {
-            let cozinhaMsg = `❌ ${mesaFormatada} PEDIDO CANCELADO`;
-            if (event === 'novo-pedido') {
-              cozinhaMsg = data.is_addition ? `➕ ITEM ADICIONADO: A ${mesaFormatada} pediu mais itens!` : `🍳 NOVO PEDIDO: ${mesaFormatada}`;
-            }
-            targets.push({ app: 'cozinha', title: 'CozinhaExpress', msg: cozinhaMsg });
+          if (enviaCozinha && msgCozinha.body) {
+            targets.push({ app: 'cozinha', title: msgCozinha.title, msg: msgCozinha.body });
           }
         }
 
