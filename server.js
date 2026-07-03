@@ -988,7 +988,22 @@ async function checkAndNotifyDelayedOrders() {
       return diffMinutes >= 10;
     });
 
-    
+    const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_title_%' OR chave LIKE 'fcm_body_%'")).rows;
+    const configMap = {};
+    for (const r of configData) configMap[r.chave] = r.valor;
+
+    const resolveAtrasoTemplate = (evt, defaultT, defaultB, mesaFormatada, pId) => {
+      let t = configMap[`fcm_title_${evt}`] || defaultT;
+      let b = configMap[`fcm_body_${evt}`] || defaultB;
+      const mapVars = (str) => {
+        if (!str) return '';
+        return str
+          .replace(/{mesa}/g, mesaFormatada)
+          .replace(/{pedido_id}/g, String(pId));
+      };
+      return { title: mapVars(t), body: mapVars(b) };
+    };
+
     // 2. Busca inscrições push de dispositivos
     const subsRes = await query("SELECT * FROM push_subscriptions");
     const subs = subsRes.rows;
@@ -1008,8 +1023,15 @@ async function checkAndNotifyDelayedOrders() {
       const updateRes = await query("UPDATE pedidos SET notificado_atraso_fechamento = 1 WHERE id = ? AND (notificado_atraso_fechamento = 0 OR notificado_atraso_fechamento IS NULL)", [p.id]);
       if (updateRes.changes === 0) continue;
 
-      const pushTitle = '⚠️ CAIXA: FECHAMENTO ATRASADO!';
-      const pushMsg = `O fechamento da ${mesaName} foi solicitado há mais de 5 minutos e ainda não foi concluído!`;
+      const pushObj = resolveAtrasoTemplate(
+        'fechamento-atrasado',
+        '⚠️ CAIXA: FECHAMENTO ATRASADO!',
+        'O fechamento da {mesa} foi solicitado há mais de 5 minutos e ainda não foi concluído!',
+        mesaName,
+        p.id
+      );
+      const pushTitle = pushObj.title;
+      const pushMsg = pushObj.body;
       
       // Toast pusher para o admin
       if (typeof safePusherTrigger !== 'undefined') {
@@ -1047,10 +1069,6 @@ async function checkAndNotifyDelayedOrders() {
 
     if (delayedOrders.length === 0) return;
 
-    // 2. Busca inscrições push de dispositivos
-    
-    
-
     for (const p of delayedOrders) {
       const isDelivery = p.garcom_id === 'DELIVERY';
       const mesaName = p.mesa_numero ? (String(p.mesa_numero).toUpperCase().includes('MESA') ? p.mesa_numero : `Mesa ${p.mesa_numero}`) : 'BALCÃO';
@@ -1058,9 +1076,23 @@ async function checkAndNotifyDelayedOrders() {
       const targets = [];
       
       if (isDelivery) {
-        targets.push({ app: 'motoboy', title: '🔥 MOTOBOY: ENTREGA ATRASADA!', msg: `O pedido de entrega #${p.id} está parado há mais de 10 minutos!` });
+        const pushObj = resolveAtrasoTemplate(
+          'pedido-atrasado-motoboy',
+          '🔥 MOTOBOY: ENTREGA ATRASADA!',
+          'O pedido de entrega #{pedido_id} está parado há mais de 10 minutos!',
+          mesaName,
+          p.id
+        );
+        targets.push({ app: 'motoboy', title: pushObj.title, msg: pushObj.body });
       } else {
-        targets.push({ app: 'garcom', title: '🔥 GARÇOM: PEDIDO ATRASADO!', msg: `O pedido da ${mesaName} (#${p.id}) está parado há mais de 10 minutos!` });
+        const pushObj = resolveAtrasoTemplate(
+          'pedido-atrasado-garcom',
+          '🔥 GARÇOM: PEDIDO ATRASADO!',
+          'O pedido da {mesa} (#{pedido_id}) está parado há mais de 10 minutos!',
+          mesaName,
+          p.id
+        );
+        targets.push({ app: 'garcom', title: pushObj.title, msg: pushObj.body });
       }
       
       // Verifica se o pedido atrasado tem itens para a cozinha
@@ -1076,7 +1108,14 @@ async function checkAndNotifyDelayedOrders() {
       }
 
       if (enviaCozinha) {
-        targets.push({ app: 'cozinha', title: '🔥 COZINHA: PEDIDO ATRASADO!', msg: `O pedido #${p.id} (${mesaName}) está aguardando há mais de 10 minutos!` });
+        const pushObj = resolveAtrasoTemplate(
+          'pedido-atrasado-cozinha',
+          '🔥 COZINHA: PEDIDO ATRASADO!',
+          'O pedido #{pedido_id} ({mesa}) está aguardando há mais de 10 minutos!',
+          mesaName,
+          p.id
+        );
+        targets.push({ app: 'cozinha', title: pushObj.title, msg: pushObj.body });
       }
 
       // Atualiza de forma atômica para evitar envios duplicados por concorrência
@@ -4004,7 +4043,11 @@ const FCM_DEFAULTS = [
   { evento: 'rascunho-recebido', tituloPadrao: '📝 RASCUNHO', corpoPadrao: '{mesa}', destinatario: 'garcom', variaveis: ['mesa'] },
   { evento: 'mesa-liberada', tituloPadrao: '🔓 MESA LIBERADA', corpoPadrao: '{mesa}', destinatario: 'garcom', variaveis: ['mesa'] },
   { evento: 'saiu-entrega', tituloPadrao: '🛵 SAIU PARA ENTREGA', corpoPadrao: '{mesa}', destinatario: 'motoboy', variaveis: ['mesa'] },
-  { evento: 'pedido-entregue', tituloPadrao: '✅ PEDIDO ENTREGUE', corpoPadrao: '{mesa}', destinatario: 'motoboy', variaveis: ['mesa'] }
+  { evento: 'pedido-entregue', tituloPadrao: '✅ PEDIDO ENTREGUE', corpoPadrao: '{mesa}', destinatario: 'motoboy', variaveis: ['mesa'] },
+  { evento: 'fechamento-atrasado', tituloPadrao: '⚠️ CAIXA: FECHAMENTO ATRASADO!', corpoPadrao: 'O fechamento da {mesa} foi solicitado há mais de 5 minutos e ainda não foi concluído!', destinatario: 'garcom', variaveis: ['mesa'] },
+  { evento: 'pedido-atrasado-motoboy', tituloPadrao: '🔥 MOTOBOY: ENTREGA ATRASADA!', corpoPadrao: 'O pedido de entrega #{pedido_id} está parado há mais de 10 minutos!', destinatario: 'motoboy', variaveis: ['pedido_id'] },
+  { evento: 'pedido-atrasado-garcom', tituloPadrao: '🔥 GARÇOM: PEDIDO ATRASADO!', corpoPadrao: 'O pedido da {mesa} (#{pedido_id}) está parado há mais de 10 minutos!', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
+  { evento: 'pedido-atrasado-cozinha', tituloPadrao: '🔥 COZINHA: PEDIDO ATRASADO!', corpoPadrao: 'O pedido #{pedido_id} ({mesa}) está aguardando há mais de 10 minutos!', destinatario: 'cozinha', variaveis: ['mesa', 'pedido_id'] }
 ];
 
 app.post('/api/fcm-config/listar', ensureDbInitialized, isAdmin, async (req, res) => {
