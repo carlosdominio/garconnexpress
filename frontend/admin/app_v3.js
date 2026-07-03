@@ -4448,17 +4448,19 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
     const totalPagoExib = document.getElementById('fechamento-total-ja-pago');
 
     if (pagamentos && pagamentos.length > 0) {
-      containerPagos.style.display = 'block';
+      if (containerPagos) containerPagos.style.display = 'block';
       const totalJaPago = pagamentos.reduce((s, p) => s + p.valor, 0);
-      totalPagoExib.textContent = `R$ ${totalJaPago.toFixed(2)}`;
-      listaPagos.innerHTML = pagamentos.map((p, i) => `
-        <div style="display:flex; justify-content:space-between; padding:2px 0; border-bottom:1px dashed #eee; color:#27ae60;">
-          <span>${i+1}ª Parte (${p.forma_pagamento})</span>
-          <span style="font-weight:bold;">R$ ${p.valor.toFixed(2)}</span>
-        </div>
-      `).join('');
+      if (totalPagoExib) totalPagoExib.textContent = `R$ ${totalJaPago.toFixed(2)}`;
+      if (listaPagos) {
+        listaPagos.innerHTML = pagamentos.map((p, i) => `
+          <div style="display:flex; justify-content:space-between; padding:2px 0; border-bottom:1px dashed #eee; color:#27ae60;">
+            <span>${i+1}ª Parte (${p.forma_pagamento})</span>
+            <span style="font-weight:bold;">R$ ${p.valor.toFixed(2)}</span>
+          </div>
+        `).join('');
+      }
     } else {
-      containerPagos.style.display = 'none';
+      if (containerPagos) containerPagos.style.display = 'none';
     }
   } catch (e) { console.error("Erro ao carregar pagamentos:", e); }
 
