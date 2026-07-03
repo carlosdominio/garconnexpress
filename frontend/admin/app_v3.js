@@ -315,8 +315,19 @@ async function iniciarPainelAdmin() {
           ...pedidoEmEdicao,
           isImpressaoParcialItens: true
         };
-        
-        imprimirCupom(pedidoMock, itensParaImprimir);
+          
+        (async () => {
+          const htmlPrevia = await imprimirCupom(pedidoMock, itensParaImprimir, true);
+          document.getElementById('conteudo-previa-bobina').innerHTML = htmlPrevia;
+          
+          const btnReal = document.getElementById('btn-imprimir-real-previa');
+          btnReal.onclick = function() {
+            imprimirCupom(pedidoMock, itensParaImprimir);
+            fecharPreviaCupom();
+          };
+          
+          document.getElementById('modal-previa-cupom').style.display = 'flex';
+        })();
       }
     };
   }
@@ -3265,7 +3276,18 @@ async function imprimirParcialMesaRapido(idPedido) {
   try {
     const res = await fetch(`/api/pedidos/${idPedido}/itens`);
     const itens = await res.json();
-    imprimirCupom({ ...pedido, isImpressaoParcialMesa: true }, itens);
+    const pedidoMock = { ...pedido, isImpressaoParcialMesa: true };
+
+    const htmlPrevia = await imprimirCupom(pedidoMock, itens, true);
+    document.getElementById('conteudo-previa-bobina').innerHTML = htmlPrevia;
+    
+    const btnReal = document.getElementById('btn-imprimir-real-previa');
+    btnReal.onclick = function() {
+      imprimirCupom(pedidoMock, itens);
+      fecharPreviaCupom();
+    };
+    
+    document.getElementById('modal-previa-cupom').style.display = 'flex';
   } catch (e) {
     console.error("Erro na impressão rápida:", e);
     mostrarAlerta("Erro ao gerar impressão.", "Erro", "❌");
