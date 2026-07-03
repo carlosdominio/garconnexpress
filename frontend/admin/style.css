@@ -858,6 +858,7 @@ button.btn-entregue { background-color: #95a5a6; }
 @media print {
   @page { margin: 0; size: auto; }
   body > * { display: none !important; }
+  #toast-container { display: none !important; }
   #cupom-impressao { 
     display: block !important; 
     visibility: visible !important;

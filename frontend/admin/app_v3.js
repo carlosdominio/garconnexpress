@@ -6198,7 +6198,6 @@ async function imprimirCupom(pedido, itens) {
         </div>
       ` : ''}
 
-      ${htmlDivisao}
     </div>
 
     <div class="cupom-central" style="text-align: center; margin-top: 15px;">
