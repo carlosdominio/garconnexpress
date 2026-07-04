@@ -451,7 +451,8 @@ async function configurarPusher() {
 
         canal.bind('teste-toast', (data) => {
             console.log('📢 Teste de Toast recebido na Cozinha:', data);
-            dispararToastSistema(data.evento, data.dados || {}, data.fallbackText || '', data.fallbackTipo || 'success');
+            const tipo = data.tipo === 'erro' ? 'error' : (data.tipo === 'sucesso' ? 'success' : 'info');
+            mostrarToast(data.mensagem || '', tipo);
         });
 
         canal.bind('novo-pedido', (data) => {

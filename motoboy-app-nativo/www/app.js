@@ -440,7 +440,8 @@ const App = {
                 
                 this.channel.bind('teste-toast', (data) => {
                     console.log('📢 Teste de Toast recebido no Motoboy:', data);
-                    dispararToastSistema(data.evento, data.dados || {}, data.fallbackText || '', data.fallbackTipo || 'success');
+                    const tipo = data.tipo === 'erro' ? 'error' : (data.tipo === 'sucesso' ? 'success' : 'info');
+                    App.ui.showToast(data.mensagem || '', tipo);
                 });
 
                 this.channel.bind('status-caixa-atualizado', () => App.checkCaixaStatus());

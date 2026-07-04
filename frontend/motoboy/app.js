@@ -442,6 +442,8 @@ const App = {
                     console.log('📢 Evento recebido: teste-toast', data);
                     if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell();
                     App.notifications.showLocal(data.titulo || 'TESTE DE ALERTA', data.mensagem || '', 'teste-toast');
+                    const tipo = data.tipo === 'erro' ? 'error' : (data.tipo === 'sucesso' ? 'success' : 'info');
+                    App.ui.showToast(data.mensagem || '', tipo);
                 });
 
                 this.channel.bind('status-caixa-atualizado', () => App.checkCaixaStatus());
