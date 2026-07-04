@@ -719,6 +719,9 @@
           <button class="config-nav-btn" onclick="switchConfigSubTab('fcm')">
             <i class="fa-solid fa-bell"></i> Push FCM
           </button>
+          <button class="config-nav-btn" onclick="switchConfigSubTab('som-apps')">
+            <i class="fa-solid fa-volume-high"></i> Toques de Alerta
+          </button>
           <button class="config-nav-btn" onclick="switchConfigSubTab('toasts')">
             <i class="fa-solid fa-comment-dots"></i> Alertas do App
           </button>
@@ -1131,9 +1134,86 @@
           </div>
         </div>
 
+          <!-- Sub-seção: Toques de Alerta -->
+          <div id="config-sub-som-apps" class="config-sub-section">
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+              <!-- Card: Configurações de Som do Sistema -->
+              <div class="config-card">
+                <h3><i class="fa-solid fa-volume-high"></i> Toques de Alerta dos Aplicativos</h3>
+                <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1.5rem;">
+                  Escolha toques personalizados para cada aplicativo da equipe para facilitar a identificação sonora.
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 1.5rem;">
+                  <!-- 1. Aplicativo do Garçom -->
+                  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <span style="font-weight: bold; width: 180px; font-size: 0.9rem; color: #1e293b;">🔵 App do Garçom:</span>
+                    <select id="config-som-garcom" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: white; width: 200px; cursor: pointer;">
+                      <option value="original">🔔 Som Padrão (Original)</option>
+                      <option value="mudo">🔇 Mudo (Sem Som)</option>
+                      <option value="campainha_classica">🔔 Campainha Clássica</option>
+                      <option value="sino_moderno">🎵 Sino Moderno</option>
+                      <option value="alerta_digital">📟 Alerta Digital</option>
+                      <option value="alerta_urgente">🚨 Alerta Urgente</option>
+                      <option value="suave">🍃 Suave/Discreto</option>
+                    </select>
+                    <button type="button" onclick="tocarPreviewSomApp('config-som-garcom')" style="padding: 8px 12px; background: #3b82f6; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.82rem; font-weight: bold;">▶️ Testar</button>
+                  </div>
+
+                  <!-- 2. Painel da Cozinha -->
+                  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <span style="font-weight: bold; width: 180px; font-size: 0.9rem; color: #1e293b;">🟠 Painel da Cozinha:</span>
+                    <select id="config-som-cozinha" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: white; width: 200px; cursor: pointer;">
+                      <option value="original">🔔 Som Padrão (Original)</option>
+                      <option value="mudo">🔇 Mudo (Sem Som)</option>
+                      <option value="campainha_classica">🔔 Campainha Clássica</option>
+                      <option value="sino_moderno">🎵 Sino Moderno</option>
+                      <option value="alerta_digital">📟 Alerta Digital</option>
+                      <option value="alerta_urgente">🚨 Alerta Urgente</option>
+                      <option value="suave">🍃 Suave/Discreto</option>
+                    </select>
+                    <button type="button" onclick="tocarPreviewSomApp('config-som-cozinha')" style="padding: 8px 12px; background: #3b82f6; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.82rem; font-weight: bold;">▶️ Testar</button>
+                  </div>
+
+                  <!-- 3. Aplicativo do Motoboy -->
+                  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <span style="font-weight: bold; width: 180px; font-size: 0.9rem; color: #1e293b;">🟢 App do Motoboy:</span>
+                    <select id="config-som-motoboy" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: white; width: 200px; cursor: pointer;">
+                      <option value="original">🔔 Som Padrão (Original)</option>
+                      <option value="mudo">🔇 Mudo (Sem Som)</option>
+                      <option value="campainha_classica">🔔 Campainha Clássica</option>
+                      <option value="sino_moderno">🎵 Sino Moderno</option>
+                      <option value="alerta_digital">📟 Alerta Digital</option>
+                      <option value="alerta_urgente">🚨 Alerta Urgente</option>
+                      <option value="suave">🍃 Suave/Discreto</option>
+                    </select>
+                    <button type="button" onclick="tocarPreviewSomApp('config-som-motoboy')" style="padding: 8px 12px; background: #3b82f6; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.82rem; font-weight: bold;">▶️ Testar</button>
+                  </div>
+
+                  <!-- 4. Painel do Administrador -->
+                  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <span style="font-weight: bold; width: 180px; font-size: 0.9rem; color: #1e293b;">👑 Painel do Admin:</span>
+                    <select id="config-som-admin" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: white; width: 200px; cursor: pointer;">
+                      <option value="original">🔔 Som Padrão (Original)</option>
+                      <option value="mudo">🔇 Mudo (Sem Som)</option>
+                      <option value="campainha_classica">🔔 Campainha Clássica</option>
+                      <option value="sino_moderno">🎵 Sino Moderno</option>
+                      <option value="alerta_digital">📟 Alerta Digital</option>
+                      <option value="alerta_urgente">🚨 Alerta Urgente</option>
+                      <option value="suave">🍃 Suave/Discreto</option>
+                    </select>
+                    <button type="button" onclick="tocarPreviewSomApp('config-som-admin')" style="padding: 8px 12px; background: #3b82f6; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.82rem; font-weight: bold;">▶️ Testar</button>
+                  </div>
+                </div>
+
+                <button onclick="salvarSonsApps()" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer; font-size: 0.9rem; margin-bottom: 2rem;"><i class="fa-solid fa-floppy-disk"></i> SALVAR CONFIGURAÇÃO DE SONS</button>
+              </div>
+            </div>
+          </div>
+
           <!-- Sub-seção: Alertas do App (Toasts) -->
           <div id="config-sub-toasts" class="config-sub-section">
             <div style="display: flex; flex-direction: column; gap: 20px;">
+
               <div class="config-card">
                 <h3><i class="fa-solid fa-comment-dots"></i> Alertas Internos do App (Toasts/Popups)</h3>
                 <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1.5rem;">Configure os balões visuais e pop-ups temporários exibidos na tela dos aplicativos em tempo real.</p>

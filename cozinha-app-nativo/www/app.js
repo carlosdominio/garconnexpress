@@ -78,10 +78,48 @@ function alternarSom() {
 function tocarCampainha() {
     if (document.hidden) return; // Android FCM toca o som pesado quando oculto
 
+    const somTipo = localStorage.getItem('cozinha_som_global') || 'sino_moderno';
+    if (somTipo === 'mudo') return;
+
     if (somAtivo) {
+        audioNotificacao.src = getSoundPath(somTipo);
+        audioNotificacao.muted = false;
         audioNotificacao.currentTime = 0;
-        audioNotificacao.play().catch(err => console.log('Áudio bloqueado:', err));
+        audioNotificacao.play().catch(err => {
+            console.log('Áudio bloqueado:', err);
+            const fallbackAudio = new Audio(getSoundPath(somTipo));
+            fallbackAudio.muted = false;
+            fallbackAudio.play().catch(e => console.error(e));
+        });
     }
+}
+
+function getSoundPath(somTipo) {
+  if (somTipo === 'original') {
+    const isCordova = window.cordova || window.Capacitor || window.location.protocol === 'file:';
+    if (isCordova) {
+      return 'notificacao.mp3';
+    }
+    return '/notificacao.mp3';
+  }
+  const file = somTipo ? `${somTipo}.wav` : 'sino_moderno.wav';
+  const isCordova = window.cordova || window.Capacitor || window.location.protocol === 'file:';
+  if (isCordova) {
+    return `sons/${file}`;
+  }
+  return `/sons/${file}`;
+}
+
+async function carregarSomGlobalCozinha() {
+  try {
+    const res = await fetch('/api/config/som-global');
+    const data = await res.json();
+    if (data.success) {
+      localStorage.setItem('cozinha_som_global', data.somCozinha || 'sino_moderno');
+    }
+  } catch (err) {
+    console.error('Erro ao carregar som global cozinha:', err);
+  }
 }
 
 let pedidosAtrasadosNotificados = new Set();
@@ -454,6 +492,11 @@ async function configurarPusher() {
             if (typeof carregarConfiguracoesToasts === 'function') carregarConfiguracoesToasts();
         });
 
+        canal.bind('som-global-atualizado', (data) => {
+            console.log('🔄 Som global atualizado:', data);
+            localStorage.setItem('cozinha_som_global', data.somCozinha || 'sino_moderno');
+        });
+
         canal.bind('teste-toast', (data) => {
             console.log('📢 Teste de Toast recebido na Cozinha:', data);
             if (deveTocarSom(data.evento || 'teste-toast')) tocarSomNotificacao('campainha');
@@ -745,6 +788,7 @@ function limparNotificacoes() {
 }
 
 async function iniciarApp() {
+    await carregarSomGlobalCozinha();
     await carregarConfiguracoesToasts();
     solicitarPermissaoNotificacao();
     carregarPedidos();

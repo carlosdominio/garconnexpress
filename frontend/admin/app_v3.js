@@ -595,7 +595,12 @@ function switchConfigSubTab(subTab) {
   if (section) section.classList.add('active');
 
   if (subTab === 'fcm') carregarNotificacoesFCM();
-  else if (subTab === 'toasts') carregarConfiguracoesToasts();
+  else if (subTab === 'som-apps') {
+    carregarSonsApps();
+  }
+  else if (subTab === 'toasts') {
+    carregarConfiguracoesToasts();
+  }
 }
 
 // ─── RELATÓRIOS DE ESTOQUE ─────────────────────────────────────────────────────
@@ -5749,6 +5754,10 @@ async function configurarPusher() {
   const somWin = localStorage.getItem('admin_som_windows') === 'true';
 
   if (somMP3 && (tipo === 'ambos' || tipo === 'campainha')) {
+    const somTipo = localStorage.getItem('admin_som_global') || 'alerta_digital';
+    if (somTipo === 'mudo') return;
+
+    audioNotificacao.src = getSoundPath(somTipo);
     audioNotificacao.muted = false;
     audioNotificacao.volume = 1.0;
     audioNotificacao.currentTime = 0;
@@ -5756,7 +5765,7 @@ async function configurarPusher() {
         audioDesbloqueado = true;
     }).catch(e => {
         console.warn('Erro ao tocar som MP3 (tentando nova instância):', e);
-        const fallbackAudio = new Audio('/notificacao.mp3');
+        const fallbackAudio = new Audio(getSoundPath(somTipo));
         fallbackAudio.muted = false;
         fallbackAudio.volume = 1.0;
         fallbackAudio.play().then(() => {
@@ -7833,5 +7842,78 @@ async function enviarComunicadoBroadcast() {
   } catch (err) {
     await mostrarConfirmacaoFCM('Erro', '❌ Falha ao enviar comunicado: ' + err.message, 'perigo', true);
   }
+}
+
+// ─── CONFIGURAÇÃO DE SONS SEPARADOS DOS APLICATIVOS ──────────────────────────────
+
+async function carregarSonsApps() {
+  try {
+    const res = await fetch('/api/config/som-global');
+    const data = await res.json();
+    if (data.success) {
+      const selectGarcom = document.getElementById('config-som-garcom');
+      const selectCozinha = document.getElementById('config-som-cozinha');
+      const selectMotoboy = document.getElementById('config-som-motoboy');
+      const selectAdmin = document.getElementById('config-som-admin');
+      
+      if (selectGarcom) selectGarcom.value = data.somGarcom;
+      if (selectCozinha) selectCozinha.value = data.somCozinha;
+      if (selectMotoboy) selectMotoboy.value = data.somMotoboy;
+      if (selectAdmin) selectAdmin.value = data.somAdmin;
+      
+      localStorage.setItem('admin_som_global', data.somAdmin || 'alerta_digital');
+    }
+  } catch (err) {
+    console.error('Erro ao carregar configurações de som dos apps:', err);
+  }
+}
+
+async function salvarSonsApps() {
+  const somGarcom = document.getElementById('config-som-garcom')?.value || 'campainha_classica';
+  const somCozinha = document.getElementById('config-som-cozinha')?.value || 'sino_moderno';
+  const somMotoboy = document.getElementById('config-som-motoboy')?.value || 'campainha_classica';
+  const somAdmin = document.getElementById('config-som-admin')?.value || 'alerta_digital';
+  
+  try {
+    const res = await fetch('/api/config/som-global', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
+      body: JSON.stringify({ somGarcom, somCozinha, somAdmin, somMotoboy })
+    });
+    const data = await res.json();
+    if (data.success) {
+      localStorage.setItem('admin_som_global', somAdmin);
+      await mostrarConfirmacaoFCM('Sucesso', '🔔 Configuração de sons salva com sucesso!', 'sucesso', true);
+      carregarSonsApps();
+    } else {
+      throw new Error(data.error || 'Erro ao salvar');
+    }
+  } catch (err) {
+    await mostrarConfirmacaoFCM('Erro', '❌ Falha ao salvar sons: ' + err.message, 'perigo', true);
+  }
+}
+
+function getSoundPath(somTipo) {
+  if (somTipo === 'original') {
+    const isCordova = window.cordova || window.Capacitor || window.location.protocol === 'file:';
+    if (isCordova) {
+      return 'notificacao.mp3';
+    }
+    return '/notificacao.mp3';
+  }
+  const file = somTipo ? `${somTipo}.wav` : 'campainha_classica.wav';
+  const isCordova = window.cordova || window.Capacitor || window.location.protocol === 'file:';
+  if (isCordova) {
+    return `sons/${file}`;
+  }
+  return `/sons/${file}`;
+}
+
+function tocarPreviewSomApp(selectId) {
+  const select = document.getElementById(selectId);
+  const val = select ? select.value : 'campainha_classica';
+  if (val === 'mudo') return;
+  const audio = new Audio(getSoundPath(val));
+  audio.play().catch(e => console.warn('Erro ao reproduzir preview de som:', e));
 }
 

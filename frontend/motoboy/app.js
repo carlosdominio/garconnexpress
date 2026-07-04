@@ -6,6 +6,34 @@
 const API_BASE_URL = '';
 const NOTIFICATION_CHANNEL_ID = 'pedidos';
 
+function getSoundPath(somTipo) {
+  if (somTipo === 'original') {
+    const isCordova = window.cordova || window.Capacitor || window.location.protocol === 'file:';
+    if (isCordova) {
+      return 'notificacao.mp3';
+    }
+    return '/notificacao.mp3';
+  }
+  const file = somTipo ? `${somTipo}.wav` : 'campainha_classica.wav';
+  const isCordova = window.cordova || window.Capacitor || window.location.protocol === 'file:';
+  if (isCordova) {
+    return `sons/${file}`;
+  }
+  return `/sons/${file}`;
+}
+
+async function carregarSomGlobalMotoboy() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/config/som-global`);
+    const data = await res.json();
+    if (data.success) {
+      localStorage.setItem('motoboy_som_global', data.somMotoboy || 'campainha_classica');
+    }
+  } catch (err) {
+    console.error('Erro ao carregar som global motoboy:', err);
+  }
+}
+
 const App = {
     state: {
         token: localStorage.getItem('motoboy_token'),
@@ -15,6 +43,12 @@ const App = {
         soundEnabled: localStorage.getItem('motoboy_sound') !== 'false',
         notifiedEvents: new Set(), // Para evitar duplicidade estrita (evento + id)
         notificacoes: []
+    },
+
+    audio: {
+        playBell(somTipo) {
+            App.notifications.playAlert(somTipo);
+        }
     },
 
     async init() {
@@ -54,6 +88,8 @@ const App = {
                 }
             } catch(e) { console.warn('Aviso Bateria:', e); }
         }
+        
+        await carregarSomGlobalMotoboy();
         
         if (!this.checkAuth()) return;
 
@@ -394,12 +430,20 @@ const App = {
             App.ui.showToast(body, 'info', title);
         },
 
-        playAlert() {
+        playAlert(somTipo) {
             if (document.hidden) return; // Evita conflito com som nativo em segundo plano
             if (!App.state.soundEnabled) return;
             
+            const resolvedSom = somTipo || localStorage.getItem('motoboy_som_global') || 'campainha_classica';
+            if (resolvedSom === 'mudo') return;
+
+            this.audio.src = getSoundPath(resolvedSom);
             this.audio.currentTime = 0;
-            this.audio.play().catch(e => console.log('Áudio bloqueado:', e));
+            this.audio.play().catch(e => {
+                console.log('Áudio bloqueado:', e);
+                const fallbackAudio = new Audio(getSoundPath(resolvedSom));
+                fallbackAudio.play().catch(err => console.error(err));
+            });
         },
 
         toggleSound() {
@@ -440,10 +484,15 @@ const App = {
                 
                 this.channel.bind('teste-toast', (data) => {
                     console.log('📢 Evento recebido: teste-toast', data);
-                    if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell();
+                    if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell(data.som_tipo);
                     App.notifications.showLocal(data.titulo || 'TESTE DE ALERTA', data.mensagem || '', 'teste-toast');
                     const tipo = data.tipo === 'erro' ? 'error' : (data.tipo === 'sucesso' ? 'success' : 'info');
                     App.ui.showToast(data.mensagem || '', tipo);
+                });
+
+                this.channel.bind('som-global-atualizado', (data) => {
+                    console.log('🔄 Som global atualizado:', data);
+                    localStorage.setItem('motoboy_som_global', data.somMotoboy || 'campainha_classica');
                 });
 
                 this.channel.bind('comunicado-geral', (data) => {

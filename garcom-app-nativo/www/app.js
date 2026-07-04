@@ -628,6 +628,7 @@ async function iniciarApp() {
   if (ov) ov.classList.remove('hidden');
   if (ovMsg) ovMsg.textContent = 'Carregando mesas do cardápio...';
 
+  await carregarSomGlobalGarcom();
   await carregarConfiguracoesToasts();
   await carregarConfigCozinha();
   await carregarMenu();
@@ -746,9 +747,15 @@ function alternarSom() {
 
 function tocarCampainha(suave = false) {
   if (document.hidden) return;
+
+  const somTipo = localStorage.getItem('garcom_som_global') || 'campainha_classica';
+  if (somTipo === 'mudo') return;
+
   if (somAtivo) {
     if (Date.now() - ultimoSomTocado < 2000) return;
     ultimoSomTocado = Date.now();
+    
+    audioNotificacao.src = getSoundPath(somTipo);
     audioNotificacao.muted = false;
     audioNotificacao.volume = suave ? 0.3 : 1.0;
     audioNotificacao.currentTime = 0;
@@ -757,7 +764,7 @@ function tocarCampainha(suave = false) {
     }).catch(err => {
         console.warn('Erro ao tocar áudio:', err);
         // Tenta fallback com nova instância
-        const fallbackAudio = new Audio('notificacao.mp3');
+        const fallbackAudio = new Audio(getSoundPath(somTipo));
         fallbackAudio.muted = false;
         fallbackAudio.volume = suave ? 0.3 : 1.0;
         fallbackAudio.play().then(() => {
@@ -767,6 +774,33 @@ function tocarCampainha(suave = false) {
   }
 } 
 
+function getSoundPath(somTipo) {
+  if (somTipo === 'original') {
+    const isCordova = window.cordova || window.Capacitor || window.location.protocol === 'file:';
+    if (isCordova) {
+      return 'notificacao.mp3';
+    }
+    return '/notificacao.mp3';
+  }
+  const file = somTipo ? `${somTipo}.wav` : 'campainha_classica.wav';
+  const isCordova = window.cordova || window.Capacitor || window.location.protocol === 'file:';
+  if (isCordova) {
+    return `sons/${file}`;
+  }
+  return `/sons/${file}`;
+}
+
+async function carregarSomGlobalGarcom() {
+  try {
+    const res = await fetch('/api/config/som-global');
+    const data = await res.json();
+    if (data.success) {
+      localStorage.setItem('garcom_som_global', data.somGarcom || 'campainha_classica');
+    }
+  } catch (err) {
+    console.error('Erro ao carregar som global:', err);
+  }
+}
 async function configurarPusher() {
   try {
     const configRes = await fetch('/api/pusher-config');
@@ -788,6 +822,11 @@ async function configurarPusher() {
     channel.bind('toast-config-atualizado', () => {
       console.log('🔄 Configurações de Toasts atualizadas!');
       if (typeof carregarConfiguracoesToasts === 'function') carregarConfiguracoesToasts();
+    });
+
+    channel.bind('som-global-atualizado', (data) => {
+      console.log('🔄 Som global atualizado:', data);
+      localStorage.setItem('garcom_som_global', data.somGarcom || 'campainha_classica');
     });
 
     channel.bind('teste-toast', (data) => {

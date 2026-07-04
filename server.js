@@ -861,6 +861,7 @@ async function safePusherTrigger(channel, event, data) {
                // Tratamento para Token Nativo (Capacitor/Firebase SDK)
                if (admin.apps.length > 0) {
                  let androidNotification = { channelId: targetApp === 'garcom' ? 'garcom_v1' : 'pedidos', defaultSound: false };
+                 const currentSom = true; // Som sempre ativo para notificações nativas (o app decide o arquivo)
                  if (currentSom !== false) {
                    androidNotification.sound = 'notificacao.mp3';
                  }
@@ -4251,6 +4252,51 @@ app.post('/api/config/categorias-cozinha', isAdmin, async (req, res) => {
     // Marcações manuais anteriores serão resetadas para seguir a nova configuração global.
     await query(`UPDATE menu SET enviar_cozinha = NULL`);
 
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.get('/api/config/som-global', ensureDbInitialized, async (req, res) => {
+  try {
+    const configRows = (await query("SELECT chave, valor FROM sistema_config WHERE chave IN ('config_som_garcom', 'config_som_cozinha', 'config_som_admin', 'config_som_motoboy')")).rows;
+    const configMap = {};
+    for (const r of configRows) {
+      configMap[r.chave] = r.valor;
+    }
+    res.json({
+      success: true,
+      somGarcom: configMap['config_som_garcom'] || 'campainha_classica',
+      somCozinha: configMap['config_som_cozinha'] || 'sino_moderno',
+      somAdmin: configMap['config_som_admin'] || 'alerta_digital',
+      somMotoboy: configMap['config_som_motoboy'] || 'campainha_classica'
+    });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/config/som-global', ensureDbInitialized, isAdmin, async (req, res) => {
+  const { somGarcom, somCozinha, somAdmin, somMotoboy } = req.body;
+  try {
+    const configs = [
+      { chave: 'config_som_garcom', valor: somGarcom || 'campainha_classica' },
+      { chave: 'config_som_cozinha', valor: somCozinha || 'sino_moderno' },
+      { chave: 'config_som_admin', valor: somAdmin || 'alerta_digital' },
+      { chave: 'config_som_motoboy', valor: somMotoboy || 'campainha_classica' }
+    ];
+    for (const cfg of configs) {
+      if (isPostgres) {
+        await query("INSERT INTO sistema_config (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [cfg.chave, cfg.valor]);
+      } else {
+        await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES (?, ?)", [cfg.chave, cfg.valor]);
+      }
+    }
+    if (typeof safePusherTrigger !== 'undefined') {
+      await safePusherTrigger('garconnexpress', 'som-global-atualizado', {
+        somGarcom: somGarcom || 'campainha_classica',
+        somCozinha: somCozinha || 'sino_moderno',
+        somAdmin: somAdmin || 'alerta_digital',
+        somMotoboy: somMotoboy || 'campainha_classica'
+      });
+    }
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
