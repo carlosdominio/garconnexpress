@@ -2568,9 +2568,23 @@ app.post('/api/pedidos', orderLimiter, (req, res, next) => {
 
     // TRAVA DEFINITIVA: Verifica status da mesa no banco de mesas (MUITO MAIS SEGURO)
     if (mesa_id) {
-      const mesaObj = (await query("SELECT status FROM mesas WHERE id = ?", [mesa_id])).rows[0];
+      const mesaObj = (await query("SELECT status, garcom_id FROM mesas WHERE id = ?", [mesa_id])).rows[0];
       if (mesaObj && (mesaObj.status === 'fechando' || mesaObj.status === 'aguardando_fechamento')) {
         return res.status(403).json({ error: 'CONTA_SOLICITADA' });
+      }
+
+      // TRAVA DE FILA (RODÍZIO) - BACKEND LOCKOUT
+      if (mesaObj && mesaObj.status === 'ocupada' && mesaObj.garcom_id && !isDelivery) {
+        // Se a mesa tem um garçom atribuído e não é o garçom atual, bloqueia.
+        const isAdmin = req.user && req.user.role === 'admin';
+        const isClient = req.user && req.user.role === 'cliente';
+        if (!isAdmin && !isClient && mesaObj.garcom_id !== garcom_id) {
+            console.log(`🔒 [BLOQUEIO DE ACESSO] Garçom ${garcom_id} tentou acessar a mesa ${mesa_id} que está bloqueada para o garçom ${mesaObj.garcom_id}`);
+            return res.status(403).json({
+                error: 'MESA_ATENDIDA_POR_OUTRO',
+                message: `MESA BLOQUEADA! O garçom selecionado na fila (${mesaObj.garcom_id}) deve atender esta mesa.`
+            });
+        }
       }
 
       // BLOQUEIO DE DUPLICIDADE (LOCKOUT): Se já existe um pedido ativo, não permite criar outro (POST)
@@ -2850,8 +2864,23 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { itens, cobrar_taxa, observacao } = req.body;
   try {
-    const pOrig = (await query("SELECT cobrar_taxa FROM pedidos WHERE id = ?", [id])).rows[0];
+    const pOrig = (await query("SELECT mesa_id, garcom_id, cobrar_taxa FROM pedidos WHERE id = ?", [id])).rows[0];
     const deveTaxa = cobrar_taxa !== undefined ? cobrar_taxa : (pOrig ? pOrig.cobrar_taxa : true);
+    
+    // TRAVA DE FILA (RODÍZIO) - BACKEND LOCKOUT
+    if (pOrig && pOrig.garcom_id && pOrig.garcom_id !== 'DELIVERY') {
+        const isAdmin = req.user && req.user.role === 'admin';
+        const isClient = req.user && req.user.role === 'cliente';
+        const garcom_id = req.user ? (req.user.usuario || req.user.nome) : null;
+        if (!isAdmin && !isClient && pOrig.garcom_id !== garcom_id) {
+            console.log(`🔒 [BLOQUEIO DE ACESSO] Garçom ${garcom_id} tentou adicionar itens ao pedido ${id} bloqueado para o garçom ${pOrig.garcom_id}`);
+            return res.status(403).json({
+                error: 'MESA_ATENDIDA_POR_OUTRO',
+                message: `MESA BLOQUEADA! O garçom selecionado na fila (${pOrig.garcom_id}) deve atender esta mesa.`
+            });
+        }
+    }
+
     for (const item of itens) {
       // 1. Validação Antifraude: Bloqueia Quantidade Zero ou Negativa
       if (!item.quantidade || item.quantidade <= 0) {
@@ -4670,6 +4699,7 @@ app.listen(PORT, () => console.log(`Rodando na porta ${PORT}`));
 // forced push 2026-06-22 12:01:52
 
 // trigger redeploy after reconnect 2026-06-22 12:07:02
+
 
 
 

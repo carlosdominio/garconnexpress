@@ -1344,10 +1344,15 @@ function exibirMesas() {
       } else if (!eMeuPedido && mesa.garcom_id) {
         // SE NÃO É MEU E TEM GARÇOM, BLOQUEIA IMEDIATAMENTE (Independente de pedido_created_at)
         classeBloqueada = 'bloqueada';
-        statusTexto = `OCUPADA (${mesa.garcom_id})`;
+        statusTexto = `?? OCUPADA (${mesa.garcom_id})`;
       } else if (!mesa.pedido_created_at && !mesa.pedido_status && mesa.status === 'ocupada') {
-        statusTexto = '📱 AGUARDANDO CLIENTE';
-        classeAlerta = 'cliente-acessando';
+        if (!eMeuPedido && mesa.garcom_id) {
+          classeBloqueada = 'bloqueada';
+          statusTexto = `?? AGUARDANDO CLIENTE (${mesa.garcom_id})`;
+        } else {
+          statusTexto = '?? AGUARDANDO CLIENTE';
+          classeAlerta = 'cliente-acessando';
+        }
       } else if (mesa.status === 'fechando') {
         let icone = '💰';
         if (mesa.forma_pagamento === 'Pix') icone = '💠';
@@ -1408,7 +1413,7 @@ function exibirMesas() {
         const eMeuPedido = mesaSelecionada.garcom_id === garcomLogado.usuario;
         // BLOQUEIO REFORÇADO: Se a mesa tem um garçom e não é você, bloqueia o clique
         if (!eMeuPedido && mesaSelecionada.garcom_id) {
-          await mostrarAlerta(`Atendida por: ${mesaSelecionada.garcom_id}`, "Mesa Ocupada", "⚠️");
+          await mostrarAlerta(`?? MESA BLOQUEADA\nO gar�om selecionado na fila (${mesaSelecionada.garcom_id}) deve atender esta mesa.`, "Acesso Negado", "??");
           return;
         }
       }
@@ -2558,6 +2563,7 @@ function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTip
   const tipo = config ? (config.tipo === 'erro' ? 'error' : (config.tipo === 'sucesso' ? 'success' : 'info')) : fallbackTipo;
   mostrarToast(msgFinal, tipo);
 }
+
 
 
 
