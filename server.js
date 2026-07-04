@@ -1135,6 +1135,14 @@ async function checkAndNotifyDelayedOrders() {
         const pushTitle = target.title;
         const pushMsg = target.msg;
         
+        if (typeof safePusherTrigger !== 'undefined') {
+          await safePusherTrigger('garconnexpress', `pedido-atrasado-${targetApp}`, {
+            pedido_id: p.id,
+            mesa_numero: p.mesa_numero,
+            mensagem: pushMsg
+          });
+        }
+        
         const sentEndpoints = new Set();
         for (const sub of subs) {
           if (sub.app_type !== targetApp) continue;
@@ -4311,7 +4319,11 @@ const TOAST_DEFAULTS = [
   { evento: 'mesa-liberada', textoPadrao: '🔓 Mesa {mesa} foi liberada com sucesso!', label: 'Mesa Liberada', tipo: 'sucesso', variaveis: ['mesa'] },
   { evento: 'saiu-entrega', textoPadrao: '🛵 O pedido da {mesa} saiu para entrega!', label: 'Saiu para Entrega', tipo: 'info', variaveis: ['mesa'] },
   { evento: 'pedido-entregue', textoPadrao: '✅ O pedido da {mesa} foi entregue com sucesso!', label: 'Pedido Concluído', tipo: 'sucesso', variaveis: ['mesa'] },
-  { evento: 'estoque-baixo', textoPadrao: '⚠️ Alerta de Estoque Baixo: {mensagem}', label: 'Estoque Baixo', tipo: 'erro', variaveis: ['mensagem'] }
+  { evento: 'estoque-baixo', textoPadrao: '⚠️ Alerta de Estoque Baixo: {mensagem}', label: 'Estoque Baixo', tipo: 'erro', variaveis: ['mensagem'] },
+  { evento: 'fechamento-atrasado', textoPadrao: '⚠️ CAIXA: FECHAMENTO ATRASADO! O fechamento da {mesa} foi solicitado há mais de 5 minutos.', label: 'Caixa: Fechamento Atrasado', tipo: 'erro', variaveis: ['mesa'] },
+  { evento: 'pedido-atrasado-garcom', textoPadrao: '🔥 GARÇOM: PEDIDO ATRASADO! O pedido da {mesa} (#{pedido_id}) está parado há mais de 10 minutos!', label: 'Pedido Atrasado (Garçom)', tipo: 'erro', variaveis: ['mesa', 'pedido_id'] },
+  { evento: 'pedido-atrasado-cozinha', textoPadrao: '🔥 COZINHA: PEDIDO ATRASADO! O pedido #{pedido_id} ({mesa}) está aguardando há mais de 10 minutos!', label: 'Pedido Atrasado (Cozinha)', tipo: 'erro', variaveis: ['mesa', 'pedido_id'] },
+  { evento: 'pedido-atrasado-motoboy', textoPadrao: '🔥 MOTOBOY: ENTREGA ATRASADA! O pedido #{pedido_id} está parado há mais de 10 minutos!', label: 'Pedido Atrasado (Motoboy)', tipo: 'erro', variaveis: ['pedido_id'] }
 ];
 
 app.get('/api/toast-config/listar', ensureDbInitialized, async (req, res) => {
@@ -4385,6 +4397,64 @@ app.post('/api/toast-config/testar', ensureDbInitialized, isAdmin, async (req, r
     }
   } catch (error) {
     res.json({ success: false, error: 'Erro ao enviar teste de Toast', detalhes: error.message });
+  }
+});
+
+
+app.post('/api/config/broadcast', ensureDbInitialized, isAdmin, async (req, res) => {
+  try {
+    const { mensagem, destinatario } = req.body;
+    if (!mensagem) return res.json({ success: false, error: 'Mensagem vazia' });
+
+    // 1. Dispara via Pusher
+    if (typeof safePusherTrigger !== 'undefined') {
+      await safePusherTrigger('garconnexpress', 'comunicado-geral', {
+        mensagem,
+        destinatario: destinatario || 'todos'
+      });
+    }
+
+    // 2. Dispara via FCM para dispositivos em background/nativos
+    const targets = (destinatario === 'todos' || !destinatario) ? ['garcom', 'cozinha', 'motoboy'] : [destinatario];
+    const subs = (await query("SELECT * FROM push_subscriptions")).rows;
+    let enviados = 0;
+    
+    for (const sub of subs) {
+      if (!targets.includes(sub.app_type)) continue;
+      
+      const isNativeSub = sub.is_native === 1 || sub.is_native === true || 
+                          (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
+      if (isNativeSub && admin.apps.length > 0) {
+        const message = {
+          notification: {
+            title: '📢 AVISO GERAL',
+            body: mensagem
+          },
+          data: {
+            event: 'comunicado-geral',
+            sound: 'notificacao.mp3',
+            mensagem
+          },
+          android: {
+            priority: 'high',
+            notification: {
+              sound: 'notificacao.mp3',
+              channelId: sub.app_type === 'garcom' ? 'garcom_v1' : 'pedidos',
+              defaultSound: false
+            }
+          },
+          token: sub.endpoint
+        };
+        let firebaseApp = admin;
+        if (sub.app_type === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) firebaseApp = admin.app('motoboy');
+        else if (sub.app_type === 'cozinha' && admin.apps.find(a => a.name === 'cozinha')) firebaseApp = admin.app('cozinha');
+        await firebaseApp.messaging().send(message).then(() => { enviados++; }).catch(err => console.error('FCM Broadcast Erro:', err.message));
+      }
+    }
+
+    res.json({ success: true, enviados });
+  } catch (error) {
+    res.json({ success: false, error: 'Erro ao enviar comunicado', detalhes: error.message });
   }
 });
 

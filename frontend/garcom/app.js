@@ -755,6 +755,26 @@ async function configurarPusher() {
       mostrarToast(data.mensagem, data.tipo || 'info', data.titulo || 'Teste');
     });
 
+    channel.bind('comunicado-geral', (data) => {
+      console.log('📢 Evento recebido: comunicado-geral', data);
+      if (data.destinatario === 'todos' || data.destinatario === 'garcom') {
+        tocarCampainha();
+        mostrarToast(data.mensagem || '', 'info', '📢 COMUNICADO GERAL');
+      }
+    });
+
+    channel.bind('fechamento-atrasado', (data) => {
+      console.log('📢 Evento: fechamento-atrasado', data);
+      tocarCampainha();
+      dispararToastSistema('fechamento-atrasado', { mesa: data.mesa_numero || 'Mesa' }, data.mensagem, 'error');
+    });
+
+    channel.bind('pedido-atrasado-garcom', (data) => {
+      console.log('📢 Evento: pedido-atrasado-garcom', data);
+      tocarCampainha();
+      dispararToastSistema('pedido-atrasado-garcom', { mesa: data.mesa_numero || 'Mesa', pedido_id: data.pedido_id }, data.mensagem, 'error');
+    });
+
     channel.bind('pedido-pronto', (data) => {
       console.log('📢 Evento recebido: pedido-pronto', data);
       // Garçom sempre toca para pedidos prontos

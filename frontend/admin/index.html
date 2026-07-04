@@ -1152,6 +1152,31 @@
                   <button onclick="salvarTemplatesToast()" style="width: 100%; margin-top: 10px; padding: 12px; background: linear-gradient(135deg, #10b981, #059669); border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer; transition: all 0.2s; font-size: 0.9rem;"><i class="fa-solid fa-floppy-disk"></i> SALVAR ALERTAS DO APLICATIVO</button>
                 </div>
               </div>
+              
+              <!-- Novo Card: Broadcast de Comunicados -->
+              <div class="config-card">
+                <h3><i class="fa-solid fa-bullhorn" style="color: #f59e0b;"></i> Comunicado Geral (Mural / Broadcast)</h3>
+                <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1.2rem;">Envie um aviso instantâneo para a tela dos funcionários logados nos aplicativos.</p>
+                
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <div>
+                    <label style="font-size: 0.8rem; font-weight: 600; color: #475569; display: block; margin-bottom: 5px;">Selecione o Destinatário</label>
+                    <select id="broadcast-destinatario" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; background: white;">
+                      <option value="todos">🟡 Todos os Aplicativos</option>
+                      <option value="garcom">🔵 Apenas Garçons</option>
+                      <option value="cozinha">🟠 Apenas Cozinha</option>
+                      <option value="motoboy">🟢 Apenas Motoboys</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label style="font-size: 0.8rem; font-weight: 600; color: #475569; display: block; margin-bottom: 5px;">Mensagem do Comunicado</label>
+                    <textarea id="broadcast-mensagem" rows="3" placeholder="Ex: 📢 AVISO: A Coca-Cola em lata acabou no estoque!" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; resize: vertical;"></textarea>
+                  </div>
+                  
+                  <button onclick="enviarComunicadoBroadcast()" style="width: 100%; margin-top: 5px; padding: 12px; background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer; transition: all 0.2s; font-size: 0.9rem;"><i class="fa-solid fa-paper-plane"></i> DISPARAR COMUNICADO IMEDIATO</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

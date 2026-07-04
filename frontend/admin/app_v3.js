@@ -7753,3 +7753,37 @@ async function testarLocalToast(evento) {
   }
 }
 
+async function enviarComunicadoBroadcast() {
+  const mensagemInput = document.getElementById('broadcast-mensagem');
+  const destinatarioInput = document.getElementById('broadcast-destinatario');
+  if (!mensagemInput || !destinatarioInput) return;
+  
+  const mensagem = mensagemInput.value.trim();
+  const destinatario = destinatarioInput.value;
+  
+  if (!mensagem) {
+    await mostrarConfirmacaoFCM('Aviso', '⚠️ Digite uma mensagem para o comunicado!', 'alerta', true);
+    return;
+  }
+  
+  const confirmou = await mostrarConfirmacaoFCM('Enviar Comunicado', `Deseja disparar este comunicado geral para os aplicativos selecionados?`, 'pergunta');
+  if (!confirmou) return;
+  
+  try {
+    const res = await fetch('/api/config/broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
+      body: JSON.stringify({ mensagem, destinatario })
+    });
+    const data = await res.json();
+    if (data.success) {
+      mensagemInput.value = ''; // Limpa campo
+      await mostrarConfirmacaoFCM('Sucesso', '📢 Comunicado enviado com sucesso para os dispositivos!', 'sucesso', true);
+    } else {
+      throw new Error(data.error || 'Erro desconhecido');
+    }
+  } catch (err) {
+    await mostrarConfirmacaoFCM('Erro', '❌ Falha ao enviar comunicado: ' + err.message, 'perigo', true);
+  }
+}
+

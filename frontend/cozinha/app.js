@@ -457,6 +457,20 @@ async function configurarPusher() {
             mostrarToast(data.mensagem, data.tipo === 'erro' ? 'erro' : (data.tipo === 'sucesso' ? 'success' : 'info'));
         });
 
+        canal.bind('comunicado-geral', (data) => {
+            console.log('📢 Evento recebido: comunicado-geral', data);
+            if (data.destinatario === 'todos' || data.destinatario === 'cozinha') {
+                tocarSomNotificacao('campainha');
+                mostrarToast(data.mensagem || '', 'info', '📢 COMUNICADO GERAL');
+            }
+        });
+
+        canal.bind('pedido-atrasado-cozinha', (data) => {
+            console.log('📢 Evento: pedido-atrasado-cozinha', data);
+            tocarSomNotificacao('campainha');
+            dispararToastSistema('pedido-atrasado-cozinha', { mesa: data.mesa_numero || 'Mesa', pedido_id: data.pedido_id }, data.mensagem, 'error');
+        });
+
         canal.bind('novo-pedido', (data) => {
             console.log('Novo pedido recebido!', data);
             

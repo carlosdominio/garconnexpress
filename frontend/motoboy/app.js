@@ -446,6 +446,22 @@ const App = {
                     App.ui.showToast(data.mensagem || '', tipo);
                 });
 
+                this.channel.bind('comunicado-geral', (data) => {
+                    console.log('📢 Evento recebido: comunicado-geral', data);
+                    if (data.destinatario === 'todos' || data.destinatario === 'motoboy') {
+                        if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell();
+                        App.notifications.showLocal('📢 COMUNICADO GERAL', data.mensagem || '', 'broadcast');
+                        App.ui.showToast(data.mensagem || '', 'info');
+                    }
+                });
+
+                this.channel.bind('pedido-atrasado-motoboy', (data) => {
+                    console.log('📢 Evento: pedido-atrasado-motoboy', data);
+                    if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell();
+                    App.notifications.showLocal('⚠️ ENTREGA ATRASADA', data.mensagem || '', 'atrasado');
+                    App.ui.showToast(data.mensagem || '', 'error');
+                });
+
                 this.channel.bind('status-caixa-atualizado', () => App.checkCaixaStatus());
 
                 this.channel.bind('status-atualizado', (data) => {
