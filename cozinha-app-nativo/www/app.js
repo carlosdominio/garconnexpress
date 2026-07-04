@@ -43,7 +43,14 @@ let pusher;
 let canal;
 let timeoutPusher;
 const container = document.getElementById('pedidos-container');
-const audioNotificacao = new Audio('/notificacao.mp3');
+const somTiposDisponiveis = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave'];
+const audiosNotificacao = {};
+function inicializarAudios() {
+  for (const som of somTiposDisponiveis) {
+    audiosNotificacao[som] = new Audio(getSoundPath(som));
+  }
+}
+inicializarAudios();
 const statusConexao = document.getElementById('status-conexao');
 
 let somAtivo = localStorage.getItem('cozinha_som_ativo') !== 'false';
@@ -57,7 +64,9 @@ function atualizarIconeSom() {
         label.innerText = somAtivo ? '🔔 SOM' : '🔕 MUDO';
         label.style.color = somAtivo ? '#2ecc71' : '#bdc3c7';
     }
-    if (audioNotificacao) audioNotificacao.muted = !somAtivo;
+    for (const som in audiosNotificacao) {
+    audiosNotificacao[som].muted = !somAtivo;
+  }
 }
 
 function alternarSom() {
@@ -82,15 +91,19 @@ function tocarCampainha() {
     if (somTipo === 'mudo') return;
 
     if (somAtivo) {
-        audioNotificacao.src = getSoundPath(somTipo);
-        audioNotificacao.muted = false;
-        audioNotificacao.currentTime = 0;
-        audioNotificacao.play().catch(err => {
-            console.log('Áudio bloqueado:', err);
-            const fallbackAudio = new Audio(getSoundPath(somTipo));
-            fallbackAudio.muted = false;
-            fallbackAudio.play().catch(e => console.error(e));
-        });
+        const audioObj = audiosNotificacao[somTipo] || audiosNotificacao['sino_moderno'];
+        if (audioObj) {
+            audioObj.muted = false;
+            audioObj.currentTime = 0;
+            audioObj.play().then(() => {
+                audioDesbloqueado = true;
+            }).catch(err => {
+                console.log('Áudio bloqueado:', err);
+                const fallbackAudio = new Audio(getSoundPath(somTipo));
+                fallbackAudio.muted = false;
+                fallbackAudio.play().catch(e => console.error(e));
+            });
+        }
     }
 }
 
@@ -495,6 +508,10 @@ async function configurarPusher() {
         canal.bind('som-global-atualizado', (data) => {
             console.log('🔄 Som global atualizado:', data);
             localStorage.setItem('cozinha_som_global', data.somCozinha || 'sino_moderno');
+            const isNativeApp = (window.Capacitor && window.Capacitor.isNativePlatform());
+            if (isNativeApp && typeof registerNativePush === 'function') {
+                registerNativePush();
+            }
         });
 
         canal.bind('teste-toast', (data) => {
@@ -627,10 +644,18 @@ async function registerNativePush() {
     if (!PushNotifications) return;
 
     if (window.Capacitor.getPlatform() === 'android') {
+      const somTipo = localStorage.getItem('cozinha_som_global') || 'sino_moderno';
+      const somRec = somTipo === 'original' ? 'notificacao' : somTipo;
+      const canalId = 'cozinha_canal_' + somTipo;
+
+      try { await PushNotifications.deleteChannel({ id: 'pedidos' }); } catch(e) {}
+      try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}
+
       await PushNotifications.createChannel({
-        id: 'pedidos_v4',
-        name: 'Pedidos Cozinha',
-        sound: 'notificacao',
+        id: canalId,
+        name: 'Pedidos Cozinha (' + somTipo + ')',
+        description: 'Notificações de novos pedidos e chamados',
+        sound: somRec,
         importance: 5,
         visibility: 1,
         vibration: true

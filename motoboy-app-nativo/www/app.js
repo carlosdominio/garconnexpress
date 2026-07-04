@@ -52,6 +52,8 @@ const App = {
     },
 
     async init() {
+            this.inicializarAudios();
+            this.inicializarAudios();
         console.log('🚀 Inicializando Motoboy App v2.0.3...');
         
         const ov = document.getElementById('loading-app');
@@ -305,7 +307,13 @@ const App = {
 
     // --- GERENCIADOR DE NOTIFICAÇÕES ---
     notifications: {
-        audio: new Audio(`${API_BASE_URL}/notificacao.mp3`),
+        somTiposDisponiveis: ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave'],
+        audiosNotificacao: {},
+        inicializarAudios() {
+            for (const som of this.somTiposDisponiveis) {
+                this.audiosNotificacao[som] = new Audio(getSoundPath(som));
+            }
+        },
 
         async clearNotifications() {
             try {
@@ -346,10 +354,17 @@ const App = {
             }
 
             if (perm.receive === 'granted') {
+                const somTipo = localStorage.getItem('motoboy_som_global') || 'campainha_classica';
+                const somRec = somTipo === 'original' ? 'notificacao' : somTipo;
+                const canalId = 'motoboy_canal_' + somTipo;
+
+                try { await PushNotifications.deleteChannel({ id: 'pedidos' }); } catch(e) {}
+                try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}
+
                 await PushNotifications.createChannel({
-                    id: NOTIFICATION_CHANNEL_ID,
-                    name: 'Pedidos e Alertas',
-                    sound: 'notificacao.mp3',
+                    id: canalId,
+                    name: 'Pedidos e Alertas (' + somTipo + ')',
+                    sound: somRec,
                     importance: 5,
                     visibility: 1,
                     vibration: true
@@ -431,29 +446,45 @@ const App = {
         },
 
         playAlert(somTipo) {
-            if (document.hidden) return; // Evita conflito com som nativo em segundo plano
+            if (document.hidden) return;
             if (!App.state.soundEnabled) return;
-            
             const resolvedSom = somTipo || localStorage.getItem('motoboy_som_global') || 'campainha_classica';
             if (resolvedSom === 'mudo') return;
 
-            this.audio.src = getSoundPath(resolvedSom);
-            this.audio.currentTime = 0;
-            this.audio.play().catch(e => {
-                console.log('Áudio bloqueado:', e);
-                const fallbackAudio = new Audio(getSoundPath(resolvedSom));
-                fallbackAudio.play().catch(err => console.error(err));
-            });
+            const audioObj = this.audiosNotificacao[resolvedSom] || this.audiosNotificacao['campainha_classica'];
+            if (audioObj) {
+                audioObj.muted = false;
+                audioObj.currentTime = 0;
+                audioObj.play().catch(err => {
+                    console.warn('Erro ao tocar áudio pré-carregado:', err);
+                    const fallbackAudio = new Audio(getSoundPath(resolvedSom));
+                    fallbackAudio.play().catch(e => console.error(e));
+                });
+            }
         },
 
         toggleSound() {
             App.state.soundEnabled = !App.state.soundEnabled;
             localStorage.setItem('motoboy_sound', App.state.soundEnabled);
             App.ui.updateSoundIcon();
+            
+            for (const som in App.notifications.audiosNotificacao) {
+                App.notifications.audiosNotificacao[som].muted = !App.state.soundEnabled;
+            }
+
             if (App.state.soundEnabled) {
-                this.playAlert();
                 App.ui.showToast("Som ativado!", "success");
             } else {
+                App.ui.showToast("Som silenciado.", "warning");
+            }
+        }
+
+            if (App.state.soundEnabled) {
+                App.ui.showToast("Som ativado!", "success");
+            } else {
+                App.ui.showToast("Som silenciado.", "warning");
+            }
+        } else {
                 App.ui.showToast("Som silenciado.", "warning");
             }
         },
@@ -461,10 +492,24 @@ const App = {
             App.state.soundEnabled = !App.state.soundEnabled;
             localStorage.setItem('motoboy_sound', App.state.soundEnabled);
             App.ui.updateSoundIcon();
+
+            for (const som in App.notifications.audiosNotificacao) {
+                App.notifications.audiosNotificacao[som].muted = !App.state.soundEnabled;
+            }
+
             if (App.state.soundEnabled) {
-                this.playAlert();
                 App.ui.showToast("Som ativado!", "success");
             } else {
+                App.ui.showToast("Som silenciado.", "warning");
+            }
+        }
+
+            if (App.state.soundEnabled) {
+                App.ui.showToast("Som ativado!", "success");
+            } else {
+                App.ui.showToast("Som silenciado.", "warning");
+            }
+        } else {
                 App.ui.showToast("Som silenciado.", "warning");
             }
         }
@@ -490,8 +535,11 @@ const App = {
                 });
 
                 this.channel.bind('som-global-atualizado', (data) => {
-                    console.log('🔄 Som global updated:', data);
+                    console.log('🔔 Som global atualizado:', data);
                     localStorage.setItem('motoboy_som_global', data.somMotoboy || 'campainha_classica');
+                    if (window.Capacitor && window.Capacitor.isNativePlatform() && App.notifications && typeof App.notifications.init === 'function') {
+                        App.notifications.init();
+                    }
                 });
 
                 this.channel.bind('comunicado-geral', (data) => {
@@ -660,9 +708,20 @@ const App = {
             }).then((r) => {
                 if (r.isConfirmed) {
                     localStorage.setItem('audio_unlocked', 'true');
+                    for (const som in App.notifications.audiosNotificacao) {
+                        const aud = App.notifications.audiosNotificacao[som];
+                        aud.muted = true;
+                        aud.play().then(() => {
+                            aud.pause();
+                            aud.currentTime = 0;
+                            aud.muted = !App.state.soundEnabled;
+                        }).catch(e => console.warn(e));
+                    }
                     App.notifications.playAlert();
                 }
             });
+        }
+        }
         },
 
         renderPedidos() {

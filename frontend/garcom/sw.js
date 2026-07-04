@@ -1,4 +1,4 @@
-const CACHE_NAME = 'garcom-cache-v7'; // Incrementado para forçar atualização
+const CACHE_NAME = 'garcom-cache-v8'; // Incrementado para forçar atualização
 const urlsToCache = [
   'index.html',
   'style.css',
@@ -71,7 +71,20 @@ self.addEventListener('push', event => {
   }
 
   event.waitUntil(
-    self.registration.showNotification(data.title || '🚨 GarçomExpress', options)
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      let isVisible = false;
+      for (let i = 0; i < windowClients.length; i++) {
+        if (windowClients[i].visibilityState === 'visible') {
+          isVisible = true;
+          break;
+        }
+      }
+      if (isVisible) {
+        console.log("Ignorando notificação Push no foreground (PWA) para evitar som duplo.");
+        return;
+      }
+      return self.registration.showNotification(data.title || '🚨 GarçomExpress', options);
+    })
   );
 });
 

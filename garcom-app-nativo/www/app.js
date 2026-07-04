@@ -85,16 +85,19 @@ async function registerNativePush() {
 
     // Cria o canal de notificação com o som personalizado no Android
     if (window.Capacitor.getPlatform() === 'android') {
-      // Apaga canais antigos (Android não permite atualizar som de canal existente)
+      const somTipo = localStorage.getItem('garcom_som_global') || 'campainha_classica';
+      const somRec = somTipo === 'original' ? 'notificacao' : somTipo;
+      const canalId = 'garcom_canal_' + somTipo;
+
       try { await PushNotifications.deleteChannel({ id: 'pedidos' }); } catch(e) {}
       try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}
+      try { await PushNotifications.deleteChannel({ id: 'garcom_v1' }); } catch(e) {}
 
-      // Cria canal novo 'garcom_v1' — ID nunca usado antes = criação fresh com som correto
       await PushNotifications.createChannel({
-        id: 'garcom_v1',
-        name: 'Alertas de Pedidos (Campainha)',
+        id: canalId,
+        name: 'Alertas de Pedidos (' + somTipo + ')',
         description: 'Notificações de novos pedidos e chamados',
-        sound: 'notificacao.mp3',
+        sound: somRec,
         importance: 5,
         visibility: 1,
         vibration: true
@@ -708,7 +711,14 @@ if (somAtivo === null) {
 }
 let audioDesbloqueado = false;
 let ultimoSomTocado = 0;
-const audioNotificacao = new Audio('/notificacao.mp3');
+const somTiposDisponiveis = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave'];
+const audiosNotificacao = {};
+function inicializarAudios() {
+  for (const som of somTiposDisponiveis) {
+    audiosNotificacao[som] = new Audio(getSoundPath(som));
+  }
+}
+inicializarAudios();
 document.body.addEventListener('click', function unlockAudio() {
   if (audioNotificacao) {
     audioNotificacao.play().then(() => {
@@ -728,7 +738,9 @@ function atualizarIconeSom() {
     label.innerText = somAtivo ? '🔔 SOM' : '🔕 MUDO';
     label.style.color = somAtivo ? '#2ecc71' : '#bdc3c7';
   }
-  if (audioNotificacao) audioNotificacao.muted = !somAtivo;
+  for (const som in audiosNotificacao) {
+    audiosNotificacao[som].muted = !somAtivo;
+  }
 }
 
 function alternarSom() {
@@ -736,11 +748,15 @@ function alternarSom() {
   somAtivo = check ? check.checked : !somAtivo;
   localStorage.setItem('garcom_som_ativo', somAtivo);
   atualizarIconeSom();
-  if (somAtivo && audioNotificacao) {
+  if (somAtivo) {
     audioDesbloqueado = true;
-    audioNotificacao.volume = 1.0;
-    audioNotificacao.currentTime = 0;
-    audioNotificacao.play().catch(e => console.warn(e));
+    const somTipo = localStorage.getItem('garcom_som_global') || 'campainha_classica';
+    const aud = audiosNotificacao[somTipo] || audiosNotificacao['campainha_classica'];
+    if (aud) {
+      aud.volume = 1.0;
+      aud.currentTime = 0;
+      aud.play().catch(e => console.warn(e));
+    }
   }
   mostrarToast(somAtivo ? "🔊 Som Ativado" : "🔇 Som Desativado");
 }
@@ -755,22 +771,23 @@ function tocarCampainha(suave = false) {
     if (Date.now() - ultimoSomTocado < 2000) return;
     ultimoSomTocado = Date.now();
     
-    audioNotificacao.src = getSoundPath(somTipo);
-    audioNotificacao.muted = false;
-    audioNotificacao.volume = suave ? 0.3 : 1.0;
-    audioNotificacao.currentTime = 0;
-    audioNotificacao.play().then(() => {
-        audioDesbloqueado = true;
-    }).catch(err => {
-        console.warn('Erro ao tocar áudio:', err);
-        // Tenta fallback com nova instância
-        const fallbackAudio = new Audio(getSoundPath(somTipo));
-        fallbackAudio.muted = false;
-        fallbackAudio.volume = suave ? 0.3 : 1.0;
-        fallbackAudio.play().then(() => {
-            audioDesbloqueado = true;
-        }).catch(e => console.error('Falha crítica de áudio:', e));
-    });
+    const audioObj = audiosNotificacao[somTipo] || audiosNotificacao['campainha_classica'];
+    if (audioObj) {
+      audioObj.muted = false;
+      audioObj.volume = suave ? 0.3 : 1.0;
+      audioObj.currentTime = 0;
+      audioObj.play().then(() => {
+          audioDesbloqueado = true;
+      }).catch(err => {
+          console.warn('Erro ao tocar áudio pré-carregado:', err);
+          const fallbackAudio = new Audio(getSoundPath(somTipo));
+          fallbackAudio.muted = false;
+          fallbackAudio.volume = suave ? 0.3 : 1.0;
+          fallbackAudio.play().then(() => {
+              audioDesbloqueado = true;
+          }).catch(e => console.error('Falha crítica de áudio:', e));
+      });
+    }
   }
 } 
 
@@ -825,8 +842,11 @@ async function configurarPusher() {
     });
 
     channel.bind('som-global-atualizado', (data) => {
-      console.log('🔄 Som global atualizado:', data);
+      console.log('🔔 Som global atualizado:', data);
       localStorage.setItem('garcom_som_global', data.somGarcom || 'campainha_classica');
+      if (isNativeApp && typeof registerNativePush === 'function') {
+        registerNativePush();
+      }
     });
 
     channel.bind('teste-toast', (data) => {
@@ -1019,17 +1039,15 @@ async function configurarPusher() {
     document.addEventListener('click', () => {
       if (audioDesbloqueado) return;
       audioDesbloqueado = true;
-      
-      audioNotificacao.muted = true;
-      audioNotificacao.play().then(() => {
-          audioNotificacao.pause();
-          audioNotificacao.currentTime = 0;
-          // Só desmuda se o som estiver ativo
-          if (somAtivo) {
-              audioNotificacao.muted = false;
-          }
-          console.log('🔊 Áudio preparado!');
-      }).catch(e => console.log('Erro ao preparar áudio:', e));
+      for (const som in audiosNotificacao) {
+        const aud = audiosNotificacao[som];
+        aud.muted = true;
+        aud.play().then(() => {
+          aud.pause();
+          aud.currentTime = 0;
+          aud.muted = !somAtivo;
+        }).catch(e => console.warn("Erro ao iniciar áudio no clique:", som, e));
+      }
     }, { once: true });
 
   } catch (e) { console.warn('Pusher init error:', e); }

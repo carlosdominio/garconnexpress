@@ -1,4 +1,4 @@
-const CACHE_NAME = 'motoboy-cache-v4';
+const CACHE_NAME = 'motoboy-cache-v5';
 const urlsToCache = [
   'index.html',
   'style.css',
@@ -42,5 +42,20 @@ self.addEventListener('push', event => {
     vibrate: [200, 100, 200],
     data: { url: '/motoboy/index.html' }
   };
-  event.waitUntil(self.registration.showNotification(data.title, options));
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      let isVisible = false;
+      for (let i = 0; i < windowClients.length; i++) {
+        if (windowClients[i].visibilityState === 'visible') {
+          isVisible = true;
+          break;
+        }
+      }
+      if (isVisible) {
+        console.log("Ignorando push notification no foreground (PWA) para evitar som duplo.");
+        return;
+      }
+      return self.registration.showNotification(data.title || 'Motoboy Express', options);
+    })
+  );
 });

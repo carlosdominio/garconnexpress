@@ -85,11 +85,19 @@ async function registerNativePush() {
 
     // Cria o canal de notificação com o som personalizado no Android
     if (window.Capacitor.getPlatform() === 'android') {
+      const somTipo = localStorage.getItem('garcom_som_global') || 'campainha_classica';
+      const somRec = somTipo === 'original' ? 'notificacao' : somTipo;
+      const canalId = 'garcom_canal_' + somTipo;
+
+      try { await PushNotifications.deleteChannel({ id: 'pedidos' }); } catch(e) {}
+      try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}
+      try { await PushNotifications.deleteChannel({ id: 'garcom_v1' }); } catch(e) {}
+
       await PushNotifications.createChannel({
-        id: 'pedidos',
-        name: 'Alertas de Pedidos',
+        id: canalId,
+        name: 'Alertas de Pedidos (' + somTipo + ')',
         description: 'Notificações de novos pedidos e chamados',
-        sound: 'notificacao',
+        sound: somRec,
         importance: 5,
         visibility: 1,
         vibration: true
@@ -680,10 +688,17 @@ async function atualizarStatusCaixa() {
   } catch (e) { console.error('Erro status caixa:', e); }
 }
 
-let somAtivo = localStorage.getItem('garcom_som_ativo') === 'true';
+let somAtivo = localStorage.getItem('garcom_som_ativo') !== 'false';
 let audioDesbloqueado = false;
 let ultimoSomTocado = 0;
-const audioNotificacao = new Audio('/notificacao.mp3');
+const somTiposDisponiveis = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave'];
+const audiosNotificacao = {};
+function inicializarAudios() {
+  for (const som of somTiposDisponiveis) {
+    audiosNotificacao[som] = new Audio(getSoundPath(som));
+  }
+}
+inicializarAudios();
 
 function atualizarIconeSom() {
   const check = document.getElementById('check-som');
@@ -693,7 +708,9 @@ function atualizarIconeSom() {
     label.innerText = somAtivo ? '🔔 SOM' : '🔕 MUDO';
     label.style.color = somAtivo ? '#2ecc71' : '#bdc3c7';
   }
-  if (audioNotificacao) audioNotificacao.muted = !somAtivo;
+  for (const som in audiosNotificacao) {
+    audiosNotificacao[som].muted = !somAtivo;
+  }
 }
 
 function alternarSom() {
@@ -702,11 +719,15 @@ function alternarSom() {
   localStorage.setItem('garcom_som_ativo', somAtivo);
   atualizarIconeSom();
   
-  if (somAtivo && audioNotificacao) {
-    audioDesbloqueado = true; // Force unlock
-    audioNotificacao.volume = 1.0;
-    audioNotificacao.currentTime = 0;
-    audioNotificacao.play().catch(e => console.warn(e));
+  if (somAtivo) {
+    audioDesbloqueado = true;
+    const somTipo = localStorage.getItem('garcom_som_global') || 'campainha_classica';
+    const aud = audiosNotificacao[somTipo] || audiosNotificacao['campainha_classica'];
+    if (aud) {
+      aud.volume = 1.0;
+      aud.currentTime = 0;
+      aud.play().catch(e => console.warn(e));
+    }
   }
   
   // Notificação visual (balão/toast)
@@ -722,25 +743,26 @@ function tocarCampainha(suave = false) {
   if (somTipo === 'mudo') return;
 
   if (somAtivo) {
-    if (Date.now() - ultimoSomTocado < 2000) return; // Evita eco/duplicidade com FCM
+    if (Date.now() - ultimoSomTocado < 2000) return;
     ultimoSomTocado = Date.now();
     
-    audioNotificacao.src = getSoundPath(somTipo);
-    audioNotificacao.muted = false;
-    audioNotificacao.volume = suave ? 0.3 : 1.0;
-    audioNotificacao.currentTime = 0;
-    audioNotificacao.play().then(() => {
-        audioDesbloqueado = true;
-    }).catch(err => {
-        console.warn('Erro ao tocar áudio:', err);
-        // Tenta fallback com nova instância
-        const fallbackAudio = new Audio(getSoundPath(somTipo));
-        fallbackAudio.muted = false;
-        fallbackAudio.volume = suave ? 0.3 : 1.0;
-        fallbackAudio.play().then(() => {
-            audioDesbloqueado = true;
-        }).catch(e => console.error('Falha crítica de áudio:', e));
-    });
+    const audioObj = audiosNotificacao[somTipo] || audiosNotificacao['campainha_classica'];
+    if (audioObj) {
+      audioObj.muted = false;
+      audioObj.volume = suave ? 0.3 : 1.0;
+      audioObj.currentTime = 0;
+      audioObj.play().then(() => {
+          audioDesbloqueado = true;
+      }).catch(err => {
+          console.warn('Erro ao tocar áudio pré-carregado:', err);
+          const fallbackAudio = new Audio(getSoundPath(somTipo));
+          fallbackAudio.muted = false;
+          fallbackAudio.volume = suave ? 0.3 : 1.0;
+          fallbackAudio.play().then(() => {
+              audioDesbloqueado = true;
+          }).catch(e => console.error('Falha crítica de áudio:', e));
+      });
+    }
   }
 }
 
@@ -800,8 +822,11 @@ async function configurarPusher() {
     });
 
     channel.bind('som-global-atualizado', (data) => {
-      console.log('🔄 Som global atualizado:', data);
+      console.log('🔔 Som global atualizado:', data);
       localStorage.setItem('garcom_som_global', data.somGarcom || 'campainha_classica');
+      if (isNativeApp && typeof registerNativePush === 'function') {
+        registerNativePush();
+      }
     });
 
     channel.bind('teste-toast', (data) => {
@@ -994,17 +1019,15 @@ async function configurarPusher() {
     document.addEventListener('click', () => {
       if (audioDesbloqueado) return;
       audioDesbloqueado = true;
-      
-      audioNotificacao.muted = true;
-      audioNotificacao.play().then(() => {
-          audioNotificacao.pause();
-          audioNotificacao.currentTime = 0;
-          // Só desmuda se o som estiver ativo
-          if (somAtivo) {
-              audioNotificacao.muted = false;
-          }
-          console.log('🔊 Áudio preparado!');
-      }).catch(e => console.log('Erro ao preparar áudio:', e));
+      for (const som in audiosNotificacao) {
+        const aud = audiosNotificacao[som];
+        aud.muted = true;
+        aud.play().then(() => {
+          aud.pause();
+          aud.currentTime = 0;
+          aud.muted = !somAtivo;
+        }).catch(e => console.warn("Erro ao iniciar áudio no clique:", som, e));
+      }
     }, { once: true });
 
   } catch (e) { console.warn('Pusher init error:', e); }

@@ -702,7 +702,7 @@ async function safePusherTrigger(channel, event, data) {
             mesaFormatada = `Mesa ${mesaRaw}`;
         }
 
-        const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_title_%' OR chave LIKE 'fcm_body_%'")).rows;
+        const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_title_%' OR chave LIKE 'fcm_body_%' OR chave IN ('config_som_garcom', 'config_som_cozinha', 'config_som_motoboy')")).rows;
         const configMap = {};
         for (const r of configData) configMap[r.chave] = r.valor;
 
@@ -860,37 +860,55 @@ async function safePusherTrigger(channel, event, data) {
             } else {
                // Tratamento para Token Nativo (Capacitor/Firebase SDK)
                if (admin.apps.length > 0) {
-                 let androidNotification = { channelId: targetApp === 'garcom' ? 'garcom_v1' : 'pedidos', defaultSound: false };
-                 const currentSom = true; // Som sempre ativo para notificações nativas (o app decide o arquivo)
-                 if (currentSom !== false) {
-                   androidNotification.sound = 'notificacao.mp3';
-                 }
-                 
-                 const message = {
-                   notification: {
-                     title: pushTitle,
-                     body: currentPushMsg
-                   },
-                   data: {
-                      event: event,
-                      sound: currentSom !== false ? 'notificacao.mp3' : '',
-                      pedido_id: pId,
-                      status: statusVal
+                 let activeSound = 'notificacao';
+                  let channelName = 'pedidos';
+                  if (targetApp === 'garcom') {
+                    activeSound = configMap['config_som_garcom'] || 'campainha_classica';
+                    channelName = 'garcom_canal_' + activeSound;
+                  } else if (targetApp === 'cozinha') {
+                    activeSound = configMap['config_som_cozinha'] || 'sino_moderno';
+                    channelName = 'cozinha_canal_' + activeSound;
+                  } else if (targetApp === 'motoboy') {
+                    activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
+                    channelName = 'motoboy_canal_' + activeSound;
+                  }
+
+                  let fcmSoundFile = activeSound;
+                  if (fcmSoundFile === 'original') fcmSoundFile = 'notificacao';
+
+                  let androidNotification = { 
+                    channelId: channelName, 
+                    defaultSound: activeSound === 'original'
+                  };
+                  if (activeSound !== 'mudo') {
+                    androidNotification.sound = fcmSoundFile;
+                  }
+                  
+                  const message = {
+                    notification: {
+                      title: pushTitle,
+                      body: currentPushMsg
                     },
-                   android: {
-                      priority: 'high',
-                      notification: androidNotification
+                    data: {
+                       event: event,
+                       sound: activeSound !== 'mudo' ? fcmSoundFile : '',
+                       pedido_id: pId,
+                       status: statusVal
+                     },
+                    android: {
+                       priority: 'high',
+                       notification: androidNotification
+                     },
+                    apns: {
+                      payload: {
+                        aps: {
+                          sound: activeSound !== 'mudo' ? (activeSound === 'original' ? 'notificacao.caf' : activeSound + '.caf') : '',
+                          badge: 1
+                        }
+                      }
                     },
-                   apns: {
-                     payload: {
-                       aps: {
-                         sound: 'notificacao.caf',
-                         badge: 1
-                       }
-                     }
-                   },
-                   token: sub.endpoint
-                 };
+                    token: sub.endpoint
+                  };
                  
                  // Seleciona a instância correta do Firebase Admin
                  let firebaseAppToUse = admin;
@@ -1026,7 +1044,7 @@ async function checkAndNotifyDelayedOrders() {
       return diffMinutes >= 10;
     });
 
-    const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_title_%' OR chave LIKE 'fcm_body_%'")).rows;
+    const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_title_%' OR chave LIKE 'fcm_body_%' OR chave IN ('config_som_garcom', 'config_som_cozinha', 'config_som_motoboy')")).rows;
     const configMap = {};
     for (const r of configData) configMap[r.chave] = r.valor;
 
