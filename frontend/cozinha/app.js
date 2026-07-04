@@ -451,13 +451,19 @@ async function configurarPusher() {
         pusher = new Pusher(config.key, { cluster: config.cluster });
         canal = pusher.subscribe('garconnexpress');
 
+        canal.bind('teste-toast', (data) => {
+            console.log('📢 Evento recebido: teste-toast', data);
+            tocarSomNotificacao('campainha');
+            mostrarToast(data.mensagem, data.tipo === 'erro' ? 'erro' : (data.tipo === 'sucesso' ? 'success' : 'info'));
+        });
+
         canal.bind('novo-pedido', (data) => {
             console.log('Novo pedido recebido!', data);
             
             if (data && data.para_cozinha === true) {
                 const mesa = (data.pedido && data.pedido.mesa_numero) || data.mesa_numero || 'BALCÃO';
                 const labelMesa = mesa.includes('DELIVERY') ? mesa : `Mesa ${mesa}`;
-                mostrarToast(`🍳 NOVO PEDIDO: ${labelMesa}`);
+                dispararToastSistema('novo-pedido', { mesa: labelMesa }, `🍳 NOVO PEDIDO: ${labelMesa}`, 'success');
                 exibirNotificacaoNativa(`🍳 NOVO PEDIDO: ${labelMesa}`, "Um novo pedido chegou para a cozinha!", `pedido-${data.pedido_id || 'novo'}`);
                 tocarSomNotificacao('campainha');
                 tocarSomNotificacao('windows');
@@ -489,10 +495,10 @@ async function configurarPusher() {
             verificarCaixa();
             if (data.status === 'fechado') {
                 tocarCampainha();
-                mostrarToast("O caixa foi fechado! Bom descanso.", "error", "🔒 CAIXA FECHADO");
+                dispararToastSistema('status-caixa-atualizado', { status: 'FECHADO' }, "O caixa foi fechado! Bom descanso.", 'error');
             } else if (data.status === 'aberto') {
                 tocarCampainha();
-                mostrarToast("O caixa foi aberto! Bom trabalho.");
+                dispararToastSistema('status-caixa-atualizado', { status: 'ABERTO' }, "O caixa foi aberto! Bom trabalho.", 'success');
                 carregarPedidos();
             }
         });
@@ -506,7 +512,7 @@ async function configurarPusher() {
                 const card = document.getElementById(`pedido-card-${data.pedido_id || data.id}`);
                 if (card) {
                     const mesa = data.mesa_numero || 'X';
-                    mostrarToast(`📝 Mesa ${mesa}: Itens atualizados`);
+                    dispararToastSistema('item-adicionado', { mesa }, `📝 Mesa ${mesa}: Itens atualizados`, 'info');
                     tocarSomNotificacao('campainha');
                 }
             }
@@ -685,7 +691,8 @@ function limparNotificacoes() {
   document.getElementById('painel-notificacoes').style.display = 'none';
 }
 
-function iniciarApp() {
+async function iniciarApp() {
+    await carregarConfiguracoesToasts();
     solicitarPermissaoNotificacao();
     carregarPedidos();
     configurarPusher();
@@ -875,3 +882,46 @@ document.addEventListener('click', function(event) {
         }
     }
 });
+
+// ─── CONFIGURAÇÃO DE TOASTS DINÂMICOS ───────────────────────────────────────
+let _toastTemplates = [];
+
+async function carregarConfiguracoesToasts() {
+  try {
+    const res = await fetch('/api/toast-config/listar');
+    const data = await res.json();
+    if (data.success) {
+      _toastTemplates = data.templates;
+    }
+  } catch (err) {
+    console.error('Erro ao carregar configurações de Toasts:', err);
+  }
+}
+
+function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTipo = 'success') {
+  const config = _toastTemplates.find(x => x.evento === evento);
+  const ativo = config ? config.ativo : true;
+  if (!ativo) {
+    console.log(`💬 [Toast Alertas] Evento [${evento}] está desativado pelo administrador.`);
+    return;
+  }
+  
+  const template = config ? config.texto : fallbackText;
+  if (!template) return;
+  
+  const mesaVal = dados.mesa_numero || dados.mesaNum || dados.mesa_id || dados.nMesa || dados.mesa || '';
+  const clienteVal = dados.cliente || dados.nomeExibicao || '';
+  const itensVal = dados.itens || '';
+  const statusVal = dados.status || '';
+  const msgVal = dados.mensagem || '';
+  
+  let msgFinal = template
+    .replace(/{mesa}/g, mesaVal)
+    .replace(/{cliente}/g, clienteVal)
+    .replace(/{itens}/g, itensVal)
+    .replace(/{status}/g, statusVal)
+    .replace(/{mensagem}/g, msgVal);
+    
+  const tipo = config ? (config.tipo === 'erro' ? 'error' : (config.tipo === 'sucesso' ? 'success' : 'info')) : fallbackTipo;
+  mostrarToast(msgFinal, tipo);
+}

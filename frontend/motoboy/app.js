@@ -438,6 +438,12 @@ const App = {
                 this.instance = new Pusher(config.key, { cluster: config.cluster, forceTLS: true });
                 this.channel = this.instance.subscribe('garconnexpress');
                 
+                this.channel.bind('teste-toast', (data) => {
+                    console.log('📢 Evento recebido: teste-toast', data);
+                    if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell();
+                    App.notifications.showLocal(data.titulo || 'TESTE DE ALERTA', data.mensagem || '', 'teste-toast');
+                });
+
                 this.channel.bind('status-caixa-atualizado', () => App.checkCaixaStatus());
 
                 this.channel.bind('status-atualizado', (data) => {

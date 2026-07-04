@@ -697,7 +697,7 @@ async function safePusherTrigger(channel, event, data) {
             const itemsList = data.itens ? data.itens.map(i => `${i.qtd || 1}x ${i.nome || i.titulo || ''}`).join(', ') : '';
             return str
               .replace(/{mesa}/g, mesaFormatada)
-              .replace(/{status}/g, data.status === 'fechado' ? 'fechado' : 'aberto')
+              .replace(/{status}/g, data.status === 'fechado' ? '🔴 O caixa foi FECHADO. Atendimento encerrado.' : '🟢 O caixa foi ABERTO. Bom trabalho!')
               .replace(/{itens}/g, itemsList)
               .replace(/{item}/g, data.item || '')
               .replace(/{qtd}/g, data.qtd || '1')
@@ -4162,17 +4162,17 @@ app.post('/api/config/categorias-cozinha', isAdmin, async (req, res) => {
 // ─── ROTAS FCM (BLINDADAS PARA VERCEL) ───────────────────────────────────────
 
 const FCM_DEFAULTS = [
-  { evento: 'novo-pedido', tituloPadrao: '🚀 NOVO PEDIDO', corpoPadrao: '{mesa}', destinatario: 'garcom', variaveis: ['mesa', 'itens'] },
-  { evento: 'item-adicionado', tituloPadrao: '➕ ITEM ADICIONADO', corpoPadrao: '{mesa} pediu mais itens!', destinatario: 'garcom', variaveis: ['mesa', 'item', 'qtd'] },
-  { evento: 'pedido-cancelado', tituloPadrao: '❌ PEDIDO CANCELADO', corpoPadrao: '{mesa}', destinatario: 'cozinha', variaveis: ['mesa', 'item'] },
-  { evento: 'chamado-garcom', tituloPadrao: '🛎️ CHAMADO', corpoPadrao: '{mesa} está chamando!', destinatario: 'garcom', variaveis: ['mesa'] },
-  { evento: 'pedido-pronto', tituloPadrao: '🍳 PRONTO', corpoPadrao: '{mesa}', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
-  { evento: 'solicitacao-fechamento-cliente', tituloPadrao: '💰 FECHAMENTO', corpoPadrao: '{mesa} solicitou a conta', destinatario: 'garcom', variaveis: ['mesa'] },
+  { evento: 'novo-pedido', tituloPadrao: 'GarçomExpress', corpoPadrao: '🚀 NOVO PEDIDO: {mesa}', destinatario: 'garcom', variaveis: ['mesa', 'itens'] },
+  { evento: 'item-adicionado', tituloPadrao: 'GarçomExpress', corpoPadrao: '➕ ITEM ADICIONADO: {mesa}', destinatario: 'garcom', variaveis: ['mesa', 'item', 'qtd'] },
+  { evento: 'pedido-cancelado', tituloPadrao: 'CozinhaExpress', corpoPadrao: '❌ {mesa} PEDIDO CANCELADO', destinatario: 'cozinha', variaveis: ['mesa', 'item'] },
+  { evento: 'chamado-garcom', tituloPadrao: 'GarçomExpress', corpoPadrao: '🛎️ CHAMADO: {mesa}', destinatario: 'garcom', variaveis: ['mesa'] },
+  { evento: 'pedido-pronto', tituloPadrao: 'GarçomExpress', corpoPadrao: '🍳 PRONTO: {mesa}', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
+  { evento: 'solicitacao-fechamento-cliente', tituloPadrao: 'GarçomExpress', corpoPadrao: '💰 FECHAMENTO: {mesa}', destinatario: 'garcom', variaveis: ['mesa'] },
   { evento: 'status-caixa-atualizado', tituloPadrao: '💰 CAIXA', corpoPadrao: '{status}', destinatario: 'todos', variaveis: ['status'] },
-  { evento: 'rascunho-recebido', tituloPadrao: '📝 RASCUNHO', corpoPadrao: '{mesa}', destinatario: 'garcom', variaveis: ['mesa'] },
-  { evento: 'mesa-liberada', tituloPadrao: '🔓 MESA LIBERADA', corpoPadrao: '{mesa}', destinatario: 'garcom', variaveis: ['mesa'] },
-  { evento: 'saiu-entrega', tituloPadrao: '🛵 SAIU PARA ENTREGA', corpoPadrao: '{mesa}', destinatario: 'motoboy', variaveis: ['mesa'] },
-  { evento: 'pedido-entregue', tituloPadrao: '✅ PEDIDO ENTREGUE', corpoPadrao: '{mesa}', destinatario: 'motoboy', variaveis: ['mesa'] },
+  { evento: 'rascunho-recebido', tituloPadrao: 'GarçomExpress', corpoPadrao: '📝 RASCUNHO: {mesa}', destinatario: 'garcom', variaveis: ['mesa'] },
+  { evento: 'mesa-liberada', tituloPadrao: 'GarçomExpress', corpoPadrao: '🔓 MESA LIBERADA: {mesa}', destinatario: 'garcom', variaveis: ['mesa'] },
+  { evento: 'saiu-entrega', tituloPadrao: 'Delivery Express', corpoPadrao: '🛵 SAIU PARA ENTREGA: {mesa}', destinatario: 'motoboy', variaveis: ['mesa'] },
+  { evento: 'pedido-entregue', tituloPadrao: 'Delivery Express', corpoPadrao: '✅ PEDIDO ENTREGUE E FINALIZADO: {mesa}', destinatario: 'motoboy', variaveis: ['mesa'] },
   { evento: 'fechamento-atrasado', tituloPadrao: '⚠️ CAIXA: FECHAMENTO ATRASADO!', corpoPadrao: 'O fechamento da {mesa} foi solicitado há mais de 5 minutos e ainda não foi concluído!', destinatario: 'garcom', variaveis: ['mesa'] },
   { evento: 'pedido-atrasado-motoboy', tituloPadrao: '🔥 MOTOBOY: ENTREGA ATRASADA!', corpoPadrao: 'O pedido de entrega #{pedido_id} está parado há mais de 10 minutos!', destinatario: 'motoboy', variaveis: ['pedido_id'] },
   { evento: 'pedido-atrasado-garcom', tituloPadrao: '🔥 GARÇOM: PEDIDO ATRASADO!', corpoPadrao: 'O pedido da {mesa} (#{pedido_id}) está parado há mais de 10 minutos!', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
@@ -4295,6 +4295,96 @@ app.post('/api/fcm-config/testar', ensureDbInitialized, isAdmin, async (req, res
     res.json({ success: true, enviados, total: subs.length });
   } catch (error) { 
     res.json({ success: false, error: 'Falha no disparo do teste', detalhes: error.message }); 
+  }
+});
+
+
+// --- CONFIGURAÇÃO DE TOASTS/POPUPS DO APLICATIVO ---
+const TOAST_DEFAULTS = [
+  { evento: 'novo-pedido', textoPadrao: '🍕 NOVO PEDIDO: {mesa}', label: 'Novo Pedido', tipo: 'info', variaveis: ['mesa', 'cliente', 'itens'] },
+  { evento: 'chamado-garcom', textoPadrao: '🛎️ CHAMADO: Mesa {mesa}', label: 'Chamado de Garçom', tipo: 'erro', variaveis: ['mesa'] },
+  { evento: 'pedido-pronto', textoPadrao: '🍳 PRONTO: Mesa {mesa}', label: 'Pedido Pronto', tipo: 'sucesso', variaveis: ['mesa'] },
+  { evento: 'pedido-cancelado', textoPadrao: '❌ CANCELADO: Mesa {mesa}', label: 'Pedido Cancelado', tipo: 'erro', variaveis: ['mesa'] },
+  { evento: 'solicitacao-fechamento-cliente', textoPadrao: '💰 CONTA: Mesa {mesa}', label: 'Solicitação de Conta', tipo: 'sucesso', variaveis: ['mesa'] },
+  { evento: 'status-caixa-atualizado', textoPadrao: '💼 CAIXA: {status}', label: 'Status do Caixa', tipo: 'info', variaveis: ['status'] },
+  { evento: 'item-adicionado', textoPadrao: '➕ ADICIONOU ITENS: Mesa {mesa}', label: 'Itens Adicionados', tipo: 'info', variaveis: ['mesa'] },
+  { evento: 'mesa-liberada', textoPadrao: '🟢 Mesa {mesa} Liberada', label: 'Mesa Liberada', tipo: 'sucesso', variaveis: ['mesa'] },
+  { evento: 'saiu-entrega', textoPadrao: '🛵 A CAMINHO: Mesa {mesa}', label: 'Saiu para Entrega', tipo: 'info', variaveis: ['mesa'] },
+  { evento: 'pedido-entregue', textoPadrao: '✅ CONCLUÍDO: Mesa {mesa}', label: 'Pedido Concluído', tipo: 'sucesso', variaveis: ['mesa'] },
+  { evento: 'estoque-baixo', textoPadrao: '⚠️ ESTOQUE BAIXO: {mensagem}', label: 'Estoque Baixo', tipo: 'erro', variaveis: ['mensagem'] }
+];
+
+app.get('/api/toast-config/listar', ensureDbInitialized, async (req, res) => {
+  try {
+    const configRows = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'toast_%'")).rows;
+    const configMap = {};
+    for (const r of configRows) {
+      configMap[r.chave] = r.valor;
+    }
+
+    const templates = TOAST_DEFAULTS.map(d => {
+      const customText = configMap[`toast_text_${d.evento}`];
+      const customEnabled = configMap[`toast_enabled_${d.evento}`];
+      return {
+        ...d,
+        texto: (customText !== undefined && customText !== null) ? customText : d.textoPadrao,
+        ativo: (customEnabled !== undefined && customEnabled !== null) ? customEnabled === 'true' : true
+      };
+    });
+
+    res.json({ success: true, templates });
+  } catch (error) {
+    res.json({ success: false, error: 'Falha ao buscar configurações de Toasts', detalhes: error.message });
+  }
+});
+
+app.post('/api/toast-config/salvar', ensureDbInitialized, isAdmin, async (req, res) => {
+  try {
+    const { templates } = req.body;
+    if (!templates || !Array.isArray(templates)) return res.json({ success: false, error: 'Templates inválidos' });
+
+    for (const t of templates) {
+      const activeVal = t.ativo !== false ? 'true' : 'false';
+      if (isPostgres) {
+        await query("INSERT INTO sistema_config (chave, valor) VALUES ($1, $2) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [`toast_text_${t.evento}`, t.texto || '']);
+        await query("INSERT INTO sistema_config (chave, valor) VALUES ($1, $2) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [`toast_enabled_${t.evento}`, activeVal]);
+      } else {
+        await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES (?, ?)", [`toast_text_${t.evento}`, t.texto || '']);
+        await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES (?, ?)", [`toast_enabled_${t.evento}`, activeVal]);
+      }
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: 'Erro ao salvar configurações de Toasts', detalhes: error.message });
+  }
+});
+
+app.post('/api/toast-config/restaurar/:evento', ensureDbInitialized, isAdmin, async (req, res) => {
+  try {
+    const { evento } = req.params;
+    await query("DELETE FROM sistema_config WHERE chave = $1 OR chave = $2", [`toast_text_${evento}`, `toast_enabled_${evento}`]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: 'Erro ao restaurar padrão de Toast', detalhes: error.message });
+  }
+});
+
+app.post('/api/toast-config/testar', ensureDbInitialized, isAdmin, async (req, res) => {
+  try {
+    const { evento, mensagem, tipo } = req.body;
+    if (typeof safePusherTrigger !== 'undefined') {
+      await safePusherTrigger('garconnexpress', 'teste-toast', { 
+        evento, 
+        mensagem, 
+        tipo: tipo || 'info',
+        titulo: 'TESTE DE ALERTA'
+      });
+      res.json({ success: true });
+    } else {
+      res.json({ success: false, error: 'Pusher não configurado no servidor' });
+    }
+  } catch (error) {
+    res.json({ success: false, error: 'Erro ao enviar teste de Toast', detalhes: error.message });
   }
 });
 

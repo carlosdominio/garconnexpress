@@ -612,6 +612,7 @@ async function logout() {
 }
 
 async function iniciarApp() {
+  await carregarConfiguracoesToasts();
   await carregarConfigCozinha();
   await carregarMenu();
   await carregarMesas();
@@ -748,13 +749,19 @@ async function configurarPusher() {
     const channel = pusher.subscribe('garconnexpress');
     console.log('📺 Inscrito no canal: garconnexpress');
 
+    channel.bind('teste-toast', (data) => {
+      console.log('📢 Evento recebido: teste-toast', data);
+      tocarCampainha(true);
+      mostrarToast(data.mensagem, data.tipo || 'info', data.titulo || 'Teste');
+    });
+
     channel.bind('pedido-pronto', (data) => {
       console.log('📢 Evento recebido: pedido-pronto', data);
       // Garçom sempre toca para pedidos prontos
       tocarCampainha();
 
       // Mostra Toast e Notificação Nativa
-      mostrarToast(data.mensagem, 'success', '🍳 PEDIDO PRONTO');
+      dispararToastSistema('pedido-pronto', { mesa: data.mesa_numero }, data.mensagem, 'success');
 
 
       // Mostra apenas alerta informativo
@@ -787,7 +794,7 @@ async function configurarPusher() {
       }
 
       // Mostra Toast e Notificação Nativa
-      mostrarToast(`Novo pedido recebido da ${mesaStr}`, 'info', `✨ NOVO PEDIDO - ${mesaStr}`);
+      dispararToastSistema('novo-pedido', { mesa: mesaStr }, `Novo pedido recebido da ${mesaStr}`, 'info');
 
 
       clearTimeout(timeoutPusher);
@@ -804,23 +811,19 @@ async function configurarPusher() {
         carregarMesas();
         if (data) {
           const nMesa = data.mesa_numero || data.mesa_id || 'X';
-          const tagId = `status-${data.pedido_id}-${data.status}`;
-          let msg = '';
-          
           let strMesa = nMesa.toString();
           if (!strMesa.toLowerCase().startsWith('mesa') && strMesa.toLowerCase() !== 'balcão') {
              strMesa = `Mesa ${strMesa}`;
           }
           
-          if (data.status === 'liberada') msg = `✅ ${strMesa} liberada`;
-          else if (data.status === 'servido') msg = `🍽️ Pedido da ${strMesa} entregue!`;
-          else if (data.status === 'itens_atualizados') msg = `📝 Pedido da ${strMesa} atualizado pelo Admin`;
-          
-          // Removido o 'cancelado' daqui para evitar duplicidade com o evento 'pedido-cancelado'
-
-          if (msg) {
-            mostrarToast(msg, 'info');
-            tocarCampainha(true); // Som suave para atualizações normais
+          tocarCampainha(true);
+          if (data.status === 'liberada') {
+            dispararToastSistema('mesa-liberada', { mesa: strMesa }, `✅ ${strMesa} liberada`, 'success');
+          } else if (data.status === 'servido') {
+            mostrarToast(`🍽️ Pedido da ${strMesa} entregue!`, 'info');
+          } else if (data.status === 'itens_atualizados') {
+            dispararToastSistema('item-adicionado', { mesa: strMesa }, `📝 Pedido da ${strMesa} atualizado pelo Admin`, 'info');
+          }
 
 
             if (data.status === 'liberada') {
@@ -831,7 +834,6 @@ async function configurarPusher() {
                }
             }
           }
-        }
       }, 50);
     });
 
@@ -844,7 +846,7 @@ async function configurarPusher() {
       const mesaStr = data.mesa_numero ? `Mesa ${data.mesa_numero}` : (data.mesa_id ? `Mesa ${data.mesa_id}` : 'Mesa');
 
       tocarCampainha(); // Som normal (mais forte) para cancelamento
-      mostrarToast(msg, 'error', `❌ ${mesaStr}: REMOVIDO`);
+      dispararToastSistema('pedido-cancelado', { mesa: mesaStr }, msg, 'error');
 
 
       // Reset de estado se for a mesa atual
@@ -865,10 +867,10 @@ async function configurarPusher() {
       if (data.status === 'fechado') {
         tocarCampainha();
         if (typeof limparNotificacoes === 'function') limparNotificacoes();
-        mostrarToast("O caixa foi fechado! Bom descanso.", "error", "🔒 CAIXA FECHADO");
+        dispararToastSistema('status-caixa-atualizado', { status: 'FECHADO' }, "O caixa foi fechado! Bom descanso.", "error");
       } else if (data.status === 'aberto') {
         tocarCampainha(true); // Som suave
-        mostrarToast("O caixa foi aberto! Bom trabalho.");
+        dispararToastSistema('status-caixa-atualizado', { status: 'ABERTO' }, "O caixa foi aberto! Bom trabalho.", "success");
       }
     });
     
@@ -2446,4 +2448,47 @@ document.addEventListener('click', function(event) {
         }
     }
 });
+
+// ─── CONFIGURAÇÃO DE TOASTS DINÂMICOS ───────────────────────────────────────
+let _toastTemplates = [];
+
+async function carregarConfiguracoesToasts() {
+  try {
+    const res = await fetch('/api/toast-config/listar');
+    const data = await res.json();
+    if (data.success) {
+      _toastTemplates = data.templates;
+    }
+  } catch (err) {
+    console.error('Erro ao carregar configurações de Toasts:', err);
+  }
+}
+
+function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTipo = 'success') {
+  const config = _toastTemplates.find(x => x.evento === evento);
+  const ativo = config ? config.ativo : true;
+  if (!ativo) {
+    console.log(`💬 [Toast Alertas] Evento [${evento}] está desativado pelo administrador.`);
+    return;
+  }
+  
+  const template = config ? config.texto : fallbackText;
+  if (!template) return;
+  
+  const mesaVal = dados.mesa_numero || dados.mesaNum || dados.mesa_id || dados.nMesa || dados.mesa || '';
+  const clienteVal = dados.cliente || dados.nomeExibicao || '';
+  const itensVal = dados.itens || '';
+  const statusVal = dados.status || '';
+  const msgVal = dados.mensagem || '';
+  
+  let msgFinal = template
+    .replace(/{mesa}/g, mesaVal)
+    .replace(/{cliente}/g, clienteVal)
+    .replace(/{itens}/g, itensVal)
+    .replace(/{status}/g, statusVal)
+    .replace(/{mensagem}/g, msgVal);
+    
+  const tipo = config ? (config.tipo === 'erro' ? 'error' : (config.tipo === 'sucesso' ? 'success' : 'info')) : fallbackTipo;
+  mostrarToast(msgFinal, tipo);
+}
 

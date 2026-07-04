@@ -294,6 +294,7 @@ async function iniciarPainelAdmin() {
   carregarStatusCardapio();
   carregarStatusWhatsApp(); 
   carregarDadosConfig(); 
+  carregarConfiguracoesToasts();
   configurarPusher();
   window.addEventListener('focus', () => pararPiscarTitulo());
   
@@ -594,6 +595,7 @@ function switchConfigSubTab(subTab) {
   if (section) section.classList.add('active');
 
   if (subTab === 'fcm') carregarNotificacoesFCM();
+  else if (subTab === 'toasts') carregarConfiguracoesToasts();
 }
 
 // ─── RELATÓRIOS DE ESTOQUE ─────────────────────────────────────────────────────
@@ -1396,8 +1398,7 @@ async function abrirCaixa() {
     body: JSON.stringify({ valor_inicial: valor })
   });
   if (res.ok) {
-    mostrarToast("Caixa aberto com sucesso!", "success");
-    carregarStatusCaixa();
+    carregarStatusCaixa(); // O toast é disparado pelo evento Pusher status-caixa-atualizado
   }
 }
 
@@ -5679,11 +5680,9 @@ async function configurarPusher() {
       
       if (data.status === 'fechado') {
           limparNotificacoes();
-          mostrarToast('O caixa foi FECHADO com sucesso!', 'warning', '💰 CAIXA');
-          adicionarNotificacao('💰 CAIXA FECHADO', 'O expediente foi encerrado com sucesso.', '💰');
+          mostrarToast('Caixa fechado com sucesso!', 'warning', '💰 CAIXA');
       } else if (data.status === 'aberto') {
-          mostrarToast('O caixa foi ABERTO! Bom trabalho.', 'success', '💰 CAIXA');
-          adicionarNotificacao('💰 CAIXA ABERTO', 'O caixa está pronto para vendas.', '💰');
+          mostrarToast('Caixa aberto com sucesso!', 'success', '💰 CAIXA');
       }
 
       clearTimeout(timeoutPusher);
@@ -7614,6 +7613,143 @@ async function enviarTesteFCM(titulo, corpo, destinatario) {
     await mostrarConfirmacaoFCM('Sucesso', `🚀 Teste enviado! Alcançou ${data.enviados} dispositivos logados como ${destinatario}.`, 'sucesso', true);
   } catch (err) {
     await mostrarConfirmacaoFCM('Erro', '❌ Falha ao testar push: ' + err.message, 'perigo', true);
+  }
+}
+
+// ─── CONFIGURAÇÃO DE TOASTS/POPUPS ──────────────────────────────────────────
+
+let _toastTemplates = [];
+
+async function carregarConfiguracoesToasts() {
+  try {
+    const res = await fetch('/api/toast-config/listar');
+    const data = await res.json();
+    if (data.success) {
+      _toastTemplates = data.templates;
+      renderizarTemplatesToasts();
+    }
+  } catch (err) {
+    console.error('Erro ao carregar configurações de Toasts:', err);
+  }
+}
+
+function renderizarTemplatesToasts() {
+  const container = document.getElementById('toast-templates-lista');
+  if (!container) return;
+  
+  container.innerHTML = _toastTemplates.map(t => {
+    const varsHtml = (t.variaveis || []).map(v => `<code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:0.75rem;color:#10b981;font-weight:bold;">{${v}}</code>`).join(' ');
+    
+    return `
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 15px; transition: all 0.2s;" onmouseover="this.style.borderColor='#10b981';this.style.boxShadow='0 2px 8px rgba(16,185,129,0.15)'" onmouseout="this.style.borderColor='#e2e8f0';this.style.boxShadow=''">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <span style="font-weight: 700; color: #1e293b; font-size: 0.9rem;">${t.label}</span>
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; color: ${t.ativo ? '#10b981' : '#64748b'};">
+            <input type="checkbox" id="toast-active-${t.evento}" ${t.ativo ? 'checked' : ''} onchange="atualizarStatusCardToast('${t.evento}', this.checked)" style="accent-color: #10b981; cursor: pointer; width: 15px; height: 15px;">
+            <span>${t.ativo ? '🟢 Ativo' : '🔴 Inativo'}</span>
+          </label>
+        </div>
+        <div style="margin-bottom: 8px;">
+          <label style="font-size: 0.75rem; font-weight: 600; color: #64748b; display: block; margin-bottom: 3px;">Mensagem do Balão</label>
+          <input type="text" id="toast-text-${t.evento}" value="${(t.texto || t.textoPadrao || '').replace(/"/g, '&quot;')}" placeholder="${t.textoPadrao}" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: white;">
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 0.72rem; color: #94a3b8;">Variáveis: ${varsHtml || '<span style="opacity:0.5">nenhuma</span>'}</div>
+          <div style="display: flex; gap: 8px;">
+            <button onclick="testarLocalToast('${t.evento}')" style="padding: 5px 12px; background: #10b981; border: none; border-radius: 6px; color: white; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform=''">💬 Testar</button>
+            <button onclick="restaurarPadraoToast('${t.evento}')" style="padding: 5px 12px; background: #e2e8f0; border: none; border-radius: 6px; color: #64748b; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#cbd5e1'" onmouseout="this.style.background='#e2e8f0'">↺ Padrão</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function atualizarStatusCardToast(evento, checked) {
+  const label = document.querySelector(`#toast-active-${evento}`).parentElement.querySelector('span');
+  if (label) {
+    label.innerText = checked ? '🟢 Ativo' : '🔴 Inativo';
+    label.parentElement.style.color = checked ? '#10b981' : '#64748b';
+  }
+}
+
+async function salvarTemplatesToast() {
+  const templates = _toastTemplates.map(t => {
+    const texto = document.getElementById(`toast-text-${t.evento}`).value.trim();
+    const ativo = document.getElementById(`toast-active-${t.evento}`).checked;
+    return { evento: t.evento, texto, ativo };
+  });
+
+  try {
+    const res = await fetch('/api/toast-config/salvar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
+      body: JSON.stringify({ templates })
+    });
+    const data = await res.json();
+    if (data.success) {
+      await mostrarConfirmacaoFCM('Sucesso', '✅ Alertas do aplicativo salvos com sucesso!', 'sucesso', true);
+      carregarConfiguracoesToasts();
+    } else {
+      throw new Error(data.error);
+    }
+  } catch (err) {
+    await mostrarConfirmacaoFCM('Erro', '❌ Falha ao salvar alertas: ' + err.message, 'perigo', true);
+  }
+}
+
+async function restaurarPadraoToast(evento) {
+  const confirmou = await mostrarConfirmacaoFCM('Restaurar Padrão', `Deseja restaurar o alerta [${evento}] ao texto original de fábrica?`, 'pergunta');
+  if (!confirmou) return;
+  
+  try {
+    const res = await fetch(`/api/toast-config/restaurar/${evento}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` }
+    });
+    const data = await res.json();
+    if (data.success) {
+      await mostrarConfirmacaoFCM('Sucesso', '✅ Restaurado com sucesso!', 'sucesso', true);
+      carregarConfiguracoesToasts();
+    } else {
+      throw new Error(data.error);
+    }
+  } catch (err) {
+    await mostrarConfirmacaoFCM('Erro', '❌ Falha ao restaurar padrão: ' + err.message, 'perigo', true);
+  }
+}
+
+async function testarLocalToast(evento) {
+  const t = _toastTemplates.find(x => x.evento === evento);
+  if (!t) return;
+  
+  const textInput = document.getElementById(`toast-text-${evento}`).value || t.textoPadrao;
+  
+  // Resolve variáveis teste
+  let msg = textInput
+    .replace('{mesa}', 'Mesa 5')
+    .replace('{cliente}', 'Carlos')
+    .replace('{itens}', 'Hamburger, Refrigerante')
+    .replace('{status}', 'ABERTO')
+    .replace('{mensagem}', 'Estoque mínimo de Coca-Cola atingido (Restam 2 unidades)');
+    
+  const confirmou = await mostrarConfirmacaoFCM('Enviar Teste de Alerta', `Deseja disparar este alerta de teste para a tela dos aplicativos da equipe (Garçom, Cozinha, Motoboy)?\n\nMensagem: ${msg}`, 'pergunta');
+  if (!confirmou) return;
+
+  try {
+    const res = await fetch('/api/toast-config/testar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
+      body: JSON.stringify({ evento, mensagem: msg, tipo: t.tipo })
+    });
+    const data = await res.json();
+    if (data.success) {
+      await mostrarConfirmacaoFCM('Sucesso', '🚀 Alerta de teste disparado via websocket para todos os apps ativos!', 'sucesso', true);
+    } else {
+      throw new Error(data.error);
+    }
+  } catch (err) {
+    await mostrarConfirmacaoFCM('Erro', '❌ Falha ao disparar teste: ' + err.message, 'perigo', true);
   }
 }
 

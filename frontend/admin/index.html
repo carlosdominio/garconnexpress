@@ -719,6 +719,9 @@
           <button class="config-nav-btn" onclick="switchConfigSubTab('fcm')">
             <i class="fa-solid fa-bell"></i> Push FCM
           </button>
+          <button class="config-nav-btn" onclick="switchConfigSubTab('toasts')">
+            <i class="fa-solid fa-comment-dots"></i> Alertas do App
+          </button>
         </aside>
 
         <!-- Conteúdo das Configurações -->
@@ -1122,6 +1125,31 @@
                 <button onclick="abrirModalEventoFCM()" style="width: 100%; margin-bottom: 10px; padding: 10px; background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer; font-size: 0.85rem;"><i class="fa-solid fa-plus"></i> ADICIONAR NOVO EVENTO</button>
                 <div id="fcm-eventos-custom" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 15px;">
                   <p style="text-align: center; color: #94a3b8; padding: 10px;">Nenhum evento criado.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+          <!-- Sub-seção: Alertas do App (Toasts) -->
+          <div id="config-sub-toasts" class="config-sub-section">
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+              <div class="config-card">
+                <h3><i class="fa-solid fa-comment-dots"></i> Alertas Internos do App (Toasts/Popups)</h3>
+                <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1.5rem;">Configure os balões visuais e pop-ups temporários exibidos na tela dos aplicativos em tempo real.</p>
+                
+                <div style="margin-bottom: 2rem;">
+                  <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 2px solid #e2e8f0;">
+                    <i class="fa-solid fa-desktop" style="color: #6366f1; font-size: 1.1rem;"></i>
+                    <h4 style="margin: 0; color: #1e293b; font-size: 1rem;">Notificações Visuais de Tela</h4>
+                  </div>
+                  
+                  <!-- Grid de Configurações de Toasts -->
+                  <div id="toast-templates-lista" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                    <p style="text-align: center; color: #94a3b8; padding: 10px;"><i class="fa-solid fa-spinner fa-spin"></i> Carregando alertas...</p>
+                  </div>
+                  
+                  <button onclick="salvarTemplatesToast()" style="width: 100%; margin-top: 10px; padding: 12px; background: linear-gradient(135deg, #10b981, #059669); border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer; transition: all 0.2s; font-size: 0.9rem;"><i class="fa-solid fa-floppy-disk"></i> SALVAR ALERTAS DO APLICATIVO</button>
                 </div>
               </div>
             </div>
