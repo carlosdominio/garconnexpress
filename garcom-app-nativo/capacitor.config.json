@@ -9,7 +9,7 @@
   },
   "plugins": {
     "PushNotifications": {
-      "presentationOptions": ["badge"]
+      "presentationOptions": []
     },
     "LocalNotifications": {
       "smallIcon": "ic_stat_notification",
