@@ -2395,22 +2395,43 @@ app.delete('/api/pedidos/limpar', isAdmin, async (req, res) => {
   } catch (error) { res.status(500).json({ error: "Erro ao limpar: " + error.message }); }
 });
 
-app.get('/api/pedidos/:id', ensureDbInitialized, isAuthenticated, async (req, res) => {
+app.get('/api/pedidos/:id', ensureDbInitialized, async (req, res) => {
   try {
     const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Pedido não encontrado' });
     }
-    res.json(result.rows[0]);
+    const pedido = result.rows[0];
+    if (pedido.garcom_id === 'DELIVERY') {
+      return res.json(pedido);
+    }
+    return isAuthenticated(req, res, () => {
+      res.json(pedido);
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/pedidos/:id/itens', ensureDbInitialized, isAuthenticated, async (req, res) => { 
+app.get('/api/pedidos/:id/itens', ensureDbInitialized, async (req, res) => { 
   try {
-    const result = await query(`SELECT pi.*, m.nome, m.preco, m.categoria, m.enviar_cozinha, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [req.params.id]);
-    res.json(result.rows);
+    const pedidoRes = await query("SELECT garcom_id FROM pedidos WHERE id = ?", [req.params.id]);
+    if (pedidoRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Pedido não encontrado' });
+    }
+    const isDelivery = pedidoRes.rows[0].garcom_id === 'DELIVERY';
+    
+    const fetchItens = async () => {
+      const result = await query(`SELECT pi.*, m.nome, m.preco, m.categoria, m.enviar_cozinha, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [req.params.id]);
+      res.json(result.rows);
+    };
+
+    if (isDelivery) {
+      return await fetchItens();
+    }
+    return isAuthenticated(req, res, async () => {
+      await fetchItens();
+    });
   } catch (error) {
     console.error('Erro ao buscar itens do pedido:', error);
     res.status(500).json({ error: error.message });
@@ -2493,7 +2514,12 @@ app.delete('/api/pedidos/:id', isAuthenticated, async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.post('/api/pedidos', orderLimiter, isAuthenticated, async (req, res) => {
+app.post('/api/pedidos', orderLimiter, (req, res, next) => {
+  if (req.body && req.body.garcom_id === 'DELIVERY') {
+    return next();
+  }
+  return isAuthenticated(req, res, next);
+}, async (req, res) => {
   let { mesa_id, garcom_id, itens, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, metodo_pagamento, valor_recebido, troco } = req.body;
   if (req.user && req.user.role === 'cliente') { mesa_id = req.user.mesa_id; garcom_id = null; }
   
