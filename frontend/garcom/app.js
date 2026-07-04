@@ -1389,7 +1389,7 @@ function exibirMesas() {
         const eMeuPedido = mesaSelecionada.garcom_id === garcomLogado.usuario;
         // BLOQUEIO REFORÇADO: Se a mesa tem um garçom e não é você, bloqueia o clique
         if (!eMeuPedido && mesaSelecionada.garcom_id) {
-          await mostrarAlerta(`?? MESA BLOQUEADA\nO gar�om selecionado na fila (${mesaSelecionada.garcom_id}) deve atender esta mesa.`, "Acesso Negado", "??");
+          await mostrarAlerta(`🔒 MESA BLOQUEADA\nO garçom selecionado na fila (${mesaSelecionada.garcom_id}) deve atender esta mesa.`, "Acesso Negado", "🚫");
           return;
         }
       }
@@ -2521,5 +2521,4 @@ function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTip
   const tipo = config ? (config.tipo === 'erro' ? 'error' : (config.tipo === 'sucesso' ? 'success' : 'info')) : fallbackTipo;
   mostrarToast(msgFinal, tipo);
 }
-
 

@@ -452,8 +452,8 @@ async function configurarPusher() {
         canal = pusher.subscribe('garconnexpress');
 
         canal.bind('teste-toast', (data) => {
-            console.log('📢 Evento recebido: teste-toast', data);
-            if (deveTocarSom('teste-toast')) tocarSomNotificacao('campainha');
+            console.log('🔔 Evento recebido: teste-toast', data);
+            if (deveTocarSom(data.evento || 'teste-toast')) tocarSomNotificacao('campainha');
             mostrarToast(data.mensagem, data.tipo === 'erro' ? 'erro' : (data.tipo === 'sucesso' ? 'success' : 'info'));
         });
 
@@ -941,4 +941,3 @@ function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTip
   const tipo = config ? (config.tipo === 'erro' ? 'error' : (config.tipo === 'sucesso' ? 'success' : 'info')) : fallbackTipo;
   mostrarToast(msgFinal, tipo);
 }
-
