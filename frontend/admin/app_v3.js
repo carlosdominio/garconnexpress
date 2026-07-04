@@ -5552,8 +5552,8 @@ async function configurarPusher() {
       
       if (p) {
         if (isDelivery) nomeExibicao = `DELIVERY #${p.id}`;
-        else if (p.mesa_numero) nomeExibicao = `Mesa ${p.mesa_numero}`;
-        else nomeExibicao = 'Balcão';
+        else if (p.mesa_numero) nomeExibicao = `Mesa ${p.mesa_numero} (#${p.id})`;
+        else nomeExibicao = `Balcão (#${p.id})`;
       }
 
       const mesaId = p ? p.mesa_id : 'geral';
@@ -5575,7 +5575,14 @@ async function configurarPusher() {
       iniciarPiscarTitulo();
 
       const mesa = data.mesa_numero || 'X';
-      const labelMesa = mesa.includes('DELIVERY') ? mesa : `Mesa ${mesa}`;
+      let labelMesa = '';
+      if (mesa.includes('DELIVERY')) {
+        labelMesa = mesa;
+      } else if (mesa === 'BALCÃO' || mesa === 'Balcão') {
+        labelMesa = `Balcão (#${data.pedido_id})`;
+      } else {
+        labelMesa = `Mesa ${mesa} (#${data.pedido_id})`;
+      }
       const msgSimples = `${labelMesa} está pronto!`;
 
       exibirNotificacaoNativa('🍳 PEDIDO PRONTO', msgSimples, `mesa-${data.mesa_id}`);
@@ -5587,7 +5594,7 @@ async function configurarPusher() {
         carregarPedidos();
         carregarHistorico();
       }, 100);
-      });
+    });
 
       // EVENTO: MENU ATUALIZADO (SINCRONIZAÇÃO DE ESTOQUE)
       channel.bind('menu-atualizado', () => {
@@ -5620,7 +5627,7 @@ async function configurarPusher() {
 
       // EVENTO: STATUS ATUALIZADO (Mesa/Pedido)
     channel.bind('status-atualizado', (data) => {
-      console.log('📢 Admin: Status atualizado recebido!', data);
+      console.log('📢 Admin: Status status-atualizado recebido!', data);
       if (!data) return;
 
       let nMesa = '';
@@ -5628,7 +5635,12 @@ async function configurarPusher() {
         nMesa = `DELIVERY #${data.pedido_id || data.mesa_id}`;
       } else {
         const mesaData = data.mesa_numero || data.mesa_id || 'X';
-        nMesa = isNaN(mesaData) ? mesaData : `Mesa ${mesaData}`;
+        const pIdStr = data.pedido_id ? ` (#${data.pedido_id})` : '';
+        if (mesaData === 'BALCÃO' || mesaData === 'Balcão') {
+          nMesa = `Balcão${pIdStr}`;
+        } else {
+          nMesa = isNaN(mesaData) ? `${mesaData}${pIdStr}` : `Mesa ${mesaData}${pIdStr}`;
+        }
       }
       
       const tagMesa = `mesa-${data.mesa_id}`;
