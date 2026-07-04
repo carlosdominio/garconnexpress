@@ -751,7 +751,7 @@ async function configurarPusher() {
 
     channel.bind('teste-toast', (data) => {
       console.log('📢 Evento recebido: teste-toast', data);
-      if (deveTocarSom('teste-toast')) tocarCampainha(true);
+      if (deveTocarSom(data.evento || 'teste-toast')) tocarCampainha(false);
       mostrarToast(data.mensagem, data.tipo || 'info', data.titulo || 'Teste');
     });
 
@@ -2521,4 +2521,5 @@ function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTip
   const tipo = config ? (config.tipo === 'erro' ? 'error' : (config.tipo === 'sucesso' ? 'success' : 'info')) : fallbackTipo;
   mostrarToast(msgFinal, tipo);
 }
+
 

@@ -7441,7 +7441,8 @@ async function salvarTemplatesFCM() {
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error);
-    await mostrarConfirmacaoFCM('Sucesso', '✅ Eventos do sistema salvos com sucesso!', 'sucesso', true);
+    await mostrarConfirmacaoFCM('Sucesso', '?? Alerta de teste disparado via websocket para todos os apps ativos!', 'sucesso', true);
+      if (typeof tocarNotificacao === 'function') tocarNotificacao('campainha');
   } catch (err) {
     await mostrarConfirmacaoFCM('Erro', '❌ Erro ao salvar: ' + err.message, 'perigo', true);
   } finally {
@@ -7460,7 +7461,8 @@ async function restaurarPadraoFCM(evento) {
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error);
-    await mostrarConfirmacaoFCM('Sucesso', '↺ Restaurado ao padrão original com sucesso!', 'sucesso', true);
+    await mostrarConfirmacaoFCM('Sucesso', '?? Alerta de teste disparado via websocket para todos os apps ativos!', 'sucesso', true);
+      if (typeof tocarNotificacao === 'function') tocarNotificacao('campainha');
     carregarNotificacoesFCM();
   } catch (err) { await mostrarConfirmacaoFCM('Erro', 'Erro: ' + err.message, 'perigo', true); }
 }
@@ -7593,7 +7595,8 @@ async function salvarEventoCustomFCM() {
     const data = await res.json();
     if (!data.success) throw new Error(data.error);
     fecharModalEventoFCM();
-    await mostrarConfirmacaoFCM('Sucesso', '✅ Evento customizado salvo com sucesso!', 'sucesso', true);
+    await mostrarConfirmacaoFCM('Sucesso', '?? Alerta de teste disparado via websocket para todos os apps ativos!', 'sucesso', true);
+      if (typeof tocarNotificacao === 'function') tocarNotificacao('campainha');
     carregarNotificacoesFCM();
   } catch (err) { await mostrarConfirmacaoFCM('Erro', 'Erro: ' + err.message, 'perigo', true); }
 }
@@ -7609,7 +7612,8 @@ async function excluirEventoCustomFCM(id) {
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error);
-    await mostrarConfirmacaoFCM('Sucesso', '🗑️ Evento excluído com sucesso!', 'sucesso', true);
+    await mostrarConfirmacaoFCM('Sucesso', '?? Alerta de teste disparado via websocket para todos os apps ativos!', 'sucesso', true);
+      if (typeof tocarNotificacao === 'function') tocarNotificacao('campainha');
     carregarNotificacoesFCM();
   } catch (err) { await mostrarConfirmacaoFCM('Erro', 'Erro: ' + err.message, 'perigo', true); }
 }
@@ -7725,7 +7729,8 @@ async function salvarTemplatesToast() {
     });
     const data = await res.json();
     if (data.success) {
-      await mostrarConfirmacaoFCM('Sucesso', '✅ Alertas do aplicativo salvos com sucesso!', 'sucesso', true);
+      await mostrarConfirmacaoFCM('Sucesso', '?? Alerta de teste disparado via websocket para todos os apps ativos!', 'sucesso', true);
+      if (typeof tocarNotificacao === 'function') tocarNotificacao('campainha');
       carregarConfiguracoesToasts();
     } else {
       throw new Error(data.error);
@@ -7746,7 +7751,8 @@ async function restaurarPadraoToast(evento) {
     });
     const data = await res.json();
     if (data.success) {
-      await mostrarConfirmacaoFCM('Sucesso', '✅ Restaurado com sucesso!', 'sucesso', true);
+      await mostrarConfirmacaoFCM('Sucesso', '?? Alerta de teste disparado via websocket para todos os apps ativos!', 'sucesso', true);
+      if (typeof tocarNotificacao === 'function') tocarNotificacao('campainha');
       carregarConfiguracoesToasts();
     } else {
       throw new Error(data.error);
@@ -7781,7 +7787,8 @@ async function testarLocalToast(evento) {
     });
     const data = await res.json();
     if (data.success) {
-      await mostrarConfirmacaoFCM('Sucesso', '🚀 Alerta de teste disparado via websocket para todos os apps ativos!', 'sucesso', true);
+      await mostrarConfirmacaoFCM('Sucesso', '?? Alerta de teste disparado via websocket para todos os apps ativos!', 'sucesso', true);
+      if (typeof tocarNotificacao === 'function') tocarNotificacao('campainha');
     } else {
       throw new Error(data.error);
     }
@@ -7815,7 +7822,8 @@ async function enviarComunicadoBroadcast() {
     const data = await res.json();
     if (data.success) {
       mensagemInput.value = ''; // Limpa campo
-      await mostrarConfirmacaoFCM('Sucesso', '📢 Comunicado enviado com sucesso para os dispositivos!', 'sucesso', true);
+      await mostrarConfirmacaoFCM('Sucesso', '?? Alerta de teste disparado via websocket para todos os apps ativos!', 'sucesso', true);
+      if (typeof tocarNotificacao === 'function') tocarNotificacao('campainha');
     } else {
       throw new Error(data.error || 'Erro desconhecido');
     }
@@ -7823,4 +7831,5 @@ async function enviarComunicadoBroadcast() {
     await mostrarConfirmacaoFCM('Erro', '❌ Falha ao enviar comunicado: ' + err.message, 'perigo', true);
   }
 }
+
 

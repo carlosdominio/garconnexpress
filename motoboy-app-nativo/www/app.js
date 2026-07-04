@@ -840,3 +840,4 @@ function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTip
   const tipo = config ? (config.tipo === 'erro' ? 'error' : (config.tipo === 'sucesso' ? 'success' : 'info')) : fallbackTipo;
   App.ui.showToast(msgFinal, tipo);
 }
+
