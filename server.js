@@ -2488,12 +2488,13 @@ app.delete('/api/pedidos/itens/:id', isAuthenticated, async (req, res) => {
         });
       }
       
-      const mesaNum = pedido ? pedido.numero || 'BALCÃO' : 'BALCÃO';
+      const mesaNum = pedido ? (pedido.garcom_id === 'DELIVERY' ? `DELIVERY #${item.pedido_id}` : (pedido.numero || 'BALCÃO')) : 'BALCÃO';
+      const localStr = pedido && pedido.garcom_id === 'DELIVERY' ? `${mesaNum}` : `Mesa ${mesaNum}`;
       await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
         pedido_id: item.pedido_id, 
         mesa_numero: mesaNum,
         garcom_id: pedido ? pedido.garcom_id : null,
-        mensagem: `🚨 O Pedido #${item.pedido_id} (Mesa ${mesaNum}) foi CANCELADO.` 
+        mensagem: `🚨 O Pedido #${item.pedido_id} (${localStr}) foi CANCELADO.` 
       });
 
       await notifyStatus(item.pedido_id, pedido ? pedido.mesa_id : null, 'cancelado');
@@ -2528,12 +2529,13 @@ app.delete('/api/pedidos/:id', isAuthenticated, async (req, res) => {
           mensagem: "Este pedido foi removido pelo estabelecimento. Seu acesso foi encerrado." 
         });
       }
-      const mesaNum = pedido.numero || 'BALCÃO';
+      const mesaNum = pedido.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : (pedido.numero || 'BALCÃO');
+      const localStr = pedido.garcom_id === 'DELIVERY' ? `${mesaNum}` : `Mesa ${mesaNum}`;
       await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
         pedido_id: id, 
         mesa_numero: mesaNum,
         garcom_id: pedido.garcom_id,
-        mensagem: `🚨 O Pedido #${id} (Mesa ${mesaNum}) foi REMOVIDO pelo Admin.` 
+        mensagem: `🚨 O Pedido #${id} (${localStr}) foi REMOVIDO pelo Admin.` 
       });
     }
 
@@ -3188,7 +3190,8 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
       await query("UPDATE pedido_itens SET status = 'cancelado' WHERE pedido_id = ?", [id]);
     }
     const pm = (await query("SELECT p.mesa_id, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
-    const mesaNum = pm ? pm.numero || 'BALCÃO' : 'BALCÃO';
+    const mesaNum = pm ? (pm.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : (pm.numero || 'BALCÃO')) : 'BALCÃO';
+    const localStr = pm && pm.garcom_id === 'DELIVERY' ? `${mesaNum}` : `Mesa ${mesaNum}`;
 
     // Se o status for cancelado ou entregue, libera a mesa e o código
     if ((status === 'cancelado' || status === 'entregue') && pm && pm.mesa_id) {
@@ -3211,7 +3214,7 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
         pedido_id: id, 
         mesa_numero: mesaNum,
         garcom_id: pm ? pm.garcom_id : null,
-        mensagem: `🚨 O Pedido #${id} (Mesa ${mesaNum}) foi CANCELADO pelo Admin.` 
+        mensagem: `🚨 O Pedido #${id} (${localStr}) foi CANCELADO pelo Admin.` 
       });
     }
     
