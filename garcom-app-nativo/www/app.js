@@ -746,12 +746,24 @@ function alternarSom() {
 
 function tocarCampainha(suave = false) {
   if (document.hidden) return;
-  if (somAtivo && audioDesbloqueado) {
+  if (somAtivo) {
     if (Date.now() - ultimoSomTocado < 2000) return;
     ultimoSomTocado = Date.now();
+    audioNotificacao.muted = false;
     audioNotificacao.volume = suave ? 0.3 : 1.0;
     audioNotificacao.currentTime = 0;
-    audioNotificacao.play().catch(err => console.warn('Erro ao tocar udio:', err));
+    audioNotificacao.play().then(() => {
+        audioDesbloqueado = true;
+    }).catch(err => {
+        console.warn('Erro ao tocar áudio:', err);
+        // Tenta fallback com nova instância
+        const fallbackAudio = new Audio('notificacao.mp3');
+        fallbackAudio.muted = false;
+        fallbackAudio.volume = suave ? 0.3 : 1.0;
+        fallbackAudio.play().then(() => {
+            audioDesbloqueado = true;
+        }).catch(e => console.error('Falha crítica de áudio:', e));
+    });
   }
 } 
 

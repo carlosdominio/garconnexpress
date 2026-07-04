@@ -5748,12 +5748,20 @@ async function configurarPusher() {
   const somMP3 = localStorage.getItem('admin_som_mp3_ativo') !== 'false';
   const somWin = localStorage.getItem('admin_som_windows') === 'true';
 
-  if (audioDesbloqueado && somMP3 && (tipo === 'ambos' || tipo === 'campainha')) {
+  if (somMP3 && (tipo === 'ambos' || tipo === 'campainha')) {
+    audioNotificacao.muted = false;
+    audioNotificacao.volume = 1.0;
     audioNotificacao.currentTime = 0;
-    audioNotificacao.play().catch(e => {
+    audioNotificacao.play().then(() => {
+        audioDesbloqueado = true;
+    }).catch(e => {
         console.warn('Erro ao tocar som MP3 (tentando nova instância):', e);
         const fallbackAudio = new Audio('/notificacao.mp3');
-        fallbackAudio.play().catch(err => console.error('Falha crítica de áudio:', err));
+        fallbackAudio.muted = false;
+        fallbackAudio.volume = 1.0;
+        fallbackAudio.play().then(() => {
+            audioDesbloqueado = true;
+        }).catch(err => console.error('Falha crítica de áudio:', err));
     });
   }
 
@@ -7781,8 +7789,8 @@ async function testarLocalToast(evento) {
     });
     const data = await res.json();
     if (data.success) {
-      await mostrarConfirmacaoFCM('Sucesso', '🚀 Alerta de teste disparado via websocket para todos os apps ativos!', 'sucesso', true);
       if (typeof tocarNotificacao === 'function') tocarNotificacao('campainha');
+      await mostrarConfirmacaoFCM('Sucesso', '🚀 Alerta de teste disparado via websocket para todos os apps ativos!', 'sucesso', true);
     } else {
       throw new Error(data.error);
     }
