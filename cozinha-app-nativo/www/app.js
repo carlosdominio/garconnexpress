@@ -451,6 +451,7 @@ async function configurarPusher() {
 
         canal.bind('teste-toast', (data) => {
             console.log('📢 Teste de Toast recebido na Cozinha:', data);
+            tocarSomNotificacao('campainha');
             const tipo = data.tipo === 'erro' ? 'error' : (data.tipo === 'sucesso' ? 'success' : 'info');
             mostrarToast(data.mensagem || '', tipo);
         });

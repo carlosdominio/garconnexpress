@@ -440,6 +440,7 @@ const App = {
                 
                 this.channel.bind('teste-toast', (data) => {
                     console.log('📢 Teste de Toast recebido no Motoboy:', data);
+                    if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell();
                     const tipo = data.tipo === 'erro' ? 'error' : (data.tipo === 'sucesso' ? 'success' : 'info');
                     App.ui.showToast(data.mensagem || '', tipo);
                 });

@@ -775,6 +775,7 @@ async function configurarPusher() {
 
     channel.bind('teste-toast', (data) => {
       console.log('📢 Teste de Toast recebido:', data);
+      tocarCampainha(true);
       const tipo = data.tipo === 'erro' ? 'error' : (data.tipo === 'sucesso' ? 'success' : 'info');
       mostrarToast(data.mensagem || '', tipo);
     });
