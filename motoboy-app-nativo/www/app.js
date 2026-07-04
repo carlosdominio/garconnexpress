@@ -52,8 +52,7 @@ const App = {
     },
 
     async init() {
-            this.inicializarAudios();
-            this.inicializarAudios();
+        App.notifications.inicializarAudios();
         console.log('🚀 Inicializando Motoboy App v2.0.3...');
         
         const ov = document.getElementById('loading-app');
@@ -354,17 +353,10 @@ const App = {
             }
 
             if (perm.receive === 'granted') {
-                const somTipo = localStorage.getItem('motoboy_som_global') || 'campainha_classica';
-                const somRec = somTipo === 'original' ? 'notificacao' : somTipo;
-                const canalId = 'motoboy_canal_' + somTipo;
-
-                try { await PushNotifications.deleteChannel({ id: 'pedidos' }); } catch(e) {}
-                try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}
-
                 await PushNotifications.createChannel({
-                    id: canalId,
-                    name: 'Pedidos e Alertas (' + somTipo + ')',
-                    sound: somRec,
+                    id: NOTIFICATION_CHANNEL_ID,
+                    name: 'Pedidos e Alertas',
+                    sound: 'notificacao.mp3',
                     importance: 5,
                     visibility: 1,
                     vibration: true
@@ -462,54 +454,14 @@ const App = {
                 });
             }
         },
-
-        toggleSound() {
-            App.state.soundEnabled = !App.state.soundEnabled;
-            localStorage.setItem('motoboy_sound', App.state.soundEnabled);
-            App.ui.updateSoundIcon();
-            
-            for (const som in App.notifications.audiosNotificacao) {
-                App.notifications.audiosNotificacao[som].muted = !App.state.soundEnabled;
-            }
-
-            if (App.state.soundEnabled) {
-                App.ui.showToast("Som ativado!", "success");
-            } else {
-                App.ui.showToast("Som silenciado.", "warning");
-            }
-        }
-
-            if (App.state.soundEnabled) {
-                App.ui.showToast("Som ativado!", "success");
-            } else {
-                App.ui.showToast("Som silenciado.", "warning");
-            }
-        } else {
-                App.ui.showToast("Som silenciado.", "warning");
-            }
-        },
         toggleSoundManual() {
             App.state.soundEnabled = !App.state.soundEnabled;
             localStorage.setItem('motoboy_sound', App.state.soundEnabled);
             App.ui.updateSoundIcon();
-
-            for (const som in App.notifications.audiosNotificacao) {
-                App.notifications.audiosNotificacao[som].muted = !App.state.soundEnabled;
-            }
-
             if (App.state.soundEnabled) {
+                this.playAlert();
                 App.ui.showToast("Som ativado!", "success");
             } else {
-                App.ui.showToast("Som silenciado.", "warning");
-            }
-        }
-
-            if (App.state.soundEnabled) {
-                App.ui.showToast("Som ativado!", "success");
-            } else {
-                App.ui.showToast("Som silenciado.", "warning");
-            }
-        } else {
                 App.ui.showToast("Som silenciado.", "warning");
             }
         }
@@ -535,11 +487,8 @@ const App = {
                 });
 
                 this.channel.bind('som-global-atualizado', (data) => {
-                    console.log('🔔 Som global atualizado:', data);
+                    console.log('🔄 Som global updated:', data);
                     localStorage.setItem('motoboy_som_global', data.somMotoboy || 'campainha_classica');
-                    if (window.Capacitor && window.Capacitor.isNativePlatform() && App.notifications && typeof App.notifications.init === 'function') {
-                        App.notifications.init();
-                    }
                 });
 
                 this.channel.bind('comunicado-geral', (data) => {
@@ -720,8 +669,6 @@ const App = {
                     App.notifications.playAlert();
                 }
             });
-        }
-        }
         },
 
         renderPedidos() {
