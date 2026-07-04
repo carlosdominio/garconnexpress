@@ -58,6 +58,7 @@ const App = {
         if (!this.checkAuth()) return;
 
         try {
+            await carregarConfiguracoesToasts();
             await this.notifications.init();
             await this.pusher.init();
         } catch (e) {
@@ -226,9 +227,9 @@ const App = {
                 
                 if (wasOpen !== null) { // Não notifica na primeira carga
                     if (!isOpenNow) {
-                        App.ui.showToast("O caixa foi fechado! Bom descanso.", "error", "🔒 CAIXA FECHADO");
+                        dispararToastSistema('status-caixa-atualizado', { status: 'FECHADO' }, "O caixa foi fechado! Bom descanso.", "error");
                     } else {
-                        App.ui.showToast("O caixa foi aberto! Bom trabalho.", "success", "✅ CAIXA ABERTO");
+                        dispararToastSistema('status-caixa-atualizado', { status: 'ABERTO' }, "O caixa foi aberto! Bom trabalho.", "success");
                     }
                 }
             }
@@ -437,18 +438,24 @@ const App = {
                 this.instance = new Pusher(config.key, { cluster: config.cluster, forceTLS: true });
                 this.channel = this.instance.subscribe('garconnexpress');
                 
+                this.channel.bind('teste-toast', (data) => {
+                    console.log('📢 Teste de Toast recebido no Motoboy:', data);
+                    dispararToastSistema(data.evento, data.dados || {}, data.fallbackText || '', data.fallbackTipo || 'success');
+                });
+
                 this.channel.bind('status-caixa-atualizado', () => App.checkCaixaStatus());
 
                 this.channel.bind('status-atualizado', (data) => {
                     if (data.garcom_id !== 'DELIVERY') return;
                     App.loadPedidos();
                     const pId = String(data.pedido_id || '');
-                    if (['cancelado', 'pronto', 'servido', 'saiu_entrega'].includes(data.status) && pId) {
+                    if (['cancelado', 'pronto', 'servido', 'saiu_entrega', 'entregue'].includes(data.status) && pId) {
                         let title = 'Motoboy Pro';
                         let body = `Pedido #${pId} atualizado!`;
                         if (data.status === 'cancelado') { 
                             title = '❌ PEDIDO CANCELADO'; 
                             body = `Pedido #${pId} foi cancelado.`; 
+                            dispararToastSistema('pedido-cancelado', { mesa: 'Delivery', pedido_id: pId }, body, 'error');
                             
                             // Mostrar modal gigante também no status-atualizado
                             const modal = document.getElementById('modal-cancelamento');
@@ -459,8 +466,21 @@ const App = {
                                 App.audio.playBell();
                             }
                         }
-                        if (data.status === 'pronto') { title = '🍳 PEDIDO PRONTO'; body = `Pedido #${pId} pronto na cozinha.`; }
-                        if (data.status === 'servido' || data.status === 'saiu_entrega') { title = '🛵 A CAMINHO'; body = `Pedido #${pId} saiu para entrega!`; }
+                        if (data.status === 'pronto') {
+                            title = '🍳 PEDIDO PRONTO';
+                            body = `Pedido #${pId} pronto na cozinha.`;
+                            dispararToastSistema('pedido-pronto', { mesa: 'Delivery', pedido_id: pId }, body, 'success');
+                        }
+                        if (data.status === 'servido' || data.status === 'saiu_entrega') {
+                            title = '🛵 A CAMINHO';
+                            body = `Pedido #${pId} saiu para entrega!`;
+                            dispararToastSistema('saiu-entrega', { mesa: 'Delivery', pedido_id: pId }, body, 'info');
+                        }
+                        if (data.status === 'entregue') {
+                            title = '✅ ENTREGUE';
+                            body = `Pedido #${pId} finalizado!`;
+                            dispararToastSistema('pedido-entregue', { mesa: 'Delivery', pedido_id: pId }, body, 'success');
+                        }
                         
                         App.notifications.showLocal(title, body, `${data.status}_${pId}`);
                     }
@@ -472,6 +492,7 @@ const App = {
                     App.loadPedidos();
                     const pId = String(p.id || p.pedido_id || '');
                     if (pId) {
+                        dispararToastSistema('novo-pedido', { mesa: 'Delivery', pedido_id: pId }, `Novo pedido recebido #${pId}`, 'info');
                         App.notifications.showLocal(`🆕 NOVO DELIVERY`, `Pedido #${pId} recebido!`, `novo_${pId}`);
                     }
                 });
@@ -482,6 +503,8 @@ const App = {
                     if (data.para_cozinha === true) return; // Cozinha já vai lidar com o cancelamento
                     App.loadPedidos();
                     if (pId) {
+                        const mesaStr = data.mesa_numero || 'Delivery';
+                        dispararToastSistema('pedido-cancelado', { mesa: mesaStr, pedido_id: pId }, `O pedido #${pId} foi cancelado.`, 'error');
                         App.notifications.showLocal(`❌ PEDIDO REMOVIDO`, `O pedido #${pId} foi cancelado.`, `cancelado_${pId}`);
                         const modal = document.getElementById('modal-cancelamento');
                         const modalMsg = document.getElementById('modal-mensagem');
@@ -766,3 +789,45 @@ document.addEventListener('click', function(event) {
         }
     }
 });
+
+let _toastTemplates = [];
+
+async function carregarConfiguracoesToasts() {
+  try {
+    const res = await fetch('/api/toast-config/listar');
+    const data = await res.json();
+    if (data.success) {
+      _toastTemplates = data.templates;
+    }
+  } catch (err) {
+    console.error('Erro ao carregar configurações de Toasts:', err);
+  }
+}
+
+function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTipo = 'success') {
+  const config = _toastTemplates.find(x => x.evento === evento);
+  const ativo = config ? config.ativo : true;
+  if (!ativo) {
+    console.log(`💬 [Toast Alertas] Evento [${evento}] está desativado pelo administrador.`);
+    return;
+  }
+  
+  const template = config ? config.texto : fallbackText;
+  if (!template) return;
+  
+  const mesaVal = dados.mesa_numero || dados.mesaNum || dados.mesa_id || dados.nMesa || dados.mesa || '';
+  const clienteVal = dados.cliente || dados.nomeExibicao || '';
+  const itensVal = dados.itens || '';
+  const statusVal = dados.status || '';
+  const msgVal = dados.mensagem || '';
+  
+  let msgFinal = template
+    .replace(/{mesa}/g, mesaVal)
+    .replace(/{cliente}/g, clienteVal)
+    .replace(/{itens}/g, itensVal)
+    .replace(/{status}/g, statusVal)
+    .replace(/{mensagem}/g, msgVal);
+    
+  const tipo = config ? (config.tipo === 'erro' ? 'error' : (config.tipo === 'sucesso' ? 'success' : 'info')) : fallbackTipo;
+  App.ui.showToast(msgFinal, tipo);
+}
