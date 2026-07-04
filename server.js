@@ -679,6 +679,23 @@ async function safePusherTrigger(channel, event, data) {
     if (eventsToPush.includes(event)) {
       try {
         const subs = (await query("SELECT * FROM push_subscriptions")).rows;
+        
+        let enviaCozinha = data.para_cozinha;
+        if (enviaCozinha === undefined) {
+          const pId = data.pedido_id || data.id || (data.pedido ? (data.pedido.id || data.pedido.pedido_id) : '');
+          if (pId) {
+            try {
+              const itensRes = await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [pId]);
+              if (itensRes.rows && itensRes.rows.length > 0) {
+                const menuIds = itensRes.rows.map(i => i.menu_id);
+                enviaCozinha = await checkTemItemCozinha(menuIds);
+              }
+            } catch (err) {
+              console.error("Erro ao verificar itens da cozinha para push:", err);
+            }
+          }
+        }
+        if (enviaCozinha === undefined) enviaCozinha = true;
         const mesaRaw = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : 'BALCÃO');
         let mesaFormatada = mesaRaw;
         if (mesaRaw !== 'BALCÃO' && !String(mesaRaw).toUpperCase().includes('DELIVERY') && !String(mesaRaw).toUpperCase().includes('MESA')) {
@@ -720,9 +737,11 @@ async function safePusherTrigger(channel, event, data) {
           const defB = data.is_addition ? '{mesa} pediu mais itens!' : '{mesa}';
           msgGarcom = resolveTemplate(evKey, defT, defB);
           msgCozinha = resolveTemplate(evKey, defT, defB);
+          msgMotoboy = resolveTemplate(evKey, data.is_addition ? '➕ ITEM ADICIONADO' : '🚀 NOVO DELIVERY', data.is_addition ? '{mesa} pediu mais itens!' : 'Novo pedido #{pedido_id} recebido!');
         } else if (event === 'pedido-cancelado') {
           msgGarcom = resolveTemplate('pedido-cancelado', '❌ PEDIDO CANCELADO', '{mesa}');
           msgCozinha = resolveTemplate('pedido-cancelado', '❌ PEDIDO CANCELADO', '{mesa}');
+          msgMotoboy = resolveTemplate('pedido-cancelado', '❌ PEDIDO CANCELADO', 'O pedido #{pedido_id} foi cancelado.');
         } else if (event === 'chamado-garcom') {
           msgGarcom = resolveTemplate('chamado-garcom', '🛎️ CHAMADO', '{mesa} está chamando!');
         } else if (event === 'pedido-pronto') {
@@ -775,7 +794,16 @@ async function safePusherTrigger(channel, event, data) {
              // Se for cancelamento de delivery E tem item de cozinha, NÃO envia push pro motoboy.
              // A notificação de cancelamento vai apenas para a cozinha (configurado abaixo).
           } else {
-            const bodyMotoboy = msgMotoboy.body || (data.is_addition ? `➕ ITEM ADICIONADO: ${mesaFormatada}` : `🚀 NOVO PEDIDO: ${mesaFormatada}`);
+            let bodyMotoboy = msgMotoboy.body;
+            if (!bodyMotoboy) {
+              if (event === 'novo-pedido') {
+                bodyMotoboy = data.is_addition ? `➕ ITEM ADICIONADO: ${mesaFormatada}` : `🚀 NOVO PEDIDO: ${mesaFormatada}`;
+              } else if (event === 'pedido-cancelado') {
+                bodyMotoboy = `❌ PEDIDO CANCELADO: ${mesaFormatada}`;
+              } else {
+                bodyMotoboy = `${mesaFormatada}`;
+              }
+            }
             targets.push({ app: 'motoboy', title: msgMotoboy.title || 'Delivery Express', msg: bodyMotoboy });
           }
         } else {
