@@ -1,8 +1,19 @@
 const API_BASE_URL = 'https://garconnexpress.vercel.app';
 
 let isNativeApp = (window.Capacitor && window.Capacitor.isNativePlatform()) || 
+                  navigator.userAgent.includes('Capacitor') || 
                   window.location.protocol === 'capacitor:' || 
                   (window.location.hostname === 'localhost' && (window.location.protocol === 'http:' || window.location.protocol === 'https:') && !window.location.port);
+
+if (isNativeApp && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(registrations => {
+    for (const registration of registrations) {
+      registration.unregister().then(success => {
+        if (success) console.log("🧹 Service Worker antigo desregistrado com sucesso no ambiente nativo!");
+      });
+    }
+  });
+}
 
 // Interceptador global do fetch para colocar a API_BASE_URL no app nativo e adicionar Authorization Header
 const originalFetch = window.fetch;

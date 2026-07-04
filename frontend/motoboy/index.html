@@ -33,7 +33,10 @@
         </div>
     </div>
     <script>
-        if ('serviceWorker' in navigator) {
+        const isNative = (window.Capacitor && window.Capacitor.isNativePlatform()) || 
+                         navigator.userAgent.includes('Capacitor') || 
+                         window.location.protocol === 'file:';
+        if (!isNative && 'serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('sw.js')
                     .then(reg => console.log('🛵 SW Motoboy Ativo!', reg))

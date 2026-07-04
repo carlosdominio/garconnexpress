@@ -6,6 +6,20 @@
 const API_BASE_URL = '';
 const NOTIFICATION_CHANNEL_ID = 'pedidos';
 
+const isNativeApp = (window.Capacitor && window.Capacitor.isNativePlatform()) || 
+                    navigator.userAgent.includes('Capacitor') || 
+                    window.location.protocol === 'file:';
+
+if (isNativeApp && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(registrations => {
+    for (const registration of registrations) {
+      registration.unregister().then(success => {
+        if (success) console.log("🧹 Service Worker antigo desregistrado com sucesso no ambiente nativo!");
+      });
+    }
+  });
+}
+
 function getSoundPath(somTipo) {
   if (somTipo === 'original') {
     const isCordova = window.cordova || window.Capacitor || window.location.protocol === 'file:';
