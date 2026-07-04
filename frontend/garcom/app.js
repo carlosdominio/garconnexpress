@@ -761,6 +761,11 @@ async function configurarPusher() {
     const channel = pusher.subscribe('garconnexpress');
     console.log('📺 Inscrito no canal: garconnexpress');
 
+    channel.bind('toast-config-atualizado', () => {
+      console.log('🔄 Configurações de Toasts atualizadas!');
+      if (typeof carregarConfiguracoesToasts === 'function') carregarConfiguracoesToasts();
+    });
+
     channel.bind('teste-toast', (data) => {
       console.log('📢 Evento recebido: teste-toast', data);
       if (deveTocarSom(data.evento || 'teste-toast')) tocarCampainha(false);

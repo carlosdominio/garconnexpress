@@ -451,6 +451,11 @@ async function configurarPusher() {
         pusher = new Pusher(config.key, { cluster: config.cluster });
         canal = pusher.subscribe('garconnexpress');
 
+        canal.bind('toast-config-atualizado', () => {
+            console.log('🔄 Configurações de Toasts atualizadas!');
+            if (typeof carregarConfiguracoesToasts === 'function') carregarConfiguracoesToasts();
+        });
+
         canal.bind('teste-toast', (data) => {
             console.log('🔔 Evento recebido: teste-toast', data);
             if (deveTocarSom(data.evento || 'teste-toast')) tocarSomNotificacao('campainha');

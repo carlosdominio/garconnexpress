@@ -4462,6 +4462,9 @@ app.post('/api/toast-config/salvar', ensureDbInitialized, isAdmin, async (req, r
         await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES (?, ?)", [`toast_sound_${t.evento}`, soundVal]);
       }
     }
+    if (typeof safePusherTrigger !== 'undefined') {
+      await safePusherTrigger('garconnexpress', 'toast-config-atualizado', {});
+    }
     res.json({ success: true });
   } catch (error) {
     res.json({ success: false, error: 'Erro ao salvar configurações de Toasts', detalhes: error.message });
@@ -4472,6 +4475,9 @@ app.post('/api/toast-config/restaurar/:evento', ensureDbInitialized, isAdmin, as
   try {
     const { evento } = req.params;
     await query("DELETE FROM sistema_config WHERE chave = $1 OR chave = $2 OR chave = $3", [`toast_text_${evento}`, `toast_enabled_${evento}`, `toast_sound_${evento}`]);
+    if (typeof safePusherTrigger !== 'undefined') {
+      await safePusherTrigger('garconnexpress', 'toast-config-atualizado', {});
+    }
     res.json({ success: true });
   } catch (error) {
     res.json({ success: false, error: 'Erro ao restaurar padrão de Toast', detalhes: error.message });

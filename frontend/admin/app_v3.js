@@ -7789,7 +7789,9 @@ async function testarLocalToast(evento) {
     });
     const data = await res.json();
     if (data.success) {
-      if (typeof tocarNotificacao === 'function') tocarNotificacao('campainha');
+      const somEl = document.getElementById(`toast-sound-${evento}`);
+      const deveTocarLocal = somEl ? somEl.checked : true;
+      if (deveTocarLocal && typeof tocarNotificacao === 'function') tocarNotificacao('campainha');
       await mostrarConfirmacaoFCM('Sucesso', '🚀 Alerta de teste disparado via websocket para todos os apps ativos!', 'sucesso', true);
     } else {
       throw new Error(data.error);
