@@ -468,22 +468,9 @@ const App = {
                     if (data.garcom_id !== 'DELIVERY') return;
                     App.loadPedidos();
                     const pId = String(data.pedido_id || '');
-                    if (['cancelado', 'pronto', 'servido', 'saiu_entrega'].includes(data.status) && pId) {
+                    if (['pronto', 'servido', 'saiu_entrega'].includes(data.status) && pId) {
                         let title = 'Motoboy Pro';
                         let body = `Pedido #${pId} atualizado!`;
-                        if (data.status === 'cancelado') { 
-                            title = '❌ PEDIDO CANCELADO'; 
-                            body = `Pedido #${pId} foi cancelado.`; 
-                            
-                            // Mostrar modal gigante também no status-atualizado
-                            const modal = document.getElementById('modal-cancelamento');
-                            const modalMsg = document.getElementById('modal-mensagem');
-                            if (modal && modalMsg) {
-                                modalMsg.innerHTML = `O Delivery <strong>#${pId}</strong> foi cancelado!<br><br><span style="font-size: 1rem; color: #7f8c8d;">Detalhe: Cancelado pelo administrador.</span>`;
-                                modal.classList.add('active');
-                                App.audio.playBell();
-                            }
-                        }
                         if (data.status === 'pronto') { title = '🍳 PEDIDO PRONTO'; body = `Pedido #${pId} pronto na cozinha.`; }
                         if (data.status === 'servido' || data.status === 'saiu_entrega') { title = '🛵 A CAMINHO'; body = `Pedido #${pId} saiu para entrega!`; }
                         

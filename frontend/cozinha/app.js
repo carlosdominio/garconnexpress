@@ -519,10 +519,7 @@ async function configurarPusher() {
 
         canal.bind('status-atualizado', (data) => {
             console.log('📢 Status atualizado recebido:', data);
-            if (data && data.status === 'cancelado') {
-                const idParaCancelar = data.pedido_id || data.id;
-                mostrarNotificacaoCancelamento(data.mensagem || `Pedido #${idParaCancelar} CANCELADO pelo Admin`, idParaCancelar);
-            } else if (data && (data.status === 'itens_atualizados' || data.status === 'itens_adicionados')) {
+            if (data && (data.status === 'itens_atualizados' || data.status === 'itens_adicionados')) {
                 const card = document.getElementById(`pedido-card-${data.pedido_id || data.id}`);
                 if (card) {
                     const mesa = data.mesa_numero || 'X';

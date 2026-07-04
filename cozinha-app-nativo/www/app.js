@@ -528,12 +528,7 @@ async function configurarPusher() {
 
         canal.bind('status-atualizado', (data) => {
             console.log('📢 Status atualizado recebido:', data);
-            if (data && data.status === 'cancelado') {
-                if (data.para_cozinha === false) return; // Trava de segurança: não notifica cozinha se não houver itens de cozinha
-                const idParaCancelar = data.pedido_id || data.id;
-                const isDelivery = data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY');
-                mostrarNotificacaoCancelamento(data.mensagem || `Cancelado pelo Admin`, idParaCancelar, data.mesa_numero, isDelivery);
-            } else if (data && (data.status === 'itens_atualizados' || data.status === 'itens_adicionados')) {
+            if (data && (data.status === 'itens_atualizados' || data.status === 'itens_adicionados')) {
                 const card = document.getElementById(`pedido-card-${data.pedido_id || data.id}`);
                 if (card) {
                     const mesa = data.mesa_numero || 'X';
