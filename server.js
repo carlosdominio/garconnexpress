@@ -4162,17 +4162,17 @@ app.post('/api/config/categorias-cozinha', isAdmin, async (req, res) => {
 // ─── ROTAS FCM (BLINDADAS PARA VERCEL) ───────────────────────────────────────
 
 const FCM_DEFAULTS = [
-  { evento: 'novo-pedido', tituloPadrao: 'GarçomExpress', corpoPadrao: '🚀 NOVO PEDIDO: {mesa}', destinatario: 'garcom', variaveis: ['mesa', 'itens'] },
-  { evento: 'item-adicionado', tituloPadrao: 'GarçomExpress', corpoPadrao: '➕ ITEM ADICIONADO: {mesa}', destinatario: 'garcom', variaveis: ['mesa', 'item', 'qtd'] },
-  { evento: 'pedido-cancelado', tituloPadrao: 'CozinhaExpress', corpoPadrao: '❌ {mesa} PEDIDO CANCELADO', destinatario: 'cozinha', variaveis: ['mesa', 'item'] },
-  { evento: 'chamado-garcom', tituloPadrao: 'GarçomExpress', corpoPadrao: '🛎️ CHAMADO: {mesa}', destinatario: 'garcom', variaveis: ['mesa'] },
-  { evento: 'pedido-pronto', tituloPadrao: 'GarçomExpress', corpoPadrao: '🍳 PRONTO: {mesa}', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
-  { evento: 'solicitacao-fechamento-cliente', tituloPadrao: 'GarçomExpress', corpoPadrao: '💰 FECHAMENTO: {mesa}', destinatario: 'garcom', variaveis: ['mesa'] },
+  { evento: 'novo-pedido', tituloPadrao: 'GarçomExpress', corpoPadrao: '🍕 Novo pedido recebido da {mesa}! 📋', destinatario: 'garcom', variaveis: ['mesa', 'itens'] },
+  { evento: 'item-adicionado', tituloPadrao: 'GarçomExpress', corpoPadrao: '➕ Novos itens adicionados na {mesa}!', destinatario: 'garcom', variaveis: ['mesa', 'item', 'qtd'] },
+  { evento: 'pedido-cancelado', tituloPadrao: 'CozinhaExpress', corpoPadrao: '❌ Atenção: O pedido da {mesa} foi cancelado!', destinatario: 'cozinha', variaveis: ['mesa', 'item'] },
+  { evento: 'chamado-garcom', tituloPadrao: 'GarçomExpress', corpoPadrao: '🛎️ Chamado de atendimento na {mesa}! Atenda o cliente.', destinatario: 'garcom', variaveis: ['mesa'] },
+  { evento: 'pedido-pronto', tituloPadrao: 'GarçomExpress', corpoPadrao: '🍳 O pedido da {mesa} está pronto para servir!', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
+  { evento: 'solicitacao-fechamento-cliente', tituloPadrao: 'GarçomExpress', corpoPadrao: '💰 A {mesa} solicitou o fechamento da conta.', destinatario: 'garcom', variaveis: ['mesa'] },
   { evento: 'status-caixa-atualizado', tituloPadrao: '💰 CAIXA', corpoPadrao: '{status}', destinatario: 'todos', variaveis: ['status'] },
-  { evento: 'rascunho-recebido', tituloPadrao: 'GarçomExpress', corpoPadrao: '📝 RASCUNHO: {mesa}', destinatario: 'garcom', variaveis: ['mesa'] },
-  { evento: 'mesa-liberada', tituloPadrao: 'GarçomExpress', corpoPadrao: '🔓 MESA LIBERADA: {mesa}', destinatario: 'garcom', variaveis: ['mesa'] },
-  { evento: 'saiu-entrega', tituloPadrao: 'Delivery Express', corpoPadrao: '🛵 SAIU PARA ENTREGA: {mesa}', destinatario: 'motoboy', variaveis: ['mesa'] },
-  { evento: 'pedido-entregue', tituloPadrao: 'Delivery Express', corpoPadrao: '✅ PEDIDO ENTREGUE E FINALIZADO: {mesa}', destinatario: 'motoboy', variaveis: ['mesa'] },
+  { evento: 'rascunho-recebido', tituloPadrao: 'GarçomExpress', corpoPadrao: '📝 Novo rascunho de pedido pendente na {mesa}.', destinatario: 'garcom', variaveis: ['mesa'] },
+  { evento: 'mesa-liberada', tituloPadrao: 'GarçomExpress', corpoPadrao: '🔓 Mesa {mesa} foi liberada com sucesso!', destinatario: 'garcom', variaveis: ['mesa'] },
+  { evento: 'saiu-entrega', tituloPadrao: 'Delivery Express', corpoPadrao: '🛵 O pedido da {mesa} saiu para entrega!', destinatario: 'motoboy', variaveis: ['mesa'] },
+  { evento: 'pedido-entregue', tituloPadrao: 'Delivery Express', corpoPadrao: '✅ O pedido da {mesa} foi entregue com sucesso!', destinatario: 'motoboy', variaveis: ['mesa'] },
   { evento: 'fechamento-atrasado', tituloPadrao: '⚠️ CAIXA: FECHAMENTO ATRASADO!', corpoPadrao: 'O fechamento da {mesa} foi solicitado há mais de 5 minutos e ainda não foi concluído!', destinatario: 'garcom', variaveis: ['mesa'] },
   { evento: 'pedido-atrasado-motoboy', tituloPadrao: '🔥 MOTOBOY: ENTREGA ATRASADA!', corpoPadrao: 'O pedido de entrega #{pedido_id} está parado há mais de 10 minutos!', destinatario: 'motoboy', variaveis: ['pedido_id'] },
   { evento: 'pedido-atrasado-garcom', tituloPadrao: '🔥 GARÇOM: PEDIDO ATRASADO!', corpoPadrao: 'O pedido da {mesa} (#{pedido_id}) está parado há mais de 10 minutos!', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
@@ -4301,17 +4301,17 @@ app.post('/api/fcm-config/testar', ensureDbInitialized, isAdmin, async (req, res
 
 // --- CONFIGURAÇÃO DE TOASTS/POPUPS DO APLICATIVO ---
 const TOAST_DEFAULTS = [
-  { evento: 'novo-pedido', textoPadrao: '🍕 NOVO PEDIDO: {mesa}', label: 'Novo Pedido', tipo: 'info', variaveis: ['mesa', 'cliente', 'itens'] },
-  { evento: 'chamado-garcom', textoPadrao: '🛎️ CHAMADO: Mesa {mesa}', label: 'Chamado de Garçom', tipo: 'erro', variaveis: ['mesa'] },
-  { evento: 'pedido-pronto', textoPadrao: '🍳 PRONTO: Mesa {mesa}', label: 'Pedido Pronto', tipo: 'sucesso', variaveis: ['mesa'] },
-  { evento: 'pedido-cancelado', textoPadrao: '❌ CANCELADO: Mesa {mesa}', label: 'Pedido Cancelado', tipo: 'erro', variaveis: ['mesa'] },
-  { evento: 'solicitacao-fechamento-cliente', textoPadrao: '💰 CONTA: Mesa {mesa}', label: 'Solicitação de Conta', tipo: 'sucesso', variaveis: ['mesa'] },
-  { evento: 'status-caixa-atualizado', textoPadrao: '💼 CAIXA: {status}', label: 'Status do Caixa', tipo: 'info', variaveis: ['status'] },
-  { evento: 'item-adicionado', textoPadrao: '➕ ADICIONOU ITENS: Mesa {mesa}', label: 'Itens Adicionados', tipo: 'info', variaveis: ['mesa'] },
-  { evento: 'mesa-liberada', textoPadrao: '🟢 Mesa {mesa} Liberada', label: 'Mesa Liberada', tipo: 'sucesso', variaveis: ['mesa'] },
-  { evento: 'saiu-entrega', textoPadrao: '🛵 A CAMINHO: Mesa {mesa}', label: 'Saiu para Entrega', tipo: 'info', variaveis: ['mesa'] },
-  { evento: 'pedido-entregue', textoPadrao: '✅ CONCLUÍDO: Mesa {mesa}', label: 'Pedido Concluído', tipo: 'sucesso', variaveis: ['mesa'] },
-  { evento: 'estoque-baixo', textoPadrao: '⚠️ ESTOQUE BAIXO: {mensagem}', label: 'Estoque Baixo', tipo: 'erro', variaveis: ['mensagem'] }
+  { evento: 'novo-pedido', textoPadrao: '🍕 Novo pedido recebido da {mesa}! 📋', label: 'Novo Pedido', tipo: 'info', variaveis: ['mesa', 'cliente', 'itens'] },
+  { evento: 'chamado-garcom', textoPadrao: '🛎️ Chamado de atendimento na {mesa}! Atenda o cliente.', label: 'Chamado de Garçom', tipo: 'erro', variaveis: ['mesa'] },
+  { evento: 'pedido-pronto', textoPadrao: '🍳 O pedido da {mesa} está pronto para servir!', label: 'Pedido Pronto', tipo: 'sucesso', variaveis: ['mesa'] },
+  { evento: 'pedido-cancelado', textoPadrao: '❌ Atenção: O pedido da {mesa} foi cancelado!', label: 'Pedido Cancelado', tipo: 'erro', variaveis: ['mesa'] },
+  { evento: 'solicitacao-fechamento-cliente', textoPadrao: '💰 A {mesa} solicitou o fechamento da conta.', label: 'Solicitação de Conta', tipo: 'sucesso', variaveis: ['mesa'] },
+  { evento: 'status-caixa-atualizado', textoPadrao: '💼 Status do caixa: {status}', label: 'Status do Caixa', tipo: 'info', variaveis: ['status'] },
+  { evento: 'item-adicionado', textoPadrao: '➕ Novos itens adicionados na {mesa}!', label: 'Itens Adicionados', tipo: 'info', variaveis: ['mesa'] },
+  { evento: 'mesa-liberada', textoPadrao: '🔓 Mesa {mesa} foi liberada com sucesso!', label: 'Mesa Liberada', tipo: 'sucesso', variaveis: ['mesa'] },
+  { evento: 'saiu-entrega', textoPadrao: '🛵 O pedido da {mesa} saiu para entrega!', label: 'Saiu para Entrega', tipo: 'info', variaveis: ['mesa'] },
+  { evento: 'pedido-entregue', textoPadrao: '✅ O pedido da {mesa} foi entregue com sucesso!', label: 'Pedido Concluído', tipo: 'sucesso', variaveis: ['mesa'] },
+  { evento: 'estoque-baixo', textoPadrao: '⚠️ Alerta de Estoque Baixo: {mensagem}', label: 'Estoque Baixo', tipo: 'erro', variaveis: ['mensagem'] }
 ];
 
 app.get('/api/toast-config/listar', ensureDbInitialized, async (req, res) => {
