@@ -808,6 +808,11 @@ async function carregarConfiguracoesToasts() {
   }
 }
 
+function deveTocarSom(evento) {
+  const c = typeof _toastTemplates !== 'undefined' ? _toastTemplates.find(x => x.evento === evento) : null;
+  return c ? c.som !== false : true;
+}
+
 function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTipo = 'success') {
   const config = _toastTemplates.find(x => x.evento === evento);
   const ativo = config ? config.ativo : true;

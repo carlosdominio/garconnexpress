@@ -751,34 +751,34 @@ async function configurarPusher() {
 
     channel.bind('teste-toast', (data) => {
       console.log('📢 Evento recebido: teste-toast', data);
-      tocarCampainha(true);
+      if (deveTocarSom('teste-toast')) tocarCampainha(true);
       mostrarToast(data.mensagem, data.tipo || 'info', data.titulo || 'Teste');
     });
 
     channel.bind('comunicado-geral', (data) => {
       console.log('📢 Evento recebido: comunicado-geral', data);
       if (data.destinatario === 'todos' || data.destinatario === 'garcom') {
-        tocarCampainha();
+        if (deveTocarSom('comunicado-geral')) tocarCampainha();
         mostrarToast(data.mensagem || '', 'info', '📢 COMUNICADO GERAL');
       }
     });
 
     channel.bind('fechamento-atrasado', (data) => {
       console.log('📢 Evento: fechamento-atrasado', data);
-      tocarCampainha();
+      if (deveTocarSom('fechamento-atrasado')) tocarCampainha();
       dispararToastSistema('fechamento-atrasado', { mesa: data.mesa_numero || 'Mesa' }, data.mensagem, 'error');
     });
 
     channel.bind('pedido-atrasado-garcom', (data) => {
       console.log('📢 Evento: pedido-atrasado-garcom', data);
-      tocarCampainha();
+      if (deveTocarSom('pedido-atrasado-garcom')) tocarCampainha();
       dispararToastSistema('pedido-atrasado-garcom', { mesa: data.mesa_numero || 'Mesa', pedido_id: data.pedido_id }, data.mensagem, 'error');
     });
 
     channel.bind('pedido-pronto', (data) => {
       console.log('📢 Evento recebido: pedido-pronto', data);
       // Garçom sempre toca para pedidos prontos
-      tocarCampainha();
+      if (deveTocarSom('pedido-pronto')) tocarCampainha();
 
       // Mostra Toast e Notificação Nativa
       dispararToastSistema('pedido-pronto', { mesa: data.mesa_numero }, data.mensagem, 'success');
@@ -802,7 +802,7 @@ async function configurarPusher() {
       if (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY')) return;
       console.log('📢 Evento recebido: novo-pedido', data);
       // Garçom toca som suave para novos pedidos (ex: pedidos via QR Code)
-      tocarCampainha(true);
+      if (deveTocarSom('novo-pedido')) tocarCampainha(true);
 
       // Extrai número da mesa se disponível
       let mesaRaw = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : null) || data.mesa_id || (data.pedido ? data.pedido.mesa_id : null) || 'X';
@@ -836,7 +836,7 @@ async function configurarPusher() {
              strMesa = `Mesa ${strMesa}`;
           }
           
-          tocarCampainha(true);
+          if (deveTocarSom('status-atualizado')) tocarCampainha(true);
           if (data.status === 'liberada') {
             dispararToastSistema('mesa-liberada', { mesa: strMesa }, `✅ ${strMesa} liberada`, 'success');
           } else if (data.status === 'servido') {
@@ -865,7 +865,7 @@ async function configurarPusher() {
       // Extrai número da mesa se disponível
       const mesaStr = data.mesa_numero ? `Mesa ${data.mesa_numero}` : (data.mesa_id ? `Mesa ${data.mesa_id}` : 'Mesa');
 
-      tocarCampainha(); // Som normal (mais forte) para cancelamento
+      if (deveTocarSom('pedido-cancelado')) tocarCampainha(); // Som normal (mais forte) para cancelamento
       dispararToastSistema('pedido-cancelado', { mesa: mesaStr }, msg, 'error');
 
 
@@ -885,7 +885,7 @@ async function configurarPusher() {
       atualizarStatusCaixa();
       
       if (data.status === 'fechado') {
-        tocarCampainha();
+        if (deveTocarSom('status-caixa-atualizado')) tocarCampainha();
         if (typeof limparNotificacoes === 'function') limparNotificacoes();
         dispararToastSistema('status-caixa-atualizado', { status: 'FECHADO' }, "O caixa foi fechado! Bom descanso.", "error");
       } else if (data.status === 'aberto') {
@@ -910,7 +910,7 @@ async function configurarPusher() {
 
     channel.bind('chamado-garcom', (data) => {
       console.log('📢 Evento recebido: chamado-garcom', data);
-      tocarCampainha();
+      if (deveTocarSom('chamado-garcom')) tocarCampainha();
       mostrarAlerta(data.mensagem, "🛎️ CHAMADO DE CLIENTE", "🛎️");
     });
 
@@ -922,13 +922,13 @@ async function configurarPusher() {
 
     channel.bind('rascunho-recebido', (data) => {
       console.log('📢 Evento recebido: rascunho-recebido', data);
-      tocarCampainha();
+      if (deveTocarSom('rascunho-recebido')) tocarCampainha();
       mostrarRascunho(data);
     });
 
     channel.bind('solicitacao-fechamento-cliente', (data) => {
       console.log('📢 Evento recebido: solicitacao-fechamento-cliente', data);
-      tocarCampainha();
+      if (deveTocarSom('solicitacao-fechamento-cliente')) tocarCampainha();
       mostrarAlerta(data.mensagem, "🙋‍♂️ SOLICITAÇÃO DE FECHAMENTO", "💰");
       
       clearTimeout(timeoutPusher);
@@ -2482,6 +2482,11 @@ async function carregarConfiguracoesToasts() {
   } catch (err) {
     console.error('Erro ao carregar configurações de Toasts:', err);
   }
+}
+
+function deveTocarSom(evento) {
+  const c = typeof _toastTemplates !== 'undefined' ? _toastTemplates.find(x => x.evento === evento) : null;
+  return c ? c.som !== false : true;
 }
 
 function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTipo = 'success') {

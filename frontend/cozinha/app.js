@@ -453,21 +453,21 @@ async function configurarPusher() {
 
         canal.bind('teste-toast', (data) => {
             console.log('📢 Evento recebido: teste-toast', data);
-            tocarSomNotificacao('campainha');
+            if (deveTocarSom('teste-toast')) tocarSomNotificacao('campainha');
             mostrarToast(data.mensagem, data.tipo === 'erro' ? 'erro' : (data.tipo === 'sucesso' ? 'success' : 'info'));
         });
 
         canal.bind('comunicado-geral', (data) => {
             console.log('📢 Evento recebido: comunicado-geral', data);
             if (data.destinatario === 'todos' || data.destinatario === 'cozinha') {
-                tocarSomNotificacao('campainha');
+                if (deveTocarSom('comunicado-geral')) tocarSomNotificacao('campainha');
                 mostrarToast(data.mensagem || '', 'info', '📢 COMUNICADO GERAL');
             }
         });
 
         canal.bind('pedido-atrasado-cozinha', (data) => {
             console.log('📢 Evento: pedido-atrasado-cozinha', data);
-            tocarSomNotificacao('campainha');
+            if (deveTocarSom('pedido-atrasado-cozinha')) tocarSomNotificacao('campainha');
             dispararToastSistema('pedido-atrasado-cozinha', { mesa: data.mesa_numero || 'Mesa', pedido_id: data.pedido_id }, data.mensagem, 'error');
         });
 
@@ -479,7 +479,7 @@ async function configurarPusher() {
                 const labelMesa = mesa.includes('DELIVERY') ? mesa : `Mesa ${mesa}`;
                 dispararToastSistema('novo-pedido', { mesa: labelMesa }, `🍳 NOVO PEDIDO: ${labelMesa}`, 'success');
                 exibirNotificacaoNativa(`🍳 NOVO PEDIDO: ${labelMesa}`, "Um novo pedido chegou para a cozinha!", `pedido-${data.pedido_id || 'novo'}`);
-                tocarSomNotificacao('campainha');
+                if (deveTocarSom('novo-pedido')) tocarSomNotificacao('campainha');
                 tocarSomNotificacao('windows');
             }
             
@@ -508,7 +508,7 @@ async function configurarPusher() {
             console.log('📢 Status do Caixa atualizado:', data);
             verificarCaixa();
             if (data.status === 'fechado') {
-                tocarCampainha();
+                if (deveTocarSom('status-caixa-atualizado')) tocarCampainha();
                 dispararToastSistema('status-caixa-atualizado', { status: 'FECHADO' }, "O caixa foi fechado! Bom descanso.", 'error');
             } else if (data.status === 'aberto') {
                 tocarCampainha();
@@ -524,7 +524,7 @@ async function configurarPusher() {
                 if (card) {
                     const mesa = data.mesa_numero || 'X';
                     dispararToastSistema('item-adicionado', { mesa }, `📝 Mesa ${mesa}: Itens atualizados`, 'info');
-                    tocarSomNotificacao('campainha');
+                    if (deveTocarSom('status-atualizado')) tocarSomNotificacao('campainha');
                 }
             }
             clearTimeout(timeoutPusher);
@@ -609,7 +609,7 @@ async function registerNativePush() {
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 Notificação recebida (Cozinha):', notification);
       
-      tocarCampainha();
+      if (deveTocarSom('status-atualizado')) tocarCampainha();
       if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
         try {
           await window.Capacitor.Plugins.Haptics.vibrate();
@@ -907,6 +907,11 @@ async function carregarConfiguracoesToasts() {
   } catch (err) {
     console.error('Erro ao carregar configurações de Toasts:', err);
   }
+}
+
+function deveTocarSom(evento) {
+  const c = typeof _toastTemplates !== 'undefined' ? _toastTemplates.find(x => x.evento === evento) : null;
+  return c ? c.som !== false : true;
 }
 
 function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTipo = 'success') {

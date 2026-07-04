@@ -7334,7 +7334,13 @@ function renderizarEventosSistema(eventos) {
       <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 15px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
           <span style="font-weight: 700; color: #1e293b; font-size: 0.9rem;">${ev.tituloPadrao.split(' ')[0]} ${ev.evento.replace(/-/g, ' ').toUpperCase()}</span>
-          <span style="font-size: 0.75rem; background: ${dest.color}22; color: ${dest.color}; padding: 2px 10px; border-radius: 20px; font-weight: 600;">${dest.emoji} ${dest.label}</span>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <label style="display: flex; align-items: center; gap: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer; color: ${ev.som !== false ? '#f59e0b' : '#94a3b8'};">
+              <input type="checkbox" id="fcm-sys-sound-${ev.evento}" ${ev.som !== false ? 'checked' : ''} onchange="this.parentElement.style.color = this.checked ? '#f59e0b' : '#94a3b8'; this.nextElementSibling.innerText = this.checked ? '🔊 Som' : '🔇 Mudo';" style="accent-color: #f59e0b; cursor: pointer; width: 14px; height: 14px; margin: 0;">
+              <span>${ev.som !== false ? '🔊 Som' : '🔇 Mudo'}</span>
+            </label>
+            <span style="font-size: 0.75rem; background: ${dest.color}22; color: ${dest.color}; padding: 2px 10px; border-radius: 20px; font-weight: 600;">${dest.emoji} ${dest.label}</span>
+          </div>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px;">
           <div style="flex: 1; min-width: 180px;">
@@ -7419,10 +7425,12 @@ async function salvarTemplatesFCM() {
   const templates = [];
   inputs.forEach(input => {
     const ev = input.id.replace('fcm-sys-title-', '');
+    const somEl = document.getElementById(`fcm-sys-sound-${ev}`);
     templates.push({
       evento: ev,
       titulo: input.value,
-      corpo: document.getElementById(`fcm-sys-body-${ev}`)?.value
+      corpo: document.getElementById(`fcm-sys-body-${ev}`)?.value,
+      som: somEl ? somEl.checked : true
     });
   });
   try {
@@ -7652,14 +7660,21 @@ function renderizarTemplatesToasts() {
   container.innerHTML = _toastTemplates.map(t => {
     const varsHtml = (t.variaveis || []).map(v => `<code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:0.75rem;color:#10b981;font-weight:bold;">{${v}}</code>`).join(' ');
     
+    const somAtivo = t.som !== false;
     return `
       <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 15px; transition: all 0.2s;" onmouseover="this.style.borderColor='#10b981';this.style.boxShadow='0 2px 8px rgba(16,185,129,0.15)'" onmouseout="this.style.borderColor='#e2e8f0';this.style.boxShadow=''">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
           <span style="font-weight: 700; color: #1e293b; font-size: 0.9rem;">${t.label}</span>
-          <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; color: ${t.ativo ? '#10b981' : '#64748b'};">
-            <input type="checkbox" id="toast-active-${t.evento}" ${t.ativo ? 'checked' : ''} onchange="atualizarStatusCardToast('${t.evento}', this.checked)" style="accent-color: #10b981; cursor: pointer; width: 15px; height: 15px;">
-            <span>${t.ativo ? '🟢 Ativo' : '🔴 Inativo'}</span>
-          </label>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <label style="display: flex; align-items: center; gap: 5px; font-size: 0.78rem; font-weight: 600; cursor: pointer; color: ${somAtivo ? '#f59e0b' : '#94a3b8'};" title="Tocar som ao exibir este alerta">
+              <input type="checkbox" id="toast-sound-${t.evento}" ${somAtivo ? 'checked' : ''} onchange="atualizarSomCardToast('${t.evento}', this.checked)" style="accent-color: #f59e0b; cursor: pointer; width: 14px; height: 14px;">
+              <span id="toast-sound-label-${t.evento}">${somAtivo ? '🔊 Som' : '🔇 Mudo'}</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px; font-size: 0.78rem; font-weight: 600; cursor: pointer; color: ${t.ativo ? '#10b981' : '#64748b'};">
+              <input type="checkbox" id="toast-active-${t.evento}" ${t.ativo ? 'checked' : ''} onchange="atualizarStatusCardToast('${t.evento}', this.checked)" style="accent-color: #10b981; cursor: pointer; width: 14px; height: 14px;">
+              <span>${t.ativo ? '🟢 Ativo' : '🔴 Inativo'}</span>
+            </label>
+          </div>
         </div>
         <div style="margin-bottom: 8px;">
           <label style="font-size: 0.75rem; font-weight: 600; color: #64748b; display: block; margin-bottom: 3px;">Mensagem do Balão</label>
@@ -7685,11 +7700,21 @@ function atualizarStatusCardToast(evento, checked) {
   }
 }
 
+function atualizarSomCardToast(evento, checked) {
+  const label = document.getElementById(`toast-sound-label-${evento}`);
+  if (label) {
+    label.innerText = checked ? '🔊 Som' : '🔇 Mudo';
+    label.parentElement.style.color = checked ? '#f59e0b' : '#94a3b8';
+  }
+}
+
 async function salvarTemplatesToast() {
   const templates = _toastTemplates.map(t => {
     const texto = document.getElementById(`toast-text-${t.evento}`).value.trim();
     const ativo = document.getElementById(`toast-active-${t.evento}`).checked;
-    return { evento: t.evento, texto, ativo };
+    const somEl = document.getElementById(`toast-sound-${t.evento}`);
+    const som = somEl ? somEl.checked : true;
+    return { evento: t.evento, texto, ativo, som };
   });
 
   try {

@@ -709,6 +709,7 @@ async function safePusherTrigger(channel, event, data) {
         const resolveTemplate = (evt, defaultT, defaultB) => {
           let t = configMap[`fcm_title_${evt}`] || defaultT;
           let b = configMap[`fcm_body_${evt}`] || defaultB;
+          let s = configMap[`fcm_sound_${evt}`] !== 'false';
           const mapVars = (str) => {
             if (!str) return '';
             const itemsList = data.itens ? data.itens.map(i => `${i.qtd || 1}x ${i.nome || i.titulo || ''}`).join(', ') : '';
@@ -720,7 +721,7 @@ async function safePusherTrigger(channel, event, data) {
               .replace(/{qtd}/g, data.qtd || '1')
               .replace(/{pedido_id}/g, String(data.pedido_id || data.id || ''));
           };
-          return { title: mapVars(t), body: mapVars(b) };
+          return { title: mapVars(t), body: mapVars(b), som: s };
         };
 
         // Determina se o evento é para o Motoboy (Delivery) ou Garçom
@@ -859,6 +860,11 @@ async function safePusherTrigger(channel, event, data) {
             } else {
                // Tratamento para Token Nativo (Capacitor/Firebase SDK)
                if (admin.apps.length > 0) {
+                 let androidNotification = { channelId: targetApp === 'garcom' ? 'garcom_v1' : 'pedidos', defaultSound: false };
+                 if (currentSom !== false) {
+                   androidNotification.sound = 'notificacao.mp3';
+                 }
+                 
                  const message = {
                    notification: {
                      title: pushTitle,
@@ -866,17 +872,13 @@ async function safePusherTrigger(channel, event, data) {
                    },
                    data: {
                       event: event,
-                      sound: 'notificacao.mp3',
+                      sound: currentSom !== false ? 'notificacao.mp3' : '',
                       pedido_id: pId,
                       status: statusVal
                     },
                    android: {
                       priority: 'high',
-                      notification: {
-                        sound: 'notificacao.mp3',
-                        channelId: targetApp === 'garcom' ? 'garcom_v1' : 'pedidos',
-                        defaultSound: false
-                      }
+                      notification: androidNotification
                     },
                    apns: {
                      payload: {
@@ -4246,14 +4248,15 @@ const FCM_DEFAULTS = [
 
 app.post('/api/fcm-config/listar', ensureDbInitialized, isAdmin, async (req, res) => {
   try {
-    const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_title_%' OR chave LIKE 'fcm_body_%' OR chave = 'fcm_custom_events'")).rows;
+    const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_%'")).rows;
     const configMap = {};
     for (const r of configData) configMap[r.chave] = r.valor;
 
     const sistema = FCM_DEFAULTS.map(d => ({
       ...d,
       titulo: configMap[`fcm_title_${d.evento}`] || null,
-      corpo: configMap[`fcm_body_${d.evento}`] || null
+      corpo: configMap[`fcm_body_${d.evento}`] || null,
+      som: configMap[`fcm_sound_${d.evento}`] !== 'false'
     }));
 
     const customizados = configMap['fcm_custom_events'] ? JSON.parse(configMap['fcm_custom_events']) : [];
@@ -4270,14 +4273,17 @@ app.post('/api/fcm-config/salvar-sistema', ensureDbInitialized, isAdmin, async (
     
     for (const t of templates) {
       if (t.restaurar) {
-        await query("DELETE FROM sistema_config WHERE chave = $1 OR chave = $2", [`fcm_title_${t.evento}`, `fcm_body_${t.evento}`]);
+        await query("DELETE FROM sistema_config WHERE chave = $1 OR chave = $2 OR chave = $3", [`fcm_title_${t.evento}`, `fcm_body_${t.evento}`, `fcm_sound_${t.evento}`]);
       } else {
+        const soundVal = t.som !== false ? 'true' : 'false';
         if (isPostgres) {
           await query("INSERT INTO sistema_config (chave, valor) VALUES ($1, $2) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [`fcm_title_${t.evento}`, t.titulo]);
           await query("INSERT INTO sistema_config (chave, valor) VALUES ($1, $2) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [`fcm_body_${t.evento}`, t.corpo]);
+          await query("INSERT INTO sistema_config (chave, valor) VALUES ($1, $2) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [`fcm_sound_${t.evento}`, soundVal]);
         } else {
           await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES (?, ?)", [`fcm_title_${t.evento}`, t.titulo]);
           await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES (?, ?)", [`fcm_body_${t.evento}`, t.corpo]);
+          await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES (?, ?)", [`fcm_sound_${t.evento}`, soundVal]);
         }
       }
     }
@@ -4394,10 +4400,12 @@ app.get('/api/toast-config/listar', ensureDbInitialized, async (req, res) => {
     const templates = TOAST_DEFAULTS.map(d => {
       const customText = configMap[`toast_text_${d.evento}`];
       const customEnabled = configMap[`toast_enabled_${d.evento}`];
+      const customSound = configMap[`toast_sound_${d.evento}`];
       return {
         ...d,
         texto: (customText !== undefined && customText !== null) ? customText : d.textoPadrao,
-        ativo: (customEnabled !== undefined && customEnabled !== null) ? customEnabled === 'true' : true
+        ativo: (customEnabled !== undefined && customEnabled !== null) ? customEnabled === 'true' : true,
+        som: (customSound !== undefined && customSound !== null) ? customSound === 'true' : true
       };
     });
 
@@ -4414,12 +4422,15 @@ app.post('/api/toast-config/salvar', ensureDbInitialized, isAdmin, async (req, r
 
     for (const t of templates) {
       const activeVal = t.ativo !== false ? 'true' : 'false';
+      const soundVal = t.som !== false ? 'true' : 'false';
       if (isPostgres) {
         await query("INSERT INTO sistema_config (chave, valor) VALUES ($1, $2) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [`toast_text_${t.evento}`, t.texto || '']);
         await query("INSERT INTO sistema_config (chave, valor) VALUES ($1, $2) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [`toast_enabled_${t.evento}`, activeVal]);
+        await query("INSERT INTO sistema_config (chave, valor) VALUES ($1, $2) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [`toast_sound_${t.evento}`, soundVal]);
       } else {
         await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES (?, ?)", [`toast_text_${t.evento}`, t.texto || '']);
         await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES (?, ?)", [`toast_enabled_${t.evento}`, activeVal]);
+        await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES (?, ?)", [`toast_sound_${t.evento}`, soundVal]);
       }
     }
     res.json({ success: true });
@@ -4431,7 +4442,7 @@ app.post('/api/toast-config/salvar', ensureDbInitialized, isAdmin, async (req, r
 app.post('/api/toast-config/restaurar/:evento', ensureDbInitialized, isAdmin, async (req, res) => {
   try {
     const { evento } = req.params;
-    await query("DELETE FROM sistema_config WHERE chave = $1 OR chave = $2", [`toast_text_${evento}`, `toast_enabled_${evento}`]);
+    await query("DELETE FROM sistema_config WHERE chave = $1 OR chave = $2 OR chave = $3", [`toast_text_${evento}`, `toast_enabled_${evento}`, `toast_sound_${evento}`]);
     res.json({ success: true });
   } catch (error) {
     res.json({ success: false, error: 'Erro ao restaurar padrão de Toast', detalhes: error.message });
