@@ -835,8 +835,10 @@ function limparNotificacoes() {
 }
 
 async function iniciarApp() {
-    await carregarSomGlobalCozinha();
-    await carregarConfiguracoesToasts();
+    await Promise.all([
+        carregarSomGlobalCozinha(),
+        carregarConfiguracoesToasts()
+    ]);
     solicitarPermissaoNotificacao();
     carregarPedidos();
     configurarPusher();
