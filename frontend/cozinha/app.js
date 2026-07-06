@@ -238,14 +238,32 @@ function fecharToast(el) {
 }
 
 async function carregarPedidos() {
-    // Se o caixa estiver fechado, não carregamos pedidos
-    const caixaAberto = await verificarCaixa();
-    if (!caixaAberto) return;
-
     try {
-        const res = await fetch('/api/pedidos/cozinha');        
-        if (!res.ok) throw new Error('Erro na resposta da API');
-        const itens = await res.json();
+        const [caixaRes, pedidosRes] = await Promise.all([
+            fetch('/api/caixa/status'),
+            fetch('/api/pedidos/cozinha')
+        ]);
+        
+        if (!caixaRes.ok || !pedidosRes.ok) throw new Error('Erro na resposta das APIs');
+        
+        const caixa = await caixaRes.json();
+        const container = document.getElementById('pedidos-container');
+        const closedScreen = document.getElementById('closed-screen');
+        const header = document.getElementById('main-header');
+        
+        if (!caixa) {
+            if (container) container.style.display = 'none';
+            if (closedScreen) closedScreen.style.display = 'flex';
+            if (header) header.style.opacity = '0.3';
+            if (typeof limparNotificacoes === 'function') limparNotificacoes();
+            return;
+        }
+        
+        if (container) container.style.display = 'grid';
+        if (closedScreen) closedScreen.style.display = 'none';
+        if (header) header.style.opacity = '1';
+        
+        const itens = await pedidosRes.json();
         renderizarPedidos(itens);
     } catch (e) {
         console.error('❌ Erro ao carregar pedidos:', e);        
