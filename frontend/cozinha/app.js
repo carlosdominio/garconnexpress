@@ -816,13 +816,13 @@ function limparNotificacoes() {
 }
 
 async function iniciarApp() {
+    solicitarPermissaoNotificacao();
     await Promise.all([
         carregarSomGlobalCozinha(),
-        carregarConfiguracoesToasts()
+        carregarConfiguracoesToasts(),
+        carregarPedidos(),
+        configurarPusher()
     ]);
-    solicitarPermissaoNotificacao();
-    carregarPedidos();
-    configurarPusher();
     atualizarIconeSom();
     
     if (isNativeApp) {
