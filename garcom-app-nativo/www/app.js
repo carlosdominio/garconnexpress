@@ -102,8 +102,19 @@ async function registerNativePush() {
 
       try { await PushNotifications.deleteChannel({ id: 'pedidos' }); } catch(e) {}
       try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}
-      try { await PushNotifications.deleteChannel({ id: 'garcom_v1' }); } catch(e) {}
 
+      // Cria o canal padrão com alta importância para evitar fallback (Miscellaneous)
+      await PushNotifications.createChannel({
+        id: 'garcom_v1',
+        name: 'Alertas de Pedidos (Padrão)',
+        description: 'Canal padrão para notificações urgentes',
+        sound: 'notificacao',
+        importance: 5,
+        visibility: 1,
+        vibration: true
+      });
+
+      // Cria o canal com o som personalizado
       await PushNotifications.createChannel({
         id: canalId,
         name: 'Alertas de Pedidos (' + somTipo + ')',

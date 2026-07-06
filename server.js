@@ -1223,7 +1223,7 @@ async function checkAndNotifyDelayedOrders() {
                   priority: 'high',
                   notification: {
                     sound: 'notificacao',
-                    channelId: 'garcom_v1',
+                    channelId: targetApp === 'garcom' ? 'garcom_v1' : 'pedidos',
                     defaultSound: false
                   }
                 },

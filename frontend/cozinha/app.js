@@ -649,9 +649,20 @@ async function registerNativePush() {
       const somRec = somTipo === 'original' ? 'notificacao' : somTipo;
       const canalId = 'cozinha_canal_' + somTipo;
 
-      try { await PushNotifications.deleteChannel({ id: 'pedidos' }); } catch(e) {}
       try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}
 
+      // Cria o canal padrão com alta importância para evitar fallback (Miscellaneous)
+      await PushNotifications.createChannel({
+        id: 'pedidos',
+        name: 'Pedidos Cozinha (Padrão)',
+        description: 'Canal padrão para notificações urgentes',
+        sound: 'notificacao',
+        importance: 5,
+        visibility: 1,
+        vibration: true
+      });
+
+      // Cria o canal com o som personalizado
       await PushNotifications.createChannel({
         id: canalId,
         name: 'Pedidos Cozinha (' + somTipo + ')',
