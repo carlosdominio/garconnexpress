@@ -7509,10 +7509,20 @@ function renderizarEventosCustom(eventos) {
     let statusAgendaHtml = '';
     if (ev.agendadoPara) {
       const dataFormatada = new Date(ev.agendadoPara).toLocaleString('pt-BR');
-      if (ev.enviado) {
-        statusAgendaHtml = `<span style="font-size:0.72rem;background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:12px;font-weight:600;display:inline-block;margin-top:5px;">⏰ Disparado em: ${dataFormatada} (${ev.alcanceTotal || 0} aparelhos)</span>`;
+      if (ev.recorrente) {
+        let txtFrequencia = 'Diária';
+        if (ev.frequencia === 'semanal') txtFrequencia = 'Semanal';
+        else if (ev.frequencia === 'customizada' && Array.isArray(ev.diasSemana)) {
+          const nomesDias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+          txtFrequencia = ev.diasSemana.map(d => nomesDias[d]).join(', ');
+        }
+        statusAgendaHtml = `<span style="font-size:0.72rem;background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:12px;font-weight:600;display:inline-block;margin-top:5px;">🔁 Repetir: ${txtFrequencia} | Próximo: ${dataFormatada}</span>`;
       } else {
-        statusAgendaHtml = `<span style="font-size:0.72rem;background:#fef3c7;color:#b45309;padding:2px 8px;border-radius:12px;font-weight:600;display:inline-block;margin-top:5px;">⏰ Agendado para: ${dataFormatada}</span>`;
+        if (ev.enviado) {
+          statusAgendaHtml = `<span style="font-size:0.72rem;background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:12px;font-weight:600;display:inline-block;margin-top:5px;">⏰ Disparado em: ${dataFormatada} (${ev.alcanceTotal || 0} aparelhos)</span>`;
+        } else {
+          statusAgendaHtml = `<span style="font-size:0.72rem;background:#fef3c7;color:#b45309;padding:2px 8px;border-radius:12px;font-weight:600;display:inline-block;margin-top:5px;">⏰ Agendado para: ${dataFormatada}</span>`;
+        }
       }
     } else {
       statusAgendaHtml = `<span style="font-size:0.72rem;background:#f1f5f9;color:#64748b;padding:2px 8px;border-radius:12px;font-weight:600;display:inline-block;margin-top:5px;">🚀 Envio Imediato (Manual)</span>`;
@@ -7549,6 +7559,12 @@ function abrirModalEventoFCM(id = null) {
   agendaContainer.style.display = 'none';
   agendaInput.value = '';
 
+  document.getElementById('fcm-custom-recorrente').checked = false;
+  document.getElementById('fcm-custom-recorrencia-detalhes').style.display = 'none';
+  document.getElementById('fcm-custom-frequencia').value = 'diaria';
+  document.getElementById('fcm-custom-dias-semana-container').style.display = 'none';
+  document.querySelectorAll('input[name="fcm-custom-dia"]').forEach(cb => cb.checked = false);
+
   if (id) {
     const ev = _fcmCustomEventos.find(e => e.id === id);
     if (ev) {
@@ -7569,6 +7585,19 @@ function abrirModalEventoFCM(id = null) {
         const hours = String(d.getHours()).padStart(2, '0');
         const minutes = String(d.getMinutes()).padStart(2, '0');
         agendaInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+      }
+      if (ev.recorrente) {
+        document.getElementById('fcm-custom-recorrente').checked = true;
+        document.getElementById('fcm-custom-recorrencia-detalhes').style.display = 'block';
+        document.getElementById('fcm-custom-frequencia').value = ev.frequencia || 'diaria';
+        if (ev.frequencia === 'customizada') {
+          document.getElementById('fcm-custom-dias-semana-container').style.display = 'block';
+        }
+        if (Array.isArray(ev.diasSemana)) {
+          document.querySelectorAll('input[name="fcm-custom-dia"]').forEach(cb => {
+            cb.checked = ev.diasSemana.includes(parseInt(cb.value));
+          });
+        }
       }
     }
   } else {
@@ -7601,11 +7630,18 @@ async function salvarEventoCustomFCM() {
     agendadoPara = new Date(agendaInput).toISOString();
   }
 
+  const recorrente = document.getElementById('fcm-custom-recorrente').checked;
+  const frequencia = document.getElementById('fcm-custom-frequencia').value;
+  const diasSemana = [];
+  document.querySelectorAll('input[name="fcm-custom-dia"]:checked').forEach(cb => {
+    diasSemana.push(parseInt(cb.value));
+  });
+
   try {
     const res = await fetch('/api/fcm-config/salvar-custom', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
-      body: JSON.stringify({ id, nome, titulo, corpo, destinatario, ativo, agendadoPara })
+      body: JSON.stringify({ id, nome, titulo, corpo, destinatario, ativo, agendadoPara, recorrente, frequencia, diasSemana })
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error);

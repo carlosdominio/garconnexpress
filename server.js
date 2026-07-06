@@ -1300,10 +1300,17 @@ async function checkAndSendScheduledFCM() {
     let mudou = false;
     
     for (const ev of lista) {
-      if (ev.ativo && ev.agendadoPara && !ev.enviado) {
+      // Se for recorrente, checa se já disparou hoje (para evitar loops caso o agendador rode mais de uma vez no mesmo minuto/dia)
+      let jaDisparadoHoje = false;
+      if (ev.recorrente && ev.ultimoDisparo) {
+        const dUltimo = new Date(ev.ultimoDisparo);
+        jaDisparadoHoje = dUltimo.toDateString() === now.toDateString();
+      }
+
+      if (ev.ativo && ev.agendadoPara && (!ev.enviado || (ev.recorrente && !jaDisparadoHoje))) {
         const dataAgenda = new Date(ev.agendadoPara);
         if (dataAgenda <= now) {
-          console.log(`⏰ [Agendador FCM] Disparando evento agendado: ${ev.nome}`);
+          console.log(`⏰ [Agendador FCM] Disparando evento agendado (Recorrente: ${!!ev.recorrente}): ${ev.nome}`);
           
           const targets = ev.destinatario === 'todos' ? ['garcom', 'cozinha', 'motoboy'] : [ev.destinatario];
           let totalEnviados = 0;
@@ -1335,9 +1342,28 @@ async function checkAndSendScheduledFCM() {
             }
           }
           
-          ev.enviado = true;
+          ev.ultimoDisparo = now.toISOString();
           ev.disparadoEm = now.toISOString();
           ev.alcanceTotal = totalEnviados;
+
+          if (ev.recorrente) {
+            const proximaData = new Date(dataAgenda);
+            if (ev.frequencia === 'diaria') {
+              while (proximaData <= now) proximaData.setDate(proximaData.getDate() + 1);
+            } else if (ev.frequencia === 'semanal') {
+              while (proximaData <= now) proximaData.setDate(proximaData.getDate() + 7);
+            } else if (ev.frequencia === 'customizada' && Array.isArray(ev.diasSemana) && ev.diasSemana.length > 0) {
+              while (proximaData <= now || !ev.diasSemana.includes(proximaData.getDay())) {
+                proximaData.setDate(proximaData.getDate() + 1);
+              }
+            } else {
+              while (proximaData <= now) proximaData.setDate(proximaData.getDate() + 1);
+            }
+            ev.agendadoPara = proximaData.toISOString();
+            ev.enviado = false;
+          } else {
+            ev.enviado = true;
+          }
           mudou = true;
         }
       }
@@ -4389,7 +4415,7 @@ app.post('/api/fcm-config/salvar-sistema', ensureDbInitialized, isAdmin, async (
 
 app.post('/api/fcm-config/salvar-custom', ensureDbInitialized, isAdmin, async (req, res) => {
   try {
-    const { id, nome, titulo, corpo, destinatario, ativo, deletar, agendadoPara } = req.body;
+    const { id, nome, titulo, corpo, destinatario, ativo, deletar, agendadoPara, recorrente, frequencia, diasSemana } = req.body;
     const r = (await query("SELECT valor FROM sistema_config WHERE chave = 'fcm_custom_events'")).rows;
     let lista = r && r[0] && r[0].valor ? JSON.parse(r[0].valor) : [];
     
@@ -4408,19 +4434,25 @@ app.post('/api/fcm-config/salvar-custom', ensureDbInitialized, isAdmin, async (r
         destinatario: destinatario || 'garcom', 
         ativo: ativo !== false, 
         criadoEm: idx >= 0 ? lista[idx].criadoEm : new Date().toISOString(),
-        agendadoPara: agendadoPara || null
+        agendadoPara: agendadoPara || null,
+        recorrente: recorrente === true || recorrente === 'true',
+        frequencia: frequencia || 'diaria',
+        diasSemana: Array.isArray(diasSemana) ? diasSemana : [],
+        ultimoDisparo: idx >= 0 ? (lista[idx].ultimoDisparo || null) : null
       };
 
       if (idx >= 0) {
         const anterior = lista[idx];
-        if (anterior.agendadoPara !== agendadoPara) {
+        if (anterior.agendadoPara !== agendadoPara || anterior.recorrente !== recorrente || JSON.stringify(anterior.diasSemana) !== JSON.stringify(diasSemana)) {
           evento.enviado = false;
           evento.disparadoEm = null;
           evento.alcanceTotal = null;
+          evento.ultimoDisparo = null;
         } else {
           evento.enviado = anterior.enviado;
           evento.disparadoEm = anterior.disparadoEm;
           evento.alcanceTotal = anterior.alcanceTotal;
+          evento.ultimoDisparo = anterior.ultimoDisparo || null;
         }
         lista[idx] = evento;
       } else {

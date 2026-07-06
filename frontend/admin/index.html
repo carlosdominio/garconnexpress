@@ -1868,7 +1868,36 @@
         </div>
         <div id="fcm-custom-agenda-container" style="margin-bottom: 1rem; display: none; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 12px 15px;">
           <label style="font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px; margin-top: 0;">📅 Data e hora do envio</label>
-          <input type="datetime-local" id="fcm-custom-agendado-para" style="width: 100%; padding: 10px 12px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; background: white; color: #334155; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#f59e0b';" onblur="this.style.borderColor='#cbd5e1';">
+          <input type="datetime-local" id="fcm-custom-agendado-para" style="width: 100%; padding: 10px 12px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; background: white; color: #334155; outline: none; transition: border-color 0.2s; margin-bottom: 10px;" onfocus="this.style.borderColor='#f59e0b';" onblur="this.style.borderColor='#cbd5e1';">
+          
+          <div style="margin-top: 10px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; font-weight: bold; color: #334155;">
+              <input type="checkbox" id="fcm-custom-recorrente" onchange="document.getElementById('fcm-custom-recorrencia-detalhes').style.display = this.checked ? 'block' : 'none'" style="width: 16px; height: 16px; accent-color: #f59e0b;">
+              🔁 Repetir esta mensagem?
+            </label>
+          </div>
+          
+          <div id="fcm-custom-recorrencia-detalhes" style="display: none; margin-top: 10px; border-top: 1px dashed #cbd5e1; padding-top: 10px;">
+            <label style="font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px;">Frequência</label>
+            <select id="fcm-custom-frequencia" onchange="document.getElementById('fcm-custom-dias-semana-container').style.display = this.value === 'customizada' ? 'block' : 'none'" style="width: 100%; padding: 8px; border: 1.5px solid #cbd5e1; border-radius: 8px; background: white; font-size: 0.85rem; outline: none;">
+              <option value="diaria">Diária</option>
+              <option value="semanal">Semanal</option>
+              <option value="customizada">Dias Específicos da Semana</option>
+            </select>
+            
+            <div id="fcm-custom-dias-semana-container" style="display: none; margin-top: 10px;">
+              <label style="font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px;">Selecione os dias da semana</label>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                <label style="font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px; background: #e2e8f0; padding: 4px 8px; border-radius: 6px;"><input type="checkbox" name="fcm-custom-dia" value="1"> Seg</label>
+                <label style="font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px; background: #e2e8f0; padding: 4px 8px; border-radius: 6px;"><input type="checkbox" name="fcm-custom-dia" value="2"> Ter</label>
+                <label style="font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px; background: #e2e8f0; padding: 4px 8px; border-radius: 6px;"><input type="checkbox" name="fcm-custom-dia" value="3"> Qua</label>
+                <label style="font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px; background: #e2e8f0; padding: 4px 8px; border-radius: 6px;"><input type="checkbox" name="fcm-custom-dia" value="4"> Qui</label>
+                <label style="font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px; background: #e2e8f0; padding: 4px 8px; border-radius: 6px;"><input type="checkbox" name="fcm-custom-dia" value="5"> Sex</label>
+                <label style="font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px; background: #e2e8f0; padding: 4px 8px; border-radius: 6px;"><input type="checkbox" name="fcm-custom-dia" value="6"> Sáb</label>
+                <label style="font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px; background: #e2e8f0; padding: 4px 8px; border-radius: 6px;"><input type="checkbox" name="fcm-custom-dia" value="0"> Dom</label>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="modal-form-group" style="margin-bottom: 0.5rem;">
           <label>Status</label>
