@@ -1274,6 +1274,12 @@ async function checkAndSendScheduledFCM() {
   }
 
   try {
+    const configRes = await query("SELECT chave, valor FROM sistema_config");
+    const configMap = {};
+    configRes.rows.forEach(row => {
+      configMap[row.chave] = row.valor;
+    });
+
     const r = (await query("SELECT valor FROM sistema_config WHERE chave = 'fcm_custom_events'")).rows;
     if (!r || r.length === 0 || !r[0].valor) {
       // Libera o lock se não tiver nada para fazer
@@ -1320,16 +1326,49 @@ async function checkAndSendScheduledFCM() {
             for (const sub of subs) {
               const isNativeSub = sub.is_native === 1 || sub.is_native === true || (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
               if (isNativeSub && admin.apps.length > 0) {
+                let activeSound = 'notificacao';
+                let channelName = 'pedidos';
+                if (dest === 'garcom') {
+                  activeSound = configMap['config_som_garcom'] || 'campainha_classica';
+                  channelName = 'garcom_canal_' + activeSound;
+                } else if (dest === 'cozinha') {
+                  activeSound = configMap['config_som_cozinha'] || 'sino_moderno';
+                  channelName = 'cozinha_canal_' + activeSound;
+                } else if (dest === 'motoboy') {
+                  activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
+                  channelName = 'motoboy_canal_' + activeSound;
+                }
+
+                let fcmSoundFile = activeSound;
+                if (fcmSoundFile === 'original') fcmSoundFile = 'notificacao';
+
+                let androidNotification = { 
+                  channelId: channelName, 
+                  defaultSound: activeSound === 'original',
+                  notificationPriority: 'PRIORITY_MAX'
+                };
+                if (activeSound !== 'mudo') {
+                  androidNotification.sound = fcmSoundFile;
+                }
+
                 const message = {
                   notification: { title: ev.titulo, body: ev.corpo },
-                  data: { event: 'custom-fcm-agendado', sound: 'notificacao.mp3', event_id: ev.id },
+                  data: { 
+                    event: 'custom-fcm-agendado', 
+                    sound: activeSound !== 'mudo' ? fcmSoundFile : '', 
+                    event_id: ev.id 
+                  },
                   android: { 
                     priority: 'high', 
-                    notification: { 
-                      sound: 'notificacao.mp3', 
-                      channelId: dest === 'garcom' ? 'garcom_v1' : 'pedidos', 
-                      defaultSound: false 
-                    } 
+                    notification: androidNotification 
+                  },
+                  apns: {
+                    payload: {
+                      aps: {
+                        sound: activeSound !== 'mudo' ? (activeSound === 'original' ? 'notificacao.caf' : activeSound + '.caf') : '',
+                        badge: 1
+                      }
+                    }
                   },
                   token: sub.endpoint
                 };
@@ -4476,13 +4515,61 @@ app.post('/api/fcm-config/testar', ensureDbInitialized, isAdmin, async (req, res
   try {
     const { titulo, corpo, destinatario } = req.body;
     if (!titulo || !corpo || !destinatario) return res.json({ success: false, error: 'Campos em branco para teste' });
+    
+    const configRes = await query("SELECT chave, valor FROM sistema_config");
+    const configMap = {};
+    configRes.rows.forEach(row => {
+      configMap[row.chave] = row.valor;
+    });
+
     const subs = (await query("SELECT * FROM push_subscriptions WHERE app_type = ?", [destinatario])).rows;
     let enviados = 0;
     
     for (const sub of subs) {
       const isNativeSub = sub.is_native === 1 || sub.is_native === true || (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
       if (isNativeSub && admin.apps.length > 0) {
-        const message = { notification: { title: titulo, body: corpo }, data: { event: 'teste-fcm', sound: 'notificacao.mp3' }, android: { priority: 'high', notification: { sound: 'notificacao.mp3', channelId: destinatario === 'garcom' ? 'garcom_v1' : 'pedidos', defaultSound: false } }, token: sub.endpoint };
+        let activeSound = 'notificacao';
+        let channelName = 'pedidos';
+        if (destinatario === 'garcom') {
+          activeSound = configMap['config_som_garcom'] || 'campainha_classica';
+          channelName = 'garcom_canal_' + activeSound;
+        } else if (destinatario === 'cozinha') {
+          activeSound = configMap['config_som_cozinha'] || 'sino_moderno';
+          channelName = 'cozinha_canal_' + activeSound;
+        } else if (destinatario === 'motoboy') {
+          activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
+          channelName = 'motoboy_canal_' + activeSound;
+        }
+
+        let fcmSoundFile = activeSound;
+        if (fcmSoundFile === 'original') fcmSoundFile = 'notificacao';
+
+        let androidNotification = { 
+          channelId: channelName, 
+          defaultSound: activeSound === 'original',
+          notificationPriority: 'PRIORITY_MAX'
+        };
+        if (activeSound !== 'mudo') {
+          androidNotification.sound = fcmSoundFile;
+        }
+
+        const message = { 
+          notification: { title: titulo, body: corpo }, 
+          data: { event: 'teste-fcm', sound: activeSound !== 'mudo' ? fcmSoundFile : '' }, 
+          android: { 
+            priority: 'high', 
+            notification: androidNotification 
+          },
+          apns: {
+            payload: {
+              aps: {
+                sound: activeSound !== 'mudo' ? (activeSound === 'original' ? 'notificacao.caf' : activeSound + '.caf') : '',
+                badge: 1
+              }
+            }
+          },
+          token: sub.endpoint 
+        };
         let firebaseApp = admin;
         if (destinatario === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) firebaseApp = admin.app('motoboy');
         else if (destinatario === 'cozinha' && admin.apps.find(a => a.name === 'cozinha')) firebaseApp = admin.app('cozinha');
