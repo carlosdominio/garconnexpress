@@ -653,12 +653,14 @@ async function iniciarApp() {
   if (ov) ov.classList.remove('hidden');
   if (ovMsg) ovMsg.textContent = 'Carregando mesas do cardápio...';
 
-  await carregarSomGlobalGarcom();
-  await carregarConfiguracoesToasts();
-  await carregarConfigCozinha();
-  await carregarMenu();
-  await carregarMesas();
-  await atualizarStatusCaixa();
+  await Promise.all([
+    carregarSomGlobalGarcom(),
+    carregarConfiguracoesToasts(),
+    carregarConfigCozinha(),
+    carregarMenu(),
+    carregarMesas(),
+    atualizarStatusCaixa()
+  ]);
   atualizarIconeSom();
   configurarEventos();
   configurarPusher();

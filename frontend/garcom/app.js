@@ -642,12 +642,14 @@ async function logout() {
 }
 
 async function iniciarApp() {
-  await carregarSomGlobalGarcom();
-  await carregarConfiguracoesToasts();
-  await carregarConfigCozinha();
-  await carregarMenu();
-  await carregarMesas();
-  await atualizarStatusCaixa();
+  await Promise.all([
+    carregarSomGlobalGarcom(),
+    carregarConfiguracoesToasts(),
+    carregarConfigCozinha(),
+    carregarMenu(),
+    carregarMesas(),
+    atualizarStatusCaixa()
+  ]);
   atualizarIconeSom();
   configurarEventos();
   configurarPusher();
