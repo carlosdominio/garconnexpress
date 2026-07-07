@@ -3685,7 +3685,7 @@ async function exibirPedidos() {
           <div class="pedido-actions" style="width: 100%; margin-top: 8px;">
             ${isDelivery ?
               (pedido.status === 'aguardando_fechamento' ?
-                `<button style="background:#f1c40f; color:#2c3e50; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #d68910; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 FINALIZAR DELIVERY</button>` :
+                `<button style="background:#f1c40f; color:white; font-weight: 900; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #d68910; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 FINALIZAR DELIVERY</button>` :
                 (hasPend ?
                   `<button style="background:#e74c3c; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #c0392b; border:none; color:white; cursor:pointer;" onclick="marcarPedidoEntregue(${pedido.id})">🛵 ENVIAR PARA ENTREGA</button>` :
                   `<button style="background:#e67e22; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #d35400; border:none; color:white; cursor:pointer;" onclick="confirmarEntregaDelivery(${pedido.id})">✅ CONFIRMAR ENTREGA</button>`
@@ -6630,7 +6630,7 @@ async function abrirModalOpcoes(pedidoId) {
   if (isAguardando) {
     if (isDelivery) {
       htmlFooter = `
-        <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#f1c40f; color:#2c3e50; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #d68910; cursor:pointer;">
+        <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#f1c40f; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #d68910; cursor:pointer;">
           💰 LIBERA DELIVERY
         </button>
       `;
