@@ -775,20 +775,18 @@ async function safePusherTrigger(channel, event, data) {
           } else if (data.status === 'entregue') {
             if (isDelivery) {
               msgMotoboy = resolveTemplate('pedido-entregue', '✅ PEDIDO ENTREGUE', `✅ PEDIDO ENTREGUE E FINALIZADO: ${mesaFormatada}`);
-              msgGarcom = resolveTemplate('pedido-entregue', '✅ PEDIDO ENTREGUE', `✅ PEDIDO ENTREGUE E FINALIZADO: ${mesaFormatada}`);
             } else {
               return true; // Ignora para mesas de salão (evita duplicidade de "Entregue")
             }
           } else if (data.status === 'servido') {
             if (isDelivery) {
               msgMotoboy = resolveTemplate('saiu-entrega', '🛵 SAIU PARA ENTREGA', `🛵 SAIU PARA ENTREGA: ${mesaFormatada}`);
-              msgGarcom = resolveTemplate('saiu-entrega', '🛵 SAIU PARA ENTREGA', `🛵 SAIU PARA ENTREGA: ${mesaFormatada}`);
             } else {
-              return true; // Ignora para salão
+              // Para salão: pedido servido/entregue na mesa!
+              msgGarcom = resolveTemplate('pedido-entregue', '✅ PEDIDO ENTREGUE', `✅ PEDIDO DA ${mesaFormatada} ENTREGUE`);
             }
           } else if (data.status === 'saiu_entrega') {
             msgMotoboy = resolveTemplate('saiu-entrega', '🛵 SAIU PARA ENTREGA', `🛵 SAIU PARA ENTREGA: ${mesaFormatada}`);
-            msgGarcom = resolveTemplate('saiu-entrega', '🛵 SAIU PARA ENTREGA', `🛵 SAIU PARA ENTREGA: ${mesaFormatada}`);
           } else if (data.status === 'liberada') {
             msgGarcom = resolveTemplate('mesa-liberada', '🔓 MESA LIBERADA', `🔓 MESA LIBERADA: ${mesaFormatada}`);
           } else {
@@ -824,13 +822,6 @@ async function safePusherTrigger(channel, event, data) {
               }
             }
             targets.push({ app: 'motoboy', title: msgMotoboy.title || 'Delivery Express', msg: bodyMotoboy });
-            
-            // Se for entrega concluída ou saída para entrega, notifica também o garçom/admin!
-            if (data.status === 'entregue' && msgGarcom.body) {
-              targets.push({ app: 'garcom', title: msgGarcom.title, msg: msgGarcom.body });
-            } else if ((data.status === 'servido' || data.status === 'saiu_entrega') && msgGarcom.body) {
-              targets.push({ app: 'garcom', title: msgGarcom.title, msg: msgGarcom.body });
-            }
           }
         } else {
           if (msgGarcom.body) {
