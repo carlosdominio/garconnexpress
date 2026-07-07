@@ -316,25 +316,32 @@ if (!process.env.VERCEL) {
 app.get('/api/cron/cardapio', async (req, res) => {
     try {
         await checkAndSendScheduledFCM();
-        // --- FAXINA DE MESAS E PEDIDOS ÓRFÃOS ---
-        await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE garcom_id IS NOT NULL AND garcom_id != 'ADMIN' AND garcom_id != 'QRCODE' AND garcom_id != 'DELIVERY' AND garcom_id NOT IN (SELECT usuario FROM garcons WHERE usuario IS NOT NULL)");
-        await query("UPDATE pedidos SET status = 'cancelado' WHERE status NOT IN ('entregue', 'cancelado') AND garcom_id IS NOT NULL AND garcom_id != 'ADMIN' AND garcom_id != 'QRCODE' AND garcom_id != 'DELIVERY' AND garcom_id NOT IN (SELECT usuario FROM garcons WHERE usuario IS NOT NULL)");
-        // --- FAXINA AUTOMÁTICA DIÁRIA ---
+        // --- FAXINA AUTOMÁTICA DIÁRIA (RODA APENAS 1 VEZ POR DIA) ---
         const hoje = new Date().toISOString().substring(0, 10);
         const rFaxina = await query("SELECT valor FROM sistema_config WHERE chave = 'ultima_faxina'");
         const ultimaFaxina = rFaxina.rows && rFaxina.rows.length > 0 ? rFaxina.rows[0].valor : null;
         if (ultimaFaxina !== hoje) {
+            console.log('🧹 Iniciando Faxina Diária Automática...', hoje);
+            
+            // 1. Limpeza de Mesas e Pedidos Órfãos (Garçom deletado)
+            await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE garcom_id IS NOT NULL AND garcom_id != 'ADMIN' AND garcom_id != 'QRCODE' AND garcom_id != 'DELIVERY' AND garcom_id NOT IN (SELECT usuario FROM garcons WHERE usuario IS NOT NULL)");
+            await query("UPDATE pedidos SET status = 'cancelado' WHERE status NOT IN ('entregue', 'cancelado', 'servido', 'fechado', 'pago', 'concluido', 'aguardando_fechamento') AND garcom_id IS NOT NULL AND garcom_id != 'ADMIN' AND garcom_id != 'QRCODE' AND garcom_id != 'DELIVERY' AND garcom_id NOT IN (SELECT usuario FROM garcons WHERE usuario IS NOT NULL)");
+
+            // 2. Limpeza de Pedidos Antigos (30 Dias)
             const limite = new Date();
-            limite.setHours(limite.getHours() - 24);
+            limite.setDate(limite.getDate() - 30);
             const limiteStr = limite.toISOString().replace('T', ' ').substring(0, 19);
-            await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT id FROM pedidos WHERE status IN ('entregue', 'cancelado') AND created_at < ?)", [limiteStr]);
-            await query("DELETE FROM pedidos WHERE status IN ('entregue', 'cancelado') AND created_at < ?", [limiteStr]);
+            const statusTerminais = "'entregue', 'cancelado', 'servido', 'fechado', 'pago', 'concluido', 'concluído', 'aguardando_fechamento'";
+            
+            await query(`DELETE FROM pedido_itens WHERE pedido_id IN (SELECT id FROM pedidos WHERE status IN (${statusTerminais}) AND created_at < ?)`, [limiteStr]);
+            await query(`DELETE FROM pedidos WHERE status IN (${statusTerminais}) AND created_at < ?`, [limiteStr]);
+            
             if (isPostgres) {
                 await query("INSERT INTO sistema_config (chave, valor) VALUES ('ultima_faxina', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [hoje]);
             } else {
                 await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('ultima_faxina', ?)", [hoje]);
             }
-            console.log('?? FAXINA AUTOMATICA REALIZADA:', hoje);
+            console.log('✅ FAXINA AUTOMATICA CONCLUIDA:', hoje);
         }
         // --- FIM FAXINA ---
 
