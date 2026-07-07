@@ -848,6 +848,7 @@ async function safePusherTrigger(channel, event, data) {
         const pId = String(data.pedido_id || data.id || (data.pedido ? (data.pedido.id || data.pedido.pedido_id) : '') || '');
         const statusVal = String(data.status || '');
 
+        const pushPromises = [];
         for (const target of targets) {
           const targetApp = target.app;
           const pushTitle = target.title;
@@ -866,9 +867,6 @@ async function safePusherTrigger(channel, event, data) {
             sentEndpoints.add(sub.endpoint);
 
             // Roteamento híbrido: is_native=1 OU token que não é URL https:// (FCM nativo)
-            // Tokens FCM nativos: 'dGD0abc...:APA91b...' — não começam com https://
-            // Web Push (browser): 'https://fcm.googleapis.com/...' ou 'https://updates.push...' 
-            // Motoboy/Cozinha têm is_native=0 mas são tokens FCM nativos → checa URL também
             const isNativeSub = sub.is_native === 1 || sub.is_native === true ||
               (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
             if (!isNativeSub) {
@@ -881,7 +879,9 @@ async function safePusherTrigger(channel, event, data) {
                    auth: sub.auth || ''
                  }
                };
-               await webpush.sendNotification(pushSubscription, payload).catch(e => { if (e.statusCode === 410 || e.statusCode === 404 || e.message.includes('unexpected response code') || e.message.includes('unsubscribed')) { console.log('Removendo endpoint inativo (WebPush)'); query('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]).catch(err => console.error(err.message)); } });
+               pushPromises.push(
+                 webpush.sendNotification(pushSubscription, payload).catch(e => { if (e.statusCode === 410 || e.statusCode === 404 || e.message.includes('unexpected response code') || e.message.includes('unsubscribed')) { console.log('Removendo endpoint inativo (WebPush)'); query('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]).catch(err => console.error(err.message)); } })
+               );
             } else {
                // Tratamento para Token Nativo (Capacitor/Firebase SDK)
                if (admin.apps.length > 0) {
@@ -944,22 +944,25 @@ async function safePusherTrigger(channel, event, data) {
                    firebaseAppToUse = admin.app('cozinha');
                  }
 
-                 await firebaseAppToUse.messaging().send(message)
-                   .then((response) => {
-                     console.log(`✅ FCM Nativo (${targetApp}) enviado:`, response);
-                   })
-                   .catch(async (error) => {
-                     console.error(`❌ Erro enviando FCM Nativo (${targetApp}):`, error);
-                     // Remove tokens inválidos
-                     if (error.code === 'messaging/invalid-registration-token' || error.code === 'messaging/registration-token-not-registered') {
-                        console.log('🗑️ Removendo token FCM inativo:', sub.endpoint);
-                        await query("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]);
-                     }
-                   });
+                 pushPromises.push(
+                   firebaseAppToUse.messaging().send(message)
+                     .then((response) => {
+                       console.log(`✅ FCM Nativo (${targetApp}) enviado:`, response);
+                     })
+                     .catch(async (error) => {
+                       console.error(`❌ Erro enviando FCM Nativo (${targetApp}):`, error);
+                       // Remove tokens inválidos
+                       if (error.code === 'messaging/invalid-registration-token' || error.code === 'messaging/registration-token-not-registered') {
+                          console.log('🗑️ Removendo token FCM inativo:', sub.endpoint);
+                          await query("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]);
+                       }
+                     })
+                 );
                }
             }
           }
         }
+        await Promise.all(pushPromises);
       } catch (err) {
         console.error('Erro ao buscar subscriptions:', err.message);
       }
@@ -1122,6 +1125,7 @@ async function checkAndNotifyDelayedOrders() {
 
       // Notificacoes FCM/WebPush para Admin
       const sentEndpoints = new Set();
+      const pushPromises = [];
       for (const sub of subs) {
         if (sub.app_type !== 'garcom' || (sub.garcom_id !== p.garcom_id && sub.garcom_id !== String(p.garcom_pk))) continue;
         if (sentEndpoints.has(sub.endpoint)) continue;
@@ -1130,11 +1134,13 @@ async function checkAndNotifyDelayedOrders() {
         if (!isNativeSubAtraso) {
           const payload = JSON.stringify({ title: pushTitle, body: pushMsg, event: 'fechamento-atrasado' });
           const pushSubscription = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh || '', auth: sub.auth || '' } };
-          await webpush.sendNotification(pushSubscription, payload).catch(e => {
+          pushPromises.push(
+            webpush.sendNotification(pushSubscription, payload).catch(e => {
               if (e.statusCode === 410 || e.statusCode === 404 || e.message.includes('unsubscribed')) {
                   query('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]).catch(err => console.error(err.message));
               }
-          });
+            })
+          );
         } else {
           if (admin.apps.length > 0) {
             const message = {
@@ -1143,10 +1149,18 @@ async function checkAndNotifyDelayedOrders() {
               android: { priority: 'high', notification: { sound: 'notificacao', channelId: 'garcom_v1', defaultSound: false } },
               token: sub.endpoint
             };
-            await admin.messaging().send(message).catch(e => console.error('Erro FCM Fechamento Atrasado:', e.message));
+            pushPromises.push(
+              admin.messaging().send(message).catch(e => {
+                console.error('Erro FCM Fechamento Atrasado:', e.message);
+                if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
+                   query('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]).catch(err => console.error(err.message));
+                }
+              })
+            );
           }
         }
       }
+      await Promise.all(pushPromises);
     }
 
     if (delayedOrders.length === 0) return;
