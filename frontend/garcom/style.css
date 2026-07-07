@@ -641,6 +641,15 @@ main {
 
 /* Modal de Opções da Mesa */
 
+@keyframes slide-up-options {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
 .modal-opcoes {
 
   display: none;
@@ -681,13 +690,16 @@ main {
 
   margin-bottom: 0;
 
+  animation: slide-up-options 0.22s cubic-bezier(0.1, 0.76, 0.55, 0.94) forwards;
+
 }
 
 
 
 .modal-opcoes h2 { margin-bottom: 1.5rem; color: #333; }
 
-.btn-opcoes { margin-bottom: 1rem; padding: clamp(0.75rem, 3.5vw, 1rem); font-size: clamp(0.95rem, 3.6vw, 1.1rem); }
+.btn-opcoes { margin-bottom: 1rem; padding: clamp(0.75rem, 3.5vw, 1rem); font-size: clamp(0.95rem, 3.6vw, 1.1rem); transition: transform 0.1s ease, filter 0.1s ease; }
+.btn-opcoes:active { transform: scale(0.97); filter: brightness(0.9); }
 
 .btn-fechar-conta { background-color: #e74c3c; }
 

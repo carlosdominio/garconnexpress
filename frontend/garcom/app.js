@@ -1502,18 +1502,8 @@ function exibirMesas() {
 }
 
 async function mostrarOpcoesMesa(mesa) {
-  // Reset
-  pedidoAbertoNaMesa = null;
-
-  if (mesa.status === 'ocupada' || mesa.status === 'fechando') {
-    try {
-      const res = await fetch(`/api/pedidos/mesa/${mesa.id}`);
-      if (res.ok) {
-        const dados = await res.json();
-        if (dados) pedidoAbertoNaMesa = dados;
-      }
-    } catch (e) { console.error("Erro ao buscar pedido:", e); }
-  }
+  // Configura pedidoAbertoNaMesa sincronamente com o ID disponível no objeto mesa para carregamento instantâneo
+  pedidoAbertoNaMesa = mesa.pedido_id ? { id: mesa.pedido_id } : null;
 
   // Ajusta visibilidade dos botões
   const btnVerItens = document.querySelector('.btn-ver-itens');
