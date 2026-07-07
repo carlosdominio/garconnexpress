@@ -1833,6 +1833,8 @@ function abrirCardapio() {
 
   pedidoAtual = [];
   window.pedidoObservacaoGeral = ''; // Reset observação geral
+  const elInput = document.getElementById('pedido-busca-input');
+  if (elInput) elInput.value = '';
   exibirResumoPedido();
   exibirMenu('todas');
 }
@@ -2124,7 +2126,18 @@ async function confirmarSolicitacaoFechamento() {
   }
 }
 
-async function exibirMenu(categoria) {
+function obterCategoriaGarcomAtiva() {
+  const elAtivo = document.querySelector('.categoria.ativa');
+  return elAtivo ? elAtivo.dataset.categoria : 'todas';
+}
+
+function filtrarProdutosGarcom() {
+  const queryText = (document.getElementById('pedido-busca-input')?.value || '').trim().toLowerCase();
+  const categoria = obterCategoriaGarcomAtiva();
+  exibirMenu(categoria, queryText);
+}
+
+async function exibirMenu(categoria, queryTexto = '') {
   const grid = document.getElementById('menu-grid');
   if (!grid) return;
   
@@ -2133,7 +2146,11 @@ async function exibirMenu(categoria) {
     categoria = elAtivo ? elAtivo.dataset.categoria : 'todas';
   }
 
-  const itens = categoria === 'todas' ? menu : menu.filter(item => item.categoria === categoria);
+  let itens = categoria === 'todas' ? menu : menu.filter(item => item.categoria === categoria);
+  
+  if (queryTexto) {
+    itens = itens.filter(item => item.nome.trim().toLowerCase().includes(queryTexto));
+  }
   
   // Agrupa os itens por categoria para exibir os títulos
   const grupos = itens.reduce((acc, i) => {
@@ -2484,7 +2501,8 @@ function configurarEventos() {
         sessionStorage.setItem('garcom_categoria_atual', categoriaAtual);
         document.querySelectorAll('.categoria').forEach(c => c.classList.remove('ativa'));
         cat.classList.add('ativa');
-        exibirMenu(categoriaAtual);
+        const queryText = (document.getElementById('pedido-busca-input')?.value || '').trim().toLowerCase();
+        exibirMenu(categoriaAtual, queryText);
       });
     });
   }
