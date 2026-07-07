@@ -1680,7 +1680,10 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
          const clienteTelefone = (pData && pData.cliente_telefone) ? pData.cliente_telefone.trim() : null;
          
          if (clienteTelefone) {
-           let statusBot = status;
+            let statusBot = status;
+            if (status === 'aguardando_fechamento' && pData.garcom_id === 'DELIVERY') {
+              statusBot = 'entregue';
+            }
            // Mapeia 'servido' para 'saiu_entrega' se for DELIVERY
            if (status === 'servido' && pData.garcom_id === 'DELIVERY') {
              statusBot = 'saiu_entrega';
