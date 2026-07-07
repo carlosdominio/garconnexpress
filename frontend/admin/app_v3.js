@@ -3600,11 +3600,11 @@ function atualizarSelectMesasAtivas() {
   // Filtra os pedidos baseado na aba ativa (Garçom, Balcão ou Delivery)
   const pedidosFiltrados = pedidos.filter(p => {
     const isDelivery = (p.garcom_id === 'DELIVERY');
-    const isBalcao = (p.garcom_id === 'ADMIN' && !isDelivery);
+    const isMesa = (p.mesa_id !== null && p.mesa_id !== undefined && p.mesa_id !== '');
 
     if (subAbaAtiva === 'delivery') return isDelivery;
-    if (subAbaAtiva === 'balcao') return isBalcao;
-    return !isBalcao && !isDelivery; // Garçom
+    if (subAbaAtiva === 'garcom') return isMesa && !isDelivery;
+    return !isMesa && !isDelivery;
   });
 
   const nomesMesas = [...new Set(pedidosFiltrados.map(p => {
@@ -3856,7 +3856,8 @@ async function exibirPedidos() {
           </div>
         </div>`;
       
-      const group = isDelivery ? 'delivery' : (pedido.garcom_id === 'ADMIN' ? 'balcao' : 'garcom');
+      const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '');
+      const group = isDelivery ? 'delivery' : (isMesa ? 'garcom' : 'balcao');
       let targetCol = 'pendentes';
       if (isAguardando) targetCol = 'fechamento';
       else if (statusGeral === 'servido') targetCol = 'servidos';
@@ -3924,7 +3925,7 @@ async function exibirPedidos() {
         abrirModalMesaAguardando(m.id);
       });
 
-      const group = m.garcom_id === 'ADMIN' ? 'balcao' : 'garcom';
+      const group = 'garcom';
       const targetCol = 'pendentes';
 
       if (lists[group] && lists[group][targetCol]) {
@@ -6804,7 +6805,8 @@ async function abrirModalOpcoes(pedidoId) {
           </button>
         `;
       } else {
-        const isBalcao = (pedido.garcom_id === 'ADMIN');
+        const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '');
+        const isBalcao = (pedido.garcom_id === 'ADMIN' && !isMesa);
         htmlFooter = `
           <button onclick="fecharModalOpcoes(); marcarPedidoEntregue(${pedidoId})" style="background:${isBalcao ? '#e74c3c' : '#e67e22'}; color:white; border:none; padding: 1.2rem; width: 100%; font-weight: 900; border-radius:12px; font-size: 1.1rem; box-shadow:0 5px 0 ${isBalcao ? '#c0392b' : '#d35400'}; cursor:pointer;">
             🚚 ENTREGAR TUDO AGORA
