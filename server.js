@@ -3287,7 +3287,10 @@ app.post('/api/pedidos/:id/pagamento-parcial', isAuthenticated, async (req, res)
       await notifyStatus(null, mesa_id, 'liberada'); 
     } else { 
       // Atualiza o total do pedido original subtraindo o que foi pago
-      await query("UPDATE pedidos SET total = MAX(0, total - ?), pago_parcial = pago_parcial + ? WHERE id = ?", [total, total, id]);
+      const pData = (await query("SELECT total, pago_parcial FROM pedidos WHERE id = ?", [id])).rows[0];
+      const novoTotal = pData ? Math.max(0, (pData.total || 0) - total) : 0;
+      const novoPagoParcial = pData ? ((pData.pago_parcial || 0) + total) : total;
+      await query("UPDATE pedidos SET total = ?, pago_parcial = ? WHERE id = ?", [novoTotal, novoPagoParcial, id]);
       await notifyStatus(id, mesa_id, 'itens_atualizados'); 
     }
     res.json({ success: true });
