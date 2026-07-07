@@ -1328,7 +1328,7 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
   const garcomId = isDelivery ? 'DELIVERY' : 'ADMIN';
   const cobrarTaxa = document.getElementById('lancar-taxa-toggle').checked;
   const subtotal = carrinhoLancar.reduce((s,i) => s + (i.preco * i.quantidade), 0);
-  const totalEstimado = cobrarTaxa ? (isDelivery ? subtotal + 3.00 : subtotal * 1.10) : subtotal;
+  const totalEstimado = isDelivery ? subtotal + 3.00 : (cobrarTaxa ? subtotal * 1.10 : subtotal);
 
   if (!await mostrarConfirmacao(`Confirmar lançamento de R$ ${totalEstimado.toFixed(2)}?`, "Novo Pedido", "Confirmar", "Cancelar", "🚀")) return;
 
@@ -1379,12 +1379,12 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
   const url = pedidoExistente ? `/api/pedidos/${pedidoExistente.id}/adicionar` : '/api/pedidos';
   const method = pedidoExistente ? 'PUT' : 'POST';
   const body = pedidoExistente
-    ? { itens: carrinhoLancar, cobrar_taxa: cobrarTaxa }
+    ? { itens: carrinhoLancar, cobrar_taxa: isDelivery ? true : cobrarTaxa }
     : { 
         mesa_id: mesaId, 
         garcom_id: garcomId, 
         itens: carrinhoLancar, 
-        cobrar_taxa: cobrarTaxa,
+        cobrar_taxa: isDelivery ? true : cobrarTaxa,
         observacao: isDelivery ? customObs : undefined,
         cliente_telefone: isDelivery ? wppTelefone : undefined,
         forma_pagamento: isDelivery ? formaPag : undefined,
