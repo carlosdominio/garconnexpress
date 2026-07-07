@@ -1055,12 +1055,14 @@ function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTip
   const itensVal = dados.itens || '';
   const statusVal = dados.status || '';
   const msgVal = dados.mensagem || '';
+  const pedidoIdVal = dados.pedido_id || dados.id || dados.pedidoId || '';
   
   let msgFinal = template
     .replace(/{mesa}/g, mesaVal)
     .replace(/{cliente}/g, clienteVal)
     .replace(/{itens}/g, itensVal)
     .replace(/{status}/g, statusVal)
+    .replace(/{pedido_id}/g, pedidoIdVal)
     .replace(/{mensagem}/g, msgVal);
     
   const tipo = config ? (config.tipo === 'erro' ? 'error' : (config.tipo === 'sucesso' ? 'success' : 'info')) : fallbackTipo;
