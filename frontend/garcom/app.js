@@ -948,12 +948,14 @@ async function configurarPusher() {
              strMesa = `Mesa ${strMesa}`;
           }
           
-          if (deveTocarSom('status-atualizado')) tocarCampainha(true);
           if (data.status === 'liberada') {
+            if (deveTocarSom('mesa-liberada')) tocarCampainha(true);
             dispararToastSistema('mesa-liberada', { mesa: strMesa }, `✅ ${strMesa} liberada`, 'success');
           } else if (data.status === 'servido') {
-            mostrarToast(`🍽️ Pedido da ${strMesa} entregue!`, 'info');
+            if (deveTocarSom('pedido-servido')) tocarCampainha(true);
+            dispararToastSistema('pedido-servido', { mesa: strMesa, pedido_id: data.pedido_id || '' }, `🍽️ Pedido da ${strMesa} entregue!`, 'success');
           } else if (data.status === 'itens_atualizados') {
+            if (deveTocarSom('item-adicionado')) tocarCampainha(true);
             dispararToastSistema('item-adicionado', { mesa: strMesa }, `📝 Pedido da ${strMesa} atualizado pelo Admin`, 'info');
           }
 

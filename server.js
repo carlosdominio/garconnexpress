@@ -783,7 +783,7 @@ async function safePusherTrigger(channel, event, data) {
               msgMotoboy = resolveTemplate('saiu-entrega', '🛵 SAIU PARA ENTREGA', `🛵 SAIU PARA ENTREGA: ${mesaFormatada}`);
             } else {
               // Para salão: pedido servido/entregue na mesa!
-              msgGarcom = resolveTemplate('pedido-entregue', '✅ PEDIDO ENTREGUE', `✅ PEDIDO DA ${mesaFormatada} ENTREGUE`);
+              msgGarcom = resolveTemplate('pedido-servido', '✅ PEDIDO ENTREGUE', `✅ PEDIDO DA ${mesaFormatada} ENTREGUE`);
             }
           } else if (data.status === 'saiu_entrega') {
             msgMotoboy = resolveTemplate('saiu-entrega', '🛵 SAIU PARA ENTREGA', `🛵 SAIU PARA ENTREGA: ${mesaFormatada}`);
@@ -4414,8 +4414,9 @@ const FCM_DEFAULTS = [
   { evento: 'status-caixa-atualizado', tituloPadrao: '💰 CAIXA', corpoPadrao: '{status}', destinatario: 'todos', variaveis: ['status'] },
   { evento: 'rascunho-recebido', tituloPadrao: 'GarçomExpress', corpoPadrao: '📝 Novo rascunho de pedido #{pedido_id} pendente na {mesa}.', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'mesa-liberada', tituloPadrao: 'GarçomExpress', corpoPadrao: '🔓 Mesa {mesa} foi liberada com sucesso!', destinatario: 'garcom', variaveis: ['mesa'] },
-  { evento: 'saiu-entrega', tituloPadrao: 'Delivery Express', corpoPadrao: '🛵 O pedido #{pedido_id} ({mesa}) saiu para entrega!', destinatario: 'todos', variaveis: ['mesa', 'pedido_id'] },
-  { evento: 'pedido-entregue', tituloPadrao: 'Delivery Express', corpoPadrao: '✅ O pedido #{pedido_id} ({mesa}) foi entregue com sucesso!', destinatario: 'todos', variaveis: ['mesa', 'pedido_id'] },
+  { evento: 'saiu-entrega', tituloPadrao: 'Delivery Express', corpoPadrao: '🛵 O pedido #{pedido_id} ({mesa}) saiu para entrega!', destinatario: 'motoboy', variaveis: ['mesa', 'pedido_id'] },
+  { evento: 'pedido-entregue', tituloPadrao: 'Delivery Express', corpoPadrao: '✅ O pedido #{pedido_id} ({mesa}) foi entregue com sucesso!', destinatario: 'motoboy', variaveis: ['mesa', 'pedido_id'] },
+  { evento: 'pedido-servido', tituloPadrao: 'GarçomExpress', corpoPadrao: '🍽️ O pedido #{pedido_id} ({mesa}) foi servido/entregue!', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'fechamento-atrasado', tituloPadrao: '⚠️ CAIXA: FECHAMENTO ATRASADO!', corpoPadrao: 'O fechamento da {mesa} foi solicitado há mais de 5 minutos e ainda não foi concluído!', destinatario: 'garcom', variaveis: ['mesa'] },
   { evento: 'pedido-atrasado-motoboy', tituloPadrao: '🔥 MOTOBOY: ENTREGA ATRASADA!', corpoPadrao: 'O pedido de entrega #{pedido_id} está parado há mais de 10 minutos!', destinatario: 'motoboy', variaveis: ['pedido_id'] },
   { evento: 'pedido-atrasado-garcom', tituloPadrao: '🔥 GARÇOM: PEDIDO ATRASADO!', corpoPadrao: 'O pedido da {mesa} (#{pedido_id}) está parado há mais de 10 minutos!', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
@@ -4618,7 +4619,8 @@ const TOAST_DEFAULTS = [
   { evento: 'pedido-atrasado-garcom', textoPadrao: '🔥 GARÇOM: PEDIDO ATRASADO! O pedido da {mesa} (#{pedido_id}) está parado há mais de 10 minutos!', label: 'Pedido Atrasado (Garçom)', tipo: 'erro', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'pedido-atrasado-cozinha', textoPadrao: '🔥 COZINHA: PEDIDO ATRASADO! O pedido #{pedido_id} ({mesa}) está aguardando há mais de 10 minutos!', label: 'Pedido Atrasado (Cozinha)', tipo: 'erro', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'pedido-atrasado-motoboy', textoPadrao: '🔥 MOTOBOY: ENTREGA ATRASADA! O pedido #{pedido_id} está parado há mais de 10 minutos!', label: 'Pedido Atrasado (Motoboy)', tipo: 'erro', variaveis: ['pedido_id'] },
-  { evento: 'rascunho-recebido', textoPadrao: '📝 Novo rascunho de pedido #{pedido_id} pendente na {mesa}.', label: 'Novo Rascunho', tipo: 'info', variaveis: ['mesa', 'pedido_id'] }
+  { evento: 'rascunho-recebido', textoPadrao: '📝 Novo rascunho de pedido #{pedido_id} pendente na {mesa}.', label: 'Novo Rascunho', tipo: 'info', variaveis: ['mesa', 'pedido_id'] },
+  { evento: 'pedido-servido', textoPadrao: '🍽️ O pedido #{pedido_id} ({mesa}) foi servido/entregue!', label: 'Pedido Servido (Salão)', tipo: 'sucesso', variaveis: ['mesa', 'pedido_id'] }
 ];
 
 app.get('/api/toast-config/listar', ensureDbInitialized, async (req, res) => {
