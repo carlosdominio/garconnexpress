@@ -1257,9 +1257,61 @@ function removerDoCarrinhoLancar(index) {
   exibirMenuLancar(catNome);
 }
 
+function abrirModalLancarDelivery() {
+  document.getElementById('lancar-delivery-nome').value = '';
+  document.getElementById('lancar-delivery-telefone').value = '';
+  document.getElementById('lancar-delivery-endereco').value = '';
+  document.getElementById('lancar-delivery-numero').value = '';
+  document.getElementById('lancar-delivery-bairro').value = '';
+  document.getElementById('lancar-delivery-pagamento').value = 'Dinheiro';
+  document.getElementById('lancar-delivery-troco').value = '';
+  document.getElementById('lancar-delivery-obs').value = '';
+  document.getElementById('lancar-delivery-troco-container').style.display = 'block';
+
+  document.getElementById('modal-lancar-delivery-dados').style.display = 'flex';
+  document.body.classList.add('modal-open');
+}
+
+function fecharModalLancarDelivery() {
+  document.getElementById('modal-lancar-delivery-dados').style.display = 'none';
+  document.body.classList.remove('modal-open');
+}
+
+function toggleLancarDeliveryTroco() {
+  const pag = document.getElementById('lancar-delivery-pagamento').value;
+  const container = document.getElementById('lancar-delivery-troco-container');
+  if (container) {
+    container.style.display = (pag === 'Dinheiro') ? 'block' : 'none';
+  }
+}
+
+async function confirmarLancarPedidoDelivery() {
+  const name = document.getElementById('lancar-delivery-nome').value.trim();
+  const phone = document.getElementById('lancar-delivery-telefone').value.trim();
+  const address = document.getElementById('lancar-delivery-endereco').value.trim();
+  const number = document.getElementById('lancar-delivery-numero').value.trim();
+  const payment = document.getElementById('lancar-delivery-pagamento').value;
+  const change = document.getElementById('lancar-delivery-troco').value.trim();
+
+  if (!name || !address || !number || !phone) {
+    return mostrarAlerta("Nome, Telefone, Endereço e Número são obrigatórios!", "Aviso", "⚠️");
+  }
+
+  if (payment === 'Dinheiro' && change) {
+    const subtotal = carrinhoLancar.reduce((s,i) => s + (i.preco * i.quantidade), 0);
+    const totalEstimado = subtotal + 3.00; // Taxa de entrega fixa
+    if (parseFloat(change) < totalEstimado) {
+      return mostrarAlerta(`O valor recebido (R$ ${parseFloat(change).toFixed(2)}) não pode ser menor que o total do pedido (R$ ${totalEstimado.toFixed(2)})!`, "Aviso", "⚠️");
+    }
+  }
+
+  fecharModalLancarDelivery();
+  await enviarPedidoLoteAdmin(true);
+}
+
 let enviandoPedidoLote = false;
 
-async function enviarPedidoLoteAdmin() {
+async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
   if (enviandoPedidoLote) return;
 
   let mesaId = document.getElementById('lancar-mesa-select').value;
@@ -1267,12 +1319,18 @@ async function enviarPedidoLoteAdmin() {
   if (carrinhoLancar.length === 0) return await mostrarAlerta("Carrinho vazio!", "Aviso", "⚠️");
 
   const isDelivery = (mesaId === 'DELIVERY');
-  const garcomId = isDelivery ? 'DELIVERY' : 'ADMIN';
+  
+  if (isDelivery && !skipDeliveryForm) {
+    abrirModalLancarDelivery();
+    return;
+  }
 
+  const garcomId = isDelivery ? 'DELIVERY' : 'ADMIN';
   const cobrarTaxa = document.getElementById('lancar-taxa-toggle').checked;
   const subtotal = carrinhoLancar.reduce((s,i) => s + (i.preco * i.quantidade), 0);
+  const totalEstimado = cobrarTaxa ? (isDelivery ? subtotal + 3.00 : subtotal * 1.10) : subtotal;
 
-  if (!await mostrarConfirmacao(`Confirmar lançamento de R$ ${(cobrarTaxa ? subtotal * 1.10 : subtotal).toFixed(2)}?`, "Novo Pedido", "Confirmar", "Cancelar", "🚀")) return;
+  if (!await mostrarConfirmacao(`Confirmar lançamento de R$ ${totalEstimado.toFixed(2)}?`, "Novo Pedido", "Confirmar", "Cancelar", "🚀")) return;
 
   enviandoPedidoLote = true;
   const btn = document.querySelector("button[onclick='enviarPedidoLoteAdmin()']");
@@ -1286,11 +1344,53 @@ async function enviarPedidoLoteAdmin() {
     mesaId = null;
   }
 
+  let wppTelefone = null;
+  let customObs = '';
+  let formaPag = null;
+  let vRecebido = 0;
+  let vTroco = 0;
+
+  if (isDelivery) {
+    const name = document.getElementById('lancar-delivery-nome').value.trim();
+    const phone = document.getElementById('lancar-delivery-telefone').value.trim();
+    const address = document.getElementById('lancar-delivery-endereco').value.trim();
+    const number = document.getElementById('lancar-delivery-numero').value.trim();
+    const bairro = document.getElementById('lancar-delivery-bairro').value.trim();
+    const payment = document.getElementById('lancar-delivery-pagamento').value;
+    const change = document.getElementById('lancar-delivery-troco').value.trim();
+    const obs = document.getElementById('lancar-delivery-obs').value.trim();
+
+    wppTelefone = phone.replace(/\D/g, '');
+
+    customObs = `🛵 DELIVERY\n`;
+    customObs += `👤 Cliente: ${name}\n`;
+    if(phone) customObs += `📞 Tel: ${phone}\n`;
+    customObs += `🏠 End: ${address}, ${number}\n`;
+    if(bairro) customObs += `📍 Bairro/Ref: ${bairro}\n`;
+    customObs += `💳 Pagamento: ${payment}`;
+    if(payment === 'Dinheiro' && change) customObs += ` (Troco R$ ${parseFloat(change).toFixed(2)})`;
+    if(obs) customObs += `\n📝 Obs: ${obs}`;
+
+    formaPag = payment;
+    vRecebido = (payment === 'Dinheiro' && change) ? parseFloat(change) : totalEstimado;
+    vTroco = (payment === 'Dinheiro' && change) ? (parseFloat(change) - totalEstimado) : 0;
+  }
+
   const url = pedidoExistente ? `/api/pedidos/${pedidoExistente.id}/adicionar` : '/api/pedidos';
   const method = pedidoExistente ? 'PUT' : 'POST';
   const body = pedidoExistente
     ? { itens: carrinhoLancar, cobrar_taxa: cobrarTaxa }
-    : { mesa_id: mesaId, garcom_id: garcomId, itens: carrinhoLancar, cobrar_taxa: cobrarTaxa };
+    : { 
+        mesa_id: mesaId, 
+        garcom_id: garcomId, 
+        itens: carrinhoLancar, 
+        cobrar_taxa: cobrarTaxa,
+        observacao: isDelivery ? customObs : undefined,
+        cliente_telefone: isDelivery ? wppTelefone : undefined,
+        forma_pagamento: isDelivery ? formaPag : undefined,
+        valor_recebido: isDelivery ? vRecebido : undefined,
+        troco: isDelivery ? vTroco : undefined
+      };
 
   try {
     const res = await fetch(url, {

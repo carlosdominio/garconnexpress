@@ -1773,6 +1773,70 @@
 
   <div id="cupom-impressao"></div>
 
+  <!-- Modal Dados Delivery no Lançamento -->
+  <div id="modal-lancar-delivery-dados" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); z-index: 10000; justify-content: center; align-items: center; padding: 20px;">
+    <div class="modal-content" style="max-width: 480px; width: 100%; border-radius: 16px; background: white; box-shadow: 0 10px 25px rgba(0,0,0,0.15); display: flex; flex-direction: column; overflow: hidden; max-height: 90vh;">
+      <div style="background: #e67e22; padding: 1.2rem 1.5rem; color: white; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 900; text-transform: uppercase; display: flex; align-items: center; gap: 8px;">🛵 Dados de Entrega (Delivery)</h3>
+        <span class="close" onclick="fecharModalLancarDelivery()" style="color: white; font-size: 1.5rem; cursor: pointer; font-weight: bold; line-height: 1;">&times;</span>
+      </div>
+      
+      <div style="padding: 1.5rem; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px; background: #f8fafc;">
+        <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; margin-bottom: 4px; text-transform: uppercase;">Nome do Cliente *</label>
+            <input type="text" id="lancar-delivery-nome" placeholder="Ex: João Silva" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #1e293b; outline: none; transition: 0.2s;" onfocus="this.style.borderColor='#e67e22'">
+          </div>
+          <div class="form-group">
+            <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; margin-bottom: 4px; text-transform: uppercase;">Telefone *</label>
+            <input type="tel" id="lancar-delivery-telefone" placeholder="(00) 00000-0000" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #1e293b; outline: none; transition: 0.2s;" onfocus="this.style.borderColor='#e67e22'">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 3fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; margin-bottom: 4px; text-transform: uppercase;">Endereço / Rua *</label>
+            <input type="text" id="lancar-delivery-endereco" placeholder="Ex: Av. Paulista" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #1e293b; outline: none; transition: 0.2s;" onfocus="this.style.borderColor='#e67e22'">
+          </div>
+          <div class="form-group">
+            <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; margin-bottom: 4px; text-transform: uppercase;">Número *</label>
+            <input type="text" id="lancar-delivery-numero" placeholder="Ex: 123" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #1e293b; outline: none; transition: 0.2s;" onfocus="this.style.borderColor='#e67e22'">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; margin-bottom: 4px; text-transform: uppercase;">Bairro / Complemento / Ref</label>
+          <input type="text" id="lancar-delivery-bairro" placeholder="Ex: Apt 42 - Bloco B" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #1e293b; outline: none; transition: 0.2s;" onfocus="this.style.borderColor='#e67e22'">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; margin-bottom: 4px; text-transform: uppercase;">Forma de Pagamento</label>
+            <select id="lancar-delivery-pagamento" onchange="toggleLancarDeliveryTroco()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #1e293b; outline: none; background: white;">
+              <option value="Dinheiro">Dinheiro</option>
+              <option value="Pix">Pix</option>
+              <option value="Cartão">Cartão</option>
+            </select>
+          </div>
+          <div class="form-group" id="lancar-delivery-troco-container">
+            <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; margin-bottom: 4px; text-transform: uppercase;">Troco para quanto?</label>
+            <input type="number" id="lancar-delivery-troco" placeholder="Ex: 50" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #1e293b; outline: none; transition: 0.2s;" onfocus="this.style.borderColor='#e67e22'">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; margin-bottom: 4px; text-transform: uppercase;">Observações do Pedido</label>
+          <textarea id="lancar-delivery-obs" placeholder="Ex: Sem cebola na salada..." rows="2" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #1e293b; outline: none; transition: 0.2s; font-family: inherit; resize: none;" onfocus="this.style.borderColor='#e67e22'"></textarea>
+        </div>
+      </div>
+      
+      <div style="padding: 1.2rem; background: white; border-top: 2px solid #e2e8f0; display: flex; gap: 10px; flex-shrink: 0;">
+        <button onclick="fecharModalLancarDelivery()" style="flex: 1; padding: 12px; background: #e2e8f0; color: #475569; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; font-size: 0.95rem;">Cancelar</button>
+        <button onclick="confirmarLancarPedidoDelivery()" style="flex: 1.5; padding: 12px; background: #e67e22; color: white; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; font-size: 0.95rem; box-shadow: 0 4px 0 #d35400;">🚀 Confirmar Lançamento</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal Agendamento Cardápio -->
   <div id="modal-agendamento-cardapio" class="modal">
     <div class="modal-content" style="max-width: 400px; border-radius: 15px;">
