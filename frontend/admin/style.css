@@ -778,7 +778,7 @@ button.btn-entregue { background-color: #95a5a6; }
   display: flex;
   justify-content: flex-end;
   gap: 1rem;
-  padding-top: 0.5rem;
+  padding: 15px 20px;
   border-top: 1px solid #eee;
   margin-top: 5px;
   flex-shrink: 0;
