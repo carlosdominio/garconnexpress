@@ -2164,9 +2164,12 @@ async function getFilterCozinha() {
   }
 }
 
+const marcarEntregueLocks = new Set();
 app.put('/api/pedidos/:id/marcar-entregue', statusLimiter, isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { apenasProntos } = req.body;
+  if (marcarEntregueLocks.has(id)) return res.status(429).json({ error: 'Processando requisição anterior, aguarde...' });
+  marcarEntregueLocks.add(id);
   try {
     const filterCozinha = await getFilterCozinha();
 
@@ -2235,6 +2238,8 @@ app.put('/api/pedidos/:id/marcar-entregue', statusLimiter, isAuthenticated, asyn
   } catch (error) { 
     console.error('Erro ao marcar entregue:', error);
     res.status(500).json({ error: error.message }); 
+  } finally {
+    marcarEntregueLocks.delete(id);
   }
 });
 
@@ -2640,7 +2645,11 @@ app.delete('/api/pedidos/:id', isAuthenticated, async (req, res) => {
   try {
     const pedido = (await query("SELECT p.mesa_id, p.garcom_id, p.status, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
     const itens = (await query("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
-    for (const item of itens) await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
+    
+    if (pedido && pedido.status !== 'cancelado' && pedido.status !== 'entregue') {
+      for (const item of itens) await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
+    }
+    
     await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [id]);
     await query("DELETE FROM pedidos WHERE id = ?", [id]);
     
