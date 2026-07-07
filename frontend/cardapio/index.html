@@ -839,11 +839,17 @@
 
                 const d = await res.json();
                 
-                if (res.status === 403) {
-                    Swal.fire({ title: 'Atenção', text: d.mensagem || 'Conta já solicitada.', icon: 'warning' });
-                    carregarMeusPedidos();
-                    btn.disabled = true;
-                    btn.innerHTML = '<i class="fas fa-hand-paper"></i> CONTA SOLICITADA';
+                if (!res.ok) {
+                    if (res.status === 403) {
+                        Swal.fire({ title: 'Atenção', text: d.mensagem || 'Conta já solicitada.', icon: 'warning' });
+                        carregarMeusPedidos();
+                        btn.disabled = true;
+                        btn.innerHTML = '<i class="fas fa-hand-paper"></i> CONTA SOLICITADA';
+                    } else {
+                        Swal.fire({ title: 'Erro', text: d.error || d.mensagem || 'Falha ao enviar rascunho de pedido.', icon: 'error' });
+                        btn.disabled = false;
+                        btn.innerHTML = 'ENVIAR PEDIDO';
+                    }
                     return;
                 }
 
