@@ -3291,7 +3291,21 @@ app.put('/api/pedidos/:id/transferir', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { garcom_id } = req.body;
   try {
-    await query("UPDATE pedidos SET garcom_id = ? WHERE id = ?", [garcom_id, id]);
+    const isGarcomReal = garcom_id && garcom_id !== 'ADMIN' && garcom_id !== 'DELIVERY';
+    
+    if (isGarcomReal) {
+      // Ativa a taxa de 10% automaticamente e recalcula o total
+      const todosItens = (await query("SELECT i.quantidade, m.preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
+      const subtotal = todosItens.reduce((sum, i) => sum + ((parseFloat(i.preco) || 0) * i.quantidade), 0);
+      const taxaMultiplicador = await getTaxaServicoMultiplicador();
+      const total = Math.round(subtotal * taxaMultiplicador * 100) / 100;
+      const taxaBanco = isPostgres ? true : 1;
+      
+      await query("UPDATE pedidos SET garcom_id = ?, total = ?, cobrar_taxa = ? WHERE id = ?", [garcom_id, total, taxaBanco, id]);
+    } else {
+      await query("UPDATE pedidos SET garcom_id = ? WHERE id = ?", [garcom_id, id]);
+    }
+
     const p = (await query("SELECT mesa_id FROM pedidos WHERE id = ?", [id])).rows[0];
     if (p && p.mesa_id) {
       await query("UPDATE mesas SET garcom_id = ? WHERE id = ?", [garcom_id, p.mesa_id]);
