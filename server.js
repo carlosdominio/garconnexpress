@@ -824,7 +824,9 @@ async function safePusherTrigger(channel, event, data) {
             targets.push({ app: 'motoboy', title: msgMotoboy.title || 'Delivery Express', msg: bodyMotoboy });
           }
         } else {
-          if (msgGarcom.body) {
+          // Se for pedido do Balcão (garcom_id === 'ADMIN'), NÃO envia push para o garçom!
+          const isBalcao = data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN');
+          if (!isBalcao && msgGarcom.body) {
             targets.push({ app: 'garcom', title: msgGarcom.title, msg: msgGarcom.body });
           }
         }
