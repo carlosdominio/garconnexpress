@@ -1438,22 +1438,50 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
       carrinhoLancar = [];
       renderizarCarrinhoLancar();
       
-      // MOSTRA MODAL DE DECISÃO
+      // MOSTRA MODAL DE DECISÃO (Ajustado para Delivery)
       const modalDecisao = document.getElementById('modal-decisao-pos-lancar');
+      const btnFechar = document.getElementById('btn-decisao-fechar');
+      const btnManter = document.getElementById('btn-decisao-manter');
+
+      if (isDelivery) {
+        if (btnFechar) btnFechar.style.display = 'none';
+        if (btnManter) {
+          btnManter.innerText = '🛵 ACOMPANHAR DELIVERY';
+          btnManter.style.background = '#e67e22'; // Cor laranja do Delivery
+        }
+      } else {
+        if (btnFechar) btnFechar.style.display = 'block';
+        if (btnManter) {
+          btnManter.innerText = '⏳ MANTER EM ABERTO';
+          btnManter.style.background = '#3498db'; // Azul padrão
+        }
+      }
+
       modalDecisao.style.display = 'flex';
       document.body.classList.add('modal-open');
 
-      document.getElementById('btn-decisao-fechar').onclick = async () => {
-        modalDecisao.style.display = 'none';
-        document.body.classList.remove('modal-open');
-        aprovarFechamento(novoPedidoId, mesaId, nomeMesa);
-      };
-      document.getElementById('btn-decisao-manter').onclick = () => {
-        modalDecisao.style.display = 'none';
-        document.body.classList.remove('modal-open');
-        mostrarToast("⏳ Pedido mantido nos Ativos!");
-        switchTab('ativos');
-      };
+      if (btnFechar) {
+        btnFechar.onclick = async () => {
+          modalDecisao.style.display = 'none';
+          document.body.classList.remove('modal-open');
+          aprovarFechamento(novoPedidoId, mesaId, nomeMesa);
+        };
+      }
+
+      if (btnManter) {
+        btnManter.onclick = () => {
+          modalDecisao.style.display = 'none';
+          document.body.classList.remove('modal-open');
+          if (isDelivery) {
+            mostrarToast("🛵 Pedido enviado para o Delivery!");
+            switchTab('ativos');
+            switchSubTab('delivery');
+          } else {
+            mostrarToast("⏳ Pedido mantido nos Ativos!");
+            switchTab('ativos');
+          }
+        };
+      }
     } else {
       const err = await res.json();
       const msg = err.error || "Erro ao enviar pedido";
