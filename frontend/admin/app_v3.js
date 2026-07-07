@@ -3683,12 +3683,18 @@ async function exibirPedidos() {
         
         <div class="pedido-footer">
           <div class="pedido-actions" style="width: 100%; margin-top: 8px;">
-            ${pedido.status === 'aguardando_fechamento' ? 
-              `<button style="background:#27ae60; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #219150; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">${isDelivery ? '💰 FINALIZAR DELIVERY' : '💰 CONFIRMAR PAGAMENTO E LIBERAR'}</button>` : 
-              (hasPend ? 
-                `<button style="background:#e67e22; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #d35400; border:none; color:white; cursor:pointer;" onclick="marcarPedidoEntregue(${pedido.id})">${isDelivery ? '🛵 ENVIAR PARA ENTREGA' : '🚚 ENTREGAR TUDO AGORA'}</button>` :
-                (isDelivery ?
-                  `<button style="background:#3498db; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #2980b9; border:none; color:white; cursor:pointer;" onclick="confirmarEntregaDelivery(${pedido.id})">✅ CONFIRMAR ENTREGA</button>` :
+            ${isDelivery ?
+              (pedido.status === 'aguardando_fechamento' ?
+                `<button style="background:#f1c40f; color:#2c3e50; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #d68910; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 FINALIZAR DELIVERY</button>` :
+                (hasPend ?
+                  `<button style="background:#e74c3c; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #c0392b; border:none; color:white; cursor:pointer;" onclick="marcarPedidoEntregue(${pedido.id})">🛵 ENVIAR PARA ENTREGA</button>` :
+                  `<button style="background:#e67e22; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #d35400; border:none; color:white; cursor:pointer;" onclick="confirmarEntregaDelivery(${pedido.id})">✅ CONFIRMAR ENTREGA</button>`
+                )
+              ) :
+              (pedido.status === 'aguardando_fechamento' ? 
+                `<button style="background:#27ae60; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #219150; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 CONFIRMAR PAGAMENTO E LIBERAR</button>` : 
+                (hasPend ? 
+                  `<button style="background:#e67e22; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #d35400; border:none; color:white; cursor:pointer;" onclick="marcarPedidoEntregue(${pedido.id})">🚚 ENTREGAR TUDO AGORA</button>` :
                   `<button style="background:#27ae60; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #219150; border:none; color:white; cursor:pointer;" onclick="liberarMesa(${pedido.id}, ${pedido.mesa_id}, false)">🔓 LIBERAR MESA</button>`
                 )
               )
@@ -4057,7 +4063,9 @@ async function marcarPedidoEntregue(id) {
         body: JSON.stringify({ apenasProntos: false })
       });
       if (res.ok) {
-        mostrarToast("✅ Pedido entregue!");
+        const pedido = pedidos.find(p => p.id == id);
+        const isDelivery = pedido && pedido.garcom_id === 'DELIVERY';
+        mostrarToast(isDelivery ? "🛵 Enviado para entrega!" : "✅ Pedido entregue!");
         carregarPedidos();
       }
     }
@@ -6620,23 +6628,38 @@ async function abrirModalOpcoes(pedidoId) {
   // 5. FOOTER DE AÇÕES (ENTREGAR / LIBERAR / FECHAR)
   let htmlFooter = '';
   if (isAguardando) {
-    htmlFooter = `
-      <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#27ae60; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #219150; cursor:pointer;">
-        ${isDelivery ? '💰 LIBERA DELIVERY' : '💰 CONFIRMAR PAGAMENTO E LIBERAR'}
-      </button>
-    `;
-  } else {
-    if (hasPend) {
-      // Se ainda houver itens pendentes, mostra APENAS a opção de Entregar Tudo (conforme solicitado pelo usuário)
+    if (isDelivery) {
       htmlFooter = `
-        <button onclick="fecharModalOpcoes(); marcarPedidoEntregue(${pedidoId})" style="background:#e67e22; color:white; border:none; padding: 1.2rem; width: 100%; font-weight: 900; border-radius:12px; font-size: 1.1rem; box-shadow:0 5px 0 #d35400; cursor:pointer;">
-          ${isDelivery ? '🛵 ENVIAR PARA ENTREGA' : '🚚 ENTREGAR TUDO AGORA'}
+        <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#f1c40f; color:#2c3e50; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #d68910; cursor:pointer;">
+          💰 LIBERA DELIVERY
         </button>
       `;
     } else {
+      htmlFooter = `
+        <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#27ae60; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #219150; cursor:pointer;">
+          💰 CONFIRMAR PAGAMENTO E LIBERAR
+        </button>
+      `;
+    }
+  } else {
+    if (hasPend) {
       if (isDelivery) {
         htmlFooter = `
-          <button onclick="fecharModalOpcoes(); confirmarEntregaDelivery(${pedidoId})" style="background:#3498db; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #2980b9; cursor:pointer;">
+          <button onclick="fecharModalOpcoes(); marcarPedidoEntregue(${pedidoId})" style="background:#e74c3c; color:white; border:none; padding: 1.2rem; width: 100%; font-weight: 900; border-radius:12px; font-size: 1.1rem; box-shadow:0 5px 0 #c0392b; cursor:pointer;">
+            🛵 ENVIAR PARA ENTREGA
+          </button>
+        `;
+      } else {
+        htmlFooter = `
+          <button onclick="fecharModalOpcoes(); marcarPedidoEntregue(${pedidoId})" style="background:#e67e22; color:white; border:none; padding: 1.2rem; width: 100%; font-weight: 900; border-radius:12px; font-size: 1.1rem; box-shadow:0 5px 0 #d35400; cursor:pointer;">
+            🚚 ENTREGAR TUDO AGORA
+          </button>
+        `;
+      }
+    } else {
+      if (isDelivery) {
+        htmlFooter = `
+          <button onclick="fecharModalOpcoes(); confirmarEntregaDelivery(${pedidoId})" style="background:#e67e22; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #d35400; cursor:pointer;">
             ✅ CONFIRMAR ENTREGA
           </button>
         `;
