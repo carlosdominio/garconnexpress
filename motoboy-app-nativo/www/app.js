@@ -752,7 +752,7 @@ const App = {
             } else if (isReady) {
                 buttonHTML = `<button class="btn-entregar" onclick="App.ui.confirmarEntrega(${p.id}, this)"><i class="fas fa-motorcycle"></i> CONFIRMAR ENTREGA</button>`;
             } else {
-                buttonHTML = `<button class="btn-entregar" style="background:#f39c12; box-shadow: 0 4px 0 #d68910; cursor:not-allowed;" disabled><i class="fas fa-clock"></i> AGUARDANDO COZINHA</button>`;
+                buttonHTML = `<button class="btn-entregar" style="background:#94a3b8; box-shadow: 0 4px 0 #64748b; cursor:not-allowed;" disabled><i class="fas fa-clock"></i> AGUARDANDO COZINHA</button>`;
             }
 
             card.innerHTML = `
