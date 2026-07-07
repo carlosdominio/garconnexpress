@@ -192,6 +192,12 @@
         <div class="pedido-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; padding: 0 10px;">
           <h2 style="margin-bottom: 0;">Pedido - Mesa <span id="mesa-atual"></span></h2>
         </div>
+        <div id="pedido-busca-wrapper" style="padding: 0 10px; margin-bottom: 0.5rem;">
+          <div style="display: flex; align-items: center; background: #f1f5f9; border: 1.5px solid #cbd5e0; border-radius: 20px; padding: 6px 12px; height: 38px;">
+            <span style="color: #64748b; margin-right: 8px; font-size: 0.85rem;">🔍</span>
+            <input type="text" id="pedido-busca-input" placeholder="Buscar produto..." oninput="filtrarProdutosGarcom()" style="border: none; background: transparent; font-size: 0.9rem; color: #2c3e50; outline: none; width: 100%;">
+          </div>
+        </div>
         <div id="categorias"></div>
       </div>
       <div id="menu-grid"></div>
