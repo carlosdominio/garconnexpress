@@ -775,17 +775,20 @@ async function safePusherTrigger(channel, event, data) {
           } else if (data.status === 'entregue') {
             if (isDelivery) {
               msgMotoboy = resolveTemplate('pedido-entregue', '✅ PEDIDO ENTREGUE', `✅ PEDIDO ENTREGUE E FINALIZADO: ${mesaFormatada}`);
+              msgGarcom = resolveTemplate('pedido-entregue', '✅ PEDIDO ENTREGUE', `✅ PEDIDO ENTREGUE E FINALIZADO: ${mesaFormatada}`);
             } else {
               return true; // Ignora para mesas de salão (evita duplicidade de "Entregue")
             }
           } else if (data.status === 'servido') {
             if (isDelivery) {
               msgMotoboy = resolveTemplate('saiu-entrega', '🛵 SAIU PARA ENTREGA', `🛵 SAIU PARA ENTREGA: ${mesaFormatada}`);
+              msgGarcom = resolveTemplate('saiu-entrega', '🛵 SAIU PARA ENTREGA', `🛵 SAIU PARA ENTREGA: ${mesaFormatada}`);
             } else {
               return true; // Ignora para salão
             }
           } else if (data.status === 'saiu_entrega') {
             msgMotoboy = resolveTemplate('saiu-entrega', '🛵 SAIU PARA ENTREGA', `🛵 SAIU PARA ENTREGA: ${mesaFormatada}`);
+            msgGarcom = resolveTemplate('saiu-entrega', '🛵 SAIU PARA ENTREGA', `🛵 SAIU PARA ENTREGA: ${mesaFormatada}`);
           } else if (data.status === 'liberada') {
             msgGarcom = resolveTemplate('mesa-liberada', '🔓 MESA LIBERADA', `🔓 MESA LIBERADA: ${mesaFormatada}`);
           } else {
@@ -821,6 +824,13 @@ async function safePusherTrigger(channel, event, data) {
               }
             }
             targets.push({ app: 'motoboy', title: msgMotoboy.title || 'Delivery Express', msg: bodyMotoboy });
+            
+            // Se for entrega concluída ou saída para entrega, notifica também o garçom/admin!
+            if (data.status === 'entregue' && msgGarcom.body) {
+              targets.push({ app: 'garcom', title: msgGarcom.title, msg: msgGarcom.body });
+            } else if ((data.status === 'servido' || data.status === 'saiu_entrega') && msgGarcom.body) {
+              targets.push({ app: 'garcom', title: msgGarcom.title, msg: msgGarcom.body });
+            }
           }
         } else {
           if (msgGarcom.body) {
@@ -4413,8 +4423,8 @@ const FCM_DEFAULTS = [
   { evento: 'status-caixa-atualizado', tituloPadrao: '💰 CAIXA', corpoPadrao: '{status}', destinatario: 'todos', variaveis: ['status'] },
   { evento: 'rascunho-recebido', tituloPadrao: 'GarçomExpress', corpoPadrao: '📝 Novo rascunho de pedido #{pedido_id} pendente na {mesa}.', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'mesa-liberada', tituloPadrao: 'GarçomExpress', corpoPadrao: '🔓 Mesa {mesa} foi liberada com sucesso!', destinatario: 'garcom', variaveis: ['mesa'] },
-  { evento: 'saiu-entrega', tituloPadrao: 'Delivery Express', corpoPadrao: '🛵 O pedido #{pedido_id} ({mesa}) saiu para entrega!', destinatario: 'motoboy', variaveis: ['mesa', 'pedido_id'] },
-  { evento: 'pedido-entregue', tituloPadrao: 'Delivery Express', corpoPadrao: '✅ O pedido #{pedido_id} ({mesa}) foi entregue com sucesso!', destinatario: 'motoboy', variaveis: ['mesa', 'pedido_id'] },
+  { evento: 'saiu-entrega', tituloPadrao: 'Delivery Express', corpoPadrao: '🛵 O pedido #{pedido_id} ({mesa}) saiu para entrega!', destinatario: 'todos', variaveis: ['mesa', 'pedido_id'] },
+  { evento: 'pedido-entregue', tituloPadrao: 'Delivery Express', corpoPadrao: '✅ O pedido #{pedido_id} ({mesa}) foi entregue com sucesso!', destinatario: 'todos', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'fechamento-atrasado', tituloPadrao: '⚠️ CAIXA: FECHAMENTO ATRASADO!', corpoPadrao: 'O fechamento da {mesa} foi solicitado há mais de 5 minutos e ainda não foi concluído!', destinatario: 'garcom', variaveis: ['mesa'] },
   { evento: 'pedido-atrasado-motoboy', tituloPadrao: '🔥 MOTOBOY: ENTREGA ATRASADA!', corpoPadrao: 'O pedido de entrega #{pedido_id} está parado há mais de 10 minutos!', destinatario: 'motoboy', variaveis: ['pedido_id'] },
   { evento: 'pedido-atrasado-garcom', tituloPadrao: '🔥 GARÇOM: PEDIDO ATRASADO!', corpoPadrao: 'O pedido da {mesa} (#{pedido_id}) está parado há mais de 10 minutos!', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
