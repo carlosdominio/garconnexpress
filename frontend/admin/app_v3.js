@@ -1054,6 +1054,29 @@ async function carregarMesasLancar() {
     '<option value="DELIVERY" style="font-weight:bold; color:#e67e22;">🛵 DELIVERY</option>' +
     mesas.map(m => `<option value="${m.id}">Mesa ${m.numero} (${m.status.toUpperCase()})</option>`).join('');
   sincronizarFiltroCustomizadoLancar();
+
+  if (!select.dataset.listenerAdded) {
+    select.addEventListener('change', () => {
+      const isDeliv = select.value === 'DELIVERY';
+      const labelTaxa = document.getElementById('lancar-taxa-label');
+      const toggleTaxa = document.getElementById('lancar-taxa-toggle');
+      
+      if (isDeliv) {
+        if (labelTaxa) labelTaxa.innerText = 'TAXA';
+        if (toggleTaxa) {
+          toggleTaxa.checked = true;
+          toggleTaxa.disabled = true;
+        }
+      } else {
+        if (labelTaxa) labelTaxa.innerText = '10%';
+        if (toggleTaxa) {
+          toggleTaxa.disabled = false;
+        }
+      }
+      renderizarCarrinhoLancar();
+    });
+    select.dataset.listenerAdded = 'true';
+  }
 }
 
 function exibirCategoriasLancar() {
@@ -1210,7 +1233,9 @@ function renderizarCarrinhoLancar() {
       </div>`;
   }).join('');
   
-  const total = cobrarTaxa ? subtotal * 1.10 : subtotal;
+  const selectMesa = document.getElementById('lancar-mesa-select');
+  const isDelivery = selectMesa && selectMesa.value === 'DELIVERY';
+  const total = isDelivery ? (cobrarTaxa ? subtotal + 3.00 : subtotal) : (cobrarTaxa ? subtotal * 1.10 : subtotal);
   const elTotal = document.getElementById('lancar-total');
   if (elTotal) elTotal.innerText = `R$ ${total.toFixed(2)}`;
 }
