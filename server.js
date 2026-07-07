@@ -179,6 +179,9 @@ app.use((req, res, next) => {
 });
 app.use(cookieParser());
 
+// Garante que o banco de dados está inicializado para qualquer chamada de API
+app.use('/api/', ensureDbInitialized);
+
 // --- CONFIGURAÇÕES DE CARDAPIO E DELIVERY (CONTROLE INDEPENDENTE) ---
 app.get('/api/configs/cardapio-status', ensureDbInitialized, async (req, res) => {
   try {
@@ -284,27 +287,29 @@ async function verificarHorarioCardapio(hora_abrir, hora_fechar) {
     }
 }
 
-// CRON JOB Roda a cada minuto
-setInterval(async () => {
-    // 1. Agendamento do FCM Customizado
-    try {
-        await checkAndSendScheduledFCM();
-    } catch(e) { console.error("Erro interval FCM:", e); }
+// CRON JOB Roda a cada minuto (Apenas em ambiente local/tradicional, não no Vercel para evitar database timeouts em containers congelados)
+if (!process.env.VERCEL) {
+  setInterval(async () => {
+      // 1. Agendamento do FCM Customizado
+      try {
+          await checkAndSendScheduledFCM();
+      } catch(e) { console.error("Erro interval FCM:", e); }
 
-    // 2. Horário do Cardápio Automático
-    try {
-        const rAuto = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_auto'");
-        if (!rAuto.rows || rAuto.rows.length === 0 || rAuto.rows[0].valor !== 'true') return;
+      // 2. Horário do Cardápio Automático
+      try {
+          const rAuto = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_auto'");
+          if (!rAuto.rows || rAuto.rows.length === 0 || rAuto.rows[0].valor !== 'true') return;
 
-        const rAbrir = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_hora_abrir'");
-        const rFechar = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_hora_fechar'");
-        
-        const hora_abrir = rAbrir.rows && rAbrir.rows.length > 0 ? rAbrir.rows[0].valor : null;
-        const hora_fechar = rFechar.rows && rFechar.rows.length > 0 ? rFechar.rows[0].valor : null;
-        
-        verificarHorarioCardapio(hora_abrir, hora_fechar);
-    } catch(e) { }
-}, 60000);
+          const rAbrir = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_hora_abrir'");
+          const rFechar = await query("SELECT valor FROM sistema_config WHERE chave = 'cardapio_hora_fechar'");
+          
+          const hora_abrir = rAbrir.rows && rAbrir.rows.length > 0 ? rAbrir.rows[0].valor : null;
+          const hora_fechar = rFechar.rows && rFechar.rows.length > 0 ? rFechar.rows[0].valor : null;
+          
+          verificarHorarioCardapio(hora_abrir, hora_fechar);
+      } catch(e) { }
+  }, 60000);
+}
 
 
 // ENDPOINT PARA VERCEL CRON JOBS
@@ -579,9 +584,9 @@ if (isPostgres) {
         rejectUnauthorized: false, // Aceita certificados self-signed do Neon
         require: true 
       },
-      max: 10, // Aumentado para lidar com múltiplas requisições simultâneas em Serverless
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000, // Tempo de espera maior (10s) para o banco de dados acordar sem dar erro
+      max: process.env.VERCEL ? 2 : 10, // Conexões limitadas em Serverless (Vercel) para evitar estourar o limite de conexões do Neon
+      idleTimeoutMillis: process.env.VERCEL ? 8000 : 30000, // Tempo menor para liberar conexões inativas mais rápido no Vercel
+      connectionTimeoutMillis: 10000, // Tempo de espera (10s) para o banco de dados acordar sem dar erro
     });
     
     db.on('error', (err) => {
@@ -599,40 +604,40 @@ if (isPostgres) {
 
 async function query(text, params) {
   const executeQuery = async () => {
-    try {
-      if (isPostgres) {
-        let i = 1;
-        const pgText = text.replace(/\?/g, () => `$${i++}`);
-        const res = (params && params.length > 0) ? await db.query(pgText, params) : await db.query(pgText);
+    if (isPostgres) {
+      let i = 1;
+      const pgText = text.replace(/\?/g, () => `$${i++}`);
+      const res = (params && params.length > 0) ? await db.query(pgText, params) : await db.query(pgText);
+      return { 
+        rows: res.rows || [], 
+        changes: res.rowCount || 0, 
+        lastInsertRowid: (res.rows && res.rows.length > 0) ? (res.rows[0].id || null) : null 
+      };
+    } else {
+      const stmt = db.prepare(text);
+      if (text.trim().toUpperCase().startsWith('SELECT') || text.trim().toUpperCase().includes('RETURNING')) {
+        const rows = stmt.all(...(params || []));
         return { 
-          rows: res.rows || [], 
-          changes: res.rowCount || 0, 
-          lastInsertRowid: (res.rows && res.rows.length > 0) ? (res.rows[0].id || null) : null 
+          rows: rows,
+          lastInsertRowid: (rows && rows.length > 0) ? (rows[0].id || null) : null
         };
       } else {
-        const stmt = db.prepare(text);
-        if (text.trim().toUpperCase().startsWith('SELECT') || text.trim().toUpperCase().includes('RETURNING')) {
-          const rows = stmt.all(...(params || []));
-          return { 
-            rows: rows,
-            lastInsertRowid: (rows && rows.length > 0) ? (rows[0].id || null) : null
-          };
-        } else {
-          const info = stmt.run(...(params || []));
-          return { changes: info.changes, lastInsertRowid: info.lastInsertRowid };
-        }
+        const info = stmt.run(...(params || []));
+        return { changes: info.changes, lastInsertRowid: info.lastInsertRowid };
       }
-    } catch (err) {
-      console.error('DATABASE ERROR:', err.message);
-      throw err;
     }
   };
 
-  // Para Postgres, usa retry automático em caso de timeout
-  if (isPostgres) {
-    return retryWithDelay(executeQuery, 3, 500);
-  } else {
-    return executeQuery();
+  try {
+    // Para Postgres, usa retry automático em caso de timeout
+    if (isPostgres) {
+      return await retryWithDelay(executeQuery, 3, 500);
+    } else {
+      return await executeQuery();
+    }
+  } catch (err) {
+    console.error('DATABASE ERROR:', err.message);
+    throw err;
   }
 }
 
@@ -1813,7 +1818,7 @@ async function retryWithDelay(fn, maxRetries = 3, delay = 1000) {
     try {
       return await fn();
     } catch (error) {
-      console.error(`Tentativa ${i + 1} falhou:`, error.message);
+      console.warn(`Tentativa ${i + 1} falhou:`, error.message);
       if (i === maxRetries - 1) throw error;
       await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
     }
