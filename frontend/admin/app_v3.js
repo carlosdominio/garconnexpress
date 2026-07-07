@@ -3694,7 +3694,7 @@ async function exibirPedidos() {
               (pedido.status === 'aguardando_fechamento' ? 
                 `<button style="background:#27ae60; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #219150; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 CONFIRMAR PAGAMENTO E LIBERAR</button>` : 
                 (hasPend ? 
-                  `<button style="background:#e67e22; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #d35400; border:none; color:white; cursor:pointer;" onclick="marcarPedidoEntregue(${pedido.id})">🚚 ENTREGAR TUDO AGORA</button>` :
+                  `<button style="background:${pedido.garcom_id === 'ADMIN' ? '#e74c3c' : '#e67e22'}; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 ${pedido.garcom_id === 'ADMIN' ? '#c0392b' : '#d35400'}; border:none; color:white; cursor:pointer;" onclick="marcarPedidoEntregue(${pedido.id})">🚚 ENTREGAR TUDO AGORA</button>` :
                   `<button style="background:#27ae60; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #219150; border:none; color:white; cursor:pointer;" onclick="liberarMesa(${pedido.id}, ${pedido.mesa_id}, false)">🔓 LIBERAR MESA</button>`
                 )
               )
@@ -6650,8 +6650,9 @@ async function abrirModalOpcoes(pedidoId) {
           </button>
         `;
       } else {
+        const isBalcao = (pedido.garcom_id === 'ADMIN');
         htmlFooter = `
-          <button onclick="fecharModalOpcoes(); marcarPedidoEntregue(${pedidoId})" style="background:#e67e22; color:white; border:none; padding: 1.2rem; width: 100%; font-weight: 900; border-radius:12px; font-size: 1.1rem; box-shadow:0 5px 0 #d35400; cursor:pointer;">
+          <button onclick="fecharModalOpcoes(); marcarPedidoEntregue(${pedidoId})" style="background:${isBalcao ? '#e74c3c' : '#e67e22'}; color:white; border:none; padding: 1.2rem; width: 100%; font-weight: 900; border-radius:12px; font-size: 1.1rem; box-shadow:0 5px 0 ${isBalcao ? '#c0392b' : '#d35400'}; cursor:pointer;">
             🚚 ENTREGAR TUDO AGORA
           </button>
         `;
