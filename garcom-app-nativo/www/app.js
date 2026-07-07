@@ -901,7 +901,11 @@ async function configurarPusher() {
     });
 
     channel.bind('pedido-pronto', (data) => {
-      if (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) return;
+      if (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
       console.log('📢 Evento recebido: pedido-pronto', data);
       // Garçom sempre toca para pedidos prontos
       if (deveTocarSom('pedido-pronto')) tocarCampainha();
@@ -925,7 +929,11 @@ async function configurarPusher() {
         timeoutPusher = setTimeout(() => carregarMesas(), 50);
         return;
       }
-      if (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) return;
+      if (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
       console.log('📢 Evento recebido: novo-pedido', data);
 
       const isAddition = !!data.is_addition;
@@ -956,7 +964,11 @@ async function configurarPusher() {
     });
 
     channel.bind('status-atualizado', (data) => {
-      if (data && (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN'))) return;
+      if (data && (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN'))) {
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
       console.log('📢 Status atualizado no garçom:', data);
       
       clearTimeout(timeoutPusher);
@@ -996,7 +1008,11 @@ async function configurarPusher() {
     });
 
     channel.bind('pedido-cancelado', (data) => {
-      if (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) return;
+      if (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
       console.log('📢 Evento recebido: pedido-cancelado', data);
       const msg = data.mensagem || `🚨 Pedido #${data.pedido_id} foi REMOVIDO pelo Admin.`;
 
