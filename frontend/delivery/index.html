@@ -109,8 +109,8 @@
             <div class="stepper">
                 <div class="step" id="step-1"><div class="step-circle"><i class="fas fa-check"></i></div><span class="step-label">Recebido</span></div>
                 <div class="step" id="step-2"><div class="step-circle"><i class="fas fa-utensils"></i></div><span class="step-label">Preparo</span></div>
-                <div class="step" id="step-3"><div class="step-circle"><i class="fas fa-motorcycle"></i></div><span class="step-label">Entrega</span></div>
-                <div class="step" id="step-4"><div class="step-circle"><i class="fas fa-flag-checkered"></i></div><span class="step-label">Concluído</span></div>
+                <div class="step" id="step-3"><div class="step-circle"><i class="fas fa-motorcycle"></i></div><span class="step-label">A Caminho</span></div>
+                <div class="step" id="step-4"><div class="step-circle"><i class="fas fa-flag-checkered"></i></div><span class="step-label">Entregue</span></div>
             </div>
 
             <button onclick="reenviarScript()" id="btn-track-reenviar" style="background: #25D366; color: white; border: none; padding: 15px; border-radius: 15px; font-weight: 700; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; margin-bottom: 10px;">
@@ -298,10 +298,10 @@
                 'pendente': { step: 1, title: 'Pedido Recebido!', msg: 'Seu pedido já chegou para nós e em breve entrará em preparo.', icon: '✅' },
                 'recebido': { step: 1, title: 'Pedido Recebido!', msg: 'Seu pedido já chegou para nós e em breve entrará em preparo.', icon: '✅' },
                 'preparando': { step: 2, title: 'Em Preparação', msg: 'Nossa cozinha já está preparando seus itens com todo carinho.', icon: '🍳' },
-                'pronto': { step: 3, title: 'Pedido Pronto!', msg: 'Tudo pronto! Seu pedido está aguardando o motoboy para sair.', icon: '🍱' },
+                'pronto': { step: 2, title: 'Pedido Pronto!', msg: 'Tudo pronto! Seu pedido está aguardando o motoboy para sair.', icon: '🍱' },
                 'servido': { step: 3, title: 'Saiu para Entrega!', msg: 'O motoboy já pegou seu pedido e está a caminho do seu endereço.', icon: '🛵' },
                 'saiu_entrega': { step: 3, title: 'Saiu para Entrega!', msg: 'O motoboy já pegou seu pedido e está a caminho do seu endereço.', icon: '🛵' },
-                'aguardando_fechamento': { step: 3, title: 'Entregue!', msg: 'O motoboy confirmou a entrega. Aproveite sua refeição!', icon: '😋' },
+                'aguardando_fechamento': { step: 4, title: 'Entregue!', msg: 'O motoboy confirmou a entrega. Aproveite sua refeição!', icon: '😋' },
                 'entregue': { step: 4, title: 'Concluído!', msg: 'Pedido finalizado com sucesso. Obrigado pela preferência!', icon: '✨' },
                 'cancelado': { step: 0, title: 'Pedido Cancelado', msg: 'Infelizmente seu pedido foi cancelado. Entre em contato para mais detalhes.', icon: '❌' }
             };
