@@ -3692,9 +3692,10 @@ async function exibirPedidos() {
       const isDelivery = (pedido.garcom_id === 'DELIVERY');
       const mesaNomeExibicao = isDelivery ? `🛵 DELIVERY #${pedido.id}` : (pedido.mesa_numero ? `Mesa ${pedido.mesa_numero}` : `BALCÃO #${pedido.id}`);
       
-      if (pedidosStatusTaxa[pedido.id] === undefined) {
-        pedidosStatusTaxa[pedido.id] = (pedido.cobrar_taxa !== undefined) ? pedido.cobrar_taxa : true;
-      }
+      // Sincroniza sempre o estado da taxa com o valor vindo do banco de dados (converte 1/true em boolean)
+      pedidosStatusTaxa[pedido.id] = (pedido.cobrar_taxa === undefined || pedido.cobrar_taxa === null) 
+        ? true 
+        : (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true);
       const cobrarTaxaNoPedido = pedidosStatusTaxa[pedido.id];
 
       // USAR ITENS QUE JÁ VEM NO OBJETO PEDIDO (ECONOMIZA N FETCHS)
