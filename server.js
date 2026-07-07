@@ -1795,6 +1795,7 @@ async function initDb() {
     };
     
     // Migrações garantidas para todos os bancos
+    await addCol('pedido_itens', 'preco', 'REAL');
     await addCol('push_subscriptions', 'app_type', "TEXT DEFAULT 'garcom'");
     await addCol('push_subscriptions', 'is_native', 'INTEGER DEFAULT 0'); // 1 = token FCM nativo (Capacitor), 0 = Web Push
     await addCol('mesas', 'garcom_id', 'TEXT');
@@ -2297,7 +2298,7 @@ app.put('/api/pedidos/:id/taxa', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { cobrar_taxa } = req.body;
   try {
-    const todosItens = (await query("SELECT i.quantidade, m.preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
+    const todosItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
     const subtotal = todosItens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
     const taxaMultiplicador = await getTaxaServicoMultiplicador();
     const total = cobrar_taxa ? Math.round(subtotal * taxaMultiplicador * 100) / 100 : subtotal;
@@ -2402,7 +2403,7 @@ app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, isAuthenticated, a
 
     const pedidoIds = pedidos.map(p => p.id).join(',');
     const itensRes = await query(`
-      SELECT pi.*, m.nome, m.preco, m.categoria, m.enviar_cozinha, m.imagem
+      SELECT pi.*, m.nome, COALESCE(pi.preco, m.preco) as preco, m.categoria, m.enviar_cozinha, m.imagem
       FROM pedido_itens pi
       JOIN menu m ON pi.menu_id = m.id
       WHERE pi.pedido_id IN (${pedidoIds})
@@ -2513,7 +2514,7 @@ app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, isAuthenticated
 
     // Busca itens e pagamentos de todos os pedidos de uma vez
     const [itensRes, pagamentosRes] = await Promise.all([
-      query(`SELECT pi.*, m.nome, m.preco, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id IN (${idList})`),
+      query(`SELECT pi.*, m.nome, COALESCE(pi.preco, m.preco) as preco, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id IN (${idList})`),
       query(`SELECT * FROM pagamentos WHERE pedido_id IN (${idList}) ORDER BY data ASC`)
     ]);
 
@@ -2584,7 +2585,7 @@ app.get('/api/pedidos/:id/itens', ensureDbInitialized, async (req, res) => {
     const isDelivery = pedidoRes.rows[0].garcom_id === 'DELIVERY';
     
     const fetchItens = async () => {
-      const result = await query(`SELECT pi.*, m.nome, m.preco, m.categoria, m.enviar_cozinha, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [req.params.id]);
+      const result = await query(`SELECT pi.*, m.nome, COALESCE(pi.preco, m.preco) as preco, m.categoria, m.enviar_cozinha, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [req.params.id]);
       res.json(result.rows);
     };
 
@@ -2765,6 +2766,7 @@ app.post('/api/pedidos', orderLimiter, (req, res, next) => {
 
       // 3. Cálculo Seguro do Subtotal
       const precoOficial = parseFloat(p.preco) || 0;
+      item.preco_unitario = precoOficial;
       subtotalReal += (precoOficial * item.quantidade);
     }
 
@@ -2836,12 +2838,12 @@ app.post('/api/pedidos', orderLimiter, (req, res, next) => {
         console.log(`ℹ️ Mesa ${mesaIdNum} já possui código de acesso ativo (ID: ${acessoExistente.id}, Código: ${acessoExistente.codigo}). Mantendo sessão.`);
       }
     }    if (itens.length > 0) {
-      const placeholders = itens.map(() => '(?, ?, ?, ?, ?)').join(', ');
+      const placeholders = itens.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
       const values = [];
       for (const item of itens) {
-        values.push(pedidoId, item.menu_id, item.quantidade, item.observacao || '', 'pendente');
+        values.push(pedidoId, item.menu_id, item.quantidade, item.observacao || '', 'pendente', item.preco_unitario || 0);
       }
-      await query(`INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES ${placeholders}`, values);
+      await query(`INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status, preco) VALUES ${placeholders}`, values);
 
       for (const item of itens) {
         await abaterEstoquePorFichaTecnica(item.menu_id, item.quantidade);
@@ -2942,7 +2944,7 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
       for (const item of itens) {
         await abaterEstoquePorFichaTecnica(item.menu_id, item.quantidade);
         const pMenu = (await query("SELECT preco FROM menu WHERE id = ?", [item.menu_id])).rows[0];
-        if (pMenu) novoSub += (pMenu.preco * item.quantidade);
+        if (pMenu) novoSub += ((item.preco || pMenu.preco) * item.quantidade);
       }
     }
     const pedido = (await query("SELECT cobrar_taxa FROM pedidos WHERE id = ?", [id])).rows[0];
@@ -3027,12 +3029,15 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
       const checagemEstoque = await verificarEstoqueDisponivel(item.menu_id, item.quantidade);
       if (!checagemEstoque.disponivel) return res.status(400).json({ error: checagemEstoque.erro });
 
+      const pMenu = (await query("SELECT preco FROM menu WHERE id = ?", [item.menu_id])).rows[0];
+      const precoOficial = pMenu ? (parseFloat(pMenu.preco) || 0) : 0;
+
       const exist = await query('SELECT id, quantidade FROM pedido_itens WHERE pedido_id = ? AND menu_id = ? AND observacao = ? AND status = ?', [id, item.menu_id, item.observacao || '', 'pendente']);
       if (exist.rows.length > 0) await query('UPDATE pedido_itens SET quantidade = ? WHERE id = ?', [exist.rows[0].quantidade + item.quantidade, exist.rows[0].id]);
-      else await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES (?, ?, ?, ?, ?)', [id, item.menu_id, item.quantidade, item.observacao || '', 'pendente']);
+      else await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status, preco) VALUES (?, ?, ?, ?, ?, ?)', [id, item.menu_id, item.quantidade, item.observacao || '', 'pendente', precoOficial]);
       await abaterEstoquePorFichaTecnica(item.menu_id, item.quantidade);
     }
-    const tItens = (await query("SELECT i.quantidade, m.preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
+    const tItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
     const sub = tItens.reduce((sum, i) => sum + ((parseFloat(i.preco) || 0) * i.quantidade), 0);
     const taxaMultiplicador = await getTaxaServicoMultiplicador();
     const tot = deveTaxa ? Math.round(sub * taxaMultiplicador * 100) / 100 : sub;
@@ -3152,7 +3157,7 @@ app.put('/api/pedidos/:id/solicitar-fechamento', isAuthenticated, async (req, re
     if (totalFinal === undefined || totalFinal === null || totalFinal === 0) {
       const pOrig = (await query("SELECT cobrar_taxa FROM pedidos WHERE id = ?", [id])).rows[0];
       const deveTaxa = pOrig ? pOrig.cobrar_taxa : true;
-      const tItens = (await query("SELECT i.quantidade, m.preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
+      const tItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
       const sub = tItens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
       const taxaMultiplicador = await getTaxaServicoMultiplicador();
       totalFinal = deveTaxa ? Math.round(sub * taxaMultiplicador * 100) / 100 : sub;
@@ -3298,7 +3303,7 @@ app.put('/api/pedidos/:id/transferir', isAuthenticated, async (req, res) => {
     
     if (isGarcomReal) {
       // Ativa a taxa de 10% automaticamente e recalcula o total
-      const todosItens = (await query("SELECT i.quantidade, m.preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
+      const todosItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
       const subtotal = todosItens.reduce((sum, i) => sum + ((parseFloat(i.preco) || 0) * i.quantidade), 0);
       const taxaMultiplicador = await getTaxaServicoMultiplicador();
       const total = Math.round(subtotal * taxaMultiplicador * 100) / 100;
@@ -3514,16 +3519,16 @@ app.get('/api/relatorios/estoque', isAdmin, async (req, res) => {
 
     // 2. Produtos Mais Vendidos e Lucro Realizado
     const maisVendidosRes = await query(
-      `SELECT m.id, m.nome, m.categoria, m.unidade, m.preco, m.preco_custo,
+      `SELECT m.id, m.nome, m.categoria, m.unidade, COALESCE(pi.preco, m.preco) as preco, m.preco_custo,
               SUM(pi.quantidade) as total_vendido,
-              SUM(pi.quantidade * (m.preco - m.preco_custo)) as lucro_total
+              SUM(pi.quantidade * (COALESCE(pi.preco, m.preco) - m.preco_custo)) as lucro_total
        FROM pedido_itens pi
        JOIN menu m ON pi.menu_id = m.id
        JOIN pedidos p ON pi.pedido_id = p.id
        WHERE p.status NOT IN ('cancelado', 'rascunho')
          AND p.created_at >= ?
          AND p.created_at <= ?
-       GROUP BY m.id, m.nome, m.categoria, m.unidade, m.preco, m.preco_custo
+       GROUP BY m.id, m.nome, m.categoria, m.unidade, COALESCE(pi.preco, m.preco), m.preco_custo
        ORDER BY total_vendido DESC`,
       [dateInicio, dateFim]
     );
