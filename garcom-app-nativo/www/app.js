@@ -926,8 +926,12 @@ async function configurarPusher() {
       }
       if (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY')) return;
       console.log('📢 Evento recebido: novo-pedido', data);
-      // Garçom toca som suave para novos pedidos (ex: pedidos via QR Code)
-      if (deveTocarSom('novo-pedido')) tocarCampainha(true);
+
+      const isAddition = !!data.is_addition;
+      const evKey = isAddition ? 'item-adicionado' : 'novo-pedido';
+
+      // Garçom toca som suave para novos pedidos / adições
+      if (deveTocarSom(evKey)) tocarCampainha(true);
 
       // Extrai número da mesa se disponível
       let mesaRaw = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : null) || data.mesa_id || (data.pedido ? data.pedido.mesa_id : null) || 'X';
@@ -939,7 +943,11 @@ async function configurarPusher() {
       }
 
       // Mostra Toast e Notificação Nativa
-      dispararToastSistema('novo-pedido', { mesa: mesaStr }, `Novo pedido recebido da ${mesaStr}`, 'info');
+      if (isAddition) {
+        dispararToastSistema('item-adicionado', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `➕ Novos itens adicionados na ${mesaStr}!`, 'info');
+      } else {
+        dispararToastSistema('novo-pedido', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `Novo pedido recebido da ${mesaStr}`, 'info');
+      }
 
 
       clearTimeout(timeoutPusher);

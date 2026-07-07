@@ -5562,9 +5562,15 @@ async function configurarPusher() {
       }
 
       const mesaId = p ? p.mesa_id : 'geral';
+      const isAddition = !!data.is_addition;
 
-      exibirNotificacaoNativa('🚀 NOVO PEDIDO', `${nomeExibicao} acabou de fazer um pedido.`, `mesa-${mesaId}`);
-      mostrarToast(`🚀 NOVO PEDIDO: ${nomeExibicao}`);
+      if (isAddition) {
+        exibirNotificacaoNativa('➕ ITEM ADICIONADO', `Novos itens adicionados na ${nomeExibicao}.`, `mesa-${mesaId}`);
+        mostrarToast(`➕ ITEM ADICIONADO: ${nomeExibicao}`);
+      } else {
+        exibirNotificacaoNativa('🚀 NOVO PEDIDO', `${nomeExibicao} acabou de fazer um pedido.`, `mesa-${mesaId}`);
+        mostrarToast(`🚀 NOVO PEDIDO: ${nomeExibicao}`);
+      }
 
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => {

@@ -571,9 +571,18 @@ async function configurarPusher() {
             if (data && data.para_cozinha === true) {
                 const mesa = (data.pedido && data.pedido.mesa_numero) || data.mesa_numero || 'BALCÃO';
                 const labelMesa = mesa.includes('DELIVERY') ? mesa : `Mesa ${mesa}`;
-                dispararToastSistema('novo-pedido', { mesa: labelMesa }, `🍳 NOVO PEDIDO: ${labelMesa}`, 'success');
-                exibirNotificacaoNativa(`🍳 NOVO PEDIDO: ${labelMesa}`, "Um novo pedido chegou para a cozinha!", `pedido-${data.pedido_id || 'novo'}`);
-                if (deveTocarSom('novo-pedido')) tocarSomNotificacao('campainha');
+                const isAddition = !!data.is_addition;
+                const evKey = isAddition ? 'item-adicionado' : 'novo-pedido';
+
+                if (isAddition) {
+                    dispararToastSistema('item-adicionado', { mesa: labelMesa, pedido_id: data.pedido ? data.pedido.id : '' }, `🍳 ITEM ADICIONADO: ${labelMesa}`, 'success');
+                    exibirNotificacaoNativa(`🍳 ITEM ADICIONADO: ${labelMesa}`, "Novos itens foram adicionados para a cozinha!", `pedido-${data.pedido_id || 'novo'}`);
+                } else {
+                    dispararToastSistema('novo-pedido', { mesa: labelMesa, pedido_id: data.pedido ? data.pedido.id : '' }, `🍳 NOVO PEDIDO: ${labelMesa}`, 'success');
+                    exibirNotificacaoNativa(`🍳 NOVO PEDIDO: ${labelMesa}`, "Um novo pedido chegou para a cozinha!", `pedido-${data.pedido_id || 'novo'}`);
+                }
+
+                if (deveTocarSom(evKey)) tocarSomNotificacao('campainha');
                 tocarSomNotificacao('windows');
             }
             

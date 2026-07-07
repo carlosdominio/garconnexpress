@@ -544,7 +544,12 @@ const App = {
                     App.loadPedidos();
                     const pId = String(p.id || p.pedido_id || '');
                     if (pId) {
-                        App.notifications.showLocal(`🆕 NOVO DELIVERY`, `Pedido #${pId} recebido!`, `novo_${pId}`);
+                        const isAddition = !!data.is_addition;
+                        if (isAddition) {
+                            App.notifications.showLocal(`➕ ITEM ADICIONADO`, `Novos itens adicionados no pedido #${pId}!`, `novo_${pId}`);
+                        } else {
+                            App.notifications.showLocal(`🆕 NOVO DELIVERY`, `Pedido #${pId} recebido!`, `novo_${pId}`);
+                        }
                     }
                 });
 

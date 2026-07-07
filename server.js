@@ -2936,6 +2936,7 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
         safePusherTrigger('garconnexpress', 'menu-atualizado', {}),
         safePusherTrigger('garconnexpress', 'novo-pedido', { 
           para_cozinha: temItemCozinha,
+          is_addition: true,
           pedido: { id: id, mesa_numero: mesaNum, status: 'recebido', garcom_id: pMesa ? pMesa.garcom_id : null } 
         })
       ]);
