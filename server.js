@@ -317,7 +317,7 @@ app.get('/api/cron/cardapio', async (req, res) => {
     try {
         await checkAndSendScheduledFCM();
         // --- FAXINA DE MESAS E PEDIDOS ÓRFÃOS ---
-        await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE garcom_id IS NOT NULL AND garcom_id NOT IN (SELECT usuario FROM garcons WHERE usuario IS NOT NULL)");
+        await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE garcom_id IS NOT NULL AND garcom_id != 'ADMIN' AND garcom_id != 'QRCODE' AND garcom_id != 'DELIVERY' AND garcom_id NOT IN (SELECT usuario FROM garcons WHERE usuario IS NOT NULL)");
         await query("UPDATE pedidos SET status = 'cancelado' WHERE status NOT IN ('entregue', 'cancelado') AND garcom_id IS NOT NULL AND garcom_id != 'ADMIN' AND garcom_id != 'QRCODE' AND garcom_id != 'DELIVERY' AND garcom_id NOT IN (SELECT usuario FROM garcons WHERE usuario IS NOT NULL)");
         // --- FAXINA AUTOMÁTICA DIÁRIA ---
         const hoje = new Date().toISOString().substring(0, 10);
@@ -3254,6 +3254,25 @@ app.post('/api/pedidos/:id/pagamento-parcial', isAuthenticated, async (req, res)
     }
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.put('/api/pedidos/:id/transferir', isAuthenticated, async (req, res) => {
+  if (req.user && req.user.role === 'cliente') return res.status(403).json({ error: 'Acesso negado.' });
+  const { id } = req.params;
+  const { garcom_id } = req.body;
+  try {
+    await query("UPDATE pedidos SET garcom_id = ? WHERE id = ?", [garcom_id, id]);
+    const p = (await query("SELECT mesa_id FROM pedidos WHERE id = ?", [id])).rows[0];
+    if (p && p.mesa_id) {
+      await query("UPDATE mesas SET garcom_id = ? WHERE id = ?", [garcom_id, p.mesa_id]);
+      await notifyStatus(id, p.mesa_id, 'transferido');
+    } else {
+      await notifyStatus(id, null, 'transferido');
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, res) => {

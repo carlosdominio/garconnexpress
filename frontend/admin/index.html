@@ -1734,6 +1734,20 @@
         <!-- Container para Alertas e Observações -->
         <div id="modal-opcoes-info-extra" style="margin-bottom: 15px;"></div>
 
+        <!-- Transferir Garçom (Injetado ou Ocultado via JS) -->
+        <div id="modal-opcoes-transferir" style="display: none; background: white; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); align-items: center; justify-content: space-between; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+            <span style="font-size: 1.2rem;">🙋‍♂️</span>
+            <div style="flex: 1;">
+              <div style="font-size: 0.8rem; font-weight: bold; color: #64748b; text-transform: uppercase;">Atribuir Garçom</div>
+              <select id="select-transferir-garcom" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px; font-size: 0.85rem; background: #f8fafc; font-weight: bold; color: #334155; margin-top: 4px;"></select>
+            </div>
+          </div>
+          <button id="btn-transferir-garcom" style="background: #27ae60; color: white; border: none; padding: 8px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.85rem; align-self: flex-end; box-shadow: 0 3px 0 #219150; height: 35px; display: flex; align-items: center; justify-content: center;">
+            Transferir
+          </button>
+        </div>
+
         <!-- Seção de Totais e Impressão -->
         <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
           <div id="modal-opcoes-valores">

@@ -6676,6 +6676,74 @@ async function abrirModalOpcoes(pedidoId) {
   }
   document.getElementById('modal-opcoes-footer-acoes').innerHTML = htmlFooter;
 
+  // Configuração do bloco de transferência de garçom
+  const divTransferir = document.getElementById('modal-opcoes-transferir');
+  if (divTransferir) {
+    if (!isDelivery && pedido.mesa_id) {
+      divTransferir.style.display = 'flex';
+      // Buscar garçons online
+      try {
+        const resG = await fetch('/api/garcons');
+        if (resG.ok) {
+          const garcons = await resG.json();
+          const garconsOnline = garcons.filter(g => g.is_online === true || g.is_online === 1);
+          const selectG = document.getElementById('select-transferir-garcom');
+          if (selectG) {
+            selectG.innerHTML = '';
+            if (garconsOnline.length === 0) {
+              selectG.innerHTML = '<option value="">Sem garçons online</option>';
+              document.getElementById('btn-transferir-garcom').disabled = true;
+              document.getElementById('btn-transferir-garcom').style.opacity = 0.5;
+            } else {
+              document.getElementById('btn-transferir-garcom').disabled = false;
+              document.getElementById('btn-transferir-garcom').style.opacity = 1;
+              garconsOnline.forEach(g => {
+                const opt = document.createElement('option');
+                opt.value = g.usuario;
+                opt.textContent = g.nome;
+                if (pedido.garcom_id === g.usuario) {
+                  opt.selected = true;
+                }
+                selectG.appendChild(opt);
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao buscar garçons para transferência:", err);
+      }
+      
+      document.getElementById('btn-transferir-garcom').onclick = async () => {
+        const selectG = document.getElementById('select-transferir-garcom');
+        const garcomSelecionado = selectG.value;
+        if (!garcomSelecionado) {
+          return mostrarAlerta("Selecione um garçom online para transferir.");
+        }
+        
+        try {
+          const resTransf = await fetch(`/api/pedidos/${pedidoId}/transferir`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ garcom_id: garcomSelecionado })
+          });
+          
+          if (resTransf.ok) {
+            fecharModalOpcoes();
+            carregarPedidos();
+            mostrarAlerta("Mesa transferida com sucesso!", "Sucesso", "✅");
+          } else {
+            const dataErr = await resTransf.json();
+            mostrarAlerta(dataErr.error || "Erro ao transferir mesa.");
+          }
+        } catch (err) {
+          mostrarAlerta("Erro de conexão ao transferir.");
+        }
+      };
+    } else {
+      divTransferir.style.display = 'none';
+    }
+  }
+
   document.getElementById('modal-opcoes-mesa').style.display = 'flex';
   document.body.classList.add('modal-open');
 }
