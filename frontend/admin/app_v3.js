@@ -1438,10 +1438,11 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
       carrinhoLancar = [];
       renderizarCarrinhoLancar();
       
-      // MOSTRA MODAL DE DECISÃO (Ajustado para Delivery)
+      // MOSTRA MODAL DE DECISÃO (Ajustado para Delivery e Mesas)
       const modalDecisao = document.getElementById('modal-decisao-pos-lancar');
       const btnFechar = document.getElementById('btn-decisao-fechar');
       const btnManter = document.getElementById('btn-decisao-manter');
+      const isMesa = (mesaId !== null && mesaId !== undefined && mesaId !== '');
 
       if (isDelivery) {
         if (btnFechar) btnFechar.style.display = 'none';
@@ -1449,7 +1450,14 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
           btnManter.innerText = '🛵 ACOMPANHAR DELIVERY';
           btnManter.style.background = '#e67e22'; // Cor laranja do Delivery
         }
+      } else if (isMesa) {
+        if (btnFechar) btnFechar.style.display = 'none';
+        if (btnManter) {
+          btnManter.innerText = '🚪 ACOMPANHAR MESA';
+          btnManter.style.background = '#3498db'; // Cor azul para Mesas
+        }
       } else {
+        // Balcão (Venda Direta)
         if (btnFechar) btnFechar.style.display = 'block';
         if (btnManter) {
           btnManter.innerText = '⏳ MANTER EM ABERTO';
@@ -1476,9 +1484,14 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
             mostrarToast("🛵 Pedido enviado para o Delivery!");
             switchTab('ativos');
             switchSubTab('delivery');
+          } else if (isMesa) {
+            mostrarToast("🚪 Pedido enviado para a Mesa!");
+            switchTab('ativos');
+            switchSubTab('garcom');
           } else {
             mostrarToast("⏳ Pedido mantido nos Ativos!");
             switchTab('ativos');
+            switchSubTab('balcao');
           }
         };
       }
