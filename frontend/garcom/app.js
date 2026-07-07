@@ -1034,6 +1034,12 @@ async function configurarPusher() {
 
     channel.bind('rascunho-recebido', (data) => {
       console.log('📢 Evento recebido: rascunho-recebido', data);
+      const config = typeof _toastTemplates !== 'undefined' ? _toastTemplates.find(x => x.evento === 'rascunho-recebido') : null;
+      const ativo = config ? config.ativo : true;
+      if (!ativo) {
+        console.log("💬 [Toast Alertas] Evento [rascunho-recebido] está desativado pelo administrador.");
+        return;
+      }
       if (deveTocarSom('rascunho-recebido')) tocarCampainha();
       mostrarRascunho(data);
     });

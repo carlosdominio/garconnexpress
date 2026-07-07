@@ -680,7 +680,7 @@ async function safePusherTrigger(channel, event, data) {
     
     // --- WEB PUSH NATIVO (BACKGROUND) E FCM (NATIVO ANDROID/IOS) ---
     // Dispara notificação nativa para todos os garçons inscritos quando houver eventos cruciais
-    const eventsToPush = ['novo-pedido', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto', 'rascunho-recebido', 'solicitacao-fechamento-cliente', 'status-atualizado', 'status-caixa-atualizado'];
+    const eventsToPush = ['novo-pedido', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto', 'rascunho-recebido', 'solicitacao-fechamento-cliente', 'status-atualizado', 'status-caixa-atualizado', 'estoque-baixo'];
     if (eventsToPush.includes(event)) {
       try {
         const subs = (await query("SELECT * FROM push_subscriptions")).rows;
@@ -706,11 +706,11 @@ async function safePusherTrigger(channel, event, data) {
         if (mesaRaw !== 'BALCÃO' && !String(mesaRaw).toUpperCase().includes('DELIVERY') && !String(mesaRaw).toUpperCase().includes('MESA')) {
             mesaFormatada = `Mesa ${mesaRaw}`;
         }
-
+ 
         const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_title_%' OR chave LIKE 'fcm_body_%' OR chave IN ('config_som_garcom', 'config_som_cozinha', 'config_som_motoboy')")).rows;
         const configMap = {};
         for (const r of configData) configMap[r.chave] = r.valor;
-
+ 
         const resolveTemplate = (evt, defaultT, defaultB) => {
           let t = configMap[`fcm_title_${evt}`] || defaultT;
           let b = configMap[`fcm_body_${evt}`] || defaultB;
@@ -722,13 +722,13 @@ async function safePusherTrigger(channel, event, data) {
               .replace(/{mesa}/g, mesaFormatada)
               .replace(/{status}/g, data.status === 'fechado' ? '🔴 O caixa foi FECHADO. Atendimento encerrado.' : '🟢 O caixa foi ABERTO. Bom trabalho!')
               .replace(/{itens}/g, itemsList)
-              .replace(/{item}/g, data.item || '')
-              .replace(/{qtd}/g, data.qtd || '1')
+              .replace(/{item}/g, data.item || data.nome || '')
+              .replace(/{qtd}/g, data.qtd || data.estoque || '1')
               .replace(/{pedido_id}/g, String(data.pedido_id || data.id || ''));
           };
           return { title: mapVars(t), body: mapVars(b), som: s };
         };
-
+ 
         // Determina se o evento é para o Motoboy (Delivery) ou Garçom
         const isDelivery = data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY');
 
@@ -763,6 +763,12 @@ async function safePusherTrigger(channel, event, data) {
           msgGarcom = resolveTemplate('status-caixa-atualizado', defT, defB);
           msgCozinha = resolveTemplate('status-caixa-atualizado', defT, defB);
           msgMotoboy = resolveTemplate('status-caixa-atualizado', defT, defB);
+        } else if (event === 'estoque-baixo') {
+          const defT = '⚠️ ESTOQUE BAIXO';
+          const defB = 'Alerta de estoque baixo para {item}: restam apenas {qtd} un.!';
+          msgGarcom = resolveTemplate('estoque-baixo', defT, defB);
+          msgCozinha = resolveTemplate('estoque-baixo', defT, defB);
+          msgMotoboy = resolveTemplate('estoque-baixo', defT, defB);
         } else if (event === 'status-atualizado') {
           if (data.status === 'cancelado') {
             return true; // Deixa que o evento 'pedido-cancelado' envie a notificação, evita duplicidade.
@@ -786,12 +792,16 @@ async function safePusherTrigger(channel, event, data) {
             return true; // Ignora outros status
           }
         }
-
+ 
         // Mapeia os alvos que devem receber a notificação
         const targets = [];
-
+ 
         // Fechamento/abertura de caixa vai para TODOS os apps simultaneamente
         if (event === 'status-caixa-atualizado') {
+          targets.push({ app: 'garcom',  title: msgGarcom.title, msg: msgGarcom.body });
+          targets.push({ app: 'cozinha', title: msgCozinha.title, msg: msgCozinha.body });
+          targets.push({ app: 'motoboy', title: msgMotoboy.title, msg: msgMotoboy.body });
+        } else if (event === 'estoque-baixo') {
           targets.push({ app: 'garcom',  title: msgGarcom.title, msg: msgGarcom.body });
           targets.push({ app: 'cozinha', title: msgCozinha.title, msg: msgCozinha.body });
           targets.push({ app: 'motoboy', title: msgMotoboy.title, msg: msgMotoboy.body });
@@ -4408,7 +4418,8 @@ const FCM_DEFAULTS = [
   { evento: 'fechamento-atrasado', tituloPadrao: '⚠️ CAIXA: FECHAMENTO ATRASADO!', corpoPadrao: 'O fechamento da {mesa} foi solicitado há mais de 5 minutos e ainda não foi concluído!', destinatario: 'garcom', variaveis: ['mesa'] },
   { evento: 'pedido-atrasado-motoboy', tituloPadrao: '🔥 MOTOBOY: ENTREGA ATRASADA!', corpoPadrao: 'O pedido de entrega #{pedido_id} está parado há mais de 10 minutos!', destinatario: 'motoboy', variaveis: ['pedido_id'] },
   { evento: 'pedido-atrasado-garcom', tituloPadrao: '🔥 GARÇOM: PEDIDO ATRASADO!', corpoPadrao: 'O pedido da {mesa} (#{pedido_id}) está parado há mais de 10 minutos!', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
-  { evento: 'pedido-atrasado-cozinha', tituloPadrao: '🔥 COZINHA: PEDIDO ATRASADO!', corpoPadrao: 'O pedido #{pedido_id} ({mesa}) está aguardando há mais de 10 minutos!', destinatario: 'cozinha', variaveis: ['mesa', 'pedido_id'] }
+  { evento: 'pedido-atrasado-cozinha', tituloPadrao: '🔥 COZINHA: PEDIDO ATRASADO!', corpoPadrao: 'O pedido #{pedido_id} ({mesa}) está aguardando há mais de 10 minutos!', destinatario: 'cozinha', variaveis: ['mesa', 'pedido_id'] },
+  { evento: 'estoque-baixo', tituloPadrao: '⚠️ ESTOQUE BAIXO', corpoPadrao: 'Alerta de estoque baixo para {item}: restam apenas {qtd} un.!', destinatario: 'garcom', variaveis: ['item', 'qtd'] }
 ];
 
 app.post('/api/fcm-config/listar', ensureDbInitialized, isAdmin, async (req, res) => {
@@ -4605,7 +4616,8 @@ const TOAST_DEFAULTS = [
   { evento: 'fechamento-atrasado', textoPadrao: '⚠️ CAIXA: FECHAMENTO ATRASADO! O fechamento da {mesa} foi solicitado há mais de 5 minutos.', label: 'Caixa: Fechamento Atrasado', tipo: 'erro', variaveis: ['mesa'] },
   { evento: 'pedido-atrasado-garcom', textoPadrao: '🔥 GARÇOM: PEDIDO ATRASADO! O pedido da {mesa} (#{pedido_id}) está parado há mais de 10 minutos!', label: 'Pedido Atrasado (Garçom)', tipo: 'erro', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'pedido-atrasado-cozinha', textoPadrao: '🔥 COZINHA: PEDIDO ATRASADO! O pedido #{pedido_id} ({mesa}) está aguardando há mais de 10 minutos!', label: 'Pedido Atrasado (Cozinha)', tipo: 'erro', variaveis: ['mesa', 'pedido_id'] },
-  { evento: 'pedido-atrasado-motoboy', textoPadrao: '🔥 MOTOBOY: ENTREGA ATRASADA! O pedido #{pedido_id} está parado há mais de 10 minutos!', label: 'Pedido Atrasado (Motoboy)', tipo: 'erro', variaveis: ['pedido_id'] }
+  { evento: 'pedido-atrasado-motoboy', textoPadrao: '🔥 MOTOBOY: ENTREGA ATRASADA! O pedido #{pedido_id} está parado há mais de 10 minutos!', label: 'Pedido Atrasado (Motoboy)', tipo: 'erro', variaveis: ['pedido_id'] },
+  { evento: 'rascunho-recebido', textoPadrao: '📝 Novo rascunho de pedido #{pedido_id} pendente na {mesa}.', label: 'Novo Rascunho', tipo: 'info', variaveis: ['mesa', 'pedido_id'] }
 ];
 
 app.get('/api/toast-config/listar', ensureDbInitialized, async (req, res) => {
