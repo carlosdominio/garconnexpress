@@ -1097,23 +1097,40 @@ function exibirCategoriasLancar() {
   const categorias = ['todas', ...categoriasUnicas];
   container.innerHTML = categorias.map(cat => {
     const nomeExibicao = cat === 'todas' ? 'Todos' : cat.charAt(0).toUpperCase() + cat.slice(1);
-    return `<div class="cat-mini ${cat === 'todas' ? 'ativa' : ''}" id="cat-lancar-${cat}" onclick="selecionarCategoriaLancar('${cat}')">${nomeExibicao}</div>`;
+    return `<div class="cat-mini ${cat === 'todas' ? 'ativa' : ''}" id="cat-lancar-${cat}" onclick="alternarCategoriaLancar('${cat}')">${nomeExibicao}</div>`;
   }).join('');
 }
 
-function selecionarCategoriaLancar(cat) {
+function alternarCategoriaLancar(cat) {
   document.querySelectorAll('#lancar-menu-categorias .cat-mini').forEach(c => c.classList.remove('ativa'));
   const el = document.getElementById(`cat-lancar-${cat}`);
   if (el) el.classList.add('ativa');
-  exibirMenuLancar(cat);
+  const queryText = (document.getElementById('lancar-busca-produto')?.value || '').trim().toLowerCase();
+  exibirMenuLancar(cat, queryText);
 }
 
-function exibirMenuLancar(categoria) {
+function obterCategoriaLancarAtiva() {
+  const ativa = document.querySelector('#lancar-menu-categorias .cat-mini.ativa');
+  return ativa ? ativa.id.replace('cat-lancar-', '') : 'todas';
+}
+
+function filtrarProdutosLancar() {
+  const queryText = (document.getElementById('lancar-busca-produto')?.value || '').trim().toLowerCase();
+  const categoria = obterCategoriaLancarAtiva();
+  exibirMenuLancar(categoria, queryText);
+}
+
+function exibirMenuLancar(categoria, queryTexto = '') {
   const container = document.getElementById('lancar-menu-grid');
   if (!container) return;
   
   const cardapioAtivo = cardapio.filter(i => i.visivel !== false && i.visivel !== 0);
-  const itens = categoria === 'todas' ? cardapioAtivo : cardapioAtivo.filter(i => i.categoria.trim().toLowerCase() === categoria);
+  let itens = categoria === 'todas' ? cardapioAtivo : cardapioAtivo.filter(i => i.categoria.trim().toLowerCase() === categoria);
+  
+  if (queryTexto) {
+    itens = itens.filter(i => i.nome.trim().toLowerCase().includes(queryTexto));
+  }
+
   container.innerHTML = itens.map(item => {
     let estoqueNum = -1;
     if (item.estoque !== null && item.estoque !== undefined && item.estoque !== '') {
