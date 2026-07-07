@@ -1070,6 +1070,7 @@ async function carregarMesasLancar() {
       } else {
         if (labelTaxa) labelTaxa.innerText = '10%';
         if (toggleTaxa) {
+          toggleTaxa.checked = false;
           toggleTaxa.disabled = false;
         }
       }
