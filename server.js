@@ -2334,7 +2334,7 @@ app.post('/api/caixa/abrir', isAdmin, async (req, res) => {
 app.post('/api/caixa/fechar', isAdmin, async (req, res) => {
   const { valor_final, id } = req.body;
   try {
-    const pedidosAtivos = await query("SELECT id FROM pedidos WHERE status NOT IN ('entregue', 'cancelado')");
+    const pedidosAtivos = await query("SELECT id FROM pedidos WHERE status NOT IN ('entregue', 'cancelado', 'rascunho')");
     if (pedidosAtivos.rows.length > 0) return res.status(400).json({ error: 'Existem pedidos pendentes.' });
     
     // Busca dados do caixa antes de fechar para o relatório do WhatsApp
