@@ -2202,10 +2202,7 @@ async function exibirMenu(categoria, queryTexto = '') {
           </div>
 
           <img src="${item.imagem}" alt="${item.nome}" onerror="this.onerror=null;this.src='https://placehold.co/150x120?text=${item.nome[0]}'">
-          <h3 style="font-size: 0.95rem !important; padding: 0.6rem 0.6rem 0.2rem 0.6rem; margin: 0; color: #2c3e50; font-weight: bold; white-space: normal; line-height: 1.2;">${item.nome}</h3>
-          <div style="font-size: 0.75rem; color: #7f8c8d; padding: 0 0.6rem 0.6rem 0.6rem; margin: 0; line-height: 1.2; font-weight: normal; white-space: normal; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; height: 1.8rem; text-overflow: ellipsis;">
-            ${item.descricao || ''}
-          </div>
+          <h3 style="font-size: 0.95rem !important; padding: 0.6rem 0.6rem 1.5rem 0.6rem; margin: 0; color: #2c3e50; font-weight: bold; white-space: normal; line-height: 1.2;">${item.nome}</h3>
         </div>
       `;
     }).join('');
