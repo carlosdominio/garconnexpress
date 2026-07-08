@@ -225,7 +225,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('tela-login-admin').classList.add('hidden');
     iniciarPainelAdmin();
   }
+
+  // Verifica versão do sistema contra descompasso de deploy
+  verificarVersaoSistema();
+  setInterval(verificarVersaoSistema, 5 * 60 * 1000);
 });
+
+const CLIENT_VERSION = '1.3.1';
+async function verificarVersaoSistema() {
+  try {
+    const res = await fetch('/api/versao?_t=' + Date.now());
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && data.versao && data.versao !== CLIENT_VERSION) {
+      console.log(`🔄 Nova versão do sistema encontrada (${data.versao}). Recarregando...`);
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({
+          title: 'Sistema Atualizado! 🚀',
+          text: 'Estamos aplicando melhorias e atualizando o painel administrativo...',
+          icon: 'info',
+          showConfirmButton: false,
+          allowOutsideClick: false,
+          timer: 2500
+        }).then(() => {
+          window.location.reload(true);
+        });
+      } else {
+        alert('O estabelecimento foi atualizado. O painel administrativo será recarregado.');
+        window.location.reload(true);
+      }
+    }
+  } catch (e) {
+    console.error('Erro ao verificar versão do sistema:', e);
+  }
+}
 
 async function realizarLoginAdmin() {
   const usuario = document.getElementById('admin-usuario').value;

@@ -64,7 +64,44 @@ document.addEventListener('DOMContentLoaded', async () => {
         .catch(err => console.log('❌ Erro ao registrar Service Worker:', err));
     });
   }
+
+  // Verifica versão do sistema contra descompasso de deploy
+  verificarVersaoSistema();
+  setInterval(verificarVersaoSistema, 5 * 60 * 1000);
 });
+
+const CLIENT_VERSION = '1.3.1';
+async function verificarVersaoSistema() {
+  try {
+    const res = await fetch('/api/versao?_t=' + Date.now());
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && data.versao && data.versao !== CLIENT_VERSION) {
+      if (typeof pedidoAtual !== 'undefined' && pedidoAtual.length > 0) {
+        console.log('⚠️ Nova versão disponível, mas aguardando esvaziamento do carrinho para recarregar.');
+        return;
+      }
+      console.log(`🔄 Nova versão do sistema encontrada (${data.versao}). Recarregando...`);
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({
+          title: 'Sistema Atualizado! 🚀',
+          text: 'Estamos aplicando melhorias e atualizando o aplicativo...',
+          icon: 'info',
+          showConfirmButton: false,
+          allowOutsideClick: false,
+          timer: 2500
+        }).then(() => {
+          window.location.reload(true);
+        });
+      } else {
+        alert('O estabelecimento foi atualizado. O aplicativo será recarregado.');
+        window.location.reload(true);
+      }
+    }
+  } catch (e) {
+    console.error('Erro ao verificar versão do sistema:', e);
+  }
+}
 
 async function limparNotificacoesNativas() {
   try {

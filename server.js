@@ -4873,6 +4873,11 @@ app.get('/api/debug-fcm', ensureDbInitialized, async (req, res) => {
     }
 });
 
+const SYSTEM_VERSION = '1.3.1';
+app.get('/api/versao', (req, res) => {
+  res.json({ versao: SYSTEM_VERSION });
+});
+
 app.get('/api/diag', async (req, res) => {
   try {
     let dbStatus = 'disconnected';
