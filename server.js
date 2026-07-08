@@ -1713,12 +1713,12 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
     // Notificação WhatsApp em paralelo/background para o ADMIN
     if (status === 'aguardando_fechamento') {
       if (mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY')) {
-        sendWhatsAppMessage(`✅ *PEDIDO ENTREGUE E FINALIZADO*\n📍 Local: ${mesaNum}\n💰 O delivery foi concluído com sucesso.`).catch(e => console.error('Erro Wpp:', e.message));
+        await sendWhatsAppMessage(`✅ *PEDIDO ENTREGUE E FINALIZADO*\n📍 Local: ${mesaNum}\n💰 O delivery foi concluído com sucesso.`).catch(e => console.error('Erro Wpp:', e.message));
       } else {
-        sendWhatsAppMessage(`🛎️ *SOLICITAÇÃO DE FECHAMENTO*\n📍 Local: ${mesaNum}\n💰 O cliente solicitou a conta.`).catch(e => console.error('Erro Wpp:', e.message));
+        await sendWhatsAppMessage(`🛎️ *SOLICITAÇÃO DE FECHAMENTO*\n📍 Local: ${mesaNum}\n💰 O cliente solicitou a conta.`).catch(e => console.error('Erro Wpp:', e.message));
       }
     } else if (status === 'cancelado') {
-      sendWhatsAppMessage(`❌ *PEDIDO CANCELADO*\n📍 Local: ${mesaNum}\n🗑️ O pedido foi removido do sistema.`).catch(e => console.error('Erro Wpp:', e.message));
+      await sendWhatsAppMessage(`❌ *PEDIDO CANCELADO*\n📍 Local: ${mesaNum}\n🗑️ O pedido foi removido do sistema.`).catch(e => console.error('Erro Wpp:', e.message));
     }
 
   } catch (e) { console.error('Erro ao notificar status:', e.message); }
@@ -2343,7 +2343,7 @@ app.post('/api/caixa/abrir', isAdmin, async (req, res) => {
     await safePusherTrigger('garconnexpress', 'status-caixa-atualizado', { status: 'aberto' });
     
     // Notificação WhatsApp
-    sendWhatsAppMessage(`💰 *CAIXA ABERTO*\n🕒 Horário: ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n💵 Valor Inicial: R$ ${Number(valor_inicial || 0).toFixed(2)}`).catch(e => console.error('Erro Wpp:', e.message));
+    await sendWhatsAppMessage(`💰 *CAIXA ABERTO*\n🕒 Horário: ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n💵 Valor Inicial: R$ ${Number(valor_inicial || 0).toFixed(2)}`).catch(e => console.error('Erro Wpp:', e.message));
 
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Erro ao abrir caixa' }); }
@@ -2379,7 +2379,7 @@ app.post('/api/caixa/fechar', isAdmin, async (req, res) => {
                      `📱 Pix: R$ ${Number(dadosCaixa.total_pix || 0).toFixed(2)}\n` +
                      `📈 Total Vendas: R$ ${Number(dadosCaixa.total_vendas || 0).toFixed(2)}\n` +
                      `🏁 Valor Final: R$ ${Number(valor_final || 0).toFixed(2)}`;
-      sendWhatsAppMessage(msgWpp).catch(e => console.error('Erro Wpp:', e.message));
+      await sendWhatsAppMessage(msgWpp).catch(e => console.error('Erro Wpp:', e.message));
     }
 
     res.json({ success: true });
@@ -2947,8 +2947,8 @@ app.post('/api/pedidos', orderLimiter, (req, res, next) => {
       })
     ]);
 
-    // WhatsApp pode rodar em paralelo/background sem travar a resposta principal
-    sendWhatsAppMessage(msgWpp).catch(e => console.error('Erro WhatsApp:', e.message));
+    // WhatsApp
+    await sendWhatsAppMessage(msgWpp).catch(e => console.error('Erro WhatsApp:', e.message));
 
     res.json({ id: pedidoId, success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
@@ -4264,7 +4264,7 @@ app.post('/api/cliente/chamar-garcom', isAuthenticated, async (req, res) => {
     });
     
     // Notifica via WhatsApp também se configurado
-    sendWhatsAppMessage(`🛎️ *CHAMADO DE MESA*\n📍 Mesa: ${mesa_numero}\n🙋‍♂️ O cliente solicitou atendimento imediato.`).catch(e => console.error('Erro Wpp Chamado:', e.message));
+    await sendWhatsAppMessage(`🛎️ *CHAMADO DE MESA*\n📍 Mesa: ${mesa_numero}\n🙋‍♂️ O cliente solicitou atendimento imediato.`).catch(e => console.error('Erro Wpp Chamado:', e.message));
     
     res.json({ success: true });
   } catch (error) {
@@ -4340,7 +4340,7 @@ app.post('/api/cliente/enviar-rascunho', isAuthenticated, async (req, res) => {
     });
 
     // Notifica via WhatsApp também
-    sendWhatsAppMessage(`📝 *RASCUNHO DE PEDIDO*\n📍 Mesa: ${mesa_numero}\n\n${itensFormatados}\n\n⚠️ _Aguardando confirmação do garçom._`).catch(e => console.error('Erro Wpp Rascunho:', e.message));
+    await sendWhatsAppMessage(`📝 *RASCUNHO DE PEDIDO*\n📍 Mesa: ${mesa_numero}\n\n${itensFormatados}\n\n⚠️ _Aguardando confirmação do garçom._`).catch(e => console.error('Erro Wpp Rascunho:', e.message));
 
     res.json({ success: true, pedido_id: pedidoRascunhoId });
   } catch (error) {
