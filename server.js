@@ -2582,6 +2582,32 @@ app.get('/api/pedidos/ativo-telefone/:telefone', ensureDbInitialized, async (req
   }
 });
 
+app.post('/api/temp-update-images', ensureDbInitialized, async (req, res) => {
+  const { urls } = req.body;
+  if (!urls || !Array.isArray(urls)) {
+    return res.status(400).json({ error: 'Lista de URLs inválida' });
+  }
+  try {
+    const results = [];
+    for (const url of urls) {
+      if (typeof url !== 'string') continue;
+      const match = url.match(/-(\d+)\.[a-z0-9]+$/i);
+      if (match) {
+        const id = parseInt(match[1]);
+        const updateRes = await query('UPDATE menu SET imagem = ? WHERE id = ?', [url, id]);
+        const affected = updateRes.rowCount !== undefined ? updateRes.rowCount : (updateRes.changes || 0);
+        results.push({ url, id, affected });
+      } else {
+        results.push({ url, error: 'ID não encontrado na URL' });
+      }
+    }
+    await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
+    res.json({ success: true, results });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/pedidos/:id', ensureDbInitialized, async (req, res) => {
   try {
     const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
