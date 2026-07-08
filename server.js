@@ -3656,7 +3656,7 @@ app.post('/api/menu', isAdmin, async (req, res) => {
       newId = result.rows && result.rows[0] ? result.rows[0].id : null;
     } else {
       const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, unidade, preco_custo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [nome, categoria, preco, preco_original, descricao, imagem, estoque || -1, validade || null, envCozinha, isVisivel, emPromocao, und, custo]);
-      newId = result.lastID || null;
+      newId = result.lastInsertRowid || result.lastID || null;
     }
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
     res.json({ success: true, id: newId });
