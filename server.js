@@ -314,6 +314,9 @@ if (!process.env.VERCEL) {
 
 // ENDPOINT PARA VERCEL CRON JOBS
 app.get('/api/cron/cardapio', async (req, res) => {
+    if (typeof botUrlFinal !== 'undefined' && botUrlFinal) {
+        fetch(botUrlFinal).catch(() => {});
+    }
     try {
         await checkAndSendScheduledFCM();
         // --- FAXINA AUTOMÁTICA DIÁRIA (RODA APENAS 1 VEZ POR DIA) ---
