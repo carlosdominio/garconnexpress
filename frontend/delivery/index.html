@@ -162,7 +162,7 @@
                     <label>CEP</label>
                     <div style="position: relative; display: flex; align-items: center;">
                         <input type="number" id="cust-cep" placeholder="Ex: 57000000" style="padding-right: 100px;">
-                        <button onclick="buscarCEP()" style="position: absolute; right: 5px; width: auto; padding: 8px 15px; background: var(--primary); margin-bottom: 0; font-size: 0.8rem; border-radius: 8px;">BUSCAR</button>
+                        <button onclick="buscarCEP()" style="position: absolute; right: 5px; width: auto; padding: 8px 15px; background: var(--primary); color: #fff; margin-bottom: 0; font-size: 0.8rem; border-radius: 8px;">BUSCAR</button>
                     </div>
                 </div>
 
@@ -590,7 +590,7 @@
             const payment = document.getElementById('cust-payment').value;
             const change = document.getElementById('cust-change').value;
 
-            if (!name || !address || !number) return Swal.fire('Aviso', 'Preencha Nome, Endereço e Número.', 'warning');
+            if (!name || !phone || !address || !number) return Swal.fire('Aviso', 'Preencha Nome, WhatsApp/Telefone, Endereço e Número.', 'warning');
             if (cart.length === 0) return Swal.fire('Aviso', 'Seu carrinho está vazio.', 'warning');
 
             const btn = document.getElementById('btn-finalizar');
