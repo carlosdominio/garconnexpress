@@ -4613,6 +4613,8 @@ app.get('/api/debug-fcm', async (req, res) => {
   } catch (err) {
     res.json({ success: false, error: err.message });
   }
+});
+
 app.get('/api/fcm/teste-motoboy-som', async (req, res) => {
   try {
     const configRes = await query("SELECT chave, valor FROM sistema_config");
