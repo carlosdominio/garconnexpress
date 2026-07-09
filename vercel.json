@@ -9,15 +9,17 @@
           "frontend/**",
           "motoboy-app-nativo/www/**",
           "cozinha-app-nativo/www/**",
-          "garcom-app-nativo/www/**",
-          "garcom-v1.1.0-portrait.apk",
-          "cozinha-v1.1.0-portrait.apk",
-          "motoboy-v2.0.0-portrait.apk"
+          "garcom-app-nativo/www/**"
         ]
       }
+    },
+    {
+      "src": "*.apk",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
+    { "src": "/(garcom-v1.1.0-portrait.apk|cozinha-v1.1.0-portrait.apk|motoboy-v2.0.0-portrait.apk)", "dest": "/$1" },
     { "src": "/(.*)", "dest": "/server.js" }
   ]
 }
