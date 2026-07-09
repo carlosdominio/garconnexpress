@@ -54,7 +54,7 @@ let pusher;
 let canal;
 let timeoutPusher;
 const container = document.getElementById('pedidos-container');
-const somTiposDisponiveis = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave'];
+const somTiposDisponiveis = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave', 'sino_cristal', 'alerta_moderno'];
 const audiosNotificacao = {};
 function inicializarAudios() {
   for (const som of somTiposDisponiveis) {
@@ -126,7 +126,8 @@ function getSoundPath(somTipo) {
     }
     return '/notificacao.mp3';
   }
-  const file = somTipo ? `${somTipo}.wav` : 'sino_moderno.wav';
+  const isMp3 = somTipo === 'sino_cristal' || somTipo === 'alerta_moderno';
+  const file = somTipo ? `${somTipo}.${isMp3 ? 'mp3' : 'wav'}` : 'sino_moderno.wav';
   const isCordova = window.cordova || window.Capacitor || window.location.protocol === 'file:';
   if (isCordova) {
     return `sons/${file}`;
