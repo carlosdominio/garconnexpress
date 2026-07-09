@@ -721,6 +721,11 @@ async function registerNativePush() {
     }
 
     await PushNotifications.register();
+    try {
+      await PushNotifications.removeAllListeners();
+    } catch (e) {
+      console.warn('Erro ao remover listeners:', e);
+    }
 
     PushNotifications.addListener('registration', async (token) => {
       console.log('🔔 Token FCM recebido (Cozinha):', token.value);

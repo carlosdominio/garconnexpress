@@ -461,6 +461,11 @@ const App = {
 
             if (perm.receive === 'granted') {
                 await PushNotifications.register();
+                try {
+                    await PushNotifications.removeAllListeners();
+                } catch (e) {
+                    console.warn('Erro ao remover listeners:', e);
+                }
             } else {
                 console.warn('❌ Permissão de notificação negada (Motoboy).');
                 Swal.fire({
