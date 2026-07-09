@@ -4547,10 +4547,26 @@ app.get('/api/debug-fcm', async (req, res) => {
       } : null
     }));
 
+    const getProjId = (envVar) => {
+      try {
+        if (!process.env[envVar]) return 'NOT SET';
+        const parsed = JSON.parse(process.env[envVar]);
+        return parsed.project_id || 'NO_PROJECT_ID_FIELD';
+      } catch (e) {
+        return 'PARSE_ERROR: ' + e.message;
+      }
+    };
+
     const envKeys = {
       FIREBASE_SERVICE_ACCOUNT: !!process.env.FIREBASE_SERVICE_ACCOUNT,
       FIREBASE_SERVICE_ACCOUNT_MOTOBOY: !!process.env.FIREBASE_SERVICE_ACCOUNT_MOTOBOY,
       FIREBASE_SERVICE_ACCOUNT_COZINHA: !!process.env.FIREBASE_SERVICE_ACCOUNT_COZINHA
+    };
+
+    const parsedProjectIds = {
+      garcom: getProjId('FIREBASE_SERVICE_ACCOUNT'),
+      motoboy: getProjId('FIREBASE_SERVICE_ACCOUNT_MOTOBOY'),
+      cozinha: getProjId('FIREBASE_SERVICE_ACCOUNT_COZINHA')
     };
 
     let localFiles = {
@@ -4568,6 +4584,7 @@ app.get('/api/debug-fcm', async (req, res) => {
       success: true,
       initializedApps,
       envKeys,
+      parsedProjectIds,
       localFiles
     });
   } catch (err) {
