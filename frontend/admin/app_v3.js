@@ -1376,7 +1376,10 @@ async function confirmarLancarPedidoDelivery() {
     return mostrarAlerta("Nome, Telefone, Endereço e Número são obrigatórios!", "Aviso", "⚠️");
   }
 
-  if (payment === 'Dinheiro' && change) {
+  if (payment === 'Dinheiro') {
+    if (!change) {
+      return mostrarAlerta("Para pagamentos em Dinheiro, o campo 'Troco para quanto?' é obrigatório!", "Aviso", "⚠️");
+    }
     const subtotal = carrinhoLancar.reduce((s,i) => s + (i.preco * i.quantidade), 0);
     const totalEstimado = subtotal + 3.00; // Taxa de entrega fixa
     if (parseFloat(change) < totalEstimado) {
@@ -1386,6 +1389,7 @@ async function confirmarLancarPedidoDelivery() {
 
   fecharModalLancarDelivery();
   await enviarPedidoLoteAdmin(true);
+
 }
 
 let enviandoPedidoLote = false;
