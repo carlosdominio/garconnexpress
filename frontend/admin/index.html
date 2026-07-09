@@ -1144,74 +1144,123 @@
           <div id="config-sub-som-apps" class="config-sub-section">
             <div style="display: flex; flex-direction: column; gap: 20px;">
               <!-- Card: Configurações de Som do Sistema -->
-              <div class="config-card">
-                <h3><i class="fa-solid fa-volume-high"></i> Toques de Alerta dos Aplicativos</h3>
-                <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1.5rem;">
+              <div class="config-card" style="padding: 24px; border-radius: 16px; background: white; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                  <i class="fa-solid fa-volume-high" style="font-size: 1.5rem; color: #3b82f6;"></i>
+                  <h3 style="margin: 0; border: none; font-size: 1.25rem; font-weight: 800; color: #1e293b;">Toques de Alerta dos Aplicativos</h3>
+                </div>
+                <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 2rem; border-bottom: 1.5px dashed #f1f5f9; padding-bottom: 12px;">
                   Escolha toques personalizados para cada aplicativo da equipe para facilitar a identificação sonora.
                 </p>
-                <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 1.5rem;">
+
+                <!-- Grid de Cards de Toques -->
+                <div class="sons-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 2rem;">
+                  
                   <!-- 1. Aplicativo do Garçom -->
-                  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                    <span style="font-weight: bold; width: 180px; font-size: 0.9rem; color: #1e293b;">🔵 App do Garçom:</span>
-                    <select id="config-som-garcom" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: white; width: 200px; cursor: pointer;">
-                      <option value="original">🔔 Som Padrão (Original)</option>
-                      <option value="mudo">🔇 Mudo (Sem Som)</option>
-                      <option value="campainha_classica">🔔 Campainha Clássica</option>
-                      <option value="sino_moderno">🎵 Sino Moderno</option>
-                      <option value="alerta_digital">📟 Alerta Digital</option>
-                      <option value="alerta_urgente">🚨 Alerta Urgente</option>
-                      <option value="suave">🍃 Suave/Discreto</option>
-                    </select>
-                    <button type="button" onclick="tocarPreviewSomApp('config-som-garcom')" style="padding: 8px 12px; background: #3b82f6; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.82rem; font-weight: bold;">▶️ Testar</button>
+                  <div class="son-card" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div>
+                      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                        <span style="font-size: 1.4rem; background: #eff6ff; padding: 6px 10px; border-radius: 8px;">🔵</span>
+                        <div>
+                          <strong style="color: #1e293b; font-size: 0.92rem; display: block;">App do Garçom</strong>
+                          <span style="font-size: 0.72rem; color: #64748b;">Novos pedidos de mesas</span>
+                        </div>
+                      </div>
+                      <select id="config-som-garcom" style="width: 100%; padding: 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.85rem; background: white; cursor: pointer; font-weight: bold; outline: none; margin-bottom: 15px; color: #334155;">
+                        <option value="original">🔔 Som Padrão (Original)</option>
+                        <option value="mudo">🔇 Mudo (Sem Som)</option>
+                        <option value="campainha_classica">🔔 Campainha Clássica</option>
+                        <option value="sino_moderno">🎵 Sino Moderno</option>
+                        <option value="alerta_digital">📟 Alerta Digital</option>
+                        <option value="alerta_urgente">🚨 Alerta Urgente</option>
+                        <option value="suave">🍃 Suave/Discreto</option>
+                      </select>
+                    </div>
+                    <button type="button" onclick="tocarPreviewSomApp('config-som-garcom')" style="width: 100%; padding: 10px; background: #e0f2fe; color: #0369a1; border: none; border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;" onmouseover="this.style.background='#bae6fd'" onmouseout="this.style.background='#e0f2fe'">
+                      <i class="fa-solid fa-play"></i> Ouvir Teste
+                    </button>
                   </div>
 
                   <!-- 2. Painel da Cozinha -->
-                  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                    <span style="font-weight: bold; width: 180px; font-size: 0.9rem; color: #1e293b;">🟠 Painel da Cozinha:</span>
-                    <select id="config-som-cozinha" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: white; width: 200px; cursor: pointer;">
-                      <option value="original">🔔 Som Padrão (Original)</option>
-                      <option value="mudo">🔇 Mudo (Sem Som)</option>
-                      <option value="campainha_classica">🔔 Campainha Clássica</option>
-                      <option value="sino_moderno">🎵 Sino Moderno</option>
-                      <option value="alerta_digital">📟 Alerta Digital</option>
-                      <option value="alerta_urgente">🚨 Alerta Urgente</option>
-                      <option value="suave">🍃 Suave/Discreto</option>
-                    </select>
-                    <button type="button" onclick="tocarPreviewSomApp('config-som-cozinha')" style="padding: 8px 12px; background: #3b82f6; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.82rem; font-weight: bold;">▶️ Testar</button>
+                  <div class="son-card" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div>
+                      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                        <span style="font-size: 1.4rem; background: #fff7ed; padding: 6px 10px; border-radius: 8px;">🟠</span>
+                        <div>
+                          <strong style="color: #1e293b; font-size: 0.92rem; display: block;">Painel da Cozinha</strong>
+                          <span style="font-size: 0.72rem; color: #64748b;">Itens para serem preparados</span>
+                        </div>
+                      </div>
+                      <select id="config-som-cozinha" style="width: 100%; padding: 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.85rem; background: white; cursor: pointer; font-weight: bold; outline: none; margin-bottom: 15px; color: #334155;">
+                        <option value="original">🔔 Som Padrão (Original)</option>
+                        <option value="mudo">🔇 Mudo (Sem Som)</option>
+                        <option value="campainha_classica">🔔 Campainha Clássica</option>
+                        <option value="sino_moderno">🎵 Sino Moderno</option>
+                        <option value="alerta_digital">📟 Alerta Digital</option>
+                        <option value="alerta_urgente">🚨 Alerta Urgente</option>
+                        <option value="suave">🍃 Suave/Discreto</option>
+                      </select>
+                    </div>
+                    <button type="button" onclick="tocarPreviewSomApp('config-som-cozinha')" style="width: 100%; padding: 10px; background: #ffedd5; color: #c2410c; border: none; border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;" onmouseover="this.style.background='#fed7aa'" onmouseout="this.style.background='#ffedd5'">
+                      <i class="fa-solid fa-play"></i> Ouvir Teste
+                    </button>
                   </div>
 
                   <!-- 3. Aplicativo do Motoboy -->
-                  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                    <span style="font-weight: bold; width: 180px; font-size: 0.9rem; color: #1e293b;">🟢 App do Motoboy:</span>
-                    <select id="config-som-motoboy" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: white; width: 200px; cursor: pointer;">
-                      <option value="original">🔔 Som Padrão (Original)</option>
-                      <option value="mudo">🔇 Mudo (Sem Som)</option>
-                      <option value="campainha_classica">🔔 Campainha Clássica</option>
-                      <option value="sino_moderno">🎵 Sino Moderno</option>
-                      <option value="alerta_digital">📟 Alerta Digital</option>
-                      <option value="alerta_urgente">🚨 Alerta Urgente</option>
-                      <option value="suave">🍃 Suave/Discreto</option>
-                    </select>
-                    <button type="button" onclick="tocarPreviewSomApp('config-som-motoboy')" style="padding: 8px 12px; background: #3b82f6; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.82rem; font-weight: bold;">▶️ Testar</button>
+                  <div class="son-card" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div>
+                      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                        <span style="font-size: 1.4rem; background: #f0fdf4; padding: 6px 10px; border-radius: 8px;">🟢</span>
+                        <div>
+                          <strong style="color: #1e293b; font-size: 0.92rem; display: block;">App do Motoboy</strong>
+                          <span style="font-size: 0.72rem; color: #64748b;">Novos pedidos de delivery</span>
+                        </div>
+                      </div>
+                      <select id="config-som-motoboy" style="width: 100%; padding: 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.85rem; background: white; cursor: pointer; font-weight: bold; outline: none; margin-bottom: 15px; color: #334155;">
+                        <option value="original">🔔 Som Padrão (Original)</option>
+                        <option value="mudo">🔇 Mudo (Sem Som)</option>
+                        <option value="campainha_classica">🔔 Campainha Clássica</option>
+                        <option value="sino_moderno">🎵 Sino Moderno</option>
+                        <option value="alerta_digital">📟 Alerta Digital</option>
+                        <option value="alerta_urgente">🚨 Alerta Urgente</option>
+                        <option value="suave">🍃 Suave/Discreto</option>
+                      </select>
+                    </div>
+                    <button type="button" onclick="tocarPreviewSomApp('config-som-motoboy')" style="width: 100%; padding: 10px; background: #dcfce7; color: #15803d; border: none; border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;" onmouseover="this.style.background='#bbf7d0'" onmouseout="this.style.background='#dcfce7'">
+                      <i class="fa-solid fa-play"></i> Ouvir Teste
+                    </button>
                   </div>
 
                   <!-- 4. Painel do Administrador -->
-                  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                    <span style="font-weight: bold; width: 180px; font-size: 0.9rem; color: #1e293b;">👑 Painel do Admin:</span>
-                    <select id="config-som-admin" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: white; width: 200px; cursor: pointer;">
-                      <option value="original">🔔 Som Padrão (Original)</option>
-                      <option value="mudo">🔇 Mudo (Sem Som)</option>
-                      <option value="campainha_classica">🔔 Campainha Clássica</option>
-                      <option value="sino_moderno">🎵 Sino Moderno</option>
-                      <option value="alerta_digital">📟 Alerta Digital</option>
-                      <option value="alerta_urgente">🚨 Alerta Urgente</option>
-                      <option value="suave">🍃 Suave/Discreto</option>
-                    </select>
-                    <button type="button" onclick="tocarPreviewSomApp('config-som-admin')" style="padding: 8px 12px; background: #3b82f6; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.82rem; font-weight: bold;">▶️ Testar</button>
+                  <div class="son-card" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                    <div>
+                      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                        <span style="font-size: 1.4rem; background: #f5f3ff; padding: 6px 10px; border-radius: 8px;">👑</span>
+                        <div>
+                          <strong style="color: #1e293b; font-size: 0.92rem; display: block;">Painel do Admin</strong>
+                          <span style="font-size: 0.72rem; color: #64748b;">Alertas gerais do caixa e mesa</span>
+                        </div>
+                      </div>
+                      <select id="config-som-admin" style="width: 100%; padding: 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.85rem; background: white; cursor: pointer; font-weight: bold; outline: none; margin-bottom: 15px; color: #334155;">
+                        <option value="original">🔔 Som Padrão (Original)</option>
+                        <option value="mudo">🔇 Mudo (Sem Som)</option>
+                        <option value="campainha_classica">🔔 Campainha Clássica</option>
+                        <option value="sino_moderno">🎵 Sino Moderno</option>
+                        <option value="alerta_digital">📟 Alerta Digital</option>
+                        <option value="alerta_urgente">🚨 Alerta Urgente</option>
+                        <option value="suave">🍃 Suave/Discreto</option>
+                      </select>
+                    </div>
+                    <button type="button" onclick="tocarPreviewSomApp('config-som-admin')" style="width: 100%; padding: 10px; background: #f3e8ff; color: #6b21a8; border: none; border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;" onmouseover="this.style.background='#e9d5ff'" onmouseout="this.style.background='#f3e8ff'">
+                      <i class="fa-solid fa-play"></i> Ouvir Teste
+                    </button>
                   </div>
+
                 </div>
 
-                <button onclick="salvarSonsApps()" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer; font-size: 0.9rem; margin-bottom: 2rem;"><i class="fa-solid fa-floppy-disk"></i> SALVAR CONFIGURAÇÃO DE SONS</button>
+                <button onclick="salvarSonsApps()" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border: none; border-radius: 10px; color: white; font-weight: 700; cursor: pointer; font-size: 0.95rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3); transition: 0.3s;" onmouseover="this.style.transform='translateY(-1px)';" onmouseout="this.style.transform='translateY(0)';">
+                  <i class="fa-solid fa-floppy-disk"></i> SALVAR CONFIGURAÇÃO DE SONS
+                </button>
               </div>
             </div>
           </div>

@@ -529,8 +529,7 @@ const App = {
         },
 
         playAlert(somTipo) {
-            // NOTA: Não bloquear por document.hidden — no Android nativo o áudio
-            // deve tocar mesmo com a tela apagada ou o app em background parcial.
+            if (document.hidden) return; // Evita tocar áudio no WebView se o app estiver em segundo plano (onde o push nativo já toca)
             if (!App.state.soundEnabled) return;
             const resolvedSom = somTipo || localStorage.getItem('motoboy_som_global') || 'campainha_classica';
             if (resolvedSom === 'mudo') return;
