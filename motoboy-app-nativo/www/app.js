@@ -412,12 +412,12 @@ const App = {
             // =====================================================================
             if (window.Capacitor.getPlatform() === 'android') {
                 const sons = {
-                    'original': 'notificacao',
-                    'campainha_classica': 'campainha_classica',
-                    'sino_moderno': 'sino_moderno',
-                    'alerta_digital': 'alerta_digital',
-                    'alerta_urgente': 'alerta_urgente',
-                    'suave': 'suave'
+                    'original': { rec: 'notificacao', name: '📢 Alerta: Som Padrão (Original)', desc: 'Toque padrão original do aplicativo' },
+                    'campainha_classica': { rec: 'campainha_classica', name: '🔔 Alerta: Campainha Clássica', desc: 'Toque estilo campainha mecânica' },
+                    'sino_moderno': { rec: 'sino_moderno', name: '🎵 Alerta: Sino Moderno', desc: 'Toque musical suave e moderno' },
+                    'alerta_digital': { rec: 'alerta_digital', name: '📟 Alerta: Digital', desc: 'Toque eletrônico curto' },
+                    'alerta_urgente': { rec: 'alerta_urgente', name: '🚨 Alerta: Urgente', desc: 'Toque com sirene de atenção rápida' },
+                    'suave': { rec: 'suave', name: '🍃 Alerta: Suave', desc: 'Toque discreto de baixo volume' }
                 };
 
                 // Apaga canais antigos
@@ -425,14 +425,14 @@ const App = {
                 try { await PushNotifications.deleteChannel({ id: 'motoboy_v1' }); } catch(e) {}
 
                 // Cria TODOS os canais personalizados
-                for (const [somTipo, somRec] of Object.entries(sons)) {
+                for (const [somTipo, info] of Object.entries(sons)) {
                     const canalId = 'motoboy_canal_' + somTipo;
                     try {
                         await PushNotifications.createChannel({
                             id: canalId,
-                            name: 'Alertas (' + somTipo.replace(/_/g, ' ') + ')',
-                            description: 'Canal de alerta do Motoboy com som ' + somTipo,
-                            sound: somRec,
+                            name: info.name,
+                            description: info.desc,
+                            sound: info.rec,
                             importance: 5,
                             visibility: 1,
                             vibration: true
