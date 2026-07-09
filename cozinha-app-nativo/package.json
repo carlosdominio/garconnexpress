@@ -11,6 +11,7 @@
   "description": "",
   "dependencies": {
     "@capacitor/android": "^8.4.0",
+    "@capacitor/browser": "^8.0.3",
     "@capacitor/core": "^8.4.0",
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/local-notifications": "^8.2.0",

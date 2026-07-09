@@ -140,8 +140,18 @@ const AppUpdater = {
         btn.classList.remove('hidden');
         overlay.classList.remove('hidden');
 
-        btn.onclick = () => {
-            window.open(`${API_BASE_URL}${apkUrl}`, '_system');
+        btn.onclick = async () => {
+            const url = `${API_BASE_URL}${apkUrl}`;
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+                try {
+                    await window.Capacitor.Plugins.Browser.open({ url });
+                } catch (e) {
+                    console.error("Erro ao abrir navegador com plugin:", e);
+                    window.open(url, '_system');
+                }
+            } else {
+                window.open(url, '_system');
+            }
         };
     },
 
