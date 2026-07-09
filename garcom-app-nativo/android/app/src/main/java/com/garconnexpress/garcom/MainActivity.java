@@ -12,5 +12,9 @@ public class MainActivity extends BridgeActivity {
         WebView webView = this.bridge.getWebView();
         WebSettings settings = webView.getSettings();
         settings.setMediaPlaybackRequiresUserGesture(false);
+        
+        // Injeta a versão do APK no User Agent para validação de atualizações obrigatórias
+        String defaultUserAgent = settings.getUserAgentString();
+        settings.setUserAgentString(defaultUserAgent + " GarconnExpressGarcom/2.0.0");
     }
 }
