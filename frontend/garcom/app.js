@@ -2183,10 +2183,11 @@ async function exibirMenu(categoria, queryTexto = '') {
     categoria = elAtivo ? elAtivo.dataset.categoria : 'todas';
   }
 
-  let itens = categoria === 'todas' ? menu : menu.filter(item => item.categoria === categoria);
-  
+  let itens = menu;
   if (queryTexto) {
-    itens = itens.filter(item => item.nome.trim().toLowerCase().includes(queryTexto));
+    itens = menu.filter(item => item.nome.trim().toLowerCase().includes(queryTexto));
+  } else if (categoria !== 'todas') {
+    itens = menu.filter(item => item.categoria === categoria);
   }
   
   // Agrupa os itens por categoria para exibir os títulos

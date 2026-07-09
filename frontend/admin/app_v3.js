@@ -1161,10 +1161,11 @@ function exibirMenuLancar(categoria, queryTexto = '') {
   if (!container) return;
   
   const cardapioAtivo = cardapio.filter(i => i.visivel !== false && i.visivel !== 0);
-  let itens = categoria === 'todas' ? cardapioAtivo : cardapioAtivo.filter(i => i.categoria.trim().toLowerCase() === categoria);
-  
+  let itens = cardapioAtivo;
   if (queryTexto) {
-    itens = itens.filter(i => i.nome.trim().toLowerCase().includes(queryTexto));
+    itens = cardapioAtivo.filter(i => i.nome.trim().toLowerCase().includes(queryTexto));
+  } else if (categoria !== 'todas') {
+    itens = cardapioAtivo.filter(i => i.categoria.trim().toLowerCase() === categoria);
   }
 
   container.innerHTML = itens.map(item => {
