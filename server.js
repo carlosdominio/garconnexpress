@@ -4591,12 +4591,23 @@ app.get('/api/debug-fcm', async (req, res) => {
       dbConfigs.error = e.message;
     }
 
+    // Busca subscriptions de push
+    const subscriptions = {};
+    try {
+      const result = await query("SELECT id, garcom_id, app_type, length(endpoint) as token_len FROM push_subscriptions");
+      subscriptions.rows = result.rows;
+      subscriptions.count = result.rows.length;
+    } catch (e) {
+      subscriptions.error = e.message;
+    }
+
     res.json({
       success: true,
       initializedApps,
       envKeys,
       parsedProjectIds,
       dbConfigs,
+      subscriptions,
       localFiles
     });
   } catch (err) {
