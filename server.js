@@ -1934,10 +1934,19 @@ if (!isPostgres) {
   console.log('â ³ Inicialização do banco adiada (lazy loading)');
 }
 
-// --- CONFIGURAÇÕES DE DELIVERY (CONTROLE INDEPENDENTE) ---
-// --- DELIVERY CLEANUP ---
+app.get('/*.apk', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const filePath = path.join(__dirname, req.path);
+  if (fs.existsSync(filePath)) {
+    res.sendFile(filePath);
+  } else {
+    res.status(404).send('APK não encontrado.');
+  }
+});
 
 app.use(express.static(path.join(__dirname, 'frontend'), {
+
   setHeaders: (res, path) => {
     if (path.endsWith('.html') || path.endsWith('.js')) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
