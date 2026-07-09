@@ -604,7 +604,10 @@ const App = {
                     App.ui.showToast(data.mensagem || '', 'error');
                 });
 
-                this.channel.bind('status-caixa-atualizado', () => App.checkCaixaStatus());
+                this.channel.bind('status-caixa-atualizado', (data) => {
+                    if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell();
+                    App.checkCaixaStatus();
+                });
 
                 this.channel.bind('status-atualizado', (data) => {
                     if (data.garcom_id !== 'DELIVERY') return;
