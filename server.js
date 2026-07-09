@@ -4613,6 +4613,83 @@ app.get('/api/debug-fcm', async (req, res) => {
   } catch (err) {
     res.json({ success: false, error: err.message });
   }
+app.get('/api/fcm/teste-motoboy-som', async (req, res) => {
+  try {
+    const configRes = await query("SELECT chave, valor FROM sistema_config");
+    const configMap = {};
+    configRes.rows.forEach(row => {
+      configMap[row.chave] = row.valor;
+    });
+
+    const activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
+    const channelName = 'motoboy_canal_' + activeSound;
+    let fcmSoundFile = activeSound;
+    if (fcmSoundFile === 'original') fcmSoundFile = 'notificacao';
+
+    const androidNotification = { 
+      channelId: channelName, 
+      defaultSound: activeSound === 'original',
+      notificationPriority: 'PRIORITY_MAX'
+    };
+    if (activeSound !== 'mudo') {
+      androidNotification.sound = fcmSoundFile;
+    }
+
+    const messagePayload = { 
+      notification: { 
+        title: "🚨 TESTE DE SOM MOTOBOY", 
+        body: `Som configurado: ${activeSound} (Canal: ${channelName})` 
+      }, 
+      data: { 
+        event: 'teste-fcm', 
+        sound: activeSound !== 'mudo' ? fcmSoundFile : '' 
+      }, 
+      android: { 
+        priority: 'high', 
+        notification: androidNotification 
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: activeSound !== 'mudo' ? (activeSound === 'original' ? 'notificacao.caf' : activeSound + '.caf') : '',
+            badge: 1
+          }
+        }
+      }
+    };
+
+    const subs = (await query("SELECT * FROM push_subscriptions WHERE app_type = 'motoboy'")).rows;
+    const results = [];
+
+    let firebaseApp = admin;
+    if (admin.apps.find(a => a.name === 'motoboy')) {
+      firebaseApp = admin.app('motoboy');
+    }
+
+    for (const sub of subs) {
+      const message = {
+        ...messagePayload,
+        token: sub.endpoint
+      };
+
+      try {
+        const response = await firebaseApp.messaging().send(message);
+        results.push({ id: sub.id, success: true, response });
+      } catch (err) {
+        results.push({ id: sub.id, success: false, error: err.message, code: err.code });
+      }
+    }
+
+    res.json({
+      success: true,
+      activeSound,
+      channelName,
+      messagePayload,
+      results
+    });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
 });
 
 app.post('/api/fcm-config/listar', ensureDbInitialized, isAdmin, async (req, res) => {
