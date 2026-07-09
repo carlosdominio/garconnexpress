@@ -4927,8 +4927,15 @@ app.post('/api/fcm-config/testar', ensureDbInitialized, isAdmin, async (req, res
 
     const subs = (await query("SELECT * FROM push_subscriptions WHERE app_type = ?", [destinatario])).rows;
     let enviados = 0;
+    const sentEndpoints = new Set();
     
     for (const sub of subs) {
+      if (sentEndpoints.has(sub.endpoint)) {
+        console.log(`⚠️ Ignorando token duplicado no envio de teste: ${sub.endpoint}`);
+        continue;
+      }
+      sentEndpoints.add(sub.endpoint);
+
       const isNativeSub = sub.is_native === 1 || sub.is_native === true || (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
       if (isNativeSub && admin.apps.length > 0) {
         let activeSound = 'notificacao';
@@ -4977,10 +4984,19 @@ app.post('/api/fcm-config/testar', ensureDbInitialized, isAdmin, async (req, res
         let firebaseApp = admin;
         if (destinatario === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) firebaseApp = admin.app('motoboy');
         else if (destinatario === 'cozinha' && admin.apps.find(a => a.name === 'cozinha')) firebaseApp = admin.app('cozinha');
-        await firebaseApp.messaging().send(message).then(() => { enviados++; }).catch(err => console.error('FCM Erro:', err.message));
+        
+        await firebaseApp.messaging().send(message)
+          .then(() => { enviados++; })
+          .catch(async (err) => {
+            console.error('FCM Erro:', err.message);
+            if (err.code === 'messaging/invalid-registration-token' || err.code === 'messaging/registration-token-not-registered' || err.message.includes('Requested entity was not found')) {
+              console.log('🗑️ Removendo token FCM inativo:', sub.endpoint);
+              await query("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]);
+            }
+          });
       }
     }
-    res.json({ success: true, enviados, total: subs.length });
+    res.json({ success: true, enviados, total: sentEndpoints.size });
   } catch (error) { 
     res.json({ success: false, error: 'Falha no disparo do teste', detalhes: error.message }); 
   }
@@ -5111,9 +5127,15 @@ app.post('/api/config/broadcast', ensureDbInitialized, isAdmin, async (req, res)
     const targets = (destinatario === 'todos' || !destinatario) ? ['garcom', 'cozinha', 'motoboy'] : [destinatario];
     const subs = (await query("SELECT * FROM push_subscriptions")).rows;
     let enviados = 0;
+    const sentEndpoints = new Set();
     
     for (const sub of subs) {
       if (!targets.includes(sub.app_type)) continue;
+      if (sentEndpoints.has(sub.endpoint)) {
+        console.log(`⚠️ Ignorando token duplicado no envio de comunicado: ${sub.endpoint}`);
+        continue;
+      }
+      sentEndpoints.add(sub.endpoint);
       
       const isNativeSub = sub.is_native === 1 || sub.is_native === true || 
                           (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
@@ -5141,7 +5163,16 @@ app.post('/api/config/broadcast', ensureDbInitialized, isAdmin, async (req, res)
         let firebaseApp = admin;
         if (sub.app_type === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) firebaseApp = admin.app('motoboy');
         else if (sub.app_type === 'cozinha' && admin.apps.find(a => a.name === 'cozinha')) firebaseApp = admin.app('cozinha');
-        await firebaseApp.messaging().send(message).then(() => { enviados++; }).catch(err => console.error('FCM Broadcast Erro:', err.message));
+        
+        await firebaseApp.messaging().send(message)
+          .then(() => { enviados++; })
+          .catch(async (err) => {
+            console.error('FCM Broadcast Erro:', err.message);
+            if (err.code === 'messaging/invalid-registration-token' || err.code === 'messaging/registration-token-not-registered' || err.message.includes('Requested entity was not found')) {
+              console.log('🗑️ Removendo token FCM inativo:', sub.endpoint);
+              await query("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]);
+            }
+          });
       }
     }
 
