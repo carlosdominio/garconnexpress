@@ -4580,11 +4580,23 @@ app.get('/api/debug-fcm', async (req, res) => {
     if (fs.existsSync('./firebase-adminsdk-motoboy.json')) localFiles.motoboy = true;
     if (fs.existsSync('./firebase-adminsdk-cozinha.json')) localFiles.cozinha = true;
 
+    // Busca configurações de som no banco
+    const dbConfigs = {};
+    try {
+      const result = await query("SELECT chave, valor FROM sistema_config WHERE chave IN ('config_som_motoboy', 'config_som_garcom', 'config_som_cozinha')");
+      for (const row of result.rows) {
+        dbConfigs[row.chave] = row.valor;
+      }
+    } catch (e) {
+      dbConfigs.error = e.message;
+    }
+
     res.json({
       success: true,
       initializedApps,
       envKeys,
       parsedProjectIds,
+      dbConfigs,
       localFiles
     });
   } catch (err) {
