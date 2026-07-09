@@ -1315,9 +1315,13 @@
                       <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Versão Mínima:</label>
                       <input type="text" id="config-garcom-apk-version" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: bold;" value="2.0.0">
                     </div>
-                    <div style="flex: 2; min-width: 180px;">
-                      <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Caminho/URL do APK:</label>
-                      <input type="text" id="config-garcom-apk-url" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px;" value="/garcom-v1.1.0-portrait.apk">
+                    <div style="flex: 2; min-width: 180px; display: flex; gap: 8px; align-items: flex-end;">
+                      <div style="flex: 1;">
+                        <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Caminho/URL do APK:</label>
+                        <input type="text" id="config-garcom-apk-url" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px;" value="/garcom-v1.1.0-portrait.apk">
+                      </div>
+                      <button type="button" onclick="triggerApkUpload('garcom')" style="padding: 6px 10px; background: #3b82f6; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.75rem; font-weight: bold; height: 32px;"><i class="fa-solid fa-upload"></i> Subir APK</button>
+                      <input type="file" id="upload-garcom-file" accept=".apk" style="display: none;" onchange="handleApkUpload(this, 'garcom')">
                     </div>
                   </div>
 
@@ -1328,9 +1332,13 @@
                       <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Versão Mínima:</label>
                       <input type="text" id="config-cozinha-apk-version" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: bold;" value="2.0.0">
                     </div>
-                    <div style="flex: 2; min-width: 180px;">
-                      <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Caminho/URL do APK:</label>
-                      <input type="text" id="config-cozinha-apk-url" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px;" value="/cozinha-v1.1.0-portrait.apk">
+                    <div style="flex: 2; min-width: 180px; display: flex; gap: 8px; align-items: flex-end;">
+                      <div style="flex: 1;">
+                        <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Caminho/URL do APK:</label>
+                        <input type="text" id="config-cozinha-apk-url" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px;" value="/cozinha-v1.1.0-portrait.apk">
+                      </div>
+                      <button type="button" onclick="triggerApkUpload('cozinha')" style="padding: 6px 10px; background: #e67e22; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.75rem; font-weight: bold; height: 32px;"><i class="fa-solid fa-upload"></i> Subir APK</button>
+                      <input type="file" id="upload-cozinha-file" accept=".apk" style="display: none;" onchange="handleApkUpload(this, 'cozinha')">
                     </div>
                   </div>
 
@@ -1341,11 +1349,16 @@
                       <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Versão Mínima:</label>
                       <input type="text" id="config-motoboy-apk-version" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: bold;" value="2.0.0">
                     </div>
-                    <div style="flex: 2; min-width: 180px;">
-                      <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Caminho/URL do APK:</label>
-                      <input type="text" id="config-motoboy-apk-url" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px;" value="/motoboy-v2.0.0-portrait.apk">
+                    <div style="flex: 2; min-width: 180px; display: flex; gap: 8px; align-items: flex-end;">
+                      <div style="flex: 1;">
+                        <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Caminho/URL do APK:</label>
+                        <input type="text" id="config-motoboy-apk-url" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px;" value="/motoboy-v2.0.0-portrait.apk">
+                      </div>
+                      <button type="button" onclick="triggerApkUpload('motoboy')" style="padding: 6px 10px; background: #10b981; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.75rem; font-weight: bold; height: 32px;"><i class="fa-solid fa-upload"></i> Subir APK</button>
+                      <input type="file" id="upload-motoboy-file" accept=".apk" style="display: none;" onchange="handleApkUpload(this, 'motoboy')">
                     </div>
                   </div>
+
 
                   <button onclick="salvarVersaoApp()" style="width: 100%; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9rem;">
                     💾 Salvar Configurações de APKs

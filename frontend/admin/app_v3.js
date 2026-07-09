@@ -8347,4 +8347,77 @@ async function salvarVersaoApp() {
   }
 }
 
+/** Dispara o input de arquivo oculto para a aplicação selecionada */
+function triggerApkUpload(appTipo) {
+  const input = document.getElementById(`upload-${appTipo}-file`);
+  if (input) input.click();
+}
+
+/** Lida com o upload do arquivo APK binário em lote para o servidor */
+function handleApkUpload(input, appTipo) {
+  const file = input.files[0];
+  if (!file) return;
+
+  if (!file.name.endsWith('.apk')) {
+    Swal.fire('Formato Inválido', 'Por favor, selecione apenas arquivos com a extensão .apk', 'error');
+    input.value = '';
+    return;
+  }
+
+  Swal.fire({
+    title: 'Enviando APK...',
+    text: `Carregando o arquivo "${file.name}" para o servidor. Por favor, aguarde.`,
+    icon: 'info',
+    allowOutsideClick: false,
+    showConfirmButton: false,
+    didOpen: () => {
+      Swal.showLoading();
+    }
+  });
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const buffer = e.target.result;
+      const res = await fetch(`/api/config/upload-apk?filename=${encodeURIComponent(file.name)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '')
+        },
+        body: buffer
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        const urlInput = document.getElementById(`config-${appTipo}-apk-url`);
+        if (urlInput) {
+          urlInput.value = data.url;
+        }
+        Swal.fire({
+          title: 'Upload Concluído!',
+          text: `O APK foi carregado com sucesso! Lembre-se de clicar em "Salvar Configurações de APKs" para aplicar.`,
+          icon: 'success',
+          confirmButtonColor: '#10b981'
+        });
+      } else {
+        throw new Error(data.error || 'Falha no processamento do arquivo.');
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Erro de Upload', 'Não foi possível enviar o APK: ' + err.message, 'error');
+    } finally {
+      input.value = '';
+    }
+  };
+
+  reader.onerror = () => {
+    Swal.fire('Erro de Leitura', 'Não foi possível ler o arquivo do seu computador.', 'error');
+    input.value = '';
+  };
+
+  reader.readAsArrayBuffer(file);
+}
+
+
 

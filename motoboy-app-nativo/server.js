@@ -248,6 +248,27 @@ app.post('/api/config/versao-app', ensureDbInitialized, isAdmin, async (req, res
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+app.post('/api/config/upload-apk', express.raw({ type: 'application/octet-stream', limit: '150mb' }), ensureDbInitialized, isAdmin, async (req, res) => {
+  const filename = req.query.filename;
+  if (!filename || !filename.endsWith('.apk')) {
+    return res.status(400).json({ success: false, error: 'Arquivo inválido ou nome ausente.' });
+  }
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const filePath = path.join(__dirname, filename);
+    fs.writeFileSync(filePath, req.body);
+    console.log(`✅ Novo APK gravado com sucesso: ${filePath}`);
+    res.json({
+      success: true,
+      url: `/${filename}`
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+
 
 
 // INTEGRAÇÃO WHATSAPP (BOT EXTERNO)
