@@ -186,7 +186,12 @@ app.post('/api/config/som-global', ensureDbInitialized, isAdmin, async (req, res
 
 app.get('/api/config/versao-app', ensureDbInitialized, async (req, res) => {
   try {
-    const configRows = (await query("SELECT chave, valor FROM sistema_config WHERE chave IN ('config_web_version', 'config_apk_version', 'config_apk_url')")).rows;
+    const configRows = (await query("SELECT chave, valor FROM sistema_config WHERE chave IN (" +
+      "'config_web_version', " +
+      "'config_garcom_apk_version', 'config_garcom_apk_url', " +
+      "'config_cozinha_apk_version', 'config_cozinha_apk_url', " +
+      "'config_motoboy_apk_version', 'config_motoboy_apk_url'" +
+      ")")).rows;
     const configMap = {};
     for (const r of configRows) {
       configMap[r.chave] = r.valor;
@@ -194,19 +199,32 @@ app.get('/api/config/versao-app', ensureDbInitialized, async (req, res) => {
     res.json({
       success: true,
       web_version: configMap['config_web_version'] || '1.0.0',
-      apk_version: configMap['config_apk_version'] || '2.0.0',
-      apk_url: configMap['config_apk_url'] || '/motoboy-v2.0.0-portrait.apk'
+      garcom_apk_version: configMap['config_garcom_apk_version'] || '2.0.0',
+      garcom_apk_url: configMap['config_garcom_apk_url'] || '/garcom-v1.1.0-portrait.apk',
+      cozinha_apk_version: configMap['config_cozinha_apk_version'] || '2.0.0',
+      cozinha_apk_url: configMap['config_cozinha_apk_url'] || '/cozinha-v1.1.0-portrait.apk',
+      motoboy_apk_version: configMap['config_motoboy_apk_version'] || '2.0.0',
+      motoboy_apk_url: configMap['config_motoboy_apk_url'] || '/motoboy-v2.0.0-portrait.apk'
     });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 app.post('/api/config/versao-app', ensureDbInitialized, isAdmin, async (req, res) => {
-  const { web_version, apk_version, apk_url } = req.body;
+  const {
+    web_version,
+    garcom_apk_version, garcom_apk_url,
+    cozinha_apk_version, cozinha_apk_url,
+    motoboy_apk_version, motoboy_apk_url
+  } = req.body;
   try {
     const configs = [
       { chave: 'config_web_version', valor: web_version || '1.0.0' },
-      { chave: 'config_apk_version', valor: apk_version || '2.0.0' },
-      { chave: 'config_apk_url', valor: apk_url || '/motoboy-v2.0.0-portrait.apk' }
+      { chave: 'config_garcom_apk_version', valor: garcom_apk_version || '2.0.0' },
+      { chave: 'config_garcom_apk_url', valor: garcom_apk_url || '/garcom-v1.1.0-portrait.apk' },
+      { chave: 'config_cozinha_apk_version', valor: cozinha_apk_version || '2.0.0' },
+      { chave: 'config_cozinha_apk_url', valor: cozinha_apk_url || '/cozinha-v1.1.0-portrait.apk' },
+      { chave: 'config_motoboy_apk_version', valor: motoboy_apk_version || '2.0.0' },
+      { chave: 'config_motoboy_apk_url', valor: motoboy_apk_url || '/motoboy-v2.0.0-portrait.apk' }
     ];
     for (const cfg of configs) {
       if (isPostgres) {
@@ -218,13 +236,18 @@ app.post('/api/config/versao-app', ensureDbInitialized, isAdmin, async (req, res
     if (typeof safePusherTrigger !== 'undefined') {
       await safePusherTrigger('garconnexpress', 'versao-app-atualizada', {
         web_version: web_version || '1.0.0',
-        apk_version: apk_version || '2.0.0',
-        apk_url: apk_url || '/motoboy-v2.0.0-portrait.apk'
+        garcom_apk_version: garcom_apk_version || '2.0.0',
+        garcom_apk_url: garcom_apk_url || '/garcom-v1.1.0-portrait.apk',
+        cozinha_apk_version: cozinha_apk_version || '2.0.0',
+        cozinha_apk_url: cozinha_apk_url || '/cozinha-v1.1.0-portrait.apk',
+        motoboy_apk_version: motoboy_apk_version || '2.0.0',
+        motoboy_apk_url: motoboy_apk_url || '/motoboy-v2.0.0-portrait.apk'
       });
     }
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
+
 
 
 // INTEGRAÇÃO WHATSAPP (BOT EXTERNO)

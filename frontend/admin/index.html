@@ -1307,20 +1307,51 @@
                   <p style="margin: 0 0 15px 0; font-size: 0.78rem; color: #64748b;">
                     Força o usuário a fazer download e instalar o novo APK se o aplicativo nativo dele estiver desatualizado.
                   </p>
-                  <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
-                    <div style="flex: 1; min-width: 150px;">
-                      <label style="font-size: 0.72rem; font-weight: bold; color: #64748b; text-transform: uppercase;">Versão Mínima do APK:</label>
-                      <input type="text" id="config-apk-version" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: bold;" value="2.0.0">
+                  
+                  <!-- APK Garçom -->
+                  <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 12px;">
+                    <span style="font-weight: bold; width: 120px; font-size: 0.85rem; color: #3b82f6;">🔵 APK Garçom:</span>
+                    <div style="flex: 1; min-width: 100px;">
+                      <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Versão Mínima:</label>
+                      <input type="text" id="config-garcom-apk-version" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: bold;" value="2.0.0">
                     </div>
-                    <div style="flex: 2; min-width: 250px;">
-                      <label style="font-size: 0.72rem; font-weight: bold; color: #64748b; text-transform: uppercase;">Caminho/URL do APK:</label>
-                      <input type="text" id="config-apk-url" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px;" value="/motoboy-v2.0.0-portrait.apk">
+                    <div style="flex: 2; min-width: 180px;">
+                      <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Caminho/URL do APK:</label>
+                      <input type="text" id="config-garcom-apk-url" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px;" value="/garcom-v1.1.0-portrait.apk">
                     </div>
                   </div>
+
+                  <!-- APK Cozinha -->
+                  <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 12px;">
+                    <span style="font-weight: bold; width: 120px; font-size: 0.85rem; color: #e67e22;">🟠 APK Cozinha:</span>
+                    <div style="flex: 1; min-width: 100px;">
+                      <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Versão Mínima:</label>
+                      <input type="text" id="config-cozinha-apk-version" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: bold;" value="2.0.0">
+                    </div>
+                    <div style="flex: 2; min-width: 180px;">
+                      <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Caminho/URL do APK:</label>
+                      <input type="text" id="config-cozinha-apk-url" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px;" value="/cozinha-v1.1.0-portrait.apk">
+                    </div>
+                  </div>
+
+                  <!-- APK Motoboy -->
+                  <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 15px;">
+                    <span style="font-weight: bold; width: 120px; font-size: 0.85rem; color: #10b981;">🟢 APK Motoboy:</span>
+                    <div style="flex: 1; min-width: 100px;">
+                      <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Versão Mínima:</label>
+                      <input type="text" id="config-motoboy-apk-version" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: bold;" value="2.0.0">
+                    </div>
+                    <div style="flex: 2; min-width: 180px;">
+                      <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Caminho/URL do APK:</label>
+                      <input type="text" id="config-motoboy-apk-url" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px;" value="/motoboy-v2.0.0-portrait.apk">
+                    </div>
+                  </div>
+
                   <button onclick="salvarVersaoApp()" style="width: 100%; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9rem;">
-                    💾 Salvar Versão do APK
+                    💾 Salvar Configurações de APKs
                   </button>
                 </div>
+
               </div>
             </div>
           </div>

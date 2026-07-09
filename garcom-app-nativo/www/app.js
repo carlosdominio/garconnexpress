@@ -89,11 +89,11 @@ const AppUpdater = {
             if (!data.success) return;
 
             const localApk = this.getLocalApkVersion();
-            const serverApk = data.apk_version;
+            const serverApk = data.garcom_apk_version;
 
             // 1. Verifica se exige atualização do APK nativo
             if (this.compareVersions(localApk, serverApk) < 0) {
-                this.showApkUpdateScreen(data.apk_url, serverApk);
+                this.showApkUpdateScreen(data.garcom_apk_url, serverApk);
                 return;
             }
 

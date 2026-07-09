@@ -8282,11 +8282,26 @@ async function carregarVersaoApp() {
     if (res.ok) {
       const data = await res.json();
       const inWeb = document.getElementById('config-web-version');
-      const inApk = document.getElementById('config-apk-version');
-      const inUrl = document.getElementById('config-apk-url');
+      
+      const inGarcomApk = document.getElementById('config-garcom-apk-version');
+      const inGarcomUrl = document.getElementById('config-garcom-apk-url');
+      
+      const inCozinhaApk = document.getElementById('config-cozinha-apk-version');
+      const inCozinhaUrl = document.getElementById('config-cozinha-apk-url');
+      
+      const inMotoboyApk = document.getElementById('config-motoboy-apk-version');
+      const inMotoboyUrl = document.getElementById('config-motoboy-apk-url');
+
       if (inWeb && data.web_version) inWeb.value = data.web_version;
-      if (inApk && data.apk_version) inApk.value = data.apk_version;
-      if (inUrl && data.apk_url) inUrl.value = data.apk_url;
+      
+      if (inGarcomApk && data.garcom_apk_version) inGarcomApk.value = data.garcom_apk_version;
+      if (inGarcomUrl && data.garcom_apk_url) inGarcomUrl.value = data.garcom_apk_url;
+      
+      if (inCozinhaApk && data.cozinha_apk_version) inCozinhaApk.value = data.cozinha_apk_version;
+      if (inCozinhaUrl && data.cozinha_apk_url) inCozinhaUrl.value = data.cozinha_apk_url;
+      
+      if (inMotoboyApk && data.motoboy_apk_version) inMotoboyApk.value = data.motoboy_apk_version;
+      if (inMotoboyUrl && data.motoboy_apk_url) inMotoboyUrl.value = data.motoboy_apk_url;
     }
   } catch (err) {
     console.error('Erro ao carregar configurações de versão:', err);
@@ -8296,8 +8311,15 @@ async function carregarVersaoApp() {
 /** Salva as configurações de versão (Web/APK) no servidor e dispara Pusher */
 async function salvarVersaoApp() {
   const web_version = document.getElementById('config-web-version')?.value || '1.0.0';
-  const apk_version = document.getElementById('config-apk-version')?.value || '2.0.0';
-  const apk_url = document.getElementById('config-apk-url')?.value || '/motoboy-v2.0.0-portrait.apk';
+  
+  const garcom_apk_version = document.getElementById('config-garcom-apk-version')?.value || '2.0.0';
+  const garcom_apk_url = document.getElementById('config-garcom-apk-url')?.value || '/garcom-v1.1.0-portrait.apk';
+  
+  const cozinha_apk_version = document.getElementById('config-cozinha-apk-version')?.value || '2.0.0';
+  const cozinha_apk_url = document.getElementById('config-cozinha-apk-url')?.value || '/cozinha-v1.1.0-portrait.apk';
+  
+  const motoboy_apk_version = document.getElementById('config-motoboy-apk-version')?.value || '2.0.0';
+  const motoboy_apk_url = document.getElementById('config-motoboy-apk-url')?.value || '/motoboy-v2.0.0-portrait.apk';
 
   try {
     const res = await fetch('/api/config/versao-app', {
@@ -8306,7 +8328,12 @@ async function salvarVersaoApp() {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '')
       },
-      body: JSON.stringify({ web_version, apk_version, apk_url })
+      body: JSON.stringify({
+        web_version,
+        garcom_apk_version, garcom_apk_url,
+        cozinha_apk_version, cozinha_apk_url,
+        motoboy_apk_version, motoboy_apk_url
+      })
     });
     const data = await res.json();
     if (data.success) {
@@ -8319,4 +8346,5 @@ async function salvarVersaoApp() {
     await mostrarConfirmacaoFCM('Erro', '❌ Falha ao salvar versões: ' + err.message, 'perigo', true);
   }
 }
+
 
