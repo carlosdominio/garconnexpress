@@ -681,7 +681,8 @@ async function registerNativePush() {
     if (window.Capacitor.getPlatform() === 'android') {
       const somTipo = localStorage.getItem('cozinha_som_global') || 'sino_moderno';
       const somRec = somTipo === 'original' ? 'notificacao' : somTipo;
-      const canalId = 'cozinha_canal_' + somTipo;
+      const canalId = 'cozinha_canal_' + somTipo + '_v2';
+
 
       try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}
 

@@ -239,7 +239,8 @@ async function registerNativePush() {
     if (window.Capacitor.getPlatform() === 'android') {
       const somTipo = localStorage.getItem('garcom_som_global') || 'campainha_classica';
       const somRec = somTipo === 'original' ? 'notificacao' : somTipo;
-      const canalId = 'garcom_canal_' + somTipo;
+      const canalId = 'garcom_canal_' + somTipo + '_v2';
+
 
       try { await PushNotifications.deleteChannel({ id: 'pedidos' }); } catch(e) {}
       try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}

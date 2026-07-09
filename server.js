@@ -897,14 +897,15 @@ async function safePusherTrigger(channel, event, data) {
                   let channelName = 'pedidos';
                   if (targetApp === 'garcom') {
                     activeSound = configMap['config_som_garcom'] || 'campainha_classica';
-                    channelName = 'garcom_canal_' + activeSound;
+                    channelName = 'garcom_canal_' + activeSound + '_v2';
                   } else if (targetApp === 'cozinha') {
                     activeSound = configMap['config_som_cozinha'] || 'sino_moderno';
-                    channelName = 'cozinha_canal_' + activeSound;
+                    channelName = 'cozinha_canal_' + activeSound + '_v2';
                   } else if (targetApp === 'motoboy') {
                     activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
-                    channelName = 'motoboy_canal_' + activeSound;
+                    channelName = 'motoboy_canal_' + activeSound + '_v2';
                   }
+
 
                   let fcmSoundFile = activeSound;
                   if (fcmSoundFile === 'original') fcmSoundFile = 'notificacao';
@@ -1378,14 +1379,15 @@ async function checkAndSendScheduledFCM() {
                 let channelName = 'pedidos';
                 if (dest === 'garcom') {
                   activeSound = configMap['config_som_garcom'] || 'campainha_classica';
-                  channelName = 'garcom_canal_' + activeSound;
+                  channelName = 'garcom_canal_' + activeSound + '_v2';
                 } else if (dest === 'cozinha') {
                   activeSound = configMap['config_som_cozinha'] || 'sino_moderno';
-                  channelName = 'cozinha_canal_' + activeSound;
+                  channelName = 'cozinha_canal_' + activeSound + '_v2';
                 } else if (dest === 'motoboy') {
                   activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
-                  channelName = 'motoboy_canal_' + activeSound;
+                  channelName = 'motoboy_canal_' + activeSound + '_v2';
                 }
+
 
                 let fcmSoundFile = activeSound;
                 if (fcmSoundFile === 'original') fcmSoundFile = 'notificacao';
@@ -4710,7 +4712,8 @@ app.get('/api/fcm/teste-motoboy-som', async (req, res) => {
     });
 
     const activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
-    const channelName = 'motoboy_canal_' + activeSound;
+    const channelName = 'motoboy_canal_' + activeSound + '_v2';
+
     let fcmSoundFile = activeSound;
     if (fcmSoundFile === 'original') fcmSoundFile = 'notificacao';
 
@@ -4907,14 +4910,15 @@ app.post('/api/fcm-config/testar', ensureDbInitialized, isAdmin, async (req, res
         let channelName = 'pedidos';
         if (destinatario === 'garcom') {
           activeSound = configMap['config_som_garcom'] || 'campainha_classica';
-          channelName = 'garcom_canal_' + activeSound;
+          channelName = 'garcom_canal_' + activeSound + '_v2';
         } else if (destinatario === 'cozinha') {
           activeSound = configMap['config_som_cozinha'] || 'sino_moderno';
-          channelName = 'cozinha_canal_' + activeSound;
+          channelName = 'cozinha_canal_' + activeSound + '_v2';
         } else if (destinatario === 'motoboy') {
           activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
-          channelName = 'motoboy_canal_' + activeSound;
+          channelName = 'motoboy_canal_' + activeSound + '_v2';
         }
+
 
         let fcmSoundFile = activeSound;
         if (fcmSoundFile === 'original') fcmSoundFile = 'notificacao';

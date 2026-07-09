@@ -434,7 +434,8 @@ const App = {
 
                 // Cria TODOS os canais personalizados
                 for (const [somTipo, info] of Object.entries(sons)) {
-                    const canalId = 'motoboy_canal_' + somTipo;
+                    const canalId = 'motoboy_canal_' + somTipo + '_v2';
+
                     try {
                         await PushNotifications.createChannel({
                             id: canalId,
