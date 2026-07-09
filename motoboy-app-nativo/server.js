@@ -121,6 +121,69 @@ app.post('/api/configs/delivery-toggle', ensureDbInitialized, isAdmin, async (re
   }
 });
 
+// --- CONFIGURAÇÕES DE SOM (MOTOBOY E APPS) ---
+app.get('/api/config/som', ensureDbInitialized, async (req, res) => {
+  try {
+    const result = await query("SELECT valor FROM sistema_config WHERE chave = 'motoboy_som_config'");
+    if (result.rows && result.rows.length > 0) {
+      res.json(JSON.parse(result.rows[0].valor));
+    } else {
+      // Valores padrão
+      res.json({ mp3_ativo: true, windows_ativo: false });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/config/som', ensureDbInitialized, isAdmin, async (req, res) => {
+  try {
+    const { mp3_ativo, windows_ativo } = req.body;
+    const valor = JSON.stringify({ mp3_ativo: !!mp3_ativo, windows_ativo: !!windows_ativo });
+    if (isPostgres) {
+      await query("INSERT INTO sistema_config (chave, valor) VALUES ('motoboy_som_config', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [valor]);
+    } else {
+      await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('motoboy_som_config', ?)", [valor]);
+    }
+    res.json({ success: true, mp3_ativo: !!mp3_ativo, windows_ativo: !!windows_ativo });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- ENDPOINT SOM GLOBAL DO MOTOBOY NATIVO ---
+// Retorna qual som o app nativo deve usar para as notificações (campainha_classica, sino_moderno, etc.)
+app.get('/api/config/som-global', ensureDbInitialized, async (req, res) => {
+  try {
+    const result = await query("SELECT valor FROM sistema_config WHERE chave = 'motoboy_som_global'");
+    if (result.rows && result.rows.length > 0) {
+      res.json({ success: true, somMotoboy: result.rows[0].valor });
+    } else {
+      res.json({ success: true, somMotoboy: 'campainha_classica' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/config/som-global', ensureDbInitialized, isAdmin, async (req, res) => {
+  try {
+    const { somMotoboy } = req.body;
+    const sonsValidos = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave', 'mudo'];
+    const somFinal = sonsValidos.includes(somMotoboy) ? somMotoboy : 'campainha_classica';
+    if (isPostgres) {
+      await query("INSERT INTO sistema_config (chave, valor) VALUES ('motoboy_som_global', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [somFinal]);
+    } else {
+      await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('motoboy_som_global', ?)", [somFinal]);
+    }
+    // Notifica os apps em tempo real via Pusher
+    await safePusherTrigger('garconnexpress', 'som-global-atualizado', { somMotoboy: somFinal });
+    res.json({ success: true, somMotoboy: somFinal });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // INTEGRAÇÃO WHATSAPP (BOT EXTERNO)
 const DEFAULT_BOT_URL = 'https://meu-zap-bot.onrender.com/';
 const botUrlFinal = process.env.WHATSAPP_BOT_URL || DEFAULT_BOT_URL;
@@ -783,6 +846,10 @@ app.use(express.static(path.join(__dirname, 'frontend'), {
     }
   }
 }));
+
+// Serve os arquivos de sons WAV para preview no admin e uso no app web
+app.use('/sons', express.static(path.join(__dirname, 'www', 'sons')));
+
 app.get('/', (req, res) => res.redirect('/garcom'));
 app.get('/garcom', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'garcom', 'index.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'admin', 'index.html')));

@@ -1,12 +1,43 @@
 let pusher;
 let channel;
 
+// Config de som carregada do servidor
+let _somConfig = { mp3_ativo: true, windows_ativo: false };
 const audioNotificacao = new Audio('/notificacao.mp3');
+
+/** Busca preferências de som do banco (definidas pelo admin) */
+async function carregarConfigSom() {
+  try {
+    const res = await fetch('/api/config/som');
+    if (res.ok) {
+      _somConfig = await res.json();
+      audioNotificacao.muted = !_somConfig.mp3_ativo;
+      console.log('🔔 Config de som carregada:', _somConfig);
+    }
+  } catch (e) {
+    console.warn('Aviso: não foi possível buscar config de som, usando padrão:', e);
+  }
+}
+
+/** Toca notificação respeitando as preferências configuradas pelo admin */
+function tocarNotificacaoMotoboy() {
+  if (_somConfig.mp3_ativo) {
+    audioNotificacao.currentTime = 0;
+    audioNotificacao.play().catch(e => console.log('Áudio bloqueado:', e));
+  }
+  if (_somConfig.windows_ativo) {
+    const beep = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+    beep.play().catch(e => console.warn('Erro ao tocar beep:', e));
+  }
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Verifica status do caixa primeiro
     await verificarStatusCaixa();
     setInterval(verificarStatusCaixa, 30000);
+
+    // 2. Carrega configurações de som do servidor
+    await carregarConfigSom();
 
     // Força interação inicial para desbloquear áudio no navegador/celular
     Swal.fire({
@@ -390,10 +421,8 @@ function mostrarToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
     // Auto-close
     const autoClose = setTimeout(() => fecharToast(t), duracao);
 
-    // Toca o som (Motoboy sempre toca para chamar atenção)
-    if (typeof audioNotificacao !== 'undefined') {
-        audioNotificacao.play().catch(e => console.log('Áudio bloqueado:', e));
-    }
+    // Toca o som respeitando as preferências configuradas pelo admin
+    tocarNotificacaoMotoboy();
 
     // Botão fechar
     t.querySelector('.toast-close').onclick = () => {

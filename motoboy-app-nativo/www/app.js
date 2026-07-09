@@ -38,13 +38,38 @@ function getSoundPath(somTipo) {
 
 async function carregarSomGlobalMotoboy() {
   try {
+    // Tenta o endpoint principal do servidor
     const res = await fetch(`${API_BASE_URL}/api/config/som-global`);
-    const data = await res.json();
-    if (data.success) {
-      localStorage.setItem('motoboy_som_global', data.somMotoboy || 'campainha_classica');
+    if (res.ok) {
+      const data = await res.json();
+      // Aceita tanto {success, somMotoboy} quanto {somMotoboy} direto
+      const somMotoboy = data.somMotoboy || data.som_motoboy;
+      if (somMotoboy) {
+        localStorage.setItem('motoboy_som_global', somMotoboy);
+        console.log('🔔 Som global carregado:', somMotoboy);
+        return;
+      }
     }
   } catch (err) {
-    console.error('Erro ao carregar som global motoboy:', err);
+    console.warn('Aviso: endpoint som-global indisponível, tentando fallback...');
+  }
+  // Fallback: tenta /api/config/som (endpoint de controle ativo/inativo)
+  try {
+    const res2 = await fetch(`${API_BASE_URL}/api/config/som`);
+    if (res2.ok) {
+      const data2 = await res2.json();
+      // Se mp3_ativo = false, usa 'mudo'. Senão mantém o último salvo ou usa padrão
+      if (data2.mp3_ativo === false) {
+        localStorage.setItem('motoboy_som_global', 'mudo');
+      } else {
+        // Mantém o som já salvo ou usa campainha_classica como padrão
+        if (!localStorage.getItem('motoboy_som_global') || localStorage.getItem('motoboy_som_global') === 'mudo') {
+          localStorage.setItem('motoboy_som_global', 'campainha_classica');
+        }
+      }
+    }
+  } catch (err2) {
+    console.error('Erro ao carregar som global motoboy:', err2);
   }
 }
 
@@ -106,14 +131,19 @@ const App = {
         
         await carregarSomGlobalMotoboy();
         
+        try {
+            await this.notifications.init();
+        } catch (e) {
+            console.error('Erro ao inicializar notificações no boot:', e);
+        }
+        
         if (!this.checkAuth()) return;
 
         try {
             await carregarConfiguracoesToasts();
-            await this.notifications.init();
             await this.pusher.init();
         } catch (e) {
-            console.error('Erro na inicialização de módulos:', e);
+            console.error('Erro na inicialização de módulos pós-login:', e);
         }
         
         this.checkCaixaStatus();
@@ -326,6 +356,21 @@ const App = {
             for (const som of this.somTiposDisponiveis) {
                 this.audiosNotificacao[som] = new Audio(getSoundPath(som));
             }
+            // Desbloqueia o áudio no primeiro clique na tela (Autoplay Policy Bypass)
+            const self = this;
+            document.body.addEventListener('click', function unlockAudio() {
+                for (const som of self.somTiposDisponiveis) {
+                    const aud = self.audiosNotificacao[som];
+                    if (aud) {
+                        aud.play().then(() => {
+                            aud.pause();
+                            aud.currentTime = 0;
+                        }).catch(() => {});
+                    }
+                }
+                console.log('🔊 Áudios desbloqueados por interação do usuário!');
+                document.body.removeEventListener('click', unlockAudio);
+            }, { once: true });
         },
 
         async clearNotifications() {
@@ -361,20 +406,51 @@ const App = {
                 }
             });
 
+            // =====================================================================
+            // CRIA TODOS OS CANAIS DE SOM ANTES DE PEDIR PERMISSÃO
+            // (igual ao app do Garçom - garante que os canais existam sempre)
+            // =====================================================================
+            if (window.Capacitor.getPlatform() === 'android') {
+                const sons = {
+                    'original': 'notificacao',
+                    'campainha_classica': 'campainha_classica',
+                    'sino_moderno': 'sino_moderno',
+                    'alerta_digital': 'alerta_digital',
+                    'alerta_urgente': 'alerta_urgente',
+                    'suave': 'suave'
+                };
+
+                // Apaga canais antigos
+                try { await PushNotifications.deleteChannel({ id: 'pedidos' }); } catch(e) {}
+                try { await PushNotifications.deleteChannel({ id: 'motoboy_v1' }); } catch(e) {}
+
+                // Cria TODOS os canais personalizados
+                for (const [somTipo, somRec] of Object.entries(sons)) {
+                    const canalId = 'motoboy_canal_' + somTipo;
+                    try {
+                        await PushNotifications.createChannel({
+                            id: canalId,
+                            name: 'Alertas (' + somTipo.replace(/_/g, ' ') + ')',
+                            description: 'Canal de alerta do Motoboy com som ' + somTipo,
+                            sound: somRec,
+                            importance: 5,
+                            visibility: 1,
+                            vibration: true
+                        });
+                        console.log('✅ Canal criado: ' + canalId);
+                    } catch (e) {
+                        console.error('Erro ao criar canal ' + canalId + ':', e);
+                    }
+                }
+            }
+
+            // Agora verifica/solicita permissão
             let perm = await PushNotifications.checkPermissions();
             if (perm.receive !== 'granted') {
                 perm = await PushNotifications.requestPermissions();
             }
 
             if (perm.receive === 'granted') {
-                await PushNotifications.createChannel({
-                    id: NOTIFICATION_CHANNEL_ID,
-                    name: 'Pedidos e Alertas',
-                    sound: 'notificacao.mp3',
-                    importance: 5,
-                    visibility: 1,
-                    vibration: true
-                });
                 await PushNotifications.register();
             }
 
@@ -410,8 +486,9 @@ const App = {
                     App.state.notifiedEvents.add(eventKey);
                     setTimeout(() => App.state.notifiedEvents.delete(eventKey), 15000);
                     
-                    // this.playAlert(); // Removido para evitar duplicidade com o Pusher (quando o app tá aberto)
-                    // App.ui.showToast(notification.body || 'Novo alerta!', 'info', notification.title);
+                    // Toca o som quando o app recebe a notificação FCM em foreground
+                    App.notifications.playAlert();
+                    App.ui.showToast(notification.body || 'Novo alerta!', 'info', notification.title);
                 }
             });
 
@@ -452,7 +529,8 @@ const App = {
         },
 
         playAlert(somTipo) {
-            if (document.hidden) return;
+            // NOTA: Não bloquear por document.hidden — no Android nativo o áudio
+            // deve tocar mesmo com a tela apagada ou o app em background parcial.
             if (!App.state.soundEnabled) return;
             const resolvedSom = somTipo || localStorage.getItem('motoboy_som_global') || 'campainha_classica';
             if (resolvedSom === 'mudo') return;
@@ -463,8 +541,13 @@ const App = {
                 audioObj.currentTime = 0;
                 audioObj.play().catch(err => {
                     console.warn('Erro ao tocar áudio pré-carregado:', err);
+                    // Fallback: nova instância
                     const fallbackAudio = new Audio(getSoundPath(resolvedSom));
-                    fallbackAudio.play().catch(e => console.error(e));
+                    fallbackAudio.play().catch(e => {
+                        // Segundo fallback: som original
+                        const emergency = new Audio(getSoundPath('original'));
+                        emergency.play().catch(e2 => console.error('Falha crítica de áudio:', e2));
+                    });
                 });
             }
         },
@@ -528,8 +611,9 @@ const App = {
                     App.loadPedidos();
                     const pId = String(data.pedido_id || '');
                     if (['pronto', 'servido', 'saiu_entrega', 'entregue'].includes(data.status) && pId) {
+                        if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell();
                         let title = 'Motoboy Pro';
-                        let body = `Pedido #${pId} atualizado!`;
+                        let body = `Pedido #${pId} updated!`;
                         if (data.status === 'pronto') {
                             title = '🍳 PEDIDO PRONTO';
                             body = `Pedido #${pId} pronto na cozinha.`;
@@ -556,6 +640,7 @@ const App = {
                     App.loadPedidos();
                     const pId = String(p.id || p.pedido_id || '');
                     if (pId) {
+                        if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell();
                         dispararToastSistema('novo-pedido', { mesa: 'Delivery', pedido_id: pId }, `Novo pedido recebido #${pId}`, 'info');
                         App.notifications.showLocal(`🆕 NOVO DELIVERY`, `Pedido #${pId} recebido!`, `novo_${pId}`);
                     }

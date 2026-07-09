@@ -4749,6 +4749,73 @@ async function configurarPusher() {
 }
 function inicializarConfiguracaoSom() {
   atualizarIconesSom();
+  carregarSomMotoboy(); // Carrega o som salvo no servidor para o select
+}
+
+/** Busca o som atual do motoboy no servidor e preenche o select */
+async function carregarSomMotoboy() {
+  try {
+    const res = await fetch('/api/config/som-global');
+    if (res.ok) {
+      const data = await res.json();
+      const select = document.getElementById('select-som-motoboy');
+      if (select && data.somMotoboy) {
+        select.value = data.somMotoboy;
+      }
+    }
+  } catch (e) {
+    console.warn('Aviso: não foi possível carregar som do motoboy:', e);
+  }
+}
+
+/** Pré-visualiza o som selecionado no admin */
+function testarSomMotoboy() {
+  const select = document.getElementById('select-som-motoboy');
+  const som = select ? select.value : 'campainha_classica';
+  if (som === 'mudo') {
+    mostrarToast('🔇 Som configurado como MUDO', 'warning');
+    return;
+  }
+  // Mapa de caminhos dos sons (mesmos que o app nativo usa)
+  const somMap = {
+    'campainha_classica': '/sons/campainha_classica.wav',
+    'sino_moderno': '/sons/sino_moderno.wav',
+    'alerta_digital': '/sons/alerta_digital.wav',
+    'alerta_urgente': '/sons/alerta_urgente.wav',
+    'suave': '/sons/suave.wav',
+    'original': '/notificacao.mp3'
+  };
+  const url = somMap[som] || '/notificacao.mp3';
+  const audio = new Audio(url);
+  audio.play().catch(() => {
+    // Fallback para o MP3 padrão se o arquivo não existir neste contexto
+    const fallback = new Audio('/notificacao.mp3');
+    fallback.play().catch(e => mostrarToast('Erro ao tocar som: ' + e.message, 'error'));
+  });
+  mostrarToast('▶️ Tocando: ' + som.replace(/_/g, ' '), 'info');
+}
+
+/** Salva o som do motoboy no servidor */
+async function salvarToquesMotoboy() {
+  const select = document.getElementById('select-som-motoboy');
+  const somMotoboy = select ? select.value : 'campainha_classica';
+  try {
+    const res = await fetch('/api/config/som-global', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '')
+      },
+      body: JSON.stringify({ somMotoboy })
+    });
+    if (res.ok) {
+      mostrarToast('✅ Toque do Motoboy salvo: ' + somMotoboy.replace(/_/g, ' '), 'success');
+    } else {
+      mostrarToast('❌ Erro ao salvar toque', 'error');
+    }
+  } catch (e) {
+    mostrarToast('❌ Falha na conexão: ' + e.message, 'error');
+  }
 }
 
 function atualizarIconesSom() {
@@ -4781,6 +4848,7 @@ function alternarSomMP3() {
   const ativo = check ? check.checked : true;
   localStorage.setItem('admin_som_mp3_ativo', ativo);
   atualizarIconesSom();
+  _salvarConfigSomServidor();
   if (ativo) {
     tocarNotificacao('campainha'); // Som de teste
     mostrarToast("🔔 Som de Campainha ATIVADO");
@@ -4794,12 +4862,28 @@ function alternarSomWindows() {
   const ativo = check ? check.checked : false;
   localStorage.setItem('admin_som_windows', ativo);
   atualizarIconesSom();
+  _salvarConfigSomServidor();
   if (ativo) {
     tocarNotificacao('windows'); // Som de teste
     exibirNotificacaoNativa("🔊 TESTE DE SOM", "O som do Windows está agora ativado para notificações.");
     mostrarToast("🔊 Som do Windows ATIVADO");
   } else {
     mostrarToast("🔇 Som do Windows DESATIVADO");
+  }
+}
+
+/** Persiste preferências de som no banco via API para que outros apps (ex: motoboy) as utilizem. */
+async function _salvarConfigSomServidor() {
+  try {
+    const mp3_ativo = localStorage.getItem('admin_som_mp3_ativo') !== 'false';
+    const windows_ativo = localStorage.getItem('admin_som_windows') === 'true';
+    await fetch('/api/config/som', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '') },
+      body: JSON.stringify({ mp3_ativo, windows_ativo })
+    });
+  } catch (e) {
+    console.warn('Aviso: não foi possível salvar config de som no servidor:', e);
   }
 }
 /**

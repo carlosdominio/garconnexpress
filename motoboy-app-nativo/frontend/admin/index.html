@@ -651,7 +651,7 @@
       <div class="config-layout">
         <!-- Sidebar de Configurações -->
         <aside class="config-sidebar">
-          <button class="config-nav-btn active" onclick="switchConfigSubTab('mesas')">
+          <button class="config-nav-btn" onclick="switchConfigSubTab('mesas')">
             <i class="fa-solid fa-table"></i> Mesas
           </button>
           <button class="config-nav-btn" onclick="switchConfigSubTab('equipe')">
@@ -662,6 +662,9 @@
           </button>
           <button class="config-nav-btn" onclick="switchConfigSubTab('cozinha')">
             <i class="fa-solid fa-utensils"></i> Cozinha
+          </button>
+          <button class="config-nav-btn" onclick="switchConfigSubTab('sons')">
+            <i class="fa-solid fa-bell"></i> Sons
           </button>
         </aside>
 
@@ -772,6 +775,43 @@
                 <p style="text-align:center; opacity:0.5;">Carregando categorias...</p>
               </div>
               <button onclick="salvarConfigCategoriasCozinha()" style="width: 100%; margin-top: 15px; background: #2c3e50;">SALVAR CONFIGURAÇÃO</button>
+            </div>
+          </div>
+
+          <!-- Sub-seção: Sons / Toques de Alerta -->
+          <div id="config-sub-sons" class="config-sub-section">
+            <div class="config-card">
+              <h3>🔔 Toques de Alerta dos Aplicativos</h3>
+              <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1.5rem;">Escolha toques personalizados para cada aplicativo da equipe para facilitar a identificação sonora.</p>
+
+              <!-- MOTOBOY -->
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                  <span style="font-size: 1.5rem;">🛍️</span>
+                  <div>
+                    <strong style="color: #2c3e50; font-size: 1rem;">App Motoboy</strong>
+                    <p style="margin: 0; font-size: 0.78rem; color: #64748b;">Som tocado ao receber novos pedidos de delivery</p>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  <select id="select-som-motoboy" style="flex: 1; padding: 10px 14px; border-radius: 8px; border: 1.5px solid #cbd5e0; font-weight: bold; background: white; cursor: pointer;">
+                    <option value="campainha_classica">🔔 Campainha Clássica</option>
+                    <option value="sino_moderno">🔔 Sino Moderno</option>
+                    <option value="alerta_digital">⚡ Alerta Digital</option>
+                    <option value="alerta_urgente">🚨 Alerta Urgente</option>
+                    <option value="suave">🎵 Suave</option>
+                    <option value="original">📣 Original (MP3)</option>
+                    <option value="mudo">🔇 Mudo</option>
+                  </select>
+                  <button onclick="testarSomMotoboy()" style="background: #3498db; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: bold; white-space: nowrap;">
+                    ▶️ Testar
+                  </button>
+                </div>
+              </div>
+
+              <button onclick="salvarToquesMotoboy()" style="width: 100%; background: linear-gradient(135deg, #e67e22, #f39c12); color: white; border: none; padding: 14px; border-radius: 10px; font-size: 1rem; font-weight: bold; cursor: pointer; margin-top: 8px;">
+                💾 SALVAR TOQUES
+              </button>
             </div>
           </div>
 
