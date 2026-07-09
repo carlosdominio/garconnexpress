@@ -945,28 +945,44 @@ async function safePusherTrigger(channel, event, data) {
                     token: sub.endpoint
                   };
                  
-                 // Seleciona a instância correta do Firebase Admin
-                 let firebaseAppToUse = admin;
-                 if (targetApp === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) {
-                   firebaseAppToUse = admin.app('motoboy');
-                 } else if (targetApp === 'cozinha' && admin.apps.find(a => a.name === 'cozinha')) {
-                   firebaseAppToUse = admin.app('cozinha');
-                 }
+                  // Seleciona a instância correta do Firebase Admin
+                  let firebaseAppToUse = null;
+                  if (targetApp === 'motoboy') {
+                    if (admin.apps.find(a => a.name === 'motoboy')) {
+                      firebaseAppToUse = admin.app('motoboy');
+                    } else {
+                      console.warn('⚠️ Firebase Admin (Motoboy) não está inicializado. Ignorando envio para evitar remoção de token.');
+                    }
+                  } else if (targetApp === 'cozinha') {
+                    if (admin.apps.find(a => a.name === 'cozinha')) {
+                      firebaseAppToUse = admin.app('cozinha');
+                    } else {
+                      console.warn('⚠️ Firebase Admin (Cozinha) não está inicializado. Ignorando envio para evitar remoção de token.');
+                    }
+                  } else {
+                    if (admin.apps.length > 0) {
+                      firebaseAppToUse = admin;
+                    } else {
+                      console.warn('⚠️ Firebase Admin (Garçom/Padrão) não está inicializado.');
+                    }
+                  }
 
-                 pushPromises.push(
-                   firebaseAppToUse.messaging().send(message)
-                     .then((response) => {
-                       console.log(`✅ FCM Nativo (${targetApp}) enviado:`, response);
-                     })
-                     .catch(async (error) => {
-                       console.error(`❌ Erro enviando FCM Nativo (${targetApp}):`, error);
-                       // Remove tokens inválidos
-                       if (error.code === 'messaging/invalid-registration-token' || error.code === 'messaging/registration-token-not-registered') {
-                          console.log('🗑️ Removendo token FCM inativo:', sub.endpoint);
-                          await query("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]);
-                       }
-                     })
-                 );
+                  if (firebaseAppToUse) {
+                    pushPromises.push(
+                      firebaseAppToUse.messaging().send(message)
+                        .then((response) => {
+                          console.log(`✅ FCM Nativo (${targetApp}) enviado:`, response);
+                        })
+                        .catch(async (error) => {
+                          console.error(`❌ Erro enviando FCM Nativo (${targetApp}):`, error);
+                          // Remove tokens inválidos
+                          if (error.code === 'messaging/invalid-registration-token' || error.code === 'messaging/registration-token-not-registered') {
+                             console.log('🗑️ Removendo token FCM inativo:', sub.endpoint);
+                             await query("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]);
+                          }
+                        })
+                    );
+                  }
                }
             }
           }
