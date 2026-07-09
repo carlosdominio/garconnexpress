@@ -1,7 +1,18 @@
 {
   "version": 2,
   "builds": [
-    { "src": "server.js", "use": "@vercel/node" }
+    {
+      "src": "server.js",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": [
+          "frontend/**",
+          "motoboy-app-nativo/www/**",
+          "cozinha-app-nativo/www/**",
+          "garcom-app-nativo/www/**"
+        ]
+      }
+    }
   ],
   "routes": [
     { "src": "/(.*)", "dest": "/server.js" }
