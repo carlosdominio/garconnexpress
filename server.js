@@ -4538,6 +4538,43 @@ const FCM_DEFAULTS = [
   { evento: 'estoque-baixo', tituloPadrao: '⚠️ ESTOQUE BAIXO', corpoPadrao: 'Alerta de estoque baixo para {item}: restam apenas {qtd} un.!', destinatario: 'garcom', variaveis: ['item', 'qtd'] }
 ];
 
+app.get('/api/debug-fcm', async (req, res) => {
+  try {
+    const initializedApps = admin.apps.map(a => ({
+      name: a.name || 'default',
+      options: a.options ? {
+        projectId: a.options.projectId || 'N/A'
+      } : null
+    }));
+
+    const envKeys = {
+      FIREBASE_SERVICE_ACCOUNT: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+      FIREBASE_SERVICE_ACCOUNT_MOTOBOY: !!process.env.FIREBASE_SERVICE_ACCOUNT_MOTOBOY,
+      FIREBASE_SERVICE_ACCOUNT_COZINHA: !!process.env.FIREBASE_SERVICE_ACCOUNT_COZINHA
+    };
+
+    let localFiles = {
+      garcom: false,
+      motoboy: false,
+      cozinha: false
+    };
+
+    const fs = require('fs');
+    if (fs.existsSync('./firebase-adminsdk.json')) localFiles.garcom = true;
+    if (fs.existsSync('./firebase-adminsdk-motoboy.json')) localFiles.motoboy = true;
+    if (fs.existsSync('./firebase-adminsdk-cozinha.json')) localFiles.cozinha = true;
+
+    res.json({
+      success: true,
+      initializedApps,
+      envKeys,
+      localFiles
+    });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/fcm-config/listar', ensureDbInitialized, isAdmin, async (req, res) => {
   try {
     const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_%'")).rows;
