@@ -634,6 +634,9 @@ function switchConfigSubTab(subTab) {
   else if (subTab === 'toasts') {
     carregarConfiguracoesToasts();
   }
+  else if (subTab === 'atualizar-apps') {
+    carregarVersaoApp();
+  }
 }
 
 // ─── RELATÓRIOS DE ESTOQUE ─────────────────────────────────────────────────────
@@ -8270,5 +8273,50 @@ function tocarPreviewSomApp(selectId) {
   if (val === 'mudo') return;
   const audio = new Audio(getSoundPath(val));
   audio.play().catch(e => console.warn('Erro ao reproduzir preview de som:', e));
+}
+
+/** Busca as configurações de versões atuais do app no servidor */
+async function carregarVersaoApp() {
+  try {
+    const res = await fetch('/api/config/versao-app');
+    if (res.ok) {
+      const data = await res.json();
+      const inWeb = document.getElementById('config-web-version');
+      const inApk = document.getElementById('config-apk-version');
+      const inUrl = document.getElementById('config-apk-url');
+      if (inWeb && data.web_version) inWeb.value = data.web_version;
+      if (inApk && data.apk_version) inApk.value = data.apk_version;
+      if (inUrl && data.apk_url) inUrl.value = data.apk_url;
+    }
+  } catch (err) {
+    console.error('Erro ao carregar configurações de versão:', err);
+  }
+}
+
+/** Salva as configurações de versão (Web/APK) no servidor e dispara Pusher */
+async function salvarVersaoApp() {
+  const web_version = document.getElementById('config-web-version')?.value || '1.0.0';
+  const apk_version = document.getElementById('config-apk-version')?.value || '2.0.0';
+  const apk_url = document.getElementById('config-apk-url')?.value || '/motoboy-v2.0.0-portrait.apk';
+
+  try {
+    const res = await fetch('/api/config/versao-app', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '')
+      },
+      body: JSON.stringify({ web_version, apk_version, apk_url })
+    });
+    const data = await res.json();
+    if (data.success) {
+      await mostrarConfirmacaoFCM('Sucesso', '⚙️ Controle de versões atualizado e propagado com sucesso!', 'sucesso', true);
+      carregarVersaoApp();
+    } else {
+      throw new Error(data.error || 'Erro desconhecido');
+    }
+  } catch (err) {
+    await mostrarConfirmacaoFCM('Erro', '❌ Falha ao salvar versões: ' + err.message, 'perigo', true);
+  }
 }
 

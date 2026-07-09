@@ -92,6 +92,11 @@ const App = {
     },
 
     async init() {
+        // Verifica atualizações de versão antes de prosseguir se for app nativo
+        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+            await App.updater.check();
+        }
+
         App.notifications.inicializarAudios();
         console.log('🚀 Inicializando Motoboy App v2.0.3...');
         
@@ -566,6 +571,112 @@ const App = {
         }
     },
 
+    // --- GERENCIADOR DE ATUALIZAÇÕES (OTA / APK) ---
+    updater: {
+        web_version: '1.0.0', // Versão local do código web (baseline)
+        apk_version: '2.0.0', // Versão padrão do APK local (se não puder ler pelo User Agent)
+
+        getLocalApkVersion() {
+            const ua = navigator.userAgent;
+            const match = ua.match(/GarconnExpressMotoboy\/([0-9.]+)/);
+            return match ? match[1] : this.apk_version;
+        },
+
+        async check() {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/config/versao-app?_t=${Date.now()}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data.success) return;
+
+                const localApk = this.getLocalApkVersion();
+                const serverApk = data.apk_version;
+
+                // 1. Verifica se exige atualização do APK nativo
+                if (this.compareVersions(localApk, serverApk) < 0) {
+                    this.showApkUpdateScreen(data.apk_url, serverApk);
+                    return;
+                }
+
+                // 2. Verifica se exige atualização do código Web (OTA)
+                const localWeb = localStorage.getItem('motoboy_web_version') || this.web_version;
+                const serverWeb = data.web_version;
+
+                if (this.compareVersions(localWeb, serverWeb) < 0) {
+                    await this.runWebUpdate(serverWeb);
+                }
+            } catch (e) {
+                console.error("Erro ao verificar atualizações:", e);
+            }
+        },
+
+        compareVersions(v1, v2) {
+            const parts1 = v1.split('.').map(Number);
+            const parts2 = v2.split('.').map(Number);
+            for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+                const num1 = parts1[i] || 0;
+                const num2 = parts2[i] || 0;
+                if (num1 < num2) return -1;
+                if (num1 > num2) return 1;
+            }
+            return 0;
+        },
+
+        showApkUpdateScreen(apkUrl, targetVersion) {
+            const overlay = document.getElementById('update-app');
+            const title = document.getElementById('update-title');
+            const subtitle = document.getElementById('update-subtitle');
+            const icon = document.getElementById('update-icon');
+            const progressBar = document.getElementById('update-progress-bar');
+            const percentage = document.getElementById('update-percentage');
+            const btn = document.getElementById('update-btn');
+
+            if (!overlay) return;
+
+            icon.textContent = '🤖';
+            title.textContent = 'Atualização Necessária';
+            subtitle.innerHTML = `Instale a nova versão do aplicativo (<strong>v${targetVersion}</strong>) para continuar utilizando o sistema.`;
+            progressBar.style.width = '0%';
+            percentage.textContent = 'Pendente';
+            btn.classList.remove('hidden');
+            overlay.classList.remove('hidden');
+
+            btn.onclick = () => {
+                // Abre o link do APK no navegador externo do celular
+                window.open(`${API_BASE_URL}${apkUrl}`, '_system');
+            };
+        },
+
+        async runWebUpdate(targetVersion) {
+            const overlay = document.getElementById('update-app');
+            const title = document.getElementById('update-title');
+            const subtitle = document.getElementById('update-subtitle');
+            const icon = document.getElementById('update-icon');
+            const progressBar = document.getElementById('update-progress-bar');
+            const percentage = document.getElementById('update-percentage');
+            const btn = document.getElementById('update-btn');
+
+            if (!overlay) return;
+
+            icon.textContent = '⚡';
+            title.textContent = 'Atualizando Sistema';
+            subtitle.textContent = 'Carregando melhorias e novos arquivos de áudio...';
+            btn.classList.add('hidden');
+            overlay.classList.remove('hidden');
+
+            // Simula uma barra de progresso suave para o reload limpo
+            for (let i = 0; i <= 100; i += 10) {
+                progressBar.style.width = `${i}%`;
+                percentage.textContent = `${i}%`;
+                await new Promise(r => setTimeout(r, 150));
+            }
+
+            localStorage.setItem('motoboy_web_version', targetVersion);
+            // Faz o reload completo limpando cache
+            window.location.reload(true);
+        }
+    },
+
     // --- REAL-TIME (PUSHER) ---
     pusher: {
         instance: null,
@@ -583,6 +694,11 @@ const App = {
                     if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell(data.som_tipo);
                     const tipo = data.tipo === 'erro' ? 'error' : (data.tipo === 'sucesso' ? 'success' : 'info');
                     App.ui.showToast(data.mensagem || '', tipo);
+                });
+
+                this.channel.bind('versao-app-atualizada', () => {
+                    console.log('📢 Versão do aplicativo atualizada no servidor. Verificando...');
+                    App.updater.check();
                 });
 
                 this.channel.bind('som-global-atualizado', (data) => {

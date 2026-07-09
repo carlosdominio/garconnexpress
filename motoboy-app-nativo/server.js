@@ -184,6 +184,49 @@ app.post('/api/config/som-global', ensureDbInitialized, isAdmin, async (req, res
   }
 });
 
+app.get('/api/config/versao-app', ensureDbInitialized, async (req, res) => {
+  try {
+    const configRows = (await query("SELECT chave, valor FROM sistema_config WHERE chave IN ('config_web_version', 'config_apk_version', 'config_apk_url')")).rows;
+    const configMap = {};
+    for (const r of configRows) {
+      configMap[r.chave] = r.valor;
+    }
+    res.json({
+      success: true,
+      web_version: configMap['config_web_version'] || '1.0.0',
+      apk_version: configMap['config_apk_version'] || '2.0.0',
+      apk_url: configMap['config_apk_url'] || '/motoboy-v2.0.0-portrait.apk'
+    });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/config/versao-app', ensureDbInitialized, isAdmin, async (req, res) => {
+  const { web_version, apk_version, apk_url } = req.body;
+  try {
+    const configs = [
+      { chave: 'config_web_version', valor: web_version || '1.0.0' },
+      { chave: 'config_apk_version', valor: apk_version || '2.0.0' },
+      { chave: 'config_apk_url', valor: apk_url || '/motoboy-v2.0.0-portrait.apk' }
+    ];
+    for (const cfg of configs) {
+      if (isPostgres) {
+        await query("INSERT INTO sistema_config (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [cfg.chave, cfg.valor]);
+      } else {
+        await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES (?, ?)", [cfg.chave, cfg.valor]);
+      }
+    }
+    if (typeof safePusherTrigger !== 'undefined') {
+      await safePusherTrigger('garconnexpress', 'versao-app-atualizada', {
+        web_version: web_version || '1.0.0',
+        apk_version: apk_version || '2.0.0',
+        apk_url: apk_url || '/motoboy-v2.0.0-portrait.apk'
+      });
+    }
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+
 // INTEGRAÇÃO WHATSAPP (BOT EXTERNO)
 const DEFAULT_BOT_URL = 'https://meu-zap-bot.onrender.com/';
 const botUrlFinal = process.env.WHATSAPP_BOT_URL || DEFAULT_BOT_URL;
