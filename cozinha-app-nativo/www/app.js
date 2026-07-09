@@ -710,12 +710,13 @@ async function registerNativePush() {
     }
 
     let permStatus = await PushNotifications.checkPermissions();
-    if (permStatus.receive === 'prompt') {
+    if (permStatus.receive !== 'granted') {
       permStatus = await PushNotifications.requestPermissions();
     }
 
     if (permStatus.receive !== 'granted') {
       console.warn('❌ Permissão de notificação negada.');
+      alert('⚠️ Notificações Desativadas:\nPara receber alertas de novos pedidos na cozinha em tempo real, por favor ative as notificações nas configurações do seu celular.');
       return;
     }
 

@@ -461,6 +461,15 @@ const App = {
 
             if (perm.receive === 'granted') {
                 await PushNotifications.register();
+            } else {
+                console.warn('❌ Permissão de notificação negada (Motoboy).');
+                Swal.fire({
+                    title: 'Notificações Desativadas 🔔',
+                    text: 'Para receber os alertas de novos pedidos para entrega, por favor ative as notificações para este aplicativo nas configurações do seu celular.',
+                    icon: 'warning',
+                    confirmButtonText: 'ENTENDIDO',
+                    confirmButtonColor: '#e67e22'
+                });
             }
 
             PushNotifications.addListener('registration', (token) => {
