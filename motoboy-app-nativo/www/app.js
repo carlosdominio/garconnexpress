@@ -28,7 +28,8 @@ function getSoundPath(somTipo) {
     }
     return '/notificacao.mp3';
   }
-  const file = somTipo ? `${somTipo}.wav` : 'campainha_classica.wav';
+  const isMp3 = somTipo === 'sino_cristal' || somTipo === 'alerta_moderno';
+  const file = somTipo ? `${somTipo}.${isMp3 ? 'mp3' : 'wav'}` : 'campainha_classica.wav';
   const isCordova = window.cordova || window.Capacitor || window.location.protocol === 'file:';
   if (isCordova) {
     return `sons/${file}`;
@@ -350,7 +351,7 @@ const App = {
 
     // --- GERENCIADOR DE NOTIFICAÇÕES ---
     notifications: {
-        somTiposDisponiveis: ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave'],
+        somTiposDisponiveis: ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave', 'sino_cristal', 'alerta_moderno'],
         audiosNotificacao: {},
         inicializarAudios() {
             for (const som of this.somTiposDisponiveis) {
@@ -417,7 +418,9 @@ const App = {
                     'sino_moderno': { rec: 'sino_moderno', name: '🎵 Alerta: Sino Moderno', desc: 'Toque musical suave e moderno' },
                     'alerta_digital': { rec: 'alerta_digital', name: '📟 Alerta: Digital', desc: 'Toque eletrônico curto' },
                     'alerta_urgente': { rec: 'alerta_urgente', name: '🚨 Alerta: Urgente', desc: 'Toque com sirene de atenção rápida' },
-                    'suave': { rec: 'suave', name: '🍃 Alerta: Suave', desc: 'Toque discreto de baixo volume' }
+                    'suave': { rec: 'suave', name: '🍃 Alerta: Suave', desc: 'Toque discreto de baixo volume' },
+                    'sino_cristal': { rec: 'sino_cristal', name: '✨ Alerta: Sino de Cristal', desc: 'Toque de sino cristalino e limpo' },
+                    'alerta_moderno': { rec: 'alerta_moderno', name: '⚡ Alerta: Moderno', desc: 'Toque de aviso curto e moderno' }
                 };
 
                 // Apaga canais antigos

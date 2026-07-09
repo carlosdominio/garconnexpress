@@ -169,7 +169,7 @@ app.get('/api/config/som-global', ensureDbInitialized, async (req, res) => {
 app.post('/api/config/som-global', ensureDbInitialized, isAdmin, async (req, res) => {
   try {
     const { somMotoboy } = req.body;
-    const sonsValidos = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave', 'mudo'];
+    const sonsValidos = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave', 'sino_cristal', 'alerta_moderno', 'mudo'];
     const somFinal = sonsValidos.includes(somMotoboy) ? somMotoboy : 'campainha_classica';
     if (isPostgres) {
       await query("INSERT INTO sistema_config (chave, valor) VALUES ('motoboy_som_global', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [somFinal]);

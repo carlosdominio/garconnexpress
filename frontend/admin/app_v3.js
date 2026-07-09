@@ -8255,7 +8255,8 @@ function getSoundPath(somTipo) {
     }
     return '/notificacao.mp3';
   }
-  const file = somTipo ? `${somTipo}.wav` : 'campainha_classica.wav';
+  const isMp3 = somTipo === 'sino_cristal' || somTipo === 'alerta_moderno';
+  const file = somTipo ? `${somTipo}.${isMp3 ? 'mp3' : 'wav'}` : 'campainha_classica.wav';
   const isCordova = window.cordova || window.Capacitor || window.location.protocol === 'file:';
   if (isCordova) {
     return `sons/${file}`;
