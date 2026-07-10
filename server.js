@@ -856,21 +856,42 @@ async function safePusherTrigger(channel, event, data) {
         const pId = String(data.pedido_id || data.id || (data.pedido ? (data.pedido.id || data.pedido.pedido_id) : '') || '');
         const statusVal = String(data.status || '');
 
-        // 1. Identifica o garçom de destino associado ao evento
-        let garcomDestino = data.garcom_id || (data.pedido && data.pedido.garcom_id) || null;
+        // 1. Identifica o garçom de destino associado ao evento (pode ser o ID ou o Username)
+        let garcomIdentificado = data.garcom_id || (data.pedido && data.pedido.garcom_id) || null;
         
         // 2. Se não veio direto no evento, mas temos o mesa_id, buscamos no banco qual garçom está associado à mesa
-        if (!garcomDestino) {
+        if (!garcomIdentificado) {
           const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || null;
           if (mesaId) {
             try {
               const mesaRes = await query("SELECT garcom_id FROM mesas WHERE id = ?", [mesaId]);
               if (mesaRes.rows && mesaRes.rows[0] && mesaRes.rows[0].garcom_id) {
-                garcomDestino = mesaRes.rows[0].garcom_id;
+                garcomIdentificado = mesaRes.rows[0].garcom_id;
               }
             } catch (err) {
               console.error("Erro ao buscar garçom responsável pela mesa para push:", err.message);
             }
+          }
+        }
+
+        // 3. Resolve o Garçom para obter tanto o ID quanto o USUÁRIO para comparação correta (Int vs String)
+        let garcomDestinoId = null;
+        let garcomDestinoUsuario = null;
+        if (garcomIdentificado) {
+          try {
+            const garcomRes = await query("SELECT id, usuario FROM garcons WHERE id = ? OR usuario = ?", [
+              isNaN(Number(garcomIdentificado)) ? -1 : Number(garcomIdentificado),
+              String(garcomIdentificado)
+            ]);
+            if (garcomRes.rows && garcomRes.rows[0]) {
+              garcomDestinoId = String(garcomRes.rows[0].id).trim();
+              garcomDestinoUsuario = String(garcomRes.rows[0].usuario).trim().toLowerCase();
+            } else {
+              garcomDestinoUsuario = String(garcomIdentificado).trim().toLowerCase();
+            }
+          } catch (err) {
+            console.error("Erro ao resolver garcom no banco:", err.message);
+            garcomDestinoUsuario = String(garcomIdentificado).trim().toLowerCase();
           }
         }
 
@@ -886,9 +907,13 @@ async function safePusherTrigger(channel, event, data) {
             if (sub.app_type !== targetApp) continue;
 
             // FILTRO 2: Direciona notificações de garçom somente para o garçom responsável da mesa/pedido
-            if (targetApp === 'garcom' && garcomDestino) {
-              if (String(sub.garcom_id).trim() !== String(garcomDestino).trim()) {
-                console.log(`⏭️ Pulando FCM para garçom ${sub.garcom_id} (responsável é ${garcomDestino})`);
+            if (targetApp === 'garcom' && garcomIdentificado) {
+              const subGarcomIdStr = String(sub.garcom_id).trim();
+              const matchesId = garcomDestinoId && subGarcomIdStr === garcomDestinoId;
+              const matchesUser = garcomDestinoUsuario && subGarcomIdStr.toLowerCase() === garcomDestinoUsuario;
+              
+              if (!matchesId && !matchesUser) {
+                console.log(`⏭️ Pulando FCM para garçom ${sub.garcom_id} (responsável é ID:${garcomDestinoId}/User:${garcomDestinoUsuario})`);
                 continue;
               }
             }
