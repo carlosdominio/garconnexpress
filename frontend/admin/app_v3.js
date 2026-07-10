@@ -5696,6 +5696,13 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
   else if (tit.includes('ESTOQUE')) icone = '⚠️';
   adicionarNotificacao(tit, msg, icone);
 
+  // Envia notificação nativa para o WhatsApp do Administrador (via API Proxy)
+  fetch('/api/notify-admin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ titulo: tit, mensagem: msg })
+  }).catch(e => console.error("Erro ao notificar WhatsApp do Admin:", e));
+
   if ("Notification" in window && Notification.permission === "granted") {
     const n = new Notification(tit, { 
       body: msg,

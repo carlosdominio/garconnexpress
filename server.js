@@ -4099,6 +4099,20 @@ app.get('/api/pusher-config', (req, res) => {
   });
 });
 
+app.post('/api/notify-admin', isAuthenticated, async (req, res) => {
+  const { titulo, mensagem } = req.body;
+  if (!titulo || !mensagem) {
+    return res.status(400).json({ error: 'Título e mensagem são obrigatórios.' });
+  }
+  try {
+    const formattedText = `🔔 *PAINEL ADM — ${titulo}*\n\n${mensagem}`;
+    await sendWhatsAppMessage(formattedText);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- ROTAS DO CARDÁPIO DIGITAL (CLIENTE) ---
 
 // Gera um novo código de acesso para uma mesa (Usado pelo Garçom/Admin)
