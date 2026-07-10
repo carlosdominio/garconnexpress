@@ -4100,12 +4100,13 @@ app.get('/api/pusher-config', (req, res) => {
 });
 
 app.post('/api/notify-admin', isAuthenticated, async (req, res) => {
-  const { titulo, mensagem } = req.body;
-  if (!titulo || !mensagem) {
+  const { titulo, mensagem, message } = req.body;
+  const msgContent = mensagem || message;
+  if (!titulo || !msgContent) {
     return res.status(400).json({ error: 'Título e mensagem são obrigatórios.' });
   }
   try {
-    const formattedText = `🔔 *PAINEL ADM — ${titulo}*\n\n${mensagem}`;
+    const formattedText = `🔔 *PAINEL ADM — ${titulo}*\n\n${msgContent}`;
     await sendWhatsAppMessage(formattedText);
     res.json({ success: true });
   } catch (error) {

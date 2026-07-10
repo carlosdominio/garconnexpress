@@ -5697,12 +5697,14 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
   adicionarNotificacao(tit, msg, icone);
 
   // Evita duplicar notificações enviando para o WhatsApp do Admin apenas o que o backend não envia de forma nativa.
-  // O backend já envia nativamente de forma detalhada: Novos Pedidos, Cancelamentos e Entregas de Delivery.
+  // O backend já envia nativamente de forma detalhada: Novos Pedidos, Cancelamentos, Fechamentos e Entregas de Delivery.
   const uppercaseTit = tit.toUpperCase();
   const isRedundante = uppercaseTit.includes('🚀 NOVO PEDIDO') || 
                        uppercaseTit.includes('➕ ITEM ADICIONADO') || 
                        uppercaseTit.includes('CANCELADO') || 
                        uppercaseTit.includes('CANCELADA') ||
+                       uppercaseTit.includes('FECHAMENTO') ||
+                       uppercaseTit.includes('CONTA') ||
                        (uppercaseTit.includes('CONCLUÍDO') && msg.toUpperCase().includes('DELIVERY'));
 
   if (!isRedundante) {
@@ -5710,7 +5712,7 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
     fetch('/api/notify-admin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ titulo: tit, mensagem: msg })
+      body: JSON.stringify({ titulo: tit, message: msg }) // Usamos o backend proxy padrão
     }).catch(e => console.error("Erro ao notificar WhatsApp do Admin:", e));
   } else {
     console.log(`ℹ️ [Notificação WhatsApp] Ignorando envio redundante para WhatsApp do Admin: ${tit}`);
@@ -5952,6 +5954,11 @@ async function configurarPusher() {
         tocarNotificacao();
         exibirNotificacaoNativa('❌ Cancelado', `${nMesa}: Pedido cancelado.`, tagMesa);
         mostrarToast(`❌ ${nMesa} cancelado`);
+      }
+      else if (data.status === 'servido' && data.garcom_id !== 'DELIVERY') {
+        tocarNotificacao();
+        exibirNotificacaoNativa('🍽️ Pedido Servido', `${nMesa} foi entregue na mesa!`, tagMesa);
+        mostrarToast(`🍽️ Servido: ${nMesa}`);
       }
       else if (data.status === 'servido' && data.garcom_id === 'DELIVERY') {
         tocarNotificacao();
