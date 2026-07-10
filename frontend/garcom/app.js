@@ -855,6 +855,20 @@ async function carregarSomGlobalGarcom() {
   }
 }
 
+// Verifica se a mesa pertence a outro garçom ativo (para filtrar notificações com app aberto)
+function isMesaDeOutroGarcom(mesaIdOuNumero) {
+  if (!garcomLogado || !mesaIdOuNumero) return false;
+  
+  // Acha a mesa na lista local de mesas
+  const mesaObj = mesas.find(m => m.id == mesaIdOuNumero || m.numero == mesaIdOuNumero);
+  
+  // Se a mesa tem um garçom responsável e este garçom é DIFERENTE do garçom logado
+  if (mesaObj && mesaObj.garcom_id && String(mesaObj.garcom_id).trim().toLowerCase() !== String(garcomLogado.usuario).trim().toLowerCase()) {
+    return true; // Sim, pertence a outro garçom
+  }
+  return false; // Pertence a mim ou está livre
+}
+
 async function configurarPusher() {
   try {
     const configRes = await fetch('/api/pusher-config');
@@ -923,12 +937,20 @@ async function configurarPusher() {
         return;
       }
       console.log('📢 Evento recebido: pedido-pronto', data);
+      
+      const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || data.mesa_numero;
+      if (isMesaDeOutroGarcom(mesaId)) {
+        console.log("Ignorando som/toast de pedido pronto para mesa de outro garçom.");
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
+
       // Garçom sempre toca para pedidos prontos
       if (deveTocarSom('pedido-pronto')) tocarCampainha();
 
       // Mostra Toast e Notificação Nativa
       dispararToastSistema('pedido-pronto', { mesa: data.mesa_numero }, data.mensagem, 'success');
-
 
       // Mostra apenas alerta informativo
       mostrarAlerta(data.mensagem, "🍳 COZINHA: PEDIDO PRONTO!", "🍳");
@@ -952,6 +974,14 @@ async function configurarPusher() {
       }
       console.log('📢 Evento recebido: novo-pedido', data);
 
+      const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || data.mesa_numero;
+      if (isMesaDeOutroGarcom(mesaId)) {
+        console.log("Ignorando som/toast de novo pedido para mesa de outro garçom.");
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
+
       const isAddition = !!data.is_addition;
       const evKey = isAddition ? 'item-adicionado' : 'novo-pedido';
 
@@ -974,7 +1004,6 @@ async function configurarPusher() {
         dispararToastSistema('novo-pedido', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `Novo pedido recebido da ${mesaStr}`, 'info');
       }
 
-
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => carregarMesas(), 50);
     });
@@ -985,7 +1014,15 @@ async function configurarPusher() {
         timeoutPusher = setTimeout(() => carregarMesas(), 50);
         return;
       }
-      console.log('📢 Status atualizado no garçom:', data);
+      console.log('📢 Status updated in waiter:', data);
+
+      const mesaId = data ? (data.mesa_id || data.mesa_numero) : null;
+      if (isMesaDeOutroGarcom(mesaId)) {
+        console.log("Ignorando som/toast de status atualizado para mesa de outro garçom.");
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
       
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => {
@@ -1009,15 +1046,14 @@ async function configurarPusher() {
             dispararToastSistema('item-adicionado', { mesa: strMesa }, `📝 Pedido da ${strMesa} atualizado pelo Admin`, 'info');
           }
 
-
-            if (data.status === 'liberada') {
-               if (mesaAtual && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_numero)) {
-                  document.getElementById('modal-resumo-mesa').style.display = 'none';
-                  document.getElementById('modal-opcoes').style.display = 'none';
-                  voltarParaMesas();
-               }
-            }
+          if (data.status === 'liberada') {
+             if (mesaAtual && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_numero)) {
+                document.getElementById('modal-resumo-mesa').style.display = 'none';
+                document.getElementById('modal-opcoes').style.display = 'none';
+                voltarParaMesas();
+             }
           }
+        }
       }, 50);
     });
 
@@ -1028,6 +1064,21 @@ async function configurarPusher() {
         return;
       }
       console.log('📢 Evento recebido: pedido-cancelado', data);
+
+      const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || data.mesa_numero;
+      if (isMesaDeOutroGarcom(mesaId)) {
+        console.log("Ignorando som/toast de pedido cancelado para mesa de outro garçom.");
+        // Reset de estado se for a mesa atual
+        if (mesaAtual && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_numero)) {
+            document.getElementById('modal-resumo-mesa').style.display = 'none';
+            document.getElementById('modal-opcoes').style.display = 'none';
+            voltarParaMesas();
+        }
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
+
       const msg = data.mensagem || `🚨 Pedido #${data.pedido_id} foi REMOVIDO pelo Admin.`;
 
       // Extrai número da mesa se disponível
@@ -1035,7 +1086,6 @@ async function configurarPusher() {
 
       if (deveTocarSom('pedido-cancelado')) tocarCampainha(); // Som normal (mais forte) para cancelamento
       dispararToastSistema('pedido-cancelado', { mesa: mesaStr }, msg, 'error');
-
 
       // Reset de estado se for a mesa atual
       if (mesaAtual && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_numero)) {
@@ -1078,6 +1128,13 @@ async function configurarPusher() {
 
     channel.bind('chamado-garcom', (data) => {
       console.log('📢 Evento recebido: chamado-garcom', data);
+      
+      const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || data.mesa_numero;
+      if (isMesaDeOutroGarcom(mesaId)) {
+        console.log("Ignorando chamado de garçom para mesa de outro garçom.");
+        return;
+      }
+
       if (deveTocarSom('chamado-garcom')) tocarCampainha();
       mostrarAlerta(data.mensagem, "🛎️ CHAMADO DE CLIENTE", "🛎️");
     });
@@ -1090,6 +1147,13 @@ async function configurarPusher() {
 
     channel.bind('rascunho-recebido', (data) => {
       console.log('📢 Evento recebido: rascunho-recebido', data);
+      
+      const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || data.mesa_numero;
+      if (isMesaDeOutroGarcom(mesaId)) {
+        console.log("Ignorando rascunho recebido para mesa de outro garçom.");
+        return;
+      }
+
       const config = typeof _toastTemplates !== 'undefined' ? _toastTemplates.find(x => x.evento === 'rascunho-recebido') : null;
       const ativo = config ? config.ativo : true;
       if (!ativo) {
@@ -1102,6 +1166,15 @@ async function configurarPusher() {
 
     channel.bind('solicitacao-fechamento-cliente', (data) => {
       console.log('📢 Evento recebido: solicitacao-fechamento-cliente', data);
+
+      const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || data.mesa_numero;
+      if (isMesaDeOutroGarcom(mesaId)) {
+        console.log("Ignorando fechamento para mesa de outro garçom.");
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
+
       if (deveTocarSom('solicitacao-fechamento-cliente')) tocarCampainha();
       mostrarAlerta(data.mensagem, "🙋‍♂️ SOLICITAÇÃO DE FECHAMENTO", "💰");
       
