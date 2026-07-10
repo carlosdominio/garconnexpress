@@ -2779,6 +2779,7 @@ async function exibirMenuConfig() {
     if (vencidosCount > 0 || proxVencimentoCount > 0) {
       const agora_ms = Date.now();
       if (agora_ms - ultimoAlertaValidadeMostrado > 30000) {
+        exibirNotificacaoNativa('⚠️ Alerta de Validade', `🚨 ALERTA: ${vencidosCount} produtos vencidos e ${proxVencimentoCount} próximos da validade!`, 'validade-alerta');
         mostrarToast(`🚨 ALERTA: ${vencidosCount} produtos vencidos e ${proxVencimentoCount} próximos da validade!`);
         ultimoAlertaValidadeMostrado = agora_ms;
       }
