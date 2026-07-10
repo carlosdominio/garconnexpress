@@ -3428,8 +3428,16 @@ async function imprimirResumoDiario() {
     </div>
   `;
 
-  container.innerHTML = html;
-  setTimeout(() => { window.print(); }, 250);
+  document.getElementById('conteudo-previa-bobina').innerHTML = html;
+  
+  const btnReal = document.getElementById('btn-imprimir-real-previa');
+  btnReal.onclick = function() {
+    container.innerHTML = html;
+    setTimeout(() => { window.print(); }, 250);
+    fecharPreviaCupom();
+  };
+  
+  document.getElementById('modal-previa-cupom').style.display = 'flex';
 }
 
 async function carregarPedidos() {
@@ -6692,8 +6700,16 @@ async function imprimirRelatorioCaixa() {
     </div>
   `;
 
-  container.innerHTML = html;
-  setTimeout(() => { window.print(); }, 250);
+  document.getElementById('conteudo-previa-bobina').innerHTML = html;
+  
+  const btnReal = document.getElementById('btn-imprimir-real-previa');
+  btnReal.onclick = function() {
+    container.innerHTML = html;
+    setTimeout(() => { window.print(); }, 250);
+    fecharPreviaCupom();
+  };
+  
+  document.getElementById('modal-previa-cupom').style.display = 'flex';
 }
 
 // --- LOGICA DO NOVO MODAL DE OPÇÕES DA MESA ---
