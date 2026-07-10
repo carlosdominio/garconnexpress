@@ -5361,11 +5361,19 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
         pagamentos_detalhados_lista: formasPagamentoPessoas
       };
       
-      // NOVA CONFIRMAÇÃO DE IMPRESSÃO
-      if (await mostrarConfirmacao("Venda concluída com sucesso!\n\nDeseja imprimir o cupom final agora?", "Impressão Final", "Sim, Imprimir", "Não")) {
+      // NOVA PREVIA DE IMPRESSÃO DO CUPOM FINAL
+      console.log("📄 Gerando HTML para prévia do cupom final...");
+      const htmlPrevia = await imprimirCupom(pedidoFinal, itensFechamentoAdmin, true);
+      document.getElementById('conteudo-previa-bobina').innerHTML = htmlPrevia;
+      
+      const btnReal = document.getElementById('btn-imprimir-real-previa');
+      btnReal.onclick = function() {
           console.log("🖨️ Disparando impressão final detalhada...");
           imprimirCupom(pedidoFinal, itensFechamentoAdmin);
-      }
+          fecharPreviaCupom();
+      };
+      
+      document.getElementById('modal-previa-cupom').style.display = 'flex';
     }
     
     fecharModalFechamentoAdmin();
