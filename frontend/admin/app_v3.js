@@ -5712,7 +5712,7 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
     fetch('/api/notify-admin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ titulo: tit, message: msg }) // Usamos o backend proxy padrão
+      body: JSON.stringify({ titulo: tit, mensagem: msg }) // Restaura chave mensagem original
     }).catch(e => console.error("Erro ao notificar WhatsApp do Admin:", e));
   } else {
     console.log(`ℹ️ [Notificação WhatsApp] Ignorando envio redundante para WhatsApp do Admin: ${tit}`);
