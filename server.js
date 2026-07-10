@@ -856,6 +856,24 @@ async function safePusherTrigger(channel, event, data) {
         const pId = String(data.pedido_id || data.id || (data.pedido ? (data.pedido.id || data.pedido.pedido_id) : '') || '');
         const statusVal = String(data.status || '');
 
+        // 1. Identifica o garçom de destino associado ao evento
+        let garcomDestino = data.garcom_id || (data.pedido && data.pedido.garcom_id) || null;
+        
+        // 2. Se não veio direto no evento, mas temos o mesa_id, buscamos no banco qual garçom está associado à mesa
+        if (!garcomDestino) {
+          const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || null;
+          if (mesaId) {
+            try {
+              const mesaRes = await query("SELECT garcom_id FROM mesas WHERE id = ?", [mesaId]);
+              if (mesaRes.rows && mesaRes.rows[0] && mesaRes.rows[0].garcom_id) {
+                garcomDestino = mesaRes.rows[0].garcom_id;
+              }
+            } catch (err) {
+              console.error("Erro ao buscar garçom responsável pela mesa para push:", err.message);
+            }
+          }
+        }
+
         const pushPromises = [];
         for (const target of targets) {
           const targetApp = target.app;
@@ -864,8 +882,16 @@ async function safePusherTrigger(channel, event, data) {
 
           const sentEndpoints = new Set();
           for (const sub of subs) {
-            // FILTRO: Só envia se o app_type da inscrição coincidir com o alvo do evento
+            // FILTRO 1: Só envia se o app_type da inscrição coincidir com o alvo do evento
             if (sub.app_type !== targetApp) continue;
+
+            // FILTRO 2: Direciona notificações de garçom somente para o garçom responsável da mesa/pedido
+            if (targetApp === 'garcom' && garcomDestino) {
+              if (String(sub.garcom_id).trim() !== String(garcomDestino).trim()) {
+                console.log(`⏭️ Pulando FCM para garçom ${sub.garcom_id} (responsável é ${garcomDestino})`);
+                continue;
+              }
+            }
 
             // Evita envio duplicado para o mesmo token/endpoint na mesma execução
             if (sentEndpoints.has(sub.endpoint)) {
