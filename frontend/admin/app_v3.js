@@ -6272,6 +6272,11 @@ function copiarPedido(btn, texto) {
 }
 
 async function reimprimirCupomById(id) {
+  // Fecha o modal de detalhes do historico para deixar a tela limpa
+  if (typeof fecharModalDetalheHistorico === 'function') {
+    fecharModalDetalheHistorico();
+  }
+
   try {
     const res = await fetch(`/api/pedidos/${id}`);
     if (!res.ok) throw new Error("Erro ao buscar dados do pedido");
