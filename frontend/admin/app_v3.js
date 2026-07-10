@@ -360,6 +360,7 @@ async function iniciarPainelAdmin() {
             fecharPreviaCupom();
           };
           
+          document.getElementById('titulo-modal-previa').innerText = '📄 Prévia do Cupom (Pré-Conta)';
           document.getElementById('modal-previa-cupom').style.display = 'flex';
         })();
       }
@@ -3437,6 +3438,7 @@ async function imprimirResumoDiario() {
     fecharPreviaCupom();
   };
   
+  document.getElementById('titulo-modal-previa').innerText = '📄 Prévia do Cupom (Resumo Diário)';
   document.getElementById('modal-previa-cupom').style.display = 'flex';
 }
 
@@ -3528,6 +3530,7 @@ async function imprimirParcialMesaRapido(idPedido) {
       fecharPreviaCupom();
     };
     
+    document.getElementById('titulo-modal-previa').innerText = '📄 Prévia do Cupom (Pré-Conta)';
     document.getElementById('modal-previa-cupom').style.display = 'flex';
   } catch (e) {
     console.error("Erro na impressão rápida:", e);
@@ -5209,6 +5212,7 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
         fecharPreviaCupom();
       };
       
+      document.getElementById('titulo-modal-previa').innerText = '📄 Prévia do Cupom (Pré-Conta)';
       document.getElementById('modal-previa-cupom').style.display = 'flex';
     })();
     
@@ -5373,6 +5377,7 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
           fecharPreviaCupom();
       };
       
+      document.getElementById('titulo-modal-previa').innerText = '📄 Conta Final';
       document.getElementById('modal-previa-cupom').style.display = 'flex';
     }
     
@@ -6250,7 +6255,19 @@ async function reimprimirCupomById(id) {
     
     // Chama a função principal de impressão com o pedido e seus itens
     // Passamos como re-impressão (isFechamentoFinal=false para não calcular "pago agora" como saldo)
-    await imprimirCupom({ ...pedido, isReimpressao: true }, itens);
+    const pedidoParaImprimir = { ...pedido, isReimpressao: true };
+    const htmlPrevia = await imprimirCupom(pedidoParaImprimir, itens, true);
+    
+    document.getElementById('conteudo-previa-bobina').innerHTML = htmlPrevia;
+    
+    const btnReal = document.getElementById('btn-imprimir-real-previa');
+    btnReal.onclick = function() {
+        imprimirCupom(pedidoParaImprimir, itens);
+        fecharPreviaCupom();
+    };
+    
+    document.getElementById('titulo-modal-previa').innerText = '📄 Prévia do Cupom (Reimpressão)';
+    document.getElementById('modal-previa-cupom').style.display = 'flex';
   } catch (e) {
     console.error("Erro ao re-imprimir cupom:", e);
     mostrarAlerta("Não foi possível re-imprimir o cupom: " + e.message, "Erro", "❌");
@@ -6717,6 +6734,7 @@ async function imprimirRelatorioCaixa() {
     fecharPreviaCupom();
   };
   
+  document.getElementById('titulo-modal-previa').innerText = '📄 Prévia do Cupom (Relatório de Caixa)';
   document.getElementById('modal-previa-cupom').style.display = 'flex';
 }
 
