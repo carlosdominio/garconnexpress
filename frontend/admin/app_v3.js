@@ -5696,12 +5696,25 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
   else if (tit.includes('ESTOQUE')) icone = '⚠️';
   adicionarNotificacao(tit, msg, icone);
 
-  // Envia notificação nativa para o WhatsApp do Administrador (via API Proxy)
-  fetch('/api/notify-admin', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ titulo: tit, mensagem: msg })
-  }).catch(e => console.error("Erro ao notificar WhatsApp do Admin:", e));
+  // Evita duplicar notificações enviando para o WhatsApp do Admin apenas o que o backend não envia de forma nativa.
+  // O backend já envia nativamente de forma detalhada: Novos Pedidos, Cancelamentos e Pedidos Prontos.
+  const uppercaseTit = tit.toUpperCase();
+  const isRedundante = uppercaseTit.includes('PEDIDO') || 
+                       uppercaseTit.includes('ITEM') || 
+                       uppercaseTit.includes('PRONTO') || 
+                       uppercaseTit.includes('CANCELADO') || 
+                       uppercaseTit.includes('CANCELADA');
+
+  if (!isRedundante) {
+    // Envia notificação nativa para o WhatsApp do Administrador (via API Proxy)
+    fetch('/api/notify-admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ titulo: tit, mensagem: msg })
+    }).catch(e => console.error("Erro ao notificar WhatsApp do Admin:", e));
+  } else {
+    console.log(`ℹ️ [Notificação WhatsApp] Ignorando envio redundante para WhatsApp do Admin: ${tit}`);
+  }
 
   if ("Notification" in window && Notification.permission === "granted") {
     const n = new Notification(tit, { 
