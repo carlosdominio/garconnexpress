@@ -5697,13 +5697,13 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
   adicionarNotificacao(tit, msg, icone);
 
   // Evita duplicar notificações enviando para o WhatsApp do Admin apenas o que o backend não envia de forma nativa.
-  // O backend já envia nativamente de forma detalhada: Novos Pedidos, Cancelamentos e Pedidos Prontos.
+  // O backend já envia nativamente de forma detalhada: Novos Pedidos, Cancelamentos e Entregas de Delivery.
   const uppercaseTit = tit.toUpperCase();
-  const isRedundante = uppercaseTit.includes('PEDIDO') || 
-                       uppercaseTit.includes('ITEM') || 
-                       uppercaseTit.includes('PRONTO') || 
+  const isRedundante = uppercaseTit.includes('🚀 NOVO PEDIDO') || 
+                       uppercaseTit.includes('➕ ITEM ADICIONADO') || 
                        uppercaseTit.includes('CANCELADO') || 
-                       uppercaseTit.includes('CANCELADA');
+                       uppercaseTit.includes('CANCELADA') ||
+                       (uppercaseTit.includes('CONCLUÍDO') && msg.toUpperCase().includes('DELIVERY'));
 
   if (!isRedundante) {
     // Envia notificação nativa para o WhatsApp do Administrador (via API Proxy)
