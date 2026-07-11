@@ -461,8 +461,8 @@ async function isWhatsAppEnabled() {
   }
 }
 
-async function sendWhatsAppMessage(text, targetNumber = null) {
-  console.log(`🔎 [WhatsApp] Tentando disparar notificação: "${text.substring(0, 50)}..."`);
+async function sendWhatsAppMessage(text, targetNumber = null, pedidoId = 9999) {
+  console.log(`🔎 [WhatsApp] Disparando notificação HTTP para o bot...`);
   try {
     if (!await isWhatsAppEnabled()) {
       console.log('🚫 [WhatsApp] Automação desativada nas configurações do sistema');
@@ -491,24 +491,28 @@ async function sendWhatsAppMessage(text, targetNumber = null) {
       }
     }
 
-    if (whatsappSocket && whatsappSocket.connected && numbersList.length > 0) {
-      // Remove duplicados e limpa os números
-      const uniqueNumbers = [...new Set(numbersList.map(n => n.replace(/\D/g, '')))];
-      console.log(`🤖 [WhatsApp] Bot CONECTADO. Enviando para: ${uniqueNumbers.join(', ')}`);
+    if (numbersList.length === 0) {
+      console.log('⚠️ [WhatsApp] FALHA NO ENVIO: Lista de números vazia.');
+      return;
+    }
 
-      uniqueNumbers.forEach(num => {
-        // Renomeia o chat caso seja a primeira vez ou tenha perdido o nome
-        whatsappSocket.emit('rename_chat', { jid: num + '@s.whatsapp.net', name: 'Notificações Meu zap 🔔' });
-        // Fixa a conversa (PIN) no WhatsApp para sempre ficar no topo
-        whatsappSocket.emit('pin_chat', { jid: num + '@s.whatsapp.net' });
-        // Envia para o bot usando apenas os dígitos (formato que funcionou nos testes)
-        // O bot cuidará do roteamento interno.
-        whatsappSocket.emit('send_msg', { number: num, text: text });
-      });
-    } else {
-      console.log('⚠️ [WhatsApp] FALHA NO ENVIO: Bot desconectado ou lista de números vazia.');
-      console.log(`   - Socket conectado: ${whatsappSocket ? whatsappSocket.connected : 'null'}`);
-      console.log(`   - Números encontrados: ${numbersList.length}`);
+    const uniqueNumbers = [...new Set(numbersList.map(n => n.replace(/\D/g, '')))];
+    const botUrl = (botUrlFinal || 'https://meu-zap-bot-rd8m.onrender.com').replace(/\/$/, '');
+
+    for (const num of uniqueNumbers) {
+      console.log(`🤖 [WhatsApp] Enviando via HTTP POST para: ${num} → ${botUrl}/api/notify-delivery`);
+      fetch(`${botUrl}/api/notify-delivery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          number: num,
+          status: 'admin-notification',
+          pedidoId: pedidoId || 9999,
+          tempo: null,
+          mensagem: text
+        })
+      }).then(r => console.log(`✅ [WhatsApp HTTP] Resposta do bot para ${num}: HTTP ${r.status}`))
+        .catch(err => console.error(`❌ [WhatsApp HTTP] Erro ao enviar para ${num}:`, err.message));
     }
   } catch (e) {
     console.error('❌ Erro interno ao enviar WhatsApp:', e.message);
@@ -2449,10 +2453,10 @@ app.post('/api/caixa/abrir', isAdmin, async (req, res) => {
     await query("INSERT INTO fluxo_caixa (valor_inicial, status, data_abertura) VALUES (?, 'aberto', ?)", [valInicialNum, dataLocal]);
     await safePusherTrigger('garconnexpress', 'status-caixa-atualizado', { status: 'aberto' });
     
-    // Notificação WhatsApp
-    await sendWhatsAppMessage(`💰 *CAIXA ABERTO*\n🕒 Horário: ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n💵 Valor Inicial: R$ ${Number(valInicialNum).toFixed(2)}`).catch(e => console.error('Erro Wpp:', e.message));
-
     res.json({ success: true });
+
+    // Notificação WhatsApp
+    sendWhatsAppMessage(`💰 *CAIXA ABERTO*\n🕒 Horário: ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n💵 Valor Inicial: R$ ${Number(valInicialNum).toFixed(2)}`).catch(e => console.error('Erro Wpp:', e.message));
   } catch (error) { res.status(500).json({ error: 'Erro ao abrir caixa' }); }
 });
 
@@ -2477,6 +2481,8 @@ app.post('/api/caixa/fechar', isAdmin, async (req, res) => {
 
     await safePusherTrigger('garconnexpress', 'status-caixa-atualizado', { status: 'fechado' });
 
+    res.json({ success: true });
+
     // Notificação WhatsApp detalhada
     if (dadosCaixa) {
       const msgWpp = `🔴 *CAIXA FECHADO*\n🕒 Horário: ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n\n` +
@@ -2486,10 +2492,8 @@ app.post('/api/caixa/fechar', isAdmin, async (req, res) => {
                      `📱 Pix: R$ ${Number(dadosCaixa.total_pix || 0).toFixed(2)}\n` +
                      `📈 Total Vendas: R$ ${Number(dadosCaixa.total_vendas || 0).toFixed(2)}\n` +
                      `🏁 Valor Final: R$ ${Number(valor_final || 0).toFixed(2)}`;
-      await sendWhatsAppMessage(msgWpp).catch(e => console.error('Erro Wpp:', e.message));
+      sendWhatsAppMessage(msgWpp).catch(e => console.error('Erro Wpp:', e.message));
     }
-
-    res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Erro ao fechar caixa' }); }
 });
 
