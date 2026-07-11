@@ -472,15 +472,22 @@ async function sendWhatsAppMessage(text, targetNumber = null) {
     let numbersList = [];
     
     if (targetNumber) {
-      // Se um número específico foi passado (ex: resposta ao cliente), usa ele
       numbersList = [targetNumber];
     } else {
-      // Caso contrário, busca a lista de números de notificação no banco/env
-      const configNums = await query("SELECT valor FROM sistema_config WHERE chave = 'whatsapp_notify_numbers'");
-      if (configNums.rows && configNums.rows.length > 0 && configNums.rows[0].valor) {
-        numbersList = configNums.rows[0].valor.split(',').map(n => n.trim());
-      } else if (process.env.WHATSAPP_NOTIFY_NUMBER) {
-        numbersList = [process.env.WHATSAPP_NOTIFY_NUMBER];
+      try {
+        const configNums = await query("SELECT valor FROM sistema_config WHERE chave = 'whatsapp_notify_numbers'");
+        if (configNums.rows && configNums.rows.length > 0 && configNums.rows[0].valor) {
+          numbersList = configNums.rows[0].valor.split(',').map(n => n.trim()).filter(Boolean);
+        }
+      } catch (dbErr) {
+        console.warn('⚠️ [WhatsApp] Não foi possível buscar número no banco:', dbErr.message);
+      }
+
+      // Fallback: variável de ambiente ou número hardcoded
+      if (numbersList.length === 0) {
+        const fallback = process.env.WHATSAPP_NOTIFY_NUMBER || '558293157048';
+        numbersList = [fallback];
+        console.log(`⚠️ [WhatsApp] Usando número fallback: ${fallback}`);
       }
     }
 
