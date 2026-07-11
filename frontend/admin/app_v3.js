@@ -1609,6 +1609,8 @@ async function carregarStatusCaixa() {
     document.getElementById('detalhe-caixa-dinheiro').innerText = `R$ ${(caixaAtual.total_dinheiro || 0).toFixed(2)}`;
     document.getElementById('detalhe-caixa-pix').innerText = `R$ ${(caixaAtual.total_pix || 0).toFixed(2)}`;
     document.getElementById('detalhe-caixa-cartao').innerText = `R$ ${(caixaAtual.total_cartao || 0).toFixed(2)}`;
+    
+    carregarMovimentacoesCaixa(caixaAtual.id);
   } else {
     fechadoView.classList.remove('hidden');
     abertoView.classList.add('hidden');
@@ -8496,6 +8498,109 @@ function handleApkUpload(input, appTipo) {
   };
 
   reader.readAsArrayBuffer(file);
+}
+
+// --- MOVIMENTAÇÕES DE CAIXA (SANGRIA / SUPRIMENTO) ---
+function abrirModalMovimentacaoCaixa(tipo) {
+  const modal = document.getElementById('modal-movimentacao-caixa');
+  const titulo = document.getElementById('movimentacao-caixa-titulo');
+  const header = document.getElementById('movimentacao-caixa-header');
+  const inputTipo = document.getElementById('movimentacao-caixa-tipo');
+  const btn = document.getElementById('btn-confirmar-movimentacao');
+
+  inputTipo.value = tipo;
+  document.getElementById('movimentacao-caixa-valor').value = '';
+  document.getElementById('movimentacao-caixa-motivo').value = '';
+
+  if (tipo === 'suprimento') {
+    titulo.innerText = '📥 Lançar Suprimento (Entrada de Troco)';
+    header.style.background = 'linear-gradient(135deg, #27ae60, #2ecc71)';
+    btn.style.background = '#27ae60';
+  } else {
+    titulo.innerText = '📤 Lançar Sangria (Retirada de Dinheiro)';
+    header.style.background = 'linear-gradient(135deg, #d35400, #e67e22)';
+    btn.style.background = '#d35400';
+  }
+
+  modal.style.display = 'flex';
+}
+
+function fecharModalMovimentacaoCaixa() {
+  document.getElementById('modal-movimentacao-caixa').style.display = 'none';
+}
+
+async function salvarMovimentacaoCaixa() {
+  const tipo = document.getElementById('movimentacao-caixa-tipo').value;
+  const valorInput = document.getElementById('movimentacao-caixa-valor');
+  const motivoInput = document.getElementById('movimentacao-caixa-motivo');
+
+  const valor = parseFloat(valorInput.value) || 0;
+  const motivo = motivoInput.value.trim();
+
+  if (valor <= 0) {
+    return Swal.fire({ icon: 'warning', title: 'Valor inválido', text: 'O valor deve ser maior que zero.' });
+  }
+
+  // Se for sangria, verificar se há saldo suficiente
+  if (tipo === 'sangria' && caixaAtual && caixaAtual.total_dinheiro < valor) {
+    return Swal.fire({ icon: 'error', title: 'Saldo insuficiente', text: `Não há dinheiro suficiente no caixa para esta sangria. Disponível: R$ ${caixaAtual.total_dinheiro.toFixed(2)}` });
+  }
+
+  try {
+    const res = await fetch('/api/caixa/movimentacao', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        caixa_id: caixaAtual.id,
+        tipo,
+        valor,
+        motivo
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      Swal.fire({ icon: 'success', title: 'Sucesso', text: 'Movimentação registrada com sucesso!', timer: 2000, showConfirmButton: false });
+      fecharModalMovimentacaoCaixa();
+      carregarStatusCaixa();
+    } else {
+      Swal.fire({ icon: 'error', title: 'Erro', text: data.error || 'Erro ao salvar movimentação.' });
+    }
+  } catch (error) {
+    console.error('Erro ao salvar movimentação:', error);
+    Swal.fire({ icon: 'error', title: 'Erro de conexão', text: 'Não foi possível se comunicar com o servidor.' });
+  }
+}
+
+async function carregarMovimentacoesCaixa(caixaId) {
+  try {
+    const res = await fetch(`/api/caixa/${caixaId}/movimentacoes`);
+    if (!res.ok) return;
+
+    const movimentacoes = await res.json();
+    const tbody = document.getElementById('lista-movimentacoes-caixa');
+    
+    if (movimentacoes.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #7f8c8d; padding: 15px;">Nenhuma movimentação lançada neste caixa.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = movimentacoes.map(mov => {
+      const dataFormatada = new Date(mov.data).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      const badgeClass = mov.tipo === 'suprimento' ? 'style="color:#27ae60;font-weight:bold;"' : 'style="color:#d35400;font-weight:bold;"';
+      const label = mov.tipo === 'suprimento' ? '📥 SUPRIMENTO' : '📤 SANGRIA';
+      return `
+        <tr style="border-bottom: 1px solid #edf2f7;">
+          <td style="padding: 10px;">${dataFormatada}</td>
+          <td style="padding: 10px;" ${badgeClass}>${label}</td>
+          <td style="padding: 10px; font-weight: bold;">R$ ${mov.valor.toFixed(2)}</td>
+          <td style="padding: 10px; color: #4a5568;">${mov.motivo || '-'}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (error) {
+    console.error('Erro ao carregar movimentações do caixa:', error);
+  }
 }
 
 

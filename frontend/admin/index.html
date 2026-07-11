@@ -427,6 +427,32 @@
           </div>
         </div>
 
+        <div class="config-card" style="margin-bottom: 2rem;">
+          <h3>Movimentações do Caixa (Sangria / Suprimento)</h3>
+          <div style="display: flex; gap: 1rem; margin-top: 1rem; margin-bottom: 1.5rem;">
+            <button onclick="abrirModalMovimentacaoCaixa('suprimento')" style="background: #27ae60; flex: 1; padding: 1rem; font-size: 1rem; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; outline: none;">📥 Lançar Suprimento (Entrada)</button>
+            <button onclick="abrirModalMovimentacaoCaixa('sangria')" style="background: #d35400; flex: 1; padding: 1rem; font-size: 1rem; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; outline: none;">📤 Lançar Sangria (Retirada)</button>
+          </div>
+          
+          <div style="max-height: 250px; overflow-y: auto;">
+            <table class="table-dados" style="width: 100%; border-collapse: collapse; text-align: left;">
+              <thead>
+                <tr style="background: #f7fafc; border-bottom: 2px solid #edf2f7;">
+                  <th style="padding: 10px;">Data/Hora</th>
+                  <th style="padding: 10px;">Operação</th>
+                  <th style="padding: 10px;">Valor</th>
+                  <th style="padding: 10px;">Motivo</th>
+                </tr>
+              </thead>
+              <tbody id="lista-movimentacoes-caixa">
+                <tr>
+                  <td colspan="4" style="text-align: center; color: #7f8c8d; padding: 15px;">Nenhuma movimentação lançada neste caixa.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div style="display: flex; gap: 1rem; margin-top: 2rem;">
           <button onclick="imprimirRelatorioCaixa()" style="background: #3498db; flex: 1; padding: 1.5rem; font-size: 1.2rem;">🖨️ IMPRIMIR RELATÓRIO PARCIAL</button>
           <button onclick="confirmarFechamentoCaixa()" style="background: #e74c3c; flex: 1; padding: 1.5rem; font-size: 1.2rem;">🏁 FECHAR CAIXA E ENCERRAR DIA</button>
@@ -2116,6 +2142,29 @@
         <div style="display: flex; gap: 10px; justify-content: flex-end;">
           <button id="confirmacao-fcm-btn-cancelar" style="padding: 10px 18px; border: 1.5px solid #cbd5e1; background: white; color: #64748b; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 0.9rem; outline: none; transition: all 0.2s;">Cancelar</button>
           <button id="confirmacao-fcm-btn-confirmar" style="padding: 10px 22px; border: none; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 0.9rem; outline: none; transition: all 0.2s;">Confirmar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Modal de Movimentação do Caixa (Sangria/Suprimento) -->
+  <div id="modal-movimentacao-caixa" class="modal" style="display: none; align-items: center; justify-content: center; z-index: 9999;">
+    <div class="modal-content" style="max-width: 450px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); overflow: hidden; border: none; background: white; padding: 0;">
+      <div id="movimentacao-caixa-header" style="background: linear-gradient(135deg, #27ae60, #2ecc71); padding: 15px 20px; color: white; display: flex; align-items: center; gap: 10px;">
+        <h3 id="movimentacao-caixa-titulo" style="margin: 0; color: white; font-size: 1.1rem; font-weight: 700; border: none; padding: 0;">Lançar Movimentação</h3>
+      </div>
+      <div style="padding: 20px; display: flex; flex-direction: column; gap: 1rem;">
+        <input type="hidden" id="movimentacao-caixa-tipo">
+        <div>
+          <label style="font-weight: bold; color: #475569; display: block; margin-bottom: 5px;">Valor (R$)</label>
+          <input type="number" id="movimentacao-caixa-valor" step="0.01" min="0.01" placeholder="0,00" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1.1rem; box-sizing: border-box;">
+        </div>
+        <div>
+          <label style="font-weight: bold; color: #475569; display: block; margin-bottom: 5px;">Motivo / Observação</label>
+          <textarea id="movimentacao-caixa-motivo" placeholder="Ex: Retirada para pagamento de fornecedor" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; height: 80px; resize: none; box-sizing: border-box;"></textarea>
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
+          <button onclick="fecharModalMovimentacaoCaixa()" style="padding: 10px 18px; border: 1.5px solid #cbd5e1; background: white; color: #64748b; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 0.9rem;">Cancelar</button>
+          <button onclick="salvarMovimentacaoCaixa()" style="padding: 10px 22px; border: none; background: #27ae60; color: white; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 0.9rem;" id="btn-confirmar-movimentacao">Confirmar</button>
         </div>
       </div>
     </div>

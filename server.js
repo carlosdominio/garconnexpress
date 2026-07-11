@@ -1806,6 +1806,7 @@ async function initDb() {
     `CREATE TABLE IF NOT EXISTS usuarios_admin (id SERIAL PRIMARY KEY, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS sistema_config (chave TEXT PRIMARY KEY, valor TEXT)`,
     `CREATE TABLE IF NOT EXISTS fluxo_caixa (id SERIAL PRIMARY KEY, data_abertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, data_fechamento TIMESTAMP, valor_inicial REAL NOT NULL, valor_final REAL, status TEXT DEFAULT 'aberto', total_dinheiro REAL DEFAULT 0, total_pix REAL DEFAULT 0, total_cartao REAL DEFAULT 0, total_vendas REAL DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS caixa_movimentacoes (id SERIAL PRIMARY KEY, caixa_id INTEGER NOT NULL, tipo TEXT NOT NULL, valor REAL NOT NULL, motivo TEXT, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE TABLE IF NOT EXISTS codigos_acesso (id SERIAL PRIMARY KEY, mesa_id INTEGER, codigo TEXT NOT NULL, status TEXT DEFAULT 'ativo', criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE TABLE IF NOT EXISTS push_subscriptions (id SERIAL PRIMARY KEY, garcom_id TEXT, endpoint TEXT, p256dh TEXT, auth TEXT, app_type TEXT DEFAULT 'garcom', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE TABLE IF NOT EXISTS ficha_tecnica (id SERIAL PRIMARY KEY, menu_id INTEGER NOT NULL, ingrediente_id INTEGER NOT NULL, quantidade REAL NOT NULL, unidade TEXT DEFAULT 'un')`,
@@ -2466,6 +2467,62 @@ app.post('/api/caixa/fechar', isAdmin, async (req, res) => {
 
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Erro ao fechar caixa' }); }
+});
+
+// --- MOVIMENTAÇÕES DE CAIXA (SANGRIA E SUPRIMENTO) ---
+app.post('/api/caixa/movimentacao', isAdmin, async (req, res) => {
+  const { caixa_id, tipo, valor, motivo } = req.body;
+  const valNum = parseFloat(valor) || 0;
+  
+  if (valNum <= 0) {
+    return res.status(400).json({ error: 'O valor da movimentação deve ser maior que zero.' });
+  }
+  if (tipo !== 'sangria' && tipo !== 'suprimento') {
+    return res.status(400).json({ error: 'Tipo de movimentação inválido (deve ser sangria ou suprimento).' });
+  }
+
+  try {
+    const cx = (await query("SELECT id, status, total_dinheiro FROM fluxo_caixa WHERE id = ?", [caixa_id])).rows[0];
+    if (!cx) {
+      return res.status(404).json({ error: 'Caixa não encontrado.' });
+    }
+    if (cx.status !== 'aberto') {
+      return res.status(400).json({ error: 'Não é possível movimentar um caixa fechado.' });
+    }
+
+    // Se for sangria, verificar se há saldo suficiente em dinheiro
+    if (tipo === 'sangria' && cx.total_dinheiro < valNum) {
+      return res.status(400).json({ error: `Saldo em dinheiro insuficiente no caixa. Disponível: R$ ${cx.total_dinheiro.toFixed(2)}` });
+    }
+
+    // Inserir registro de movimentação
+    await query("INSERT INTO caixa_movimentacoes (caixa_id, tipo, valor, motivo) VALUES (?, ?, ?, ?)", [caixa_id, tipo, valNum, motivo || '']);
+
+    // Atualizar saldo em dinheiro do caixa
+    const operador = tipo === 'sangria' ? '-' : '+';
+    await query(`UPDATE fluxo_caixa SET total_dinheiro = total_dinheiro ${operador} ? WHERE id = ?`, [valNum, caixa_id]);
+
+    await safePusherTrigger('garconnexpress', 'status-caixa-atualizado', { status: 'aberto' });
+
+    // Enviar notificação de WhatsApp
+    const emoji = tipo === 'sangria' ? '📤' : '📥';
+    const msgWpp = `${emoji} *MOVIMENTAÇÃO DE CAIXA*\n🕒 Horário: ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n📝 Tipo: ${tipo.toUpperCase()}\n💵 Valor: R$ ${valNum.toFixed(2)}\n💬 Motivo: ${motivo || 'Sem observações'}`;
+    await sendWhatsAppMessage(msgWpp).catch(e => console.error('Erro Wpp:', e.message));
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/caixa/:id/movimentacoes', isAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await query("SELECT * FROM caixa_movimentacoes WHERE caixa_id = ? ORDER BY data DESC", [id]);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // --- CONFIGURAÇÕES DE DELIVERY (CONTROLE INDEPENDENTE) ---
@@ -5365,7 +5422,8 @@ app.get('/api/diag', async (req, res) => {
         `CREATE TABLE IF NOT EXISTS usuarios_admin (id SERIAL PRIMARY KEY, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL)`,
         `CREATE TABLE IF NOT EXISTS sistema_config (chave TEXT PRIMARY KEY, valor TEXT)`,
         `CREATE TABLE IF NOT EXISTS fluxo_caixa (id SERIAL PRIMARY KEY, data_abertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, data_fechamento TIMESTAMP, valor_inicial REAL NOT NULL, valor_final REAL, status TEXT DEFAULT 'aberto', total_dinheiro REAL DEFAULT 0, total_pix REAL DEFAULT 0, total_cartao REAL DEFAULT 0, total_vendas REAL DEFAULT 0)`,
-        `CREATE TABLE IF NOT EXISTS codigos_acesso (id SERIAL PRIMARY KEY, mesa_id INTEGER, codigo TEXT NOT NULL, status TEXT DEFAULT 'ativo', criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS caixa_movimentacoes (id SERIAL PRIMARY KEY, caixa_id INTEGER NOT NULL, tipo TEXT NOT NULL, valor REAL NOT NULL, motivo TEXT, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS codigos_acesso (id SERIAL PRIMARY KEY, mesa_id INTEGER, codigo TEXT NOT NULL, status DEFAULT 'ativo', criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
         `CREATE TABLE IF NOT EXISTS push_subscriptions (id SERIAL PRIMARY KEY, garcom_id TEXT, endpoint TEXT, p256dh TEXT, auth TEXT, app_type TEXT DEFAULT 'garcom', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
         `CREATE TABLE IF NOT EXISTS ficha_tecnica (id SERIAL PRIMARY KEY, menu_id INTEGER NOT NULL, ingrediente_id INTEGER NOT NULL, quantidade REAL NOT NULL, unidade TEXT DEFAULT 'un')`,
         `CREATE TABLE IF NOT EXISTS estoque_movimentacoes (id SERIAL PRIMARY KEY, menu_id INTEGER NOT NULL, quantidade REAL NOT NULL, tipo TEXT NOT NULL, motivo TEXT, criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
