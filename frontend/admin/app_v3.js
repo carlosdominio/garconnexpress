@@ -8538,12 +8538,12 @@ async function salvarMovimentacaoCaixa() {
   const motivo = motivoInput.value.trim();
 
   if (valor <= 0) {
-    return Swal.fire({ icon: 'warning', title: 'Valor inválido', text: 'O valor deve ser maior que zero.' });
+    return mostrarAlerta("O valor da movimentação deve ser maior que zero.", "Valor inválido", "⚠️");
   }
 
   // Se for sangria, verificar se há saldo suficiente
   if (tipo === 'sangria' && caixaAtual && caixaAtual.total_dinheiro < valor) {
-    return Swal.fire({ icon: 'error', title: 'Saldo insuficiente', text: `Não há dinheiro suficiente no caixa para esta sangria. Disponível: R$ ${caixaAtual.total_dinheiro.toFixed(2)}` });
+    return mostrarAlerta("Não há dinheiro suficiente no caixa para esta sangria. Disponível: R$ " + caixaAtual.total_dinheiro.toFixed(2), "Saldo insuficiente", "❌");
   }
 
   try {
@@ -8560,15 +8560,15 @@ async function salvarMovimentacaoCaixa() {
 
     const data = await res.json();
     if (res.ok) {
-      Swal.fire({ icon: 'success', title: 'Sucesso', text: 'Movimentação registrada com sucesso!', timer: 2000, showConfirmButton: false });
+      mostrarAlerta("Movimentação registrada com sucesso!", "Sucesso", "✅");
       fecharModalMovimentacaoCaixa();
       carregarStatusCaixa();
     } else {
-      Swal.fire({ icon: 'error', title: 'Erro', text: data.error || 'Erro ao salvar movimentação.' });
+      mostrarAlerta(data.error || 'Erro ao salvar movimentação.', "Erro", "❌");
     }
   } catch (error) {
     console.error('Erro ao salvar movimentação:', error);
-    Swal.fire({ icon: 'error', title: 'Erro de conexão', text: 'Não foi possível se comunicar com o servidor.' });
+    mostrarAlerta("Não foi possível se comunicar com o servidor.", "Erro de conexão", "❌");
   }
 }
 
