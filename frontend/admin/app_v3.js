@@ -8635,6 +8635,32 @@ async function limparRelatoriosEstoque() {
       
       const relLoading = document.getElementById('rel-loading');
       if (relLoading) relLoading.classList.add('hidden');
+
+      // Reseta todos os valores e cards visualmente
+      const elementsToReset = {
+        'rel-valor-estoque': 'R$ 0,00',
+        'rel-total-entradas': '0',
+        'rel-valor-entradas': 'R$ 0,00',
+        'rel-total-perdas': '0',
+        'rel-valor-perdas': 'R$ 0,00',
+        'rel-lucro-total': 'R$ 0,00'
+      };
+
+      for (const [id, value] of Object.entries(elementsToReset)) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+      }
+
+      const placeholders = {
+        'rel-mais-vendidos': '<p style="color: #94a3b8; text-align: center; padding: 20px;">Clique em "Gerar Relatório" para visualizar.</p>',
+        'rel-parados': '<p style="color: #94a3b8; text-align: center; padding: 20px;">Clique em "Gerar Relatório" para visualizar.</p>',
+        'rel-consumo': '<p style="color: #94a3b8; text-align: center; padding: 20px;">Clique em "Gerar Relatório" para visualizar.</p>'
+      };
+
+      for (const [id, html] of Object.entries(placeholders)) {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = html;
+      }
     } else {
       const data = await res.json();
       mostrarAlerta(data.error || 'Erro ao apagar histórico do estoque.', "Erro", "❌");
