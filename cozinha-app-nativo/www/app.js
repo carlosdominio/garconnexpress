@@ -607,7 +607,6 @@ async function configurarPusher() {
         });
 
         canal.bind('menu-atualizado', () => {
-            mostrarToast('🔄 Cardápio atualizado');
             clearTimeout(timeoutPusher);
             timeoutPusher = setTimeout(carregarPedidos, 50);
         });
