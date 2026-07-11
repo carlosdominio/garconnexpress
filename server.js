@@ -1779,15 +1779,32 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
        } catch (e) { console.error('Erro notificação cliente:', e.message); }
     }
 
-    // Notificação WhatsApp em paralelo/background para o ADMIN
-    if (status === 'aguardando_fechamento') {
+    // Notificação WhatsApp em paralelo/background para o ADMIN para qualquer mudança de status
+    let adminMsg = null;
+    if (status === 'recebido') {
+      adminMsg = `🛎️ *NOVO PEDIDO RECEBIDO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n📋 O pedido foi lançado no sistema.`;
+    } else if (status === 'preparando') {
+      adminMsg = `🍳 *PEDIDO EM PREPARO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n👨‍🍳 A cozinha iniciou o preparo.`;
+    } else if (status === 'pronto') {
+      adminMsg = `✅ *PEDIDO PRONTO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n🔔 O pedido está pronto para ser servido/entregue.`;
+    } else if (status === 'servido') {
+      adminMsg = `🍽️ *PEDIDO SERVIDO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n✓ O pedido foi entregue à mesa.`;
+    } else if (status === 'saiu_entrega') {
+      adminMsg = `🛵 *SAIU PARA ENTREGA*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n📦 O motoboy saiu para a entrega.`;
+    } else if (status === 'aguardando_fechamento') {
       if (mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY')) {
-        await sendWhatsAppMessage(`✅ *PEDIDO ENTREGUE E FINALIZADO*\n📍 Local: ${mesaNum}\n💰 O delivery foi concluído com sucesso.`).catch(e => console.error('Erro Wpp:', e.message));
+        adminMsg = `✅ *PEDIDO ENTREGUE E FINALIZADO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O delivery foi concluído com sucesso.`;
       } else {
-        await sendWhatsAppMessage(`🛎️ *SOLICITAÇÃO DE FECHAMENTO*\n📍 Local: ${mesaNum}\n💰 O cliente solicitou a conta.`).catch(e => console.error('Erro Wpp:', e.message));
+        adminMsg = `🛎️ *SOLICITAÇÃO DE FECHAMENTO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O cliente solicitou a conta.`;
       }
     } else if (status === 'cancelado') {
-      await sendWhatsAppMessage(`❌ *PEDIDO CANCELADO*\n📍 Local: ${mesaNum}\n🗑️ O pedido foi removido do sistema.`).catch(e => console.error('Erro Wpp:', e.message));
+      adminMsg = `❌ *PEDIDO CANCELADO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n🗑️ O pedido foi cancelado no sistema.`;
+    } else if (status === 'entregue') {
+      adminMsg = `✅ *PEDIDO FINALIZADO (PAGO)*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O pagamento foi registrado e o pedido fechado.`;
+    }
+
+    if (adminMsg) {
+      await sendWhatsAppMessage(adminMsg).catch(e => console.error('Erro Wpp Admin Notification:', e.message));
     }
 
   } catch (e) { console.error('Erro ao notificar status:', e.message); }
