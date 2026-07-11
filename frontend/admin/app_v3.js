@@ -8681,5 +8681,10 @@ async function limparRelatoriosEstoque() {
   }
 }
 
+// Mantém o bot de WhatsApp no Render ativo enviando pings a cada 5 minutos
+setInterval(() => {
+  fetch('https://meu-zap-bot.onrender.com/').catch(() => {});
+}, 5 * 60 * 1000);
+
 
 
