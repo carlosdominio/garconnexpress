@@ -8681,10 +8681,23 @@ async function limparRelatoriosEstoque() {
   }
 }
 
-// Mantém o bot de WhatsApp no Render ativo enviando pings a cada 5 minutos
-setInterval(() => {
-  fetch('https://meu-zap-bot.onrender.com/').catch(() => {});
-}, 5 * 60 * 1000);
+async function pingWhatsAppBot() {
+  console.log("🔌 [WhatsApp Keep-Alive] Iniciando ping silencioso para manter o bot acordado na Render...");
+  try {
+    const startTime = Date.now();
+    const res = await fetch('https://meu-zap-bot.onrender.com/');
+    const duration = Date.now() - startTime;
+    console.log(`✅ [WhatsApp Keep-Alive] Bot respondeu com status ${res.status} em ${duration}ms.`);
+  } catch (error) {
+    console.warn("❌ [WhatsApp Keep-Alive] Falha ao tentar contato com o bot da Render:", error.message);
+  }
+}
+
+// Dispara o primeiro ping imediatamente após carregar o painel
+pingWhatsAppBot();
+
+// Agenda os próximos pings para rodarem a cada 5 minutos
+setInterval(pingWhatsAppBot, 5 * 60 * 1000);
 
 
 
