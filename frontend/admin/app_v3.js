@@ -638,6 +638,16 @@ function switchConfigSubTab(subTab) {
   else if (subTab === 'atualizar-apps') {
     carregarVersaoApp();
   }
+  else if (subTab === 'relatorios') {
+    const dataInicio = document.getElementById('rel-data-inicio');
+    const dataFim = document.getElementById('rel-data-fim');
+    if (dataInicio && dataFim && !dataInicio.value && !dataFim.value) {
+      const hoje = new Date().toLocaleDateString('en-CA');
+      dataInicio.value = hoje;
+      dataFim.value = hoje;
+      carregarRelatoriosEstoque();
+    }
+  }
 }
 
 // ─── RELATÓRIOS DE ESTOQUE ─────────────────────────────────────────────────────
