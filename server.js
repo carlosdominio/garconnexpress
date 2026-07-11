@@ -462,7 +462,7 @@ async function isWhatsAppEnabled() {
 }
 
 async function sendWhatsAppMessage(text, targetNumber = null, pedidoId = 9999) {
-  console.log(`🔎 [WhatsApp] Disparando notificação HTTP para o bot...`);
+  console.log(`🔎 [WhatsApp] Tentando disparar notificação: "${text.substring(0, 50)}..."`);
   try {
     if (!await isWhatsAppEnabled()) {
       console.log('🚫 [WhatsApp] Automação desativada nas configurações do sistema');
@@ -491,34 +491,33 @@ async function sendWhatsAppMessage(text, targetNumber = null, pedidoId = 9999) {
       }
     }
 
-    if (numbersList.length === 0) {
-      console.log('⚠️ [WhatsApp] FALHA NO ENVIO: Lista de números vazia.');
-      return;
-    }
+    if (whatsappSocket && whatsappSocket.connected && numbersList.length > 0) {
+      // Remove duplicados e limpa os números
+      const uniqueNumbers = [...new Set(numbersList.map(n => n.replace(/\D/g, '')))];
+      console.log(`🤖 [WhatsApp] Bot CONECTADO via Socket. Enviando para: ${uniqueNumbers.join(', ')}`);
 
-    const uniqueNumbers = [...new Set(numbersList.map(n => n.replace(/\D/g, '')))];
-    const botUrl = (botUrlFinal || 'https://meu-zap-bot-rd8m.onrender.com').replace(/\/$/, '');
+      uniqueNumbers.forEach(num => {
+        // Renomeia o chat caso seja a primeira vez ou tenha perdido o nome
+        whatsappSocket.emit('rename_chat', { jid: num + '@s.whatsapp.net', name: 'Notificações Meu zap 🔔' });
+        // Fixa a conversa (PIN) no WhatsApp para sempre ficar no topo
+        whatsappSocket.emit('pin_chat', { jid: num + '@s.whatsapp.net' });
+        // Envia para o bot usando apenas os dígitos (formato que funcionou nos testes)
+        whatsappSocket.emit('send_msg', { number: num, text: text });
+      });
 
-    // Aguarda todos os fetches terminarem para a Vercel não matar o processo antes da hora
-    await Promise.all(uniqueNumbers.map(async (num) => {
-      console.log(`🤖 [WhatsApp] Enviando via HTTP POST para: ${num} → ${botUrl}/api/notify-delivery`);
-      try {
-        const r = await fetch(`${botUrl}/api/notify-delivery`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            number: num,
-            status: 'admin-notification',
-            pedidoId: pedidoId || 9999,
-            tempo: null,
-            mensagem: text
-          })
-        });
-        console.log(`✅ [WhatsApp HTTP] Resposta do bot para ${num}: HTTP ${r.status}`);
-      } catch (err) {
-        console.error(`❌ [WhatsApp HTTP] Erro ao enviar para ${num}:`, err.message);
+      // AWAIT CRÍTICO PARA VERCEL: Dá 1.5s para o socket enviar os pacotes antes da Vercel congelar a execução
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      console.log(`✅ [WhatsApp] Pacotes enviados via socket. (Delay de 1.5s concluído)`);
+    } else {
+      console.log('⚠️ [WhatsApp] FALHA NO ENVIO: Bot desconectado ou lista de números vazia.');
+      console.log(`   - Socket conectado: ${whatsappSocket ? whatsappSocket.connected : 'null'}`);
+      console.log(`   - Números encontrados: ${numbersList.length}`);
+      
+      // Tentativa de reconexão para a próxima requisição
+      if (whatsappSocket && !whatsappSocket.connected) {
+         whatsappSocket.connect();
       }
-    }));
+    }
   } catch (e) {
     console.error('❌ Erro interno ao enviar WhatsApp:', e.message);
   }
