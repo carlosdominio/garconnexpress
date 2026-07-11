@@ -393,52 +393,43 @@
         </div>
       </div>
 
-      <div id="caixa-aberto-view" class="hidden" style="max-width: 600px; margin: 0 auto; padding: 1rem;">
-        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-          
-          <!-- Cards de Saldo -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-            <div class="config-card" style="border-top: 4px solid #3498db; margin: 0; padding: 1.2rem;">
-              <small style="color: #7f8c8d; font-weight: bold; text-transform: uppercase; font-size: 0.75rem;">Fundo de Troco</small>
-              <h2 id="resumo-caixa-inicial" style="margin: 5px 0 0 0; font-size: 1.6rem; color: #2c3e50;">R$ 0,00</h2>
-            </div>
-            <div class="config-card" style="border-top: 4px solid #27ae60; margin: 0; padding: 1.2rem;">
-              <small style="color: #7f8c8d; font-weight: bold; text-transform: uppercase; font-size: 0.75rem;">Vendas Realizadas</small>
-              <h2 id="resumo-caixa-vendas" style="margin: 5px 0 0 0; font-size: 1.6rem; color: #2c3e50;">R$ 0,00</h2>
-            </div>
+      <div id="caixa-aberto-view" class="hidden">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+          <div class="config-card" style="border-top: 4px solid #3498db;">
+            <small>Valor Inicial</small>
+            <h2 id="resumo-caixa-inicial">R$ 0,00</h2>
           </div>
-
-          <!-- Caixa Esperado -->
-          <div class="config-card" style="border-top: 4px solid #f1c40f; margin: 0; padding: 1.5rem; text-align: center;">
-            <small style="color: #7f8c8d; font-weight: bold; text-transform: uppercase; font-size: 0.8rem; display: block; margin-bottom: 5px;">Saldo Estimado em Caixa (Dinheiro)</small>
-            <h1 id="resumo-caixa-dinheiro" style="margin: 0; font-size: 2.2rem; color: #2c3e50;">R$ 0,00</h1>
+          <div class="config-card" style="border-top: 4px solid #27ae60;">
+            <small>Vendas (Total)</small>
+            <h2 id="resumo-caixa-vendas">R$ 0,00</h2>
           </div>
+          <div class="config-card" style="border-top: 4px solid #f1c40f;">
+            <small>Em Dinheiro (Esperado)</small>
+            <h2 id="resumo-caixa-dinheiro">R$ 0,00</h2>
+          </div>
+        </div>
 
-          <!-- Detalhamento de Faturamento -->
-          <div class="config-card" style="margin: 0; padding: 1.5rem;">
-            <h3 style="margin-top: 0; margin-bottom: 1.2rem; color: #2c3e50; font-size: 1.1rem; border-bottom: 2px solid #edf2f7; padding-bottom: 8px;">Detalhamento por Meio de Pagamento</h3>
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: center;">
-              <div style="background: #f7fafc; padding: 10px; border-radius: 8px;">
-                <p style="margin: 0 0 5px 0; color: #7f8c8d; font-size: 0.85rem;">💵 Dinheiro</p>
-                <strong id="detalhe-caixa-dinheiro" style="font-size: 1.1rem; color: #2c3e50;">R$ 0,00</strong>
-              </div>
-              <div style="background: #f7fafc; padding: 10px; border-radius: 8px;">
-                <p style="margin: 0 0 5px 0; color: #7f8c8d; font-size: 0.85rem;">📱 Pix</p>
-                <strong id="detalhe-caixa-pix" style="font-size: 1.1rem; color: #2c3e50;">R$ 0,00</strong>
-              </div>
-              <div style="background: #f7fafc; padding: 10px; border-radius: 8px;">
-                <p style="margin: 0 0 5px 0; color: #7f8c8d; font-size: 0.85rem;">💳 Cartão</p>
-                <strong id="detalhe-caixa-cartao" style="font-size: 1.1rem; color: #2c3e50;">R$ 0,00</strong>
-              </div>
+        <div class="config-card" style="margin-bottom: 2rem;">
+          <h3>Detalhamento por Meio de Pagamento</h3>
+          <div style="display: flex; justify-content: space-around; padding: 1rem 0;">
+            <div style="text-align: center;">
+              <p>💵 Dinheiro</p>
+              <strong id="detalhe-caixa-dinheiro" style="font-size: 1.2rem;">R$ 0,00</strong>
+            </div>
+            <div style="text-align: center;">
+              <p>📱 Pix</p>
+              <strong id="detalhe-caixa-pix" style="font-size: 1.2rem;">R$ 0,00</strong>
+            </div>
+            <div style="text-align: center;">
+              <p>💳 Cartão</p>
+              <strong id="detalhe-caixa-cartao" style="font-size: 1.2rem;">R$ 0,00</strong>
             </div>
           </div>
+        </div>
 
-          <!-- Ações do Caixa -->
-          <div style="display: flex; gap: 1rem; margin-top: 1rem;">
-            <button onclick="imprimirRelatorioCaixa()" style="background: #3498db; flex: 1; padding: 1.2rem; font-size: 1.1rem; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; outline: none;">🖨️ Relatório Parcial</button>
-            <button onclick="confirmarFechamentoCaixa()" style="background: #e74c3c; flex: 1; padding: 1.2rem; font-size: 1.1rem; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; outline: none;">🏁 Fechar Caixa e Encerrar Dia</button>
-          </div>
-
+        <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+          <button onclick="imprimirRelatorioCaixa()" style="background: #3498db; flex: 1; padding: 1.5rem; font-size: 1.2rem;">🖨️ IMPRIMIR RELATÓRIO PARCIAL</button>
+          <button onclick="confirmarFechamentoCaixa()" style="background: #e74c3c; flex: 1; padding: 1.5rem; font-size: 1.2rem;">🏁 FECHAR CAIXA E ENCERRAR DIA</button>
         </div>
       </div>
     </section>
