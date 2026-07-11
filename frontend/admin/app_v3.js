@@ -8609,15 +8609,40 @@ async function carregarMovimentacoesCaixa(caixaId) {
   }
 }
 
-function limparRelatoriosEstoque() {
-  document.getElementById('rel-data-inicio').value = '';
-  document.getElementById('rel-data-fim').value = '';
-  
-  const relContainer = document.getElementById('rel-container');
-  if (relContainer) relContainer.classList.add('hidden');
-  
-  const relLoading = document.getElementById('rel-loading');
-  if (relLoading) relLoading.classList.add('hidden');
+async function limparRelatoriosEstoque() {
+  const confirmacao = await mostrarConfirmacao(
+    "Tem certeza que deseja APAGAR permanentemente todo o histórico de movimentações de estoque (entradas e perdas) do banco de dados? Esta ação não pode ser desfeita!",
+    "Confirmar Exclusão de Histórico",
+    "Sim, Apagar Tudo",
+    "Cancelar",
+    "⚠️"
+  );
+  if (!confirmacao) return;
+
+  try {
+    const res = await fetch('/api/estoque/resetar-movimentacoes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (res.ok) {
+      mostrarAlerta("Todo o histórico de movimentações de estoque foi apagado com sucesso!", "Histórico Limpo", "✅");
+      document.getElementById('rel-data-inicio').value = '';
+      document.getElementById('rel-data-fim').value = '';
+      
+      const relContainer = document.getElementById('rel-container');
+      if (relContainer) relContainer.classList.add('hidden');
+      
+      const relLoading = document.getElementById('rel-loading');
+      if (relLoading) relLoading.classList.add('hidden');
+    } else {
+      const data = await res.json();
+      mostrarAlerta(data.error || 'Erro ao apagar histórico do estoque.', "Erro", "❌");
+    }
+  } catch (error) {
+    console.error('Erro ao resetar estoque:', error);
+    mostrarAlerta("Não foi possível se comunicar com o servidor.", "Erro de conexão", "❌");
+  }
 }
 
 
