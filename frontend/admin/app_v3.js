@@ -8502,6 +8502,9 @@ function handleApkUpload(input, appTipo) {
 
 // --- MOVIMENTAÇÕES DE CAIXA (SANGRIA / SUPRIMENTO) ---
 function abrirModalMovimentacaoCaixa(tipo) {
+  if (!caixaAtual || caixaAtual.status !== 'aberto') {
+    return mostrarAlerta("O caixa precisa estar aberto para realizar movimentações.", "Caixa Fechado", "⚠️");
+  }
   const modal = document.getElementById('modal-movimentacao-caixa');
   const titulo = document.getElementById('movimentacao-caixa-titulo');
   const header = document.getElementById('movimentacao-caixa-header');
@@ -8530,6 +8533,9 @@ function fecharModalMovimentacaoCaixa() {
 }
 
 async function salvarMovimentacaoCaixa() {
+  if (!caixaAtual || caixaAtual.status !== 'aberto') {
+    return mostrarAlerta("O caixa precisa estar aberto para realizar movimentações.", "Caixa Fechado", "⚠️");
+  }
   const tipo = document.getElementById('movimentacao-caixa-tipo').value;
   const valorInput = document.getElementById('movimentacao-caixa-valor');
   const motivoInput = document.getElementById('movimentacao-caixa-motivo');
