@@ -8611,9 +8611,9 @@ async function carregarMovimentacoesCaixa(caixaId) {
 
 async function limparRelatoriosEstoque() {
   const confirmacao = await mostrarConfirmacao(
-    "Tem certeza que deseja APAGAR permanentemente todo o histórico de movimentações de estoque (entradas e perdas) do banco de dados? Esta ação não pode ser desfeita!",
-    "Confirmar Exclusão de Histórico",
-    "Sim, Apagar Tudo",
+    "Tem certeza que deseja APAGAR permanentemente todo o histórico de movimentações de estoque, vendas e pagamentos do banco de dados? Isso resetará os produtos mais vendidos e faturamento do sistema. Esta ação não pode ser desfeita!",
+    "Confirmar Reset do Sistema",
+    "Sim, Resetar Sistema",
     "Cancelar",
     "⚠️"
   );

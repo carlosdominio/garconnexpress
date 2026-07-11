@@ -3815,8 +3815,12 @@ app.post('/api/estoque/movimentacao', isAdmin, async (req, res) => {
 app.post('/api/estoque/resetar-movimentacoes', isAdmin, async (req, res) => {
   try {
     await query("DELETE FROM estoque_movimentacoes");
+    await query("DELETE FROM pagamentos");
+    await query("DELETE FROM pedido_itens");
+    await query("DELETE FROM pedidos");
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
-    res.json({ success: true, message: 'Histórico de movimentações de estoque deletado com sucesso.' });
+    await safePusherTrigger('garconnexpress', 'pedido-atualizado', {});
+    res.json({ success: true, message: 'Todo o histórico de estoque, vendas e pagamentos foi resetado com sucesso.' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
