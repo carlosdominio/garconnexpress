@@ -499,21 +499,26 @@ async function sendWhatsAppMessage(text, targetNumber = null, pedidoId = 9999) {
     const uniqueNumbers = [...new Set(numbersList.map(n => n.replace(/\D/g, '')))];
     const botUrl = (botUrlFinal || 'https://meu-zap-bot-rd8m.onrender.com').replace(/\/$/, '');
 
-    for (const num of uniqueNumbers) {
+    // Aguarda todos os fetches terminarem para a Vercel não matar o processo antes da hora
+    await Promise.all(uniqueNumbers.map(async (num) => {
       console.log(`🤖 [WhatsApp] Enviando via HTTP POST para: ${num} → ${botUrl}/api/notify-delivery`);
-      fetch(`${botUrl}/api/notify-delivery`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          number: num,
-          status: 'admin-notification',
-          pedidoId: pedidoId || 9999,
-          tempo: null,
-          mensagem: text
-        })
-      }).then(r => console.log(`✅ [WhatsApp HTTP] Resposta do bot para ${num}: HTTP ${r.status}`))
-        .catch(err => console.error(`❌ [WhatsApp HTTP] Erro ao enviar para ${num}:`, err.message));
-    }
+      try {
+        const r = await fetch(`${botUrl}/api/notify-delivery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            number: num,
+            status: 'admin-notification',
+            pedidoId: pedidoId || 9999,
+            tempo: null,
+            mensagem: text
+          })
+        });
+        console.log(`✅ [WhatsApp HTTP] Resposta do bot para ${num}: HTTP ${r.status}`);
+      } catch (err) {
+        console.error(`❌ [WhatsApp HTTP] Erro ao enviar para ${num}:`, err.message);
+      }
+    }));
   } catch (e) {
     console.error('❌ Erro interno ao enviar WhatsApp:', e.message);
   }
@@ -2453,10 +2458,10 @@ app.post('/api/caixa/abrir', isAdmin, async (req, res) => {
     await query("INSERT INTO fluxo_caixa (valor_inicial, status, data_abertura) VALUES (?, 'aberto', ?)", [valInicialNum, dataLocal]);
     await safePusherTrigger('garconnexpress', 'status-caixa-atualizado', { status: 'aberto' });
     
-    res.json({ success: true });
+    // Notificação WhatsApp com AWAIT obrigatório para Serverless
+    await sendWhatsAppMessage(`💰 *CAIXA ABERTO*\n🕒 Horário: ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n💵 Valor Inicial: R$ ${Number(valInicialNum).toFixed(2)}`).catch(e => console.error('Erro Wpp:', e.message));
 
-    // Notificação WhatsApp
-    sendWhatsAppMessage(`💰 *CAIXA ABERTO*\n🕒 Horário: ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n💵 Valor Inicial: R$ ${Number(valInicialNum).toFixed(2)}`).catch(e => console.error('Erro Wpp:', e.message));
+    res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Erro ao abrir caixa' }); }
 });
 
@@ -2481,9 +2486,7 @@ app.post('/api/caixa/fechar', isAdmin, async (req, res) => {
 
     await safePusherTrigger('garconnexpress', 'status-caixa-atualizado', { status: 'fechado' });
 
-    res.json({ success: true });
-
-    // Notificação WhatsApp detalhada
+    // Notificação WhatsApp detalhada com AWAIT obrigatório para Serverless
     if (dadosCaixa) {
       const msgWpp = `🔴 *CAIXA FECHADO*\n🕒 Horário: ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n\n` +
                      `📊 *RESUMO DO DIA:*\n` +
@@ -2492,8 +2495,10 @@ app.post('/api/caixa/fechar', isAdmin, async (req, res) => {
                      `📱 Pix: R$ ${Number(dadosCaixa.total_pix || 0).toFixed(2)}\n` +
                      `📈 Total Vendas: R$ ${Number(dadosCaixa.total_vendas || 0).toFixed(2)}\n` +
                      `🏁 Valor Final: R$ ${Number(valor_final || 0).toFixed(2)}`;
-      sendWhatsAppMessage(msgWpp).catch(e => console.error('Erro Wpp:', e.message));
+      await sendWhatsAppMessage(msgWpp).catch(e => console.error('Erro Wpp:', e.message));
     }
+
+    res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Erro ao fechar caixa' }); }
 });
 
