@@ -2799,8 +2799,20 @@ app.delete('/api/pedidos/:id', isAuthenticated, async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.post('/api/pedidos', orderLimiter, (req, res, next) => {
+app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
   if (req.body && req.body.garcom_id === 'DELIVERY') {
+    if (req.body.mesa_id) {
+      return res.status(403).json({ error: 'Operação não permitida. Pedidos de Delivery não podem especificar mesa_id.' });
+    }
+    try {
+      const configRes = await query("SELECT valor FROM sistema_config WHERE chave = 'delivery_aberto'");
+      const deliveryAberto = configRes.rows && configRes.rows[0] ? configRes.rows[0].valor === 'true' : false;
+      if (!deliveryAberto) {
+        return res.status(403).json({ error: 'O canal de Delivery está temporariamente fechado.' });
+      }
+    } catch (err) {
+      return res.status(500).json({ error: 'Erro ao validar status de abertura do delivery: ' + err.message });
+    }
     return next();
   }
   return isAuthenticated(req, res, next);
@@ -3743,14 +3755,22 @@ app.post('/api/estoque/movimentacao', isAdmin, async (req, res) => {
 
 app.put('/api/menu/:id', isAdmin, async (req, res) => {
   const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, unidade, preco_custo } = req.body;
+  
+  const valPreco = parseFloat(preco) || 0;
+  const valPrecoOriginal = parseFloat(preco_original) || 0;
+  const custo = parseFloat(preco_custo) || 0;
+  
+  if (valPreco < 0 || valPrecoOriginal < 0 || custo < 0) {
+    return res.status(400).json({ error: 'Preço, preço original ou custo não podem ser negativos.' });
+  }
+
   const dataValidade = validade && validade.trim() !== "" ? validade : null;
   const envCozinha = enviar_cozinha !== undefined ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
   const isVisivel = visivel !== undefined ? (isPostgres ? visivel : (visivel ? 1 : 0)) : (isPostgres ? true : 1);
   const emPromocao = em_promocao !== undefined ? (isPostgres ? em_promocao : (em_promocao ? 1 : 0)) : (isPostgres ? false : 0);
   const und = unidade || 'un';
-  const custo = parseFloat(preco_custo) || 0.0;
   try {
-    await query('UPDATE menu SET nome = ?, categoria = ?, preco = ?, preco_original = ?, descricao = ?, imagem = ?, estoque = ?, validade = ?, enviar_cozinha = ?, visivel = ?, em_promocao = ?, unidade = ?, preco_custo = ? WHERE id = ?', [nome, categoria, preco, preco_original, descricao, imagem, estoque, dataValidade, envCozinha, isVisivel, emPromocao, und, custo, req.params.id]);
+    await query('UPDATE menu SET nome = ?, categoria = ?, preco = ?, preco_original = ?, descricao = ?, imagem = ?, estoque = ?, validade = ?, enviar_cozinha = ?, visivel = ?, em_promocao = ?, unidade = ?, preco_custo = ? WHERE id = ?', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque, dataValidade, envCozinha, isVisivel, emPromocao, und, custo, req.params.id]);
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
     res.json({ success: true });
   } catch (error) {
@@ -3760,18 +3780,26 @@ app.put('/api/menu/:id', isAdmin, async (req, res) => {
 
 app.post('/api/menu', isAdmin, async (req, res) => {
   const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, unidade, preco_custo } = req.body;
+  
+  const valPreco = parseFloat(preco) || 0;
+  const valPrecoOriginal = parseFloat(preco_original) || 0;
+  const custo = parseFloat(preco_custo) || 0;
+  
+  if (valPreco < 0 || valPrecoOriginal < 0 || custo < 0) {
+    return res.status(400).json({ error: 'Preço, preço original ou custo não podem ser negativos.' });
+  }
+
   const envCozinha = enviar_cozinha !== undefined ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
   const isVisivel = visivel !== undefined ? (isPostgres ? visivel : (visivel ? 1 : 0)) : (isPostgres ? true : 1);
   const emPromocao = em_promocao !== undefined ? (isPostgres ? em_promocao : (em_promocao ? 1 : 0)) : (isPostgres ? false : 0);
   const und = unidade || 'un';
-  const custo = parseFloat(preco_custo) || 0.0;
   try {
     let newId = null;
     if (isPostgres) {
-      const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, unidade, preco_custo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [nome, categoria, preco, preco_original, descricao, imagem, estoque || -1, validade || null, envCozinha, isVisivel, emPromocao, und, custo]);
+      const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, unidade, preco_custo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque || -1, validade || null, envCozinha, isVisivel, emPromocao, und, custo]);
       newId = result.rows && result.rows[0] ? result.rows[0].id : null;
     } else {
-      const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, unidade, preco_custo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [nome, categoria, preco, preco_original, descricao, imagem, estoque || -1, validade || null, envCozinha, isVisivel, emPromocao, und, custo]);
+      const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, unidade, preco_custo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque || -1, validade || null, envCozinha, isVisivel, emPromocao, und, custo]);
       newId = result.lastInsertRowid || result.lastID || null;
     }
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
@@ -3887,7 +3915,7 @@ app.get('/api/garcons', ensureDbInitialized, async (req, res) => {
     res.json(result.rows);
   } catch (error) { 
     console.error('❌ ERRO NA ROTA /api/garcons:', error);
-    res.status(500).json({ error: error.message, stack: error.stack }); 
+    res.status(500).json({ error: error.message }); 
   }
 });
 app.post('/api/garcons', isAdmin, async (req, res) => { 
@@ -5315,7 +5343,6 @@ app.get('/api/diag', async (req, res) => {
       status: 'error',
       db: 'disconnected',
       error: e.message,
-      stack: e.stack,
       initError: dbInitError ? dbInitError.message : null
     });
   }
