@@ -997,6 +997,9 @@ async function carregarStatusWhatsApp() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     
     const status = await res.json();
+    if (status.botUrl) {
+      window.whatsappBotUrl = status.botUrl;
+    }
 
     if (!status.configured) {
       badge.textContent = 'NÃO CONFIGURADO';
@@ -8682,10 +8685,26 @@ async function limparRelatoriosEstoque() {
 }
 
 async function pingWhatsAppBot() {
-  console.log("🔌 [WhatsApp Keep-Alive] Iniciando ping silencioso para manter o bot acordado na Render...");
+  let url = window.whatsappBotUrl;
+  if (!url) {
+    try {
+      const res = await fetch('/api/whatsapp-status?_=' + Date.now(), { cache: 'no-store' });
+      if (res.ok) {
+        const status = await res.json();
+        if (status.botUrl) {
+          window.whatsappBotUrl = status.botUrl;
+          url = status.botUrl;
+        }
+      }
+    } catch (e) {}
+  }
+  
+  if (!url) url = 'https://meu-zap-bot-rd8m.onrender.com';
+  
+  console.log(`🔌 [WhatsApp Keep-Alive] Iniciando ping silencioso para manter o bot acordado na URL: ${url}`);
   try {
     const startTime = Date.now();
-    const res = await fetch('https://meu-zap-bot.onrender.com/');
+    const res = await fetch(url);
     const duration = Date.now() - startTime;
     console.log(`✅ [WhatsApp Keep-Alive] Bot respondeu com status ${res.status} em ${duration}ms.`);
   } catch (error) {
