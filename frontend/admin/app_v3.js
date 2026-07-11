@@ -8609,5 +8609,16 @@ async function carregarMovimentacoesCaixa(caixaId) {
   }
 }
 
+function limparRelatoriosEstoque() {
+  document.getElementById('rel-data-inicio').value = '';
+  document.getElementById('rel-data-fim').value = '';
+  
+  const relContainer = document.getElementById('rel-container');
+  if (relContainer) relContainer.classList.add('hidden');
+  
+  const relLoading = document.getElementById('rel-loading');
+  if (relLoading) relLoading.classList.add('hidden');
+}
+
 
 
