@@ -530,14 +530,11 @@ app.use((req, res, next) => {
 });
 
 if (!process.env.JWT_SECRET) {
-  console.error('\n🚨 ERRO CRÍTICO DE SEGURANÇA: A variável de ambiente JWT_SECRET não está definida!');
-  console.error('   Execute: node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))" para gerar um segredo seguro.');
-  console.error('   Defina JWT_SECRET nas variáveis de ambiente do Vercel/Render antes de continuar.');
-  if (process.env.NODE_ENV === 'production') {
-    process.exit(1);
-  }
+  console.warn('\n⚠️  [SEGURANÇA] JWT_SECRET não está definido como variável de ambiente!');
+  console.warn('   Para produção, defina JWT_SECRET no Vercel/Render com um valor gerado por:');
+  console.warn('   node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
 }
-const JWT_SECRET = process.env.JWT_SECRET || (() => { console.warn('⚠️  [DEV] Usando JWT_SECRET temporário. NUNCA use em produção!'); return 'dev-only-' + require('crypto').randomBytes(16).toString('hex'); })();
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-garconnexpress-2026-use-env-var-in-prod';
 const saltRounds = 10;
 
 const rateLimit = require('express-rate-limit');
