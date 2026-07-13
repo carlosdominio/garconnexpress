@@ -2452,8 +2452,8 @@ app.post('/api/caixa/abrir', isAdmin, async (req, res) => {
   try {
     const aberto = await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'");
     if (aberto.rows.length > 0) return res.status(400).json({ error: 'Já existe um caixa aberto' });
-    const agora = new Date();
-    const dataLocal = agora.getFullYear() + '-' + String(agora.getMonth() + 1).padStart(2, '0') + '-' + String(agora.getDate()).padStart(2, '0') + ' ' + String(agora.getHours()).padStart(2, '0') + ':' + String(agora.getMinutes()).padStart(2, '0') + ':' + String(agora.getSeconds()).padStart(2, '0');
+    const spDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const dataLocal = spDate.getFullYear() + '-' + String(spDate.getMonth() + 1).padStart(2, '0') + '-' + String(spDate.getDate()).padStart(2, '0') + ' ' + String(spDate.getHours()).padStart(2, '0') + ':' + String(spDate.getMinutes()).padStart(2, '0') + ':' + String(spDate.getSeconds()).padStart(2, '0');
     await query("INSERT INTO fluxo_caixa (valor_inicial, status, data_abertura) VALUES (?, 'aberto', ?)", [valInicialNum, dataLocal]);
     await safePusherTrigger('garconnexpress', 'status-caixa-atualizado', { status: 'aberto' });
     
@@ -2473,8 +2473,8 @@ app.post('/api/caixa/fechar', isAdmin, async (req, res) => {
     // Busca dados do caixa antes de fechar para o relatório do WhatsApp
     const dadosCaixa = (await query("SELECT * FROM fluxo_caixa WHERE id = ?", [id])).rows[0];
 
-    const agora = new Date();
-    const dataLocal = agora.getFullYear() + '-' + String(agora.getMonth() + 1).padStart(2, '0') + '-' + String(agora.getDate()).padStart(2, '0') + ' ' + String(agora.getHours()).padStart(2, '0') + ':' + String(agora.getMinutes()).padStart(2, '0') + ':' + String(agora.getSeconds()).padStart(2, '0');
+    const spDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const dataLocal = spDate.getFullYear() + '-' + String(spDate.getMonth() + 1).padStart(2, '0') + '-' + String(spDate.getDate()).padStart(2, '0') + ' ' + String(spDate.getHours()).padStart(2, '0') + ':' + String(spDate.getMinutes()).padStart(2, '0') + ':' + String(spDate.getSeconds()).padStart(2, '0');
     await query("UPDATE fluxo_caixa SET valor_final = ?, status = 'fechado', data_fechamento = ? WHERE id = ?", [valor_final, dataLocal, id]);
 
     // Expira todos os códigos de acesso ativos ao fechar o caixa
@@ -2852,8 +2852,7 @@ app.delete('/api/pedidos/itens/:id', isAuthenticated, async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.delete('/api/pedidos/:id', isAuthenticated, async (req, res) => {
-  if (req.user && req.user.role === 'cliente') return res.status(403).json({ error: 'Clientes não podem deletar pedidos.' });
+app.delete('/api/pedidos/:id', isAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     const pedido = (await query("SELECT p.mesa_id, p.garcom_id, p.status, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
@@ -2864,6 +2863,7 @@ app.delete('/api/pedidos/:id', isAuthenticated, async (req, res) => {
     }
     
     await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [id]);
+    await query("DELETE FROM pagamentos WHERE pedido_id = ?", [id]);
     await query("DELETE FROM pedidos WHERE id = ?", [id]);
     
     if (pedido) {
@@ -2927,8 +2927,11 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
     // TRAVA DEFINITIVA: Verifica status da mesa no banco de mesas (MUITO MAIS SEGURO)
     if (mesa_id) {
       const mesaObj = (await query("SELECT status, garcom_id FROM mesas WHERE id = ?", [mesa_id])).rows[0];
-      if (mesaObj && (mesaObj.status === 'fechando' || mesaObj.status === 'aguardando_fechamento')) {
-        return res.status(403).json({ error: 'CONTA_SOLICITADA' });
+      if (mesaObj && mesaObj.status !== 'livre') {
+        return res.status(400).json({ 
+          error: 'MESA_OCUPADA', 
+          message: 'Esta mesa já está ocupada, fechando ou aguardando pagamento.' 
+        });
       }
 
       // TRAVA DE FILA (RODÍZIO) - BACKEND LOCKOUT
