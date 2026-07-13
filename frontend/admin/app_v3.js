@@ -5736,6 +5736,11 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
                        uppercaseTit.includes('CANCELADA') ||
                        uppercaseTit.includes('FECHAMENTO') ||
                        uppercaseTit.includes('CONTA') ||
+                       uppercaseTit.includes('PREPARANDO') || 
+                       uppercaseTit.includes('PREPARO') || 
+                       uppercaseTit.includes('PRONTO') || 
+                       uppercaseTit.includes('SERVIDO') || 
+                       uppercaseTit.includes('ENTREGA') || 
                        (uppercaseTit.includes('CONCLUÍDO') && msg.toUpperCase().includes('DELIVERY'));
 
   if (!isRedundante) {
