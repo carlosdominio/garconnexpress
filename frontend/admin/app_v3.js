@@ -5731,7 +5731,6 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
   // O backend já envia nativamente de forma detalhada: Novos Pedidos, Cancelamentos, Fechamentos e Entregas de Delivery.
   const uppercaseTit = tit.toUpperCase();
   const isRedundante = uppercaseTit.includes('🚀 NOVO PEDIDO') || 
-                       uppercaseTit.includes('➕ ITEM ADICIONADO') || 
                        uppercaseTit.includes('CANCELADO') || 
                        uppercaseTit.includes('CANCELADA') ||
                        uppercaseTit.includes('FECHAMENTO') ||
