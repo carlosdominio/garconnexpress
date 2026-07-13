@@ -405,9 +405,16 @@ let whatsappRealStatus = 'DESCONECTADO';
 const clientesEmAtendimento = new Map(); // Armazena { numero: timestamp } - ESCOPO GLOBAL
 
 if (botUrlFinal) {
+  const botSecret = process.env.BOT_SECRET || process.env.JWT_SECRET || 'seusegredomuitolouco123';
   whatsappSocket = ioClient(botUrlFinal, {
     reconnection: true,
-    reconnectionAttempts: Infinity
+    reconnectionAttempts: Infinity,
+    auth: {
+      token: botSecret
+    },
+    query: {
+      token: botSecret
+    }
   });
 
   whatsappSocket.on('status', (data) => {
@@ -2231,9 +2238,13 @@ async function notifyDeliveryStatusToBot(number, status, pedidoId, tempo = null,
   if (!botUrlFinal) return;
   try {
     const botUrl = botUrlFinal.endsWith('/') ? botUrlFinal : `${botUrlFinal}/`;
+    const botSecret = process.env.BOT_SECRET || process.env.JWT_SECRET || 'seusegredomuitolouco123';
     await fetch(`${botUrl}api/notify-delivery`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${botSecret}`
+      },
       body: JSON.stringify({ number, status, pedidoId, tempo, mensagem })
     });
     console.log(`✅ [Notificação Bot] Status '${status}' enviado para ${number}`);
@@ -4606,7 +4617,7 @@ app.post('/api/cliente/enviar-rascunho', isAuthenticated, async (req, res) => {
   }
 });
 
-app.get('/api/whatsapp-status', async (req, res) => {
+app.get('/api/whatsapp-status', isAuthenticated, async (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
@@ -4614,14 +4625,17 @@ app.get('/api/whatsapp-status', async (req, res) => {
     const configRes = await query("SELECT valor FROM sistema_config WHERE chave = 'whatsapp_enabled'");
     const isEnabled = configRes.rows && configRes.rows.length > 0 ? configRes.rows[0].valor === 'true' : true;
 
-    // Busca a lista de números no banco de dados (chave correta: plural)
-    const configNums = await query("SELECT valor FROM sistema_config WHERE chave = 'whatsapp_notify_numbers'");
-    let numbersDisplay = 'Não configurado';
-    
-    if (configNums.rows && configNums.rows.length > 0 && configNums.rows[0].valor) {
-      numbersDisplay = configNums.rows[0].valor;
-    } else if (process.env.WHATSAPP_NOTIFY_NUMBER) {
-      numbersDisplay = process.env.WHATSAPP_NOTIFY_NUMBER;
+    // Só mostra o número para admins
+    let numbersDisplay = 'Configurado';
+    if (req.user && req.user.role === 'admin') {
+      const configNums = await query("SELECT valor FROM sistema_config WHERE chave = 'whatsapp_notify_numbers'");
+      if (configNums.rows && configNums.rows.length > 0 && configNums.rows[0].valor) {
+        numbersDisplay = configNums.rows[0].valor;
+      } else if (process.env.WHATSAPP_NOTIFY_NUMBER) {
+        numbersDisplay = process.env.WHATSAPP_NOTIFY_NUMBER;
+      } else {
+        numbersDisplay = 'Não configurado';
+      }
     }
 
     let currentRealStatus = whatsappRealStatus;
@@ -4632,7 +4646,7 @@ app.get('/api/whatsapp-status', async (req, res) => {
       try {
         const fetchStatusUrl = botUrlFinal.endsWith('/') ? `${botUrlFinal}status` : `${botUrlFinal}/status`;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000); // Timeout rápido de 2s
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
         const syncRes = await fetch(fetchStatusUrl, { signal: controller.signal });
         clearTimeout(timeoutId);
         
@@ -4640,7 +4654,7 @@ app.get('/api/whatsapp-status', async (req, res) => {
           const syncData = await syncRes.json();
           if (syncData && syncData.status) {
             currentRealStatus = syncData.status;
-            isSocketConnected = true; // Se respondeu HTTP, consideramos que o servidor está vivo
+            isSocketConnected = true;
           }
         }
       } catch (err) {
@@ -4648,23 +4662,25 @@ app.get('/api/whatsapp-status', async (req, res) => {
       }
     }
 
+    const botSecret = process.env.BOT_SECRET || process.env.JWT_SECRET || 'seusegredomuitolouco123';
     res.json({
       configured: !!botUrlFinal,
       connected: isSocketConnected,
       realStatus: currentRealStatus,
       enabled: isEnabled,
       number: numbersDisplay,
-      botUrl: botUrlFinal || ''
+      // botUrl só retorna para admins (com o token anexado)
+      ...(req.user && req.user.role === 'admin' ? { 
+        botUrl: botUrlFinal ? `${botUrlFinal}${botUrlFinal.includes('?') ? '&' : '?'}token=${botSecret}` : '' 
+      } : {})
     });
   } catch (error) {
     console.error('❌ Erro ao buscar status do WhatsApp:', error.message);
-    // Retorna um objeto válido em vez de 500 para evitar o selo de ERRO no frontend
     res.json({
       configured: !!botUrlFinal,
       connected: false,
       enabled: false,
       number: 'Erro ao carregar',
-      botUrl: botUrlFinal || '',
       error: error.message
     });
   }
@@ -5449,7 +5465,7 @@ app.get('/api/versao', (req, res) => {
   res.json({ versao: SYSTEM_VERSION });
 });
 
-app.get('/api/diag', async (req, res) => {
+app.get('/api/diag', isAdmin, async (req, res) => {
   try {
     let dbStatus = 'disconnected';
     if (isPostgres) {
