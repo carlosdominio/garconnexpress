@@ -534,7 +534,7 @@ if (!process.env.JWT_SECRET) {
   console.warn('   Para produção, defina JWT_SECRET no Vercel/Render com um valor gerado por:');
   console.warn('   node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
 }
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-garconnexpress-2026-use-env-var-in-prod';
+const JWT_SECRET = process.env.JWT_SECRET || 'seusegredomuitolouco123';
 const saltRounds = 10;
 
 const rateLimit = require('express-rate-limit');
