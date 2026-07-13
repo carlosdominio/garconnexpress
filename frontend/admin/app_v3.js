@@ -287,6 +287,18 @@ async function logoutAdmin() {
   location.reload();
 }
 
+function toggleMostrarSenha(inputId, button) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    button.textContent = '🙈';
+  } else {
+    input.type = 'password';
+    button.textContent = '👁️';
+  }
+}
+
 const PRINT_PAPER_KEY = 'admin_print_paper_mm';
 
 function getPrintPaperMm() {

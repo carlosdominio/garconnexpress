@@ -160,7 +160,10 @@
       <h1>Painel Admin</h1>
       <p>Acesso Restrito</p>
       <input type="text" id="admin-usuario" placeholder="Usuário Admin">
-      <input type="password" id="admin-senha" placeholder="Senha">
+      <div style="position: relative; width: 100%; display: flex; align-items: center; margin-bottom: 1rem;">
+        <input type="password" id="admin-senha" placeholder="Senha" style="margin-bottom: 0; padding-right: 40px; width: 100%;">
+        <button type="button" onclick="toggleMostrarSenha('admin-senha', this)" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; color: #7f8c8d; padding: 0; font-size: 1.1rem; width: auto; height: auto;">👁️</button>
+      </div>
       <button onclick="realizarLoginAdmin()" style="background-color: #2c3e50;">Entrar no Sistema</button>
     </div>
   </div>
@@ -792,7 +795,10 @@
 
                 <div class="modal-form-group">
                   <label id="label-senha-garcom">Senha de Acesso</label>
-                  <input type="password" id="garcom-senha" placeholder="Senha">
+                  <div style="position: relative; display: flex; align-items: center; width: 100%;">
+                    <input type="password" id="garcom-senha" placeholder="Senha" style="padding-right: 40px !important; width: 100%;">
+                    <button type="button" onclick="toggleMostrarSenha('garcom-senha', this)" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; color: #7f8c8d; padding: 0; font-size: 1.1rem; width: auto; height: auto;">👁️</button>
+                  </div>
                 </div>
 
                 <div style="display: flex; gap: 10px; margin-top: 10px;">
