@@ -315,7 +315,8 @@ if (!process.env.VERCEL) {
 // ENDPOINT PARA VERCEL CRON JOBS
 app.get('/api/cron/cardapio', async (req, res) => {
     if (typeof botUrlFinal !== 'undefined' && botUrlFinal) {
-        fetch(botUrlFinal).catch(() => {});
+        const pingUrl = botUrlFinal.endsWith('/') ? `${botUrlFinal}health` : `${botUrlFinal}/health`;
+        await fetch(pingUrl).catch((err) => console.log('⚠️ Erro ao acordar o robô no Render:', err.message));
     }
     try {
         await checkAndSendScheduledFCM();
