@@ -114,8 +114,25 @@
                 </div>
                 <div style="margin-bottom: 25px; text-align: left;">
                     <label style="display: block; margin-bottom: 8px; color: #34495e; font-weight: 700; font-size: 0.9rem;">SENHA</label>
-                    <input type="password" id="login-pass" required style="width: 100%; padding: 18px; border: 2px solid #f1f3f5; background: #f8f9fa; border-radius: 15px; font-size: 1rem; outline: none; font-weight: 600;" placeholder="••••••••">
+                    <div style="position: relative; display: flex; align-items: center; width: 100%;">
+                        <input type="password" id="login-pass" required style="width: 100%; padding: 18px; padding-right: 45px; border: 2px solid #f1f3f5; background: #f8f9fa; border-radius: 15px; font-size: 1rem; outline: none; font-weight: 600;" placeholder="••••••••">
+                        <button type="button" onclick="toggleMostrarSenha('login-pass', this)" style="position: absolute; right: 15px; background: none; border: none; cursor: pointer; color: #7f8c8d; padding: 0; font-size: 1.1rem; width: auto; height: auto;">👁️</button>
+                    </div>
                 </div>
+
+                <script>
+                    function toggleMostrarSenha(inputId, button) {
+                        const input = document.getElementById(inputId);
+                        if (!input) return;
+                        if (input.type === 'password') {
+                            input.type = 'text';
+                            button.textContent = '🙈';
+                        } else {
+                            input.type = 'password';
+                            button.textContent = '👁️';
+                        }
+                    }
+                </script>
                 <button type="submit" id="btn-login-submit" style="width: 100%; background: #e67e22; color: white; border: none; padding: 20px; border-radius: 15px; font-size: 1.1rem; font-weight: 900; cursor: pointer; box-shadow: 0 8px 20px rgba(230,126,34,0.3);">
                     ENTRAR NO APP <i class="fas fa-arrow-right" style="margin-left: 10px;"></i>
                 </button>
