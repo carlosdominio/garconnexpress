@@ -1586,7 +1586,15 @@ app.get('/api/debug/push-subs', isAdmin, ensureDbInitialized, async (req, res) =
 });
 
 // --- ROTA CRON MANUAL DE MONITORAMENTO DE PEDIDOS ATRASADOS (>10 MIN) ---
-app.get('/api/cron/check-delayed-orders', isAuthenticated, ensureDbInitialized, async (req, res) => {
+app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) => {
+  // Proteção por CRON_SECRET: se definido, exige o header Authorization correto
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || authHeader !== `Bearer ${cronSecret}`) {
+      return res.status(401).json({ error: 'Unauthorized cron request.' });
+    }
+  }
   await checkAndNotifyDelayedOrders();
   await checkAndSendScheduledFCM();
   res.json({ message: "Verificação de atrasos e agendamentos executada." });
