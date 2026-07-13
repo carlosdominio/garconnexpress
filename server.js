@@ -4058,7 +4058,7 @@ app.delete('/api/garcons/:id', isAdmin, async (req, res) => {
 });
 
 // --- ROTAS MODULARIZADAS (REFATORAÇÃO SOLID) ---
-const mesasRouter = require('./routes/mesas')(query, ensureDbInitialized, safePusherTrigger, notifyStatus, checkAndNotifyDelayedOrders);
+const mesasRouter = require('./routes/mesas')(query, ensureDbInitialized, safePusherTrigger, notifyStatus, checkAndNotifyDelayedOrders, isAdmin, isAuthenticated);
 app.use('/api/mesas', mesasRouter);
 
 app.get('/api/pedidos/mesa/:mesaId', async (req, res) => { 

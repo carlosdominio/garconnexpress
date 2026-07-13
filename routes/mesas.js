@@ -1,16 +1,16 @@
 const express = require('express');
 
-module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, checkAndNotifyDelayedOrders) => {
+module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, checkAndNotifyDelayedOrders, isAdmin, isAuthenticated) => {
   const router = express.Router();
 
-  router.post('/', async (req, res) => { 
+  router.post('/', isAdmin, async (req, res) => { 
     try {
       await query('INSERT INTO mesas (numero) VALUES (?)', [req.body.numero]); 
       res.json({ success: true }); 
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  router.put('/:id/liberar', async (req, res) => { 
+  router.put('/:id/liberar', isAuthenticated, async (req, res) => { 
     try { 
       const mesaId = req.params.id;
       await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [mesaId]); 
@@ -27,14 +27,14 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     } catch (error) { res.status(500).json({ error: error.message }); } 
   });
 
-  router.delete('/:id', async (req, res) => { 
+  router.delete('/:id', isAdmin, async (req, res) => { 
     try {
       await query('DELETE FROM mesas WHERE id = ?', [req.params.id]); 
       res.json({ success: true }); 
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  router.get('/', ensureDbInitialized, async (req, res) => { 
+  router.get('/', ensureDbInitialized, isAuthenticated, async (req, res) => { 
     if (typeof checkAndNotifyDelayedOrders === 'function') checkAndNotifyDelayedOrders();
     try {
       res.json((await query(`
