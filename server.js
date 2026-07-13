@@ -1848,7 +1848,9 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
     // Notificação WhatsApp em paralelo/background para o ADMIN para qualquer mudança de status
     let adminMsg = null;
     if (status === 'recebido') {
-      adminMsg = `🛎️ *NOVO PEDIDO RECEBIDO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n📋 O pedido foi lançado no sistema.`;
+      // Ignora o envio genérico do status "recebido" no WhatsApp porque o fluxo de criação do pedido
+      // já envia a notificação detalhada com a lista completa de itens e o valor total.
+      adminMsg = null;
     } else if (status === 'preparando') {
       adminMsg = `🍳 *PEDIDO EM PREPARO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n👨‍🍳 A cozinha iniciou o preparo.`;
     } else if (status === 'pronto') {
