@@ -529,7 +529,15 @@ app.use((req, res, next) => {
   next();
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'seusegredomuitolouco123';
+if (!process.env.JWT_SECRET) {
+  console.error('\n🚨 ERRO CRÍTICO DE SEGURANÇA: A variável de ambiente JWT_SECRET não está definida!');
+  console.error('   Execute: node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))" para gerar um segredo seguro.');
+  console.error('   Defina JWT_SECRET nas variáveis de ambiente do Vercel/Render antes de continuar.');
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+}
+const JWT_SECRET = process.env.JWT_SECRET || (() => { console.warn('⚠️  [DEV] Usando JWT_SECRET temporário. NUNCA use em produção!'); return 'dev-only-' + require('crypto').randomBytes(16).toString('hex'); })();
 const saltRounds = 10;
 
 const rateLimit = require('express-rate-limit');
@@ -1571,7 +1579,7 @@ async function checkAndSendScheduledFCM() {
 }
 
 // --- ROTA DEBUG TEMPORÁRIA: INSPECIONA TOKENS NO BANCO ---
-app.get('/api/debug/push-subs', ensureDbInitialized, async (req, res) => {
+app.get('/api/debug/push-subs', isAdmin, ensureDbInitialized, async (req, res) => {
   try {
     const subs = (await query("SELECT id, garcom_id, app_type, is_native, LENGTH(endpoint) as endpoint_len, LEFT(endpoint, 30) as endpoint_preview, created_at FROM push_subscriptions ORDER BY created_at DESC")).rows;
     res.json({ total: subs.length, subs });
@@ -1581,7 +1589,7 @@ app.get('/api/debug/push-subs', ensureDbInitialized, async (req, res) => {
 });
 
 // --- ROTA CRON MANUAL DE MONITORAMENTO DE PEDIDOS ATRASADOS (>10 MIN) ---
-app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) => {
+app.get('/api/cron/check-delayed-orders', isAuthenticated, ensureDbInitialized, async (req, res) => {
   await checkAndNotifyDelayedOrders();
   await checkAndSendScheduledFCM();
   res.json({ message: "Verificação de atrasos e agendamentos executada." });
@@ -3424,6 +3432,20 @@ app.put('/api/pedidos/:id/pessoas', isAuthenticated, async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// HELPER: Whitelist de colunas válidas para forma de pagamento (previne SQL Injection)
+function getColPagamento(forma) {
+  const formasValidas = {
+    'Cartão': 'total_cartao',
+    'Pix': 'total_pix',
+    'Dinheiro': 'total_dinheiro',
+    'Credito': 'total_cartao',
+    'Debito': 'total_cartao',
+    'Crédito': 'total_cartao',
+    'Débito': 'total_cartao',
+  };
+  return formasValidas[forma] || 'total_dinheiro';
+}
+
 app.post('/api/pedidos/:id/pagamento-fracao', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { mesa_id, valor_pago, forma_pagamento, num_pessoas_restantes, recebido, troco } = req.body;
@@ -3442,7 +3464,7 @@ app.post('/api/pedidos/:id/pagamento-fracao', isAuthenticated, async (req, res) 
     if (!pOrig) return res.status(404).json({ error: 'PEDIDO NÃO ENCONTRADO' });
 
     // 2. Registra o valor no fluxo de caixa
-    const col = forma_pagamento === 'Cartão' ? 'total_cartao' : (forma_pagamento === 'Pix' ? 'total_pix' : 'total_dinheiro');
+    const col = getColPagamento(forma_pagamento);
     await query(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [valor_pago, valor_pago, cx.id]);
 
     // 3. Garante que a tabela existe e registra o pagamento
@@ -3493,7 +3515,7 @@ app.post('/api/pedidos/:id/pagamento-parcial', isAuthenticated, async (req, res)
     }
 
     // 3. Registra o valor no fluxo de caixa
-    const col = forma_pagamento === 'Cartão' ? 'total_cartao' : (forma_pagamento === 'Pix' ? 'total_pix' : 'total_dinheiro');
+    const col = getColPagamento(forma_pagamento);
     await query(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [total, total, cx.id]);
 
     // 4. Verifica se restam itens no pedido original
@@ -3582,13 +3604,13 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
             if (!valorParte || isNaN(valorParte)) valorParte = 0;
             if (valorParte < 0) return res.status(400).json({ error: 'Valor fracionado negativo detectado' });
 
-            const col = forma === 'Cartão' ? 'total_cartao' : (forma === 'Pix' ? 'total_pix' : 'total_dinheiro');
+            const col = getColPagamento(forma);
             await query(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [valorParte, valorParte, cx.id]);
             await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento, recebido, troco) VALUES (?, ?, ?, ?, ?)", [id, valorParte, forma, recebido, troco]);
           }
         } else {
           // Cenário Normal (Um único pagamento para o saldo restante)
-          const col = p.forma_pagamento === 'Cartão' ? 'total_cartao' : (p.forma_pagamento === 'Pix' ? 'total_pix' : 'total_dinheiro');
+          const col = getColPagamento(p.forma_pagamento);
           const valorFinal = p.total;
           
           // Busca dados de recebido/troco do pedido original (salvos no solicitar-fechamento)
@@ -4019,7 +4041,7 @@ app.put('/api/menu/categoria/:categoria', isAdmin, async (req, res) => {
   }
 });
 
-app.get('/api/garcons', ensureDbInitialized, async (req, res) => {
+app.get('/api/garcons', ensureDbInitialized, isAuthenticated, async (req, res) => {
   try {
     const result = await query('SELECT id, nome, usuario, telefone, comissao, is_online FROM garcons ORDER BY nome');
     res.json(result.rows);
@@ -4855,7 +4877,7 @@ const FCM_DEFAULTS = [
   { evento: 'estoque-baixo', tituloPadrao: '⚠️ ESTOQUE BAIXO', corpoPadrao: 'Alerta de estoque baixo para {item}: restam apenas {qtd} un.!', destinatario: 'garcom', variaveis: ['item', 'qtd'] }
 ];
 
-app.get('/api/debug-fcm', async (req, res) => {
+app.get('/api/debug-fcm', isAdmin, async (req, res) => {
   try {
     const initializedApps = admin.apps.map(a => ({
       name: a.name || 'default',
