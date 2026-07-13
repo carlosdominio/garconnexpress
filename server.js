@@ -468,6 +468,38 @@ async function isWhatsAppEnabled() {
   }
 }
 
+// Aguarda a conexão do socket por até um determinado tempo (essencial para cold starts na Vercel)
+async function ensureSocketConnected(timeoutMs = 2500) {
+  if (!whatsappSocket) return false;
+  if (whatsappSocket.connected) return true;
+
+  return new Promise((resolve) => {
+    const onConnect = () => {
+      cleanup();
+      resolve(true);
+    };
+    const onError = (err) => {
+      console.warn('⚠️ [WhatsApp] Erro de conexão ao tentar conectar via socket:', err.message);
+      cleanup();
+      resolve(false);
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve(false);
+    }, timeoutMs);
+
+    function cleanup() {
+      whatsappSocket.off('connect', onConnect);
+      whatsappSocket.off('connect_error', onError);
+      clearTimeout(timer);
+    }
+
+    whatsappSocket.on('connect', onConnect);
+    whatsappSocket.on('connect_error', onError);
+    whatsappSocket.connect();
+  });
+}
+
 async function sendWhatsAppMessage(text, targetNumber = null, pedidoId = 9999) {
   console.log(`🔎 [WhatsApp] Tentando disparar notificação: "${text.substring(0, 50)}..."`);
   try {
@@ -498,7 +530,10 @@ async function sendWhatsAppMessage(text, targetNumber = null, pedidoId = 9999) {
       }
     }
 
-    if (whatsappSocket && whatsappSocket.connected && numbersList.length > 0) {
+    // Espera até 2.5s para o socket se conectar (essencial em serverless/Vercel)
+    const isConnected = await ensureSocketConnected(2500);
+
+    if (isConnected && numbersList.length > 0) {
       // Remove duplicados e limpa os números
       const uniqueNumbers = [...new Set(numbersList.map(n => n.replace(/\D/g, '')))];
       console.log(`🤖 [WhatsApp] Bot CONECTADO via Socket. Enviando para: ${uniqueNumbers.join(', ')}`);
@@ -519,11 +554,6 @@ async function sendWhatsAppMessage(text, targetNumber = null, pedidoId = 9999) {
       console.log('⚠️ [WhatsApp] FALHA NO ENVIO: Bot desconectado ou lista de números vazia.');
       console.log(`   - Socket conectado: ${whatsappSocket ? whatsappSocket.connected : 'null'}`);
       console.log(`   - Números encontrados: ${numbersList.length}`);
-      
-      // Tentativa de reconexão para a próxima requisição
-      if (whatsappSocket && !whatsappSocket.connected) {
-         whatsappSocket.connect();
-      }
     }
   } catch (e) {
     console.error('❌ Erro interno ao enviar WhatsApp:', e.message);
