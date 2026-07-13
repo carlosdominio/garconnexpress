@@ -45,8 +45,9 @@ window.onerror = function(msg, url, line) {
         }
       }
 
-      // Ignora o redirecionamento se for uma tentativa de login
-      if ((response.status === 401 || response.status === 403) && !args[0].includes('/api/admin/login')) {
+      // Ignora o redirecionamento se for uma tentativa de login ou se for uma API externa
+      const isInternal = !args[0].startsWith('http') || new URL(args[0], window.location.origin).origin === window.location.origin;
+      if (isInternal && (response.status === 401 || response.status === 403) && !args[0].includes('/api/admin/login')) {
         console.warn("⚠️ Sessão expirada ou acesso negado (401/403).");
         console.log("URL que falhou:", args[0]);
         
