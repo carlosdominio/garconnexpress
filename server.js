@@ -1856,7 +1856,11 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
     } else if (status === 'pronto') {
       adminMsg = `✅ *PEDIDO PRONTO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n🔔 O pedido está pronto para ser servido/entregue.`;
     } else if (status === 'servido') {
-      adminMsg = `🍽️ *PEDIDO SERVIDO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n✓ O pedido foi entregue à mesa.`;
+      if (mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY')) {
+        adminMsg = `📦 *PEDIDO ENTREGUE*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n✓ O delivery foi entregue ao cliente.`;
+      } else {
+        adminMsg = `🍽️ *PEDIDO SERVIDO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n✓ O pedido foi entregue à mesa.`;
+      }
     } else if (status === 'saiu_entrega') {
       adminMsg = `🛵 *SAIU PARA ENTREGA*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n📦 O motoboy saiu para a entrega.`;
     } else if (status === 'aguardando_fechamento') {
@@ -1868,7 +1872,11 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
     } else if (status === 'cancelado') {
       adminMsg = `❌ *PEDIDO CANCELADO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n🗑️ O pedido foi cancelado no sistema.`;
     } else if (status === 'entregue') {
-      adminMsg = `✅ *PEDIDO FINALIZADO (PAGO)*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O pagamento foi registrado e o pedido fechado.`;
+      if (mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY')) {
+        adminMsg = `✅ *DELIVERY CONCLUÍDO (PAGO)*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O pagamento foi registrado e o delivery finalizado.`;
+      } else {
+        adminMsg = `✅ *PEDIDO FINALIZADO (PAGO)*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O pagamento foi registrado e o pedido fechado.`;
+      }
     }
 
     if (adminMsg) {
