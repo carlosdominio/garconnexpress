@@ -2087,12 +2087,20 @@ if (!isPostgres) {
 app.get('/*.apk', (req, res) => {
   const fs = require('fs');
   const path = require('path');
-  const filePath = path.join(__dirname, req.path);
+  
+  // 1. Tenta servir da pasta local (build assets originais)
+  let filePath = path.join(__dirname, req.path);
   if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
-  } else {
-    res.status(404).send('APK não encontrado.');
+    return res.sendFile(filePath);
   }
+  
+  // 2. Se for na Vercel (read-only), tenta servir do diretório temporário /tmp
+  filePath = path.join('/tmp', req.path);
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  }
+  
+  res.status(404).send('APK não encontrado.');
 });
 
 app.use(express.static(path.join(__dirname, 'frontend'), {
@@ -2491,7 +2499,31 @@ app.put('/api/pedidos/:id/taxa', isAuthenticated, async (req, res) => {
 app.get('/api/caixa/status', ensureDbInitialized, async (req, res) => {
   try {
     const result = await query("SELECT * FROM fluxo_caixa WHERE status = 'aberto' ORDER BY id DESC LIMIT 1");
-    res.json(result.rows[0] || null);
+    const caixa = result.rows[0];
+    if (!caixa) {
+      return res.json(null);
+    }
+    
+    // Verifica se a requisição tem um token válido de admin
+    let isUserAdmin = false;
+    const token = req.headers.authorization?.split(' ')[1] || req.cookies.admin_token || req.cookies.token;
+    if (token && token !== 'null' && token !== 'undefined') {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded.role === 'admin') {
+          isUserAdmin = true;
+        }
+      } catch (err) {
+        // Ignora erro, assume que não é admin
+      }
+    }
+
+    if (isUserAdmin) {
+      res.json(caixa);
+    } else {
+      // Retorna apenas se o caixa está aberto para clientes e colaboradores comuns, ocultando faturamento
+      res.json({ id: caixa.id, status: caixa.status, aberto: true });
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -4847,14 +4879,29 @@ app.post('/api/config/upload-apk', express.raw({ type: 'application/octet-stream
   try {
     const fs = require('fs');
     const path = require('path');
-    const filePath = path.join(__dirname, filename);
-    fs.writeFileSync(filePath, req.body);
-    console.log(`✅ Novo APK gravado com sucesso: ${filePath}`);
+    let filePath = path.join(__dirname, filename);
+    
+    try {
+      // 1. Tenta gravar localmente primeiro (VPS ou Dev)
+      fs.writeFileSync(filePath, req.body);
+      console.log(`✅ Novo APK gravado com sucesso no disco local: ${filePath}`);
+    } catch (writeErr) {
+      // 2. Fallback para /tmp (Vercel Serverless Read-Only filesystem)
+      if (writeErr.code === 'EROFS' || writeErr.message.includes('read-only')) {
+        filePath = path.join('/tmp', filename);
+        fs.writeFileSync(filePath, req.body);
+        console.log(`✅ Novo APK gravado com sucesso no diretório temporário /tmp: ${filePath}`);
+      } else {
+        throw writeErr;
+      }
+    }
+
     res.json({
       success: true,
       url: `/${filename}`
     });
   } catch (error) {
+    console.error('❌ Erro no upload do APK:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
