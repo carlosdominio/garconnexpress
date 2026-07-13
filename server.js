@@ -5465,6 +5465,10 @@ app.get('/api/versao', (req, res) => {
   res.json({ versao: SYSTEM_VERSION });
 });
 
+app.get('/api/time', (req, res) => {
+  res.json({ timestamp: new Date().toISOString() });
+});
+
 app.get('/api/diag', isAdmin, async (req, res) => {
   try {
     let dbStatus = 'disconnected';

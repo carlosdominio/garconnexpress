@@ -50,12 +50,14 @@ window.onerror = function(msg, url, line) {
         console.warn("⚠️ Sessão expirada ou acesso negado (401/403).");
         console.log("URL que falhou:", args[0]);
         
+        const wasLogado = localStorage.getItem('admin_logado');
         localStorage.removeItem('admin_logado');
         localStorage.removeItem('admin_token');
         
-        // Em vez de reload direto, avisa o usuário (isso pausa a execução e permite ver o console)
-        window.location.reload(); 
-        // console.log("🔄 Auto-reload cancelado para debug. Verifique os logs acima.");
+        // Só recarrega se o usuário estava anteriormente logado (evita loop infinito na tela de login)
+        if (wasLogado) {
+          window.location.reload(); 
+        }
       }
       return response;
     } catch (error) {
@@ -444,7 +446,7 @@ let serverClockOffset = 0;
 async function calcularClockOffset() {
   try {
     const start = Date.now();
-    const res = await fetch('/api/diag');
+    const res = await fetch('/api/time');
     if (res.ok) {
       const data = await res.json();
       const end = Date.now();
