@@ -1857,7 +1857,7 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
       adminMsg = `✅ *PEDIDO PRONTO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n🔔 O pedido está pronto para ser servido/entregue.`;
     } else if (status === 'servido') {
       if (mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY')) {
-        adminMsg = `📦 *PEDIDO ENTREGUE*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n✓ O delivery foi entregue ao cliente.`;
+        adminMsg = `🛵 *SAIU PARA ENTREGA*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n📦 O motoboy saiu para a entrega.`;
       } else {
         adminMsg = `🍽️ *PEDIDO SERVIDO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n✓ O pedido foi entregue à mesa.`;
       }
@@ -1865,7 +1865,7 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
       adminMsg = `🛵 *SAIU PARA ENTREGA*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n📦 O motoboy saiu para a entrega.`;
     } else if (status === 'aguardando_fechamento') {
       if (mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY')) {
-        adminMsg = `✅ *PEDIDO ENTREGUE E FINALIZADO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O delivery foi concluído com sucesso.`;
+        adminMsg = `📦 *PEDIDO ENTREGUE*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n✓ O delivery foi entregue ao cliente.`;
       } else {
         adminMsg = `🛎️ *SOLICITAÇÃO DE FECHAMENTO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O cliente solicitou a conta.`;
       }
