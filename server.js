@@ -877,8 +877,6 @@ async function safePusherTrigger(channel, event, data) {
           targets.push({ app: 'motoboy', title: msgMotoboy.title, msg: msgMotoboy.body });
         } else if (event === 'estoque-baixo') {
           targets.push({ app: 'garcom',  title: msgGarcom.title, msg: msgGarcom.body });
-          targets.push({ app: 'cozinha', title: msgCozinha.title, msg: msgCozinha.body });
-          targets.push({ app: 'motoboy', title: msgMotoboy.title, msg: msgMotoboy.body });
         } else if (isDelivery) {
           if (event === 'pedido-cancelado' && enviaCozinha) {
              // Se for cancelamento de delivery E tem item de cozinha, NÃO envia push pro motoboy.
