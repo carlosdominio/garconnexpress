@@ -1526,22 +1526,12 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
       renderizarCarrinhoLancar();
       
       window.isFechamentoImediatoBalcao = false;
-      window.telefoneImediatoBalcao = '';
       
       // MOSTRA MODAL DE DECISÃO (Ajustado para Delivery e Mesas)
       const modalDecisao = document.getElementById('modal-decisao-pos-lancar');
       const btnFechar = document.getElementById('btn-decisao-fechar');
       const btnManter = document.getElementById('btn-decisao-manter');
       const isMesa = (mesaId !== null && mesaId !== undefined && mesaId !== '');
-
-      const divWpp = document.getElementById('decisao-wpp-container');
-      const inputDecisaoWpp = document.getElementById('decisao-telefone-cliente-admin');
-      if (divWpp) {
-        divWpp.style.display = (!isDelivery && !isMesa) ? 'block' : 'none';
-      }
-      if (inputDecisaoWpp) {
-        inputDecisaoWpp.value = '';
-      }
 
       if (isDelivery) {
         if (btnFechar) btnFechar.style.display = 'none';
@@ -1569,22 +1559,18 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
 
       if (btnFechar) {
         btnFechar.onclick = async () => {
-          const wppVal = inputDecisaoWpp ? inputDecisaoWpp.value.trim().replace(/\D/g, '') : '';
           modalDecisao.style.display = 'none';
           document.body.classList.remove('modal-open');
           window.isFechamentoImediatoBalcao = true;
-          window.telefoneImediatoBalcao = wppVal;
           aprovarFechamento(novoPedidoId, mesaId, nomeMesa);
         };
       }
 
       if (btnManter) {
         btnManter.onclick = () => {
-          const wppVal = inputDecisaoWpp ? inputDecisaoWpp.value.trim().replace(/\D/g, '') : '';
           modalDecisao.style.display = 'none';
           document.body.classList.remove('modal-open');
           window.isFechamentoImediatoBalcao = false;
-          window.telefoneImediatoBalcao = wppVal;
           if (isDelivery) {
             mostrarToast("🛵 Pedido enviado para o Delivery!");
             switchTab('ativos');
@@ -4716,7 +4702,6 @@ let itensFechamentoAdmin = [];
 async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   if (mesaNomeForcado === null) {
     window.isFechamentoImediatoBalcao = false;
-    window.telefoneImediatoBalcao = '';
   }
   pedidoParaFecharAdmin = pedidos.find(p => p.id === idPedido) || { 
     id: idPedido, 
@@ -4902,12 +4887,6 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   }
 
   recalcularTotalFechamentoAdmin();
-  
-  // Prefill client phone number if exists
-  const inputTel = document.getElementById('fechamento-telefone-cliente-admin');
-  if (inputTel) {
-    inputTel.value = window.telefoneImediatoBalcao || pedidoParaFecharAdmin.cliente_telefone || '';
-  }
   
   // RESET DA SELEÇÃO AO ABRIR (Sempre seleciona a próxima pessoa que falta pagar)
   pessoaSelecionadaFechamento = null; 
@@ -5194,8 +5173,6 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
   if (isConfirmandoPagamentoAdmin) return;
   isConfirmandoPagamentoAdmin = true;
   try {
-  const inputTel = document.getElementById('fechamento-telefone-cliente-admin');
-  const wppCliente = inputTel ? inputTel.value.trim().replace(/\D/g, '') : '';
   const idPedido = pedidoParaFecharAdmin.id;
   const idMesa = pedidoParaFecharAdmin.mesa_id;
   const selecionados = itensFechamentoAdmin.filter(i => i.selecionadoFechamento);
@@ -5393,7 +5370,6 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
           forma_pagamento: finalFormaPagamento, 
           desconto, acrescimo, valor_recebido, troco, total,
           num_pessoas, valor_por_pessoa, cobrar_taxa: cobrarTaxa,
-          cliente_telefone: wppCliente || undefined,
           balcao_imediato: window.isFechamentoImediatoBalcao ? 1 : 0
         })
       });
