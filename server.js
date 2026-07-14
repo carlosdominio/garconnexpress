@@ -1870,7 +1870,12 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
       if (mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY')) {
         adminMsg = `📦 *PEDIDO ENTREGUE*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n✓ O delivery foi entregue ao cliente.`;
       } else {
-        adminMsg = `🛎️ *SOLICITAÇÃO DE FECHAMENTO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O cliente solicitou a conta.`;
+        const pDb = pedidoId ? (await query("SELECT balcao_imediato FROM pedidos WHERE id = ?", [pedidoId])).rows[0] : null;
+        if (pDb && pDb.balcao_imediato === 1) {
+          adminMsg = null; // Ignora a mensagem de solicitação de conta para vendas rápidas de balcão
+        } else {
+          adminMsg = `🛎️ *SOLICITAÇÃO DE FECHAMENTO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O cliente solicitou a conta.`;
+        }
       }
     } else if (status === 'cancelado') {
       adminMsg = `❌ *PEDIDO CANCELADO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n🗑️ O pedido foi cancelado no sistema.`;
