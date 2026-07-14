@@ -164,8 +164,10 @@ function switchSubTab(sub) {
   // Limpa estados de todos os botões
   document.querySelectorAll('.sub-tab-btn').forEach(btn => {
     btn.classList.remove('active');
+    btn.classList.remove('tab-pisca-atrasado');
     btn.style.background = 'transparent';
     btn.style.color = '#7f8c8d';
+    btn.style.border = 'none';
   });
 
   // Ativa o botão selecionado
@@ -221,6 +223,21 @@ let intervalPiscaTitulo = null;
 const tituloOriginal = "Admin - GarçomExpress";
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Injeta estilos da aba piscante de alerta de atrasos
+  const style = document.createElement('style');
+  style.innerHTML = `
+    @keyframes blink-alert-red {
+      0% { background-color: rgba(231, 76, 60, 0.25); color: #e74c3c; border-color: #e74c3c; box-shadow: 0 0 8px rgba(231, 76, 60, 0.4); }
+      50% { background-color: transparent; color: #7f8c8d; border-color: transparent; box-shadow: none; }
+      100% { background-color: rgba(231, 76, 60, 0.25); color: #e74c3c; border-color: #e74c3c; box-shadow: 0 0 8px rgba(231, 76, 60, 0.4); }
+    }
+    .tab-pisca-atrasado {
+      animation: blink-alert-red 1.2s infinite !important;
+      border: 2px solid #e74c3c !important;
+    }
+  `;
+  document.head.appendChild(style);
+
   await calcularClockOffset();
   const salvo = localStorage.getItem('admin_logado');
   if (salvo) {
@@ -4110,10 +4127,74 @@ async function exibirPedidos() {
     // RE-APLICA OS FILTROS APÓS RENDERIZAR TUDO
     aplicarFiltrosVisuais();
 
+    // CHECA PEDIDOS ATRASADOS PARA PISCAR ABAS INATIVAS
+    verificarAlertasSubTabs();
+
   } catch (e) { console.error('Erro ao renderizar pedidos:', e); }
   
   isRenderingPedidos = false;
   if (pedidoAtualizadoId) setTimeout(() => { pedidoAtualizadoId = null; }, 5000);
+}
+
+function verificarAlertasSubTabs() {
+  // Limpa classes anteriores dos botões inativos
+  document.querySelectorAll('.sub-tab-btn').forEach(btn => {
+    if (!btn.classList.contains('active')) {
+      btn.classList.remove('tab-pisca-atrasado');
+      btn.style.border = 'none';
+    }
+  });
+
+  let atrasoGarcom = false;
+  let atrasoBalcao = false;
+  let atrasoDelivery = false;
+
+  const now = new Date();
+
+  (pedidos || []).forEach(pedido => {
+    const isDelivery = (pedido.garcom_id === 'DELIVERY');
+    const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '');
+    const isAguardando = (pedido.status === 'aguardando_fechamento');
+
+    const group = isDelivery ? 'delivery' : (isMesa ? 'garcom' : 'balcao');
+
+    const itens = pedido.itens || [];
+    const hasPend = itens.some(i => i.status === 'pendente' || i.status === 'pronto');
+    const statusGeral = hasPend ? 'recebido' : 'servido';
+
+    let dataBase = pedido.created_at;
+    if (isAguardando && !isDelivery && pedido.fechamento_solicitado_em) {
+      dataBase = pedido.fechamento_solicitado_em;
+    }
+
+    if ((statusGeral === 'recebido' || (isAguardando && !isDelivery)) && dataBase) {
+      let dateStr = dataBase;
+      if (!dateStr.endsWith('Z')) dateStr = dateStr.replace(' ', 'T') + 'Z';
+      const parsedDate = new Date(dateStr);
+      const diffMinutes = (now - parsedDate) / 60000;
+
+      const isDelayed = isAguardando ? (diffMinutes >= 5) : (diffMinutes >= 10);
+      if (isDelayed) {
+        if (group === 'garcom') atrasoGarcom = true;
+        else if (group === 'balcao') atrasoBalcao = true;
+        else if (group === 'delivery') atrasoDelivery = true;
+      }
+    }
+  });
+
+  // Se houver atraso na aba e ela não for a aba ativa
+  if (atrasoGarcom && subAbaAtiva !== 'garcom') {
+    const btn = document.getElementById('tab-sub-garcom');
+    if (btn) btn.classList.add('tab-pisca-atrasado');
+  }
+  if (atrasoBalcao && subAbaAtiva !== 'balcao') {
+    const btn = document.getElementById('tab-sub-balcao');
+    if (btn) btn.classList.add('tab-pisca-atrasado');
+  }
+  if (atrasoDelivery && subAbaAtiva !== 'delivery') {
+    const btn = document.getElementById('tab-sub-delivery');
+    if (btn) btn.classList.add('tab-pisca-atrasado');
+  }
 }
 
 async function atualizarPessoasPedido(id, numPessoas) {
