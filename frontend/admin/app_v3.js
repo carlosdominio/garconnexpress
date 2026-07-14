@@ -5521,7 +5521,7 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
     
     fecharModalFechamentoAdmin();
     await carregarStatusCaixa();
-    if (abaAtiva === 'lancar') switchTab('historico'); else carregarPedidos();
+    if (abaAtiva === 'lancar') await carregarMesasLancar(); else carregarPedidos();
 
   } catch (error) {
     console.error(error);
