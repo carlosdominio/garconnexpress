@@ -1589,6 +1589,24 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
     } else {
       const err = await res.json();
       const msg = err.error || "Erro ao enviar pedido";
+      if (err.error === 'DELIVERY_FECHADO') {
+        enviandoPedidoLote = false;
+        if (btn) { btn.disabled = false; btn.innerText = "🚀 LANÇAR PEDIDO AGORA"; }
+        const ativar = await mostrarConfirmacao(
+          "O canal de Delivery está desativado no momento.<br><br>Deseja ativá-lo agora para poder realizar este pedido de Delivery?",
+          "Delivery Desativado",
+          "Sim, Ativar",
+          "Não",
+          "🛵"
+        );
+        if (ativar) {
+          const ativou = await ativarDeliveryDireto();
+          if (ativou) {
+            setTimeout(() => enviarPedidoLoteAdmin(true), 100);
+          }
+        }
+        return;
+      }
       if (msg.includes("⚠️")) {
         await mostrarAlerta(msg, "Aviso", "⚠️");
       } else {
@@ -7278,6 +7296,27 @@ async function alternarDelivery() {
     console.error('Erro ao alternar delivery:', e);
     check.checked = !enabled;
   }
+}
+
+async function ativarDeliveryDireto() {
+  try {
+    const res = await fetch('/api/configs/delivery-toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true })
+    });
+    const data = await res.json();
+    if (data.success) {
+      const check = document.getElementById('check-delivery');
+      if (check) check.checked = true;
+      atualizarIconeDelivery(true);
+      mostrarToast("🛵 Delivery ATIVADO", 'sucesso');
+      return true;
+    }
+  } catch (e) {
+    console.error('Erro ao ativar delivery direto:', e);
+  }
+  return false;
 }
 
 function atualizarIconeDelivery(enabled) {

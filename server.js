@@ -3072,7 +3072,7 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
       const configRes = await query("SELECT valor FROM sistema_config WHERE chave = 'delivery_aberto'");
       const deliveryAberto = configRes.rows && configRes.rows[0] ? configRes.rows[0].valor === 'true' : false;
       if (!deliveryAberto) {
-        return res.status(403).json({ error: 'O canal de Delivery está temporariamente fechado.' });
+        return res.status(400).json({ error: 'DELIVERY_FECHADO', message: 'O canal de Delivery está temporariamente fechado.' });
       }
     } catch (err) {
       return res.status(500).json({ error: 'Erro ao validar status de abertura do delivery: ' + err.message });
