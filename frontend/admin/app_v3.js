@@ -567,6 +567,9 @@ function atualizarCronometrosPedidos() {
       if (pedidoId) pedidosAtrasadosNotificados.delete(pedidoId);
     }
   });
+
+  // Atualiza também o alerta de piscar das abas inativas em tempo real
+  verificarAlertasSubTabs();
 }
 
 function switchTab(tab) {
