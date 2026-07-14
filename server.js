@@ -1819,18 +1819,21 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
       servido: '📝 *PEDIDO SERVIDO!*\n\nOlá! Seu pedido *#{pedidoId}* foi marcado como servido.',
       saiu_entrega: '🛵 *SAIU PARA ENTREGA!*\n\nBoa notícia! Seu pedido *#{pedidoId}* saiu para entrega agora mesmo!',
       entregue: '✅ *PEDIDO CONCLUÍDO!*\n\nOlá! Seu pedido *#{pedidoId}* foi finalizado com sucesso. Obrigado pela preferência!',
+      balcao_imediato: '🏪 *VENDA DE BALCÃO CONCLUÍDA!*\n\nOlá! Sua compra de balcão *#{pedidoId}* foi finalizada com sucesso. Agradecemos a preferência e volte sempre! 🛍️✨',
       cancelado: '❌ *PEDIDO CANCELADO*\n\nOlá! Seu pedido *#{pedidoId}* foi cancelado pelo estabelecimento.'
     };
 
     // NOTIFICAÇÃO PROATIVA VIA WHATSAPP PARA QUALQUER PEDIDO COM TELEFONE CADASTRADO
     if (pedidoId) {
        try {
-         const pData = (await query("SELECT cliente_telefone, garcom_id FROM pedidos WHERE id = ?", [pedidoId])).rows[0];
+         const pData = (await query("SELECT cliente_telefone, garcom_id, balcao_imediato FROM pedidos WHERE id = ?", [pedidoId])).rows[0];
          const clienteTelefone = (pData && pData.cliente_telefone) ? pData.cliente_telefone.trim() : null;
          
          if (clienteTelefone) {
             let statusBot = status;
-            if (status === 'aguardando_fechamento' && pData.garcom_id === 'DELIVERY') {
+            if (status === 'entregue' && pData.balcao_imediato === 1) {
+              statusBot = 'balcao_imediato';
+            } else if (status === 'aguardando_fechamento' && pData.garcom_id === 'DELIVERY') {
               statusBot = 'entregue';
             }
            // Mapeia 'servido' para 'saiu_entrega' se for DELIVERY
@@ -1875,7 +1878,37 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
       if (mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY')) {
         adminMsg = `✅ *DELIVERY CONCLUÍDO (PAGO)*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O pagamento foi registrado e o delivery finalizado.`;
       } else {
-        adminMsg = `✅ *PEDIDO FINALIZADO (PAGO)*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O pagamento foi registrado e o pedido fechado.`;
+        const pDb = (await query("SELECT balcao_imediato, desconto, acrescimo, cobrar_taxa FROM pedidos WHERE id = ?", [pedidoId])).rows[0];
+        if (pDb && pDb.balcao_imediato === 1) {
+          const itens = (await query("SELECT pi.quantidade, m.nome, COALESCE(pi.preco, m.preco) as preco FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ?", [pedidoId])).rows;
+          let itensStr = '';
+          let subtotal = 0;
+          for (const item of itens) {
+            const itemTotal = item.quantidade * item.preco;
+            subtotal += itemTotal;
+            itensStr += `• ${item.quantidade}x ${item.nome} (R$ ${item.preco.toFixed(2)}) = R$ ${itemTotal.toFixed(2)}\n`;
+          }
+          
+          let calcTotal = subtotal;
+          if (pDb.cobrar_taxa) {
+            calcTotal = calcTotal * 1.10;
+          }
+          calcTotal = calcTotal + (pDb.acrescimo || 0) - (pDb.desconto || 0);
+          
+          adminMsg = `🏪 *VENDA DE BALCÃO FINALIZADA (PAGO)*\n` +
+                     `🆔 Pedido: #${pedidoId}\n` +
+                     `📍 Local: BALCÃO (Venda Rápida)\n\n` +
+                     `🛒 *ITENS COMPRADOS:*\n${itensStr}\n` +
+                     `💵 *RESUMO FINANCEIRO:*\n` +
+                     `- Subtotal: R$ ${subtotal.toFixed(2)}\n` +
+                     (pDb.cobrar_taxa ? `- Taxa (10%): R$ ${(subtotal * 0.1).toFixed(2)}\n` : '') +
+                     (pDb.acrescimo ? `- Acréscimo: R$ ${pDb.acrescimo.toFixed(2)}\n` : '') +
+                     (pDb.desconto ? `- Desconto: R$ ${pDb.desconto.toFixed(2)}\n` : '') +
+                     `💰 *Total Geral:* R$ ${calcTotal.toFixed(2)}\n\n` +
+                     `✓ O pagamento foi registrado e a venda concluída.`;
+        } else {
+          adminMsg = `✅ *PEDIDO FINALIZADO (PAGO)*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O pagamento foi registrado e o pedido fechado.`;
+        }
       }
     }
 
@@ -2003,6 +2036,7 @@ async function initDb() {
     await addCol('garcons', 'last_assigned_at', 'TIMESTAMP');
     await addCol('pedidos', 'cliente_telefone', 'TEXT');
     await addCol('pedidos', 'pagamentos_detalhados', 'TEXT');
+    await addCol('pedidos', 'balcao_imediato', 'INTEGER DEFAULT 0');
     
     // Garante que a tabela pagamentos tenha as colunas necessárias
     await addCol('pagamentos', 'recebido', 'REAL DEFAULT 0');
@@ -3470,7 +3504,7 @@ app.post('/api/cliente/solicitar-conta', async (req, res) => {
 
 app.put('/api/pedidos/:id/solicitar-fechamento', isAuthenticated, async (req, res) => {
   const { id } = req.params;
-  const { mesa_id, forma_pagamento, desconto, acrescimo, valor_recebido, troco, total, num_pessoas, valor_por_pessoa, pagamentos_detalhados } = req.body;
+  const { mesa_id, forma_pagamento, desconto, acrescimo, valor_recebido, troco, total, num_pessoas, valor_por_pessoa, pagamentos_detalhados, cliente_telefone, balcao_imediato } = req.body;
   try {
     let totalFinal = total;
     
@@ -3491,8 +3525,8 @@ app.put('/api/pedidos/:id/solicitar-fechamento', isAuthenticated, async (req, re
     const prevStatus = pStatusAtual ? pStatusAtual.status : null;
 
     // Ativa fechamento_liberado quando o garçom processa a solicitação
-    await query(`UPDATE pedidos SET status = 'aguardando_fechamento', forma_pagamento = ?, desconto = ?, acrescimo = ?, valor_recebido = ?, troco = ?, total = ?, num_pessoas = ?, valor_por_pessoa = ?, cobrar_taxa = ?, fechamento_liberado = TRUE, fechamento_solicitado_em = COALESCE(fechamento_solicitado_em, CURRENT_TIMESTAMP), pagamentos_detalhados = ? WHERE id = ?`, 
-      [formaPagamentoFinal, desconto || 0, acrescimo || 0, valor_recebido || 0, troco || 0, totalFinal, num_pessoas || 1, valor_por_pessoa || totalFinal, (req.body.cobrar_taxa !== undefined ? (req.body.cobrar_taxa ? 1 : 0) : 1), pagamentosStr, id]);
+    await query(`UPDATE pedidos SET status = 'aguardando_fechamento', forma_pagamento = ?, desconto = ?, acrescimo = ?, valor_recebido = ?, troco = ?, total = ?, num_pessoas = ?, valor_por_pessoa = ?, cobrar_taxa = ?, fechamento_liberado = TRUE, fechamento_solicitado_em = COALESCE(fechamento_solicitado_em, CURRENT_TIMESTAMP), pagamentos_detalhados = ?, cliente_telefone = COALESCE(?, cliente_telefone), balcao_imediato = COALESCE(?, balcao_imediato) WHERE id = ?`, 
+      [formaPagamentoFinal, desconto || 0, acrescimo || 0, valor_recebido || 0, troco || 0, totalFinal, num_pessoas || 1, valor_por_pessoa || totalFinal, (req.body.cobrar_taxa !== undefined ? (req.body.cobrar_taxa ? 1 : 0) : 1), pagamentosStr, cliente_telefone || null, balcao_imediato ? 1 : 0, id]);
     
     if (mesa_id) await query("UPDATE mesas SET status = 'fechando' WHERE id = ?", [mesa_id]);
     

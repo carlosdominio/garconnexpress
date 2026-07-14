@@ -1525,6 +1525,8 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
       carrinhoLancar = [];
       renderizarCarrinhoLancar();
       
+      window.isFechamentoImediatoBalcao = false;
+      
       // MOSTRA MODAL DE DECISÃO (Ajustado para Delivery e Mesas)
       const modalDecisao = document.getElementById('modal-decisao-pos-lancar');
       const btnFechar = document.getElementById('btn-decisao-fechar');
@@ -1559,6 +1561,7 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
         btnFechar.onclick = async () => {
           modalDecisao.style.display = 'none';
           document.body.classList.remove('modal-open');
+          window.isFechamentoImediatoBalcao = true;
           aprovarFechamento(novoPedidoId, mesaId, nomeMesa);
         };
       }
@@ -1567,6 +1570,7 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
         btnManter.onclick = () => {
           modalDecisao.style.display = 'none';
           document.body.classList.remove('modal-open');
+          window.isFechamentoImediatoBalcao = false;
           if (isDelivery) {
             mostrarToast("🛵 Pedido enviado para o Delivery!");
             switchTab('ativos');
@@ -4696,6 +4700,9 @@ let subtotalConsumoAdmin = 0;
 let itensFechamentoAdmin = [];
 
 async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
+  if (mesaNomeForcado === null) {
+    window.isFechamentoImediatoBalcao = false;
+  }
   pedidoParaFecharAdmin = pedidos.find(p => p.id === idPedido) || { 
     id: idPedido, 
     mesa_id: idMesa, 
@@ -4880,6 +4887,12 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   }
 
   recalcularTotalFechamentoAdmin();
+  
+  // Prefill client phone number if exists
+  const inputTel = document.getElementById('fechamento-telefone-cliente-admin');
+  if (inputTel) {
+    inputTel.value = pedidoParaFecharAdmin.cliente_telefone || '';
+  }
   
   // RESET DA SELEÇÃO AO ABRIR (Sempre seleciona a próxima pessoa que falta pagar)
   pessoaSelecionadaFechamento = null; 
@@ -5166,6 +5179,8 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
   if (isConfirmandoPagamentoAdmin) return;
   isConfirmandoPagamentoAdmin = true;
   try {
+  const inputTel = document.getElementById('fechamento-telefone-cliente-admin');
+  const wppCliente = inputTel ? inputTel.value.trim().replace(/\D/g, '') : '';
   const idPedido = pedidoParaFecharAdmin.id;
   const idMesa = pedidoParaFecharAdmin.mesa_id;
   const selecionados = itensFechamentoAdmin.filter(i => i.selecionadoFechamento);
@@ -5362,7 +5377,9 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
           mesa_id: idMesa, 
           forma_pagamento: finalFormaPagamento, 
           desconto, acrescimo, valor_recebido, troco, total,
-          num_pessoas, valor_por_pessoa, cobrar_taxa: cobrarTaxa
+          num_pessoas, valor_por_pessoa, cobrar_taxa: cobrarTaxa,
+          cliente_telefone: wppCliente || undefined,
+          balcao_imediato: window.isFechamentoImediatoBalcao ? 1 : 0
         })
       });
       if (!resFechamento.ok) throw new Error("Erro ao atualizar dados de fechamento");
