@@ -49,5 +49,8 @@
     "bar"
   ],
   "author": "Carlos Domínio",
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": "24.x"
+  }
 }
