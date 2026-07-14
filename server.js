@@ -1277,10 +1277,24 @@ async function checkAndNotifyDelayedOrders() {
           );
         } else {
           if (admin.apps.length > 0) {
+            const activeSound = configMap['config_som_garcom'] || 'campainha_classica';
+            const channelName = 'garcom_canal_' + activeSound + '_v2';
+            let fcmSoundFile = activeSound;
+            if (fcmSoundFile === 'original') fcmSoundFile = 'notificacao';
+
+            const androidNotification = {
+              channelId: channelName,
+              defaultSound: activeSound === 'original',
+              notificationPriority: 'PRIORITY_MAX'
+            };
+            if (activeSound !== 'original' && activeSound !== 'mudo') {
+              androidNotification.sound = fcmSoundFile;
+            }
+
             const message = {
               notification: { title: pushTitle, body: pushMsg },
-              data: { event: 'fechamento-atrasado', sound: 'notificacao', pedido_id: String(p.id) },
-              android: { priority: 'high', notification: { sound: 'notificacao', channelId: 'garcom_v1', defaultSound: false } },
+              data: { event: 'fechamento-atrasado', sound: fcmSoundFile, pedido_id: String(p.id) },
+              android: { priority: 'high', notification: androidNotification },
               token: sub.endpoint
             };
             pushPromises.push(
@@ -1384,21 +1398,42 @@ async function checkAndNotifyDelayedOrders() {
             await webpush.sendNotification(pushSubscription, payload).catch(e => { if (e.statusCode === 410 || e.statusCode === 404 || e.message.includes('unexpected response code') || e.message.includes('unsubscribed')) { console.log('Removendo endpoint inativo (Atraso)'); query('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]).catch(err => console.error(err.message)); } });
           } else {
             if (admin.apps.length > 0) {
+              let activeSound = 'notificacao';
+              let channelName = 'pedidos';
+              if (targetApp === 'garcom') {
+                activeSound = configMap['config_som_garcom'] || 'campainha_classica';
+                channelName = 'garcom_canal_' + activeSound + '_v2';
+              } else if (targetApp === 'cozinha') {
+                activeSound = configMap['config_som_cozinha'] || 'sino_moderno';
+                channelName = 'cozinha_canal_' + activeSound + '_v2';
+              } else if (targetApp === 'motoboy') {
+                activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
+                channelName = 'motoboy_canal_' + activeSound + '_v2';
+              }
+
+              let fcmSoundFile = activeSound;
+              if (fcmSoundFile === 'original') fcmSoundFile = 'notificacao';
+
+              const androidNotification = {
+                channelId: channelName,
+                defaultSound: activeSound === 'original',
+                notificationPriority: 'PRIORITY_MAX'
+              };
+              if (activeSound !== 'original' && activeSound !== 'mudo') {
+                androidNotification.sound = fcmSoundFile;
+              }
+
               const message = {
                 notification: { title: pushTitle, body: pushMsg },
                 data: {
                   event: 'pedido-atrasado',
-                  sound: 'notificacao',
+                  sound: fcmSoundFile,
                   pedido_id: String(p.id),
                   status: 'atrasado'
                 },
                 android: {
                   priority: 'high',
-                  notification: {
-                    sound: 'notificacao',
-                    channelId: targetApp === 'garcom' ? 'garcom_v1' : 'pedidos',
-                    defaultSound: false
-                  }
+                  notification: androidNotification
                 },
                 token: sub.endpoint
               };
