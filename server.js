@@ -1208,7 +1208,7 @@ async function checkAndNotifyDelayedOrders() {
       if (!dateStr.endsWith('Z')) dateStr = dateStr.replace(' ', 'T') + 'Z';
       const createdAt = new Date(dateStr);
       const diffMinutes = (now - createdAt) / 60000;
-      return diffMinutes >= 1;
+      return diffMinutes >= 10;
     });
 
     const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_title_%' OR chave LIKE 'fcm_body_%' OR chave IN ('config_som_garcom', 'config_som_cozinha', 'config_som_motoboy')")).rows;
@@ -1238,7 +1238,7 @@ async function checkAndNotifyDelayedOrders() {
       let dateStr = p.fechamento_str || '';
       if (!dateStr.endsWith('Z')) dateStr = dateStr.replace(' ', 'T') + 'Z';
       const requestedAt = new Date(dateStr);
-      return ((now - requestedAt) / 60000) >= 1;
+      return ((now - requestedAt) / 60000) >= 5;
     });
 
     for (const p of delayedClosures) {
@@ -5660,7 +5660,7 @@ app.get('/api/debug-fcm', ensureDbInitialized, async (req, res) => {
           parsed_date: requestedAt.toISOString(),
           now: now.toISOString(),
           diffMinutes: diffMinutes,
-          isDelayed: diffMinutes >= 1
+          isDelayed: diffMinutes >= 5
         };
       });
 
