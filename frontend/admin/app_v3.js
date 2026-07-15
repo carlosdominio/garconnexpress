@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setInterval(verificarVersaoSistema, 5 * 60 * 1000);
 });
 
-const CLIENT_VERSION = '1.3.4';
+const CLIENT_VERSION = '1.3.5';
 async function verificarVersaoSistema() {
   try {
     const res = await fetch('/api/versao?_t=' + Date.now());

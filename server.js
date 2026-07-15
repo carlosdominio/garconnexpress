@@ -431,10 +431,13 @@ if (botUrlFinal) {
 
   whatsappSocket.on('new_msg', async (data) => {
     try {
-      if (!data || !data.from || !data.body || data.fromMe) return;
+      // O bot emite com campos 'sender' e 'text' (não 'from' e 'body')
+      const sender = data?.sender || data?.from;
+      const body   = data?.text   || data?.body;
+      if (!data || !sender || !body || data.fromMe) return;
       
-      const from = data.from.split('@')[0].replace(/\D/g, '');
-      const msg = data.body.trim();
+      const from = sender.split('@')[0].replace(/\D/g, '');
+      const msg = body.trim();
 
       // APENAS VINCULA O CLIENTE AO CACHE, SEM FORÇAR O MODO HUMANO
       // Deixamos o Robô enviar o menu automático primeiro.
@@ -5654,7 +5657,7 @@ app.get('/api/debug-fcm', ensureDbInitialized, async (req, res) => {
     }
 });
 
-const SYSTEM_VERSION = '1.3.4';
+const SYSTEM_VERSION = '1.3.5';
 app.get('/api/versao', (req, res) => {
   res.json({ versao: SYSTEM_VERSION });
 });
