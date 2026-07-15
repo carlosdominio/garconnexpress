@@ -414,7 +414,9 @@ async function iniciarPainelAdmin() {
 
   // Mantém o servidor do Vercel ativo e força a verificação de atrasos no banco a cada 1 minuto
   setInterval(() => {
-    fetch('/api/pedidos').catch(e => console.warn('Erro ao pingar pedidos para checar atrasos:', e.message));
+    if (localStorage.getItem('admin_token')) {
+      fetch('/api/pedidos').catch(e => console.warn('Erro ao pingar pedidos para checar atrasos:', e.message));
+    }
   }, 60000);
 }
 
