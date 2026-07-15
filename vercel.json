@@ -36,5 +36,15 @@
   "routes": [
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/server.js" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/check-delayed-orders",
+      "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/cron/cardapio",
+      "schedule": "*/5 * * * *"
+    }
   ]
 }
