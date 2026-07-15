@@ -5850,6 +5850,7 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
                        uppercaseTit.includes('PRONTO') || 
                        uppercaseTit.includes('SERVIDO') || 
                        uppercaseTit.includes('ENTREGA') || 
+                       uppercaseTit.includes('ATRASO') ||
                        (uppercaseTit.includes('CONCLUÍDO') && msg.toUpperCase().includes('DELIVERY'));
 
   if (!isRedundante) {

@@ -1240,6 +1240,12 @@ async function checkAndNotifyDelayedOrders() {
       const updateRes = await query("UPDATE pedidos SET notificado_atraso_fechamento = 1 WHERE id = ? AND (notificado_atraso_fechamento = 0 OR notificado_atraso_fechamento IS NULL)", [p.id]);
       if (updateRes.changes === 0) continue;
 
+      // Dispara o WhatsApp diretamente do servidor
+      const wppText = `⚠️ ATRASO: ${mesaName.toUpperCase()} #${p.id}\n\nSOLICITOU CONTA há mais de 5 minutos!`;
+      sendWhatsAppMessage(wppText, null, p.id).catch(err => {
+        console.error("Erro ao enviar WhatsApp de atraso de fechamento do servidor:", err.message);
+      });
+
       const pushObj = resolveAtrasoTemplate(
         'fechamento-atrasado',
         '⚠️ CAIXA: FECHAMENTO ATRASADO!',
@@ -1365,6 +1371,16 @@ async function checkAndNotifyDelayedOrders() {
       // Atualiza de forma atômica para evitar envios duplicados por concorrência
       const updateRes = await query("UPDATE pedidos SET notificado_atraso = 1 WHERE id = ? AND (notificado_atraso = 0 OR notificado_atraso IS NULL)", [p.id]);
       if (updateRes.changes === 0) continue; // Já foi notificado por outro processo/requisição
+
+      // Dispara o WhatsApp diretamente do servidor
+      let dateStr = p.created_str || '';
+      if (!dateStr.endsWith('Z')) dateStr = dateStr.replace(' ', 'T') + 'Z';
+      const createdAt = new Date(dateStr);
+      const diffMinutes = Math.round((now - createdAt) / 60000);
+      const wppText = `⚠️ ATRASO: ${mesaName.toUpperCase()} #${p.id}\n\nPEDIDO PENDENTE há ${diffMinutes} minutos!`;
+      sendWhatsAppMessage(wppText, null, p.id).catch(err => {
+        console.error("Erro ao enviar WhatsApp de atraso do servidor:", err.message);
+      });
 
       // Envia notificações para todos os dispositivos correspondentes
       for (const target of targets) {
