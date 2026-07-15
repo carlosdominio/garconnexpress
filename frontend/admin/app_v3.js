@@ -5864,16 +5864,20 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
   }
 
   if ("Notification" in window && Notification.permission === "granted") {
-    const n = new Notification(tit, { 
-      body: msg,
-      tag: tagId, // Evita empilhamento: nova notificação da mesma tag substitui a antiga
-      renotify: true,
-      silent: !somWindows 
-    });
-    n.onclick = () => {
-      window.focus();
-      if (typeof switchTab === 'function') switchTab('ativos');
-    };
+    try {
+      const n = new Notification(tit, { 
+        body: msg,
+        tag: tagId, // Evita empilhamento: nova notificação da mesma tag substitui a antiga
+        renotify: true,
+        silent: !somWindows 
+      });
+      n.onclick = () => {
+        window.focus();
+        if (typeof switchTab === 'function') switchTab('ativos');
+      };
+    } catch (err) {
+      console.warn("⚠️ [Notificação Browser] Bloqueada ou falhou no OS:", err.message);
+    }
   } 
 }
 
