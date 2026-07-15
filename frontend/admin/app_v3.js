@@ -7138,7 +7138,7 @@ async function abrirModalOpcoes(pedidoId) {
   // Configuração do bloco de transferência de garçom
   const divTransferir = document.getElementById('modal-opcoes-transferir');
   if (divTransferir) {
-    if (!isDelivery) {
+    if (!isDelivery && pedido.mesa_id) {
       divTransferir.style.display = 'flex';
       // Buscar garçons online
       try {
@@ -7189,13 +7189,13 @@ async function abrirModalOpcoes(pedidoId) {
           if (resTransf.ok) {
             fecharModalOpcoes();
             carregarPedidos();
-            mostrarAlerta(pedido.mesa_id ? "Mesa transferida com sucesso!" : "Garçom atribuído com sucesso!", "Sucesso", "✅");
+            mostrarAlerta("Mesa transferida com sucesso!", "Sucesso", "✅");
           } else {
             const dataErr = await resTransf.json();
-            mostrarAlerta(dataErr.error || (pedido.mesa_id ? "Erro ao transferir mesa." : "Erro ao atribuir garçom."));
+            mostrarAlerta(dataErr.error || "Erro ao transferir mesa.");
           }
         } catch (err) {
-          mostrarAlerta(pedido.mesa_id ? "Erro de conexão ao transferir." : "Erro de conexão ao atribuir.");
+          mostrarAlerta("Erro de conexão ao transferir.");
         }
       };
     } else {
