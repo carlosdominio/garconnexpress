@@ -1637,7 +1637,7 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
     await mostrarAlerta("Erro de conexão", "Erro", "❌");
   } finally {
     enviandoPedidoLote = false;
-    if (btn) { btn.disabled = false; btn.innerText = "🚀 LANÇAR PEDIDO"; }
+    if (btn) { btn.disabled = false; btn.innerText = "🚀 LANÇAR PEDIDO AGORA"; }
   }
 }
 async function carregarStatusCaixa() {
