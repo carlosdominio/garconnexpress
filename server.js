@@ -551,13 +551,16 @@ async function sendWhatsAppMessage(text, targetNumber = null, pedidoId = 9999) {
       // AWAIT CRÍTICO PARA VERCEL: Dá 1.5s para o socket enviar os pacotes antes da Vercel congelar a execução
       await new Promise(resolve => setTimeout(resolve, 1500));
       console.log(`✅ [WhatsApp] Pacotes enviados via socket. (Delay de 1.5s concluído)`);
+      return true;
     } else {
       console.log('⚠️ [WhatsApp] FALHA NO ENVIO: Bot desconectado ou lista de números vazia.');
       console.log(`   - Socket conectado: ${whatsappSocket ? whatsappSocket.connected : 'null'}`);
       console.log(`   - Números encontrados: ${numbersList.length}`);
+      return false;
     }
   } catch (e) {
     console.error('❌ Erro interno ao enviar WhatsApp:', e.message);
+    return false;
   }
 }
 
@@ -1242,9 +1245,15 @@ async function checkAndNotifyDelayedOrders() {
 
       // Dispara o WhatsApp diretamente do servidor
       const wppText = `⚠️ ATRASO: ${mesaName.toUpperCase()} #${p.id}\n\nSOLICITOU CONTA há mais de 5 minutos!`;
-      sendWhatsAppMessage(wppText, null, p.id).catch(err => {
+      const wppSent = await sendWhatsAppMessage(wppText, null, p.id).catch(err => {
         console.error("Erro ao enviar WhatsApp de atraso de fechamento do servidor:", err.message);
+        return false;
       });
+
+      if (!wppSent) {
+        console.warn(`🔄 Revertendo flag notificado_atraso_fechamento para o pedido #${p.id} devido a falha no WhatsApp.`);
+        await query("UPDATE pedidos SET notificado_atraso_fechamento = 0 WHERE id = ?", [p.id]);
+      }
 
       const pushObj = resolveAtrasoTemplate(
         'fechamento-atrasado',
@@ -1378,9 +1387,16 @@ async function checkAndNotifyDelayedOrders() {
       const createdAt = new Date(dateStr);
       const diffMinutes = Math.round((now - createdAt) / 60000);
       const wppText = `⚠️ ATRASO: ${mesaName.toUpperCase()} #${p.id}\n\nPEDIDO PENDENTE há ${diffMinutes} minutos!`;
-      sendWhatsAppMessage(wppText, null, p.id).catch(err => {
+      
+      const wppSent = await sendWhatsAppMessage(wppText, null, p.id).catch(err => {
         console.error("Erro ao enviar WhatsApp de atraso do servidor:", err.message);
+        return false;
       });
+
+      if (!wppSent) {
+        console.warn(`🔄 Revertendo flag notificado_atraso para o pedido #${p.id} devido a falha no WhatsApp.`);
+        await query("UPDATE pedidos SET notificado_atraso = 0 WHERE id = ?", [p.id]);
+      }
 
       // Envia notificações para todos os dispositivos correspondentes
       for (const target of targets) {
