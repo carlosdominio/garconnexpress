@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setInterval(verificarVersaoSistema, 5 * 60 * 1000);
 });
 
-const CLIENT_VERSION = '1.3.1';
+const CLIENT_VERSION = '1.3.2';
 async function verificarVersaoSistema() {
   try {
     const res = await fetch('/api/versao?_t=' + Date.now());
@@ -358,6 +358,25 @@ async function iniciarPainelAdmin() {
   carregarStatusDelivery();
   carregarStatusCardapio();
   carregarStatusWhatsApp(); 
+
+  // Listener para sincronizar o estado da aba assim que o iframe do WhatsApp carregar
+  const zapIframe = document.getElementById('whatsapp-iframe');
+  if (zapIframe) {
+    zapIframe.onload = () => {
+      const sincronizarEstado = () => {
+        if (zapIframe.contentWindow) {
+          console.log('📤 WhatsApp Iframe: enviando estado ativo:', abaAtiva === 'whatsapp');
+          zapIframe.contentWindow.postMessage({ type: 'tab_change', active: (abaAtiva === 'whatsapp') }, '*');
+        }
+      };
+      sincronizarEstado();
+      setTimeout(sincronizarEstado, 500);
+      setTimeout(sincronizarEstado, 1500);
+      setTimeout(sincronizarEstado, 3000);
+      setTimeout(sincronizarEstado, 5000);
+    };
+  }
+
   carregarDadosConfig(); 
   carregarConfiguracoesToasts();
   configurarPusher();
@@ -416,6 +435,11 @@ async function iniciarPainelAdmin() {
   setInterval(() => {
     if (localStorage.getItem('admin_token')) {
       fetch('/api/pedidos').catch(e => console.warn('Erro ao pingar pedidos para checar atrasos:', e.message));
+    }
+    // Sincroniza periodicamente para garantir que o iframe não perca o estado de segundo plano
+    const zapIframe = document.getElementById('whatsapp-iframe');
+    if (zapIframe && zapIframe.contentWindow) {
+      zapIframe.contentWindow.postMessage({ type: 'tab_change', active: (abaAtiva === 'whatsapp') }, '*');
     }
   }, 30000);
 }
@@ -7244,8 +7268,16 @@ function formatarTelefone(tel) {
 
 // Escuta mensagens do iframe do WhatsApp para atualizar o contador de não lidas e notificações
 window.addEventListener('message', (event) => {
+    // Responde ao iframe imediatamente com o estado ativo da aba para sincronia perfeita
+    if (event.data && typeof event.data.type === 'string' && event.data.type.startsWith('whatsapp_')) {
+        const zapIframe = document.getElementById('whatsapp-iframe');
+        if (zapIframe && zapIframe.contentWindow) {
+            zapIframe.contentWindow.postMessage({ type: 'tab_change', active: (abaAtiva === 'whatsapp') }, '*');
+        }
+    }
+
     if (event.data && event.data.type === 'whatsapp_unread') {
-        // console.log('📥 Mensagem recebida do WhatsApp Bot (Contagem):', event.data);
+        console.log('📥 Mensagem recebida do WhatsApp Bot (Contagem):', event.data);
         const count = parseInt(event.data.count) || 0;
         
         if (abaAtiva === 'whatsapp') {
