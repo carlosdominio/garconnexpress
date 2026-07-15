@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setInterval(verificarVersaoSistema, 5 * 60 * 1000);
 });
 
-const CLIENT_VERSION = '1.3.3';
+const CLIENT_VERSION = '1.3.4';
 async function verificarVersaoSistema() {
   try {
     const res = await fetch('/api/versao?_t=' + Date.now());
@@ -7290,14 +7290,6 @@ function formatarTelefone(tel) {
 
 // Escuta mensagens do iframe do WhatsApp para atualizar o contador de não lidas e notificações
 window.addEventListener('message', (event) => {
-    // Responde ao iframe imediatamente com o estado ativo da aba para sincronia perfeita
-    if (event.data && typeof event.data.type === 'string' && event.data.type.startsWith('whatsapp_')) {
-        const zapIframe = document.getElementById('whatsapp-iframe');
-        if (zapIframe && zapIframe.contentWindow) {
-            zapIframe.contentWindow.postMessage({ type: 'tab_change', active: (abaAtiva === 'whatsapp') }, '*');
-        }
-    }
-
     if (event.data && event.data.type === 'whatsapp_unread') {
         console.log('📥 Mensagem recebida do WhatsApp Bot (Contagem):', event.data);
         const count = parseInt(event.data.count) || 0;
