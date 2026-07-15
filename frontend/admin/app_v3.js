@@ -7277,9 +7277,12 @@ window.addEventListener('message', (event) => {
             // Toca o som de notificação se o toque do WhatsApp estiver ativado
             const somZapAtivo = localStorage.getItem('admin_som_whatsapp') !== 'false';
             if (somZapAtivo) {
-                // Toca suave.wav de forma independente da campainha principal
-                const audioZap = new Audio(getSoundPath('suave'));
-                audioZap.play().catch(e => console.log('Erro ao tocar som do WhatsApp:', e.message));
+                // Toca o mesmo som configurado globalmente no painel administrativo
+                const somTipo = localStorage.getItem('admin_som_global') || 'campainha_classica';
+                if (somTipo !== 'mudo') {
+                    const audioZap = new Audio(getSoundPath(somTipo));
+                    audioZap.play().catch(e => console.log('Erro ao tocar som do WhatsApp:', e.message));
+                }
             }
             
             // Se a aba do WhatsApp não estiver ativa, incrementa o contador visual
@@ -7304,8 +7307,7 @@ window.addEventListener('message', (event) => {
             }
             if (!remetente) remetente = 'Cliente';
 
-            const textoMsg = event.data.body || event.data.text || 'Nova mensagem recebida';
-            mostrarToast(textoMsg, 'info', `💬 WhatsApp: ${remetente}`, 6000);
+            mostrarToast("Nova mensagem whatsapp chegou", 'info', `💬 WhatsApp: ${remetente}`, 6000);
         }
     }
 
