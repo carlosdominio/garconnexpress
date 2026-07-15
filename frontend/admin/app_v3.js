@@ -6227,6 +6227,11 @@ async function configurarPusher() {
 }
 function inicializarConfiguracaoSom() {
   atualizarIconesSom();
+  
+  const checkboxSomZap = document.getElementById('toggle-som-whatsapp');
+  if (checkboxSomZap) {
+    checkboxSomZap.checked = localStorage.getItem('admin_som_whatsapp') !== 'false';
+  }
 }
 
 function atualizarIconesSom() {
@@ -7220,6 +7225,23 @@ async function acaoOpcoesMesa(acao) {
   fecharModalOpcoes();
 }
 
+function alternarSomWhatsApp(checked) {
+  localStorage.setItem('admin_som_whatsapp', checked ? 'true' : 'false');
+  mostrarToast(checked ? 'Som de novas mensagens ativado!' : 'Som de novas mensagens desativado!', 'info', '💬 Som WhatsApp');
+}
+
+function formatarTelefone(tel) {
+  if (!tel) return '';
+  const limpo = tel.replace(/\D/g, '');
+  if (limpo.startsWith('55') && limpo.length >= 12) {
+    const ddd = limpo.substring(2, 4);
+    const parte1 = limpo.substring(4, limpo.length - 4);
+    const parte2 = limpo.substring(limpo.length - 4);
+    return `(${ddd}) ${parte1}-${parte2}`;
+  }
+  return tel;
+}
+
 // Escuta mensagens do iframe do WhatsApp para atualizar o contador de não lidas e notificações
 window.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'whatsapp_unread') {
@@ -7252,9 +7274,12 @@ window.addEventListener('message', (event) => {
         
         // Só notifica se a mensagem NÃO for enviada por nós (ou seja, é um cliente enviando)
         if (!event.data.fromMe) {
-            // Toca o som de notificação
-            if (typeof audioNotificacao !== 'undefined' && audioNotificacao) {
-                audioNotificacao.play().catch(e => console.log('Erro ao tocar som:', e));
+            // Toca o som de notificação se o toque do WhatsApp estiver ativado
+            const somZapAtivo = localStorage.getItem('admin_som_whatsapp') !== 'false';
+            if (somZapAtivo) {
+                // Toca suave.wav de forma independente da campainha principal
+                const audioZap = new Audio(getSoundPath('suave'));
+                audioZap.play().catch(e => console.log('Erro ao tocar som do WhatsApp:', e.message));
             }
             
             // Se a aba do WhatsApp não estiver ativa, incrementa o contador visual
@@ -7271,7 +7296,14 @@ window.addEventListener('message', (event) => {
             }
 
             // Exibe um Toast na tela do Admin indicando a nova mensagem do WhatsApp
-            const remetente = event.data.name || event.data.pushName || (event.data.jid ? event.data.jid.split('@')[0].replace(/\D/g, '') : 'Cliente');
+            // Resolução robusta do nome do remetente
+            let remetente = event.data.name || event.data.pushName || event.data.pushname || event.data.sender || event.data.senderName;
+            if (!remetente && event.data.jid) {
+                const numLimpo = event.data.jid.split('@')[0];
+                remetente = formatarTelefone(numLimpo);
+            }
+            if (!remetente) remetente = 'Cliente';
+
             const textoMsg = event.data.body || event.data.text || 'Nova mensagem recebida';
             mostrarToast(textoMsg, 'info', `💬 WhatsApp: ${remetente}`, 6000);
         }
