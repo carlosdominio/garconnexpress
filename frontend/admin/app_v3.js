@@ -7249,22 +7249,31 @@ window.addEventListener('message', (event) => {
 
     if (event.data && event.data.type === 'whatsapp_new_activity') {
         console.log('📥 Nova atividade no WhatsApp Bot:', event.data);
-        // Toca o som de notificação se não for mensagem enviada por nós
-        if (typeof audioNotificacao !== 'undefined' && audioNotificacao) {
-            audioNotificacao.play().catch(e => console.log('Erro ao tocar som:', e));
-        }
         
-        // Se a aba do WhatsApp não estiver ativa, incrementa o contador visual
-        if (abaAtiva !== 'whatsapp') {
-            mensagensNaoLidasWhatsapp++;
-            
-            const badge = document.getElementById('badge-whatsapp-contador');
-            const icon = document.getElementById('whatsapp-tab-icon');
-            if (badge) {
-                badge.innerText = mensagensNaoLidasWhatsapp;
-                badge.classList.remove('hidden');
-                if (icon) icon.classList.add('hidden');
+        // Só notifica se a mensagem NÃO for enviada por nós (ou seja, é um cliente enviando)
+        if (!event.data.fromMe) {
+            // Toca o som de notificação
+            if (typeof audioNotificacao !== 'undefined' && audioNotificacao) {
+                audioNotificacao.play().catch(e => console.log('Erro ao tocar som:', e));
             }
+            
+            // Se a aba do WhatsApp não estiver ativa, incrementa o contador visual
+            if (abaAtiva !== 'whatsapp') {
+                mensagensNaoLidasWhatsapp++;
+                
+                const badge = document.getElementById('badge-whatsapp-contador');
+                const icon = document.getElementById('whatsapp-tab-icon');
+                if (badge) {
+                    badge.innerText = mensagensNaoLidasWhatsapp;
+                    badge.classList.remove('hidden');
+                    if (icon) icon.classList.add('hidden');
+                }
+            }
+
+            // Exibe um Toast na tela do Admin indicando a nova mensagem do WhatsApp
+            const remetente = event.data.name || event.data.pushName || (event.data.jid ? event.data.jid.split('@')[0].replace(/\D/g, '') : 'Cliente');
+            const textoMsg = event.data.body || event.data.text || 'Nova mensagem recebida';
+            mostrarToast(textoMsg, 'info', `💬 WhatsApp: ${remetente}`, 6000);
         }
     }
 
