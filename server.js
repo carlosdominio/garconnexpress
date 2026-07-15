@@ -1327,14 +1327,16 @@ async function checkAndNotifyDelayedOrders() {
         );
         targets.push({ app: 'motoboy', title: pushObj.title, msg: pushObj.body });
       } else {
-        const pushObj = resolveAtrasoTemplate(
-          'pedido-atrasado-garcom',
-          '🔥 GARÇOM: PEDIDO ATRASADO!',
-          'O pedido da {mesa} (#{pedido_id}) está parado há mais de 10 minutos!',
-          mesaName,
-          p.id
-        );
-        targets.push({ app: 'garcom', title: pushObj.title, msg: pushObj.body });
+        if (p.garcom_id !== 'ADMIN') {
+          const pushObj = resolveAtrasoTemplate(
+            'pedido-atrasado-garcom',
+            '🔥 GARÇOM: PEDIDO ATRASADO!',
+            'O pedido da {mesa} (#{pedido_id}) está parado há mais de 10 minutos!',
+            mesaName,
+            p.id
+          );
+          targets.push({ app: 'garcom', title: pushObj.title, msg: pushObj.body });
+        }
       }
       
       // Verifica se o pedido atrasado tem itens para a cozinha
