@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setInterval(verificarVersaoSistema, 5 * 60 * 1000);
 });
 
-const CLIENT_VERSION = '1.3.6';
+const CLIENT_VERSION = '1.3.7';
 async function verificarVersaoSistema() {
   try {
     const res = await fetch('/api/versao?_t=' + Date.now());
@@ -7294,11 +7294,7 @@ window.addEventListener('message', (event) => {
         console.log('📥 Mensagem recebida do WhatsApp Bot (Contagem):', event.data);
         const count = parseInt(event.data.count) || 0;
         
-        if (abaAtiva === 'whatsapp') {
-            mensagensNaoLidasWhatsapp = count;
-        } else {
-            mensagensNaoLidasWhatsapp = Math.max(mensagensNaoLidasWhatsapp, count);
-        }
+        mensagensNaoLidasWhatsapp = count;
 
         const badge = document.getElementById('badge-whatsapp-contador');
         const icon = document.getElementById('whatsapp-tab-icon');
@@ -7331,18 +7327,7 @@ window.addEventListener('message', (event) => {
                 }
             }
             
-            // Se a aba do WhatsApp não estiver ativa, incrementa o contador visual
-            if (abaAtiva !== 'whatsapp') {
-                mensagensNaoLidasWhatsapp++;
-                
-                const badge = document.getElementById('badge-whatsapp-contador');
-                const icon = document.getElementById('whatsapp-tab-icon');
-                if (badge) {
-                    badge.innerText = mensagensNaoLidasWhatsapp;
-                    badge.classList.remove('hidden');
-                    if (icon) icon.classList.add('hidden');
-                }
-            }
+
 
             // Exibe um Toast na tela do Admin indicando a nova mensagem do WhatsApp
             // Resolução robusta do nome do remetente
