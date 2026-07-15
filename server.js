@@ -1186,7 +1186,7 @@ let lastDelayedCheck = 0;
 
 async function checkAndNotifyDelayedOrders() {
   const nowTime = Date.now();
-  if (nowTime - lastDelayedCheck < 60000) return; // Checa no máximo 1 vez por minuto
+  if (nowTime - lastDelayedCheck < 30000) return; // Checa no máximo 1 vez a cada 30 segundos
   lastDelayedCheck = nowTime;
   
   try {

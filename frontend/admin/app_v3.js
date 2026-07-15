@@ -412,12 +412,12 @@ async function iniciarPainelAdmin() {
     atualizarCronometrosPedidos();
   }, 10000); // Atualiza a cada 10 segundos para maior precisão
 
-  // Mantém o servidor do Vercel ativo e força a verificação de atrasos no banco a cada 1 minuto
+  // Mantém o servidor do Vercel ativo e força a verificação de atrasos no banco a cada 30 segundos
   setInterval(() => {
     if (localStorage.getItem('admin_token')) {
       fetch('/api/pedidos').catch(e => console.warn('Erro ao pingar pedidos para checar atrasos:', e.message));
     }
-  }, 60000);
+  }, 30000);
 }
 
 async function mudarQtdItem(index, qtd) { 
