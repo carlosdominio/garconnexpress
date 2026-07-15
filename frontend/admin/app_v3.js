@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setInterval(verificarVersaoSistema, 5 * 60 * 1000);
 });
 
-const CLIENT_VERSION = '1.3.2';
+const CLIENT_VERSION = '1.3.3';
 async function verificarVersaoSistema() {
   try {
     const res = await fetch('/api/versao?_t=' + Date.now());
@@ -656,11 +656,33 @@ function switchTab(tab) {
     }
   });
 
-  const secoes = ['ativos', 'historico', 'configuracoes', 'caixa', 'lancar', 'whatsapp'];
+  const secoes = ['ativos', 'historico', 'configuracoes', 'caixa', 'lancar'];
   secoes.forEach(s => {
     const el = document.getElementById(`${s}-section`);
     if (el) el.classList.toggle('hidden', s !== tab);
   });
+
+  // Trata a aba do WhatsApp de forma especial para evitar que o navegador congele o iframe em background (display:none)
+  const elZap = document.getElementById('whatsapp-section');
+  if (elZap) {
+    if (tab === 'whatsapp') {
+      elZap.style.position = '';
+      elZap.style.left = '';
+      elZap.style.top = '';
+      elZap.style.width = '';
+      elZap.style.opacity = '';
+      elZap.style.pointerEvents = '';
+      elZap.classList.remove('hidden');
+    } else {
+      elZap.style.position = 'absolute';
+      elZap.style.left = '-9999px';
+      elZap.style.top = '-9999px';
+      elZap.style.width = '1px';
+      elZap.style.opacity = '0';
+      elZap.style.pointerEvents = 'none';
+      elZap.classList.remove('hidden');
+    }
+  }
 
   // Restaura a posição do scroll para evitar pulos
   window.scrollTo(0, scrollPos);
