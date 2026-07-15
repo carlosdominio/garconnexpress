@@ -7215,7 +7215,7 @@ async function acaoOpcoesMesa(acao) {
 // Escuta mensagens do iframe do WhatsApp para atualizar o contador de não lidas e notificações
 window.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'whatsapp_unread') {
-        console.log('📥 Mensagem recebida do WhatsApp Bot (Contagem):', event.data);
+        // console.log('📥 Mensagem recebida do WhatsApp Bot (Contagem):', event.data);
         const count = parseInt(event.data.count) || 0;
         
         if (abaAtiva === 'whatsapp') {
