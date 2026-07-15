@@ -398,7 +398,7 @@ app.post('/api/configs/delivery-toggle', ensureDbInitialized, isAdmin, async (re
 });
 
 // INTEGRAÇÃO WHATSAPP (BOT EXTERNO)
-const DEFAULT_BOT_URL = 'https://meu-zap-bot.onrender.com/';
+const DEFAULT_BOT_URL = 'https://meu-zap-bot-rd8m.onrender.com/';
 const botUrlFinal = process.env.WHATSAPP_BOT_URL || DEFAULT_BOT_URL;
 
 let whatsappSocket = null;
