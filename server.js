@@ -1708,6 +1708,21 @@ app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) 
   res.json({ message: "Verificação de atrasos e agendamentos executada." });
 });
 
+// --- ROTA DE TESTE: Dispara uma mensagem de atraso fictícia para o WhatsApp de notificação ---
+app.post('/api/whatsapp/test-delay', authenticateToken, async (req, res) => {
+  try {
+    const texto = req.body?.texto || `🧪 TESTE DE ATRASO\n\n⚠️ Mesa TESTE #999\n\nPEDIDO PENDENTE há 10 minutos!\n\n_Mensagem de teste disparada manualmente._`;
+    const sent = await sendWhatsAppMessage(texto);
+    if (sent) {
+      return res.json({ ok: true, message: 'Mensagem de teste enviada com sucesso via WhatsApp!' });
+    } else {
+      return res.status(503).json({ ok: false, message: 'Falha no envio: bot desconectado ou número não configurado.' });
+    }
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // Helper para buscar taxa de serviço dinamicamente
 async function getTaxaServicoMultiplicador() {
   try {
