@@ -1709,7 +1709,7 @@ app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) 
 });
 
 // --- ROTA DE TESTE: Dispara uma mensagem de atraso fictícia para o WhatsApp de notificação ---
-app.post('/api/whatsapp/test-delay', authenticateToken, async (req, res) => {
+app.post('/api/whatsapp/test-delay', isAdmin, async (req, res) => {
   try {
     const texto = req.body?.texto || `🧪 TESTE DE ATRASO\n\n⚠️ Mesa TESTE #999\n\nPEDIDO PENDENTE há 10 minutos!\n\n_Mensagem de teste disparada manualmente._`;
     const sent = await sendWhatsAppMessage(texto);
