@@ -5672,7 +5672,7 @@ app.get('/api/debug-fcm', ensureDbInitialized, async (req, res) => {
     }
 });
 
-const SYSTEM_VERSION = '1.3.7';
+const SYSTEM_VERSION = '1.3.1';
 app.get('/api/versao', (req, res) => {
   res.json({ versao: SYSTEM_VERSION });
 });
