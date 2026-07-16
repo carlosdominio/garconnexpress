@@ -9029,8 +9029,20 @@ async function inicializarWhatsAppWidget() {
 
     try {
         if (!waWidgetSocket && typeof io !== 'undefined') {
-            // Força transporte WebSocket para evitar bloqueios CORS de HTTP polling
-            waWidgetSocket = io(waWidgetBotBaseUrl, { transports: ['websocket'] });
+            // Força transporte WebSocket e anexa o token de autenticação
+            waWidgetSocket = io(waWidgetBotBaseUrl, { 
+                transports: ['websocket'],
+                auth: { token: waWidgetBotToken },
+                query: { token: waWidgetBotToken }
+            });
+
+            waWidgetSocket.on('connect_error', (err) => {
+                console.warn('⚠️ Erro de autenticação/conexão socket no widget:', err.message);
+                const dot = document.getElementById('wa-widget-status-dot');
+                const txt = document.getElementById('wa-widget-status-text');
+                if (dot) dot.style.background = '#ef4444';
+                if (txt) txt.innerText = 'Desconectado (Erro de Autenticação)';
+            });
 
             waWidgetSocket.on('connect', () => {
                 const dot = document.getElementById('wa-widget-status-dot');
