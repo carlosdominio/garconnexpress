@@ -9102,6 +9102,19 @@ async function inicializarWhatsAppWidget() {
                 }
             });
 
+            waWidgetSocket.on('msg_deleted', (data) => {
+                const { jid, id } = data;
+                console.log('🗑️ Widget recebeu msg_deleted:', jid, id);
+                const chat = waWidgetChats.find(c => c.jid === jid);
+                if (chat && chat.messages) {
+                    chat.messages = chat.messages.filter(m => m.id !== id);
+                }
+                if (waWidgetActiveJid === jid) {
+                    const msgEl = document.getElementById(`wa-msg-${id}`);
+                    if (msgEl) msgEl.remove();
+                }
+            });
+
             // Ativa o Modo Humano automaticamente no widget quando o admin começa a digitar
             const widgetInput = document.getElementById('wa-widget-input');
             if (widgetInput) {
@@ -9391,12 +9404,29 @@ function adicionarMensagemWidgetNaTela(msg, scroll = true) {
     }
 
     contentHtml += `<span class="wa-bubble-time">${msg.time || ''}</span>`;
+    
+    // Botão de deletar mensagem no Widget (exibido ao passar o mouse)
+    contentHtml += `
+        <button class="wa-widget-msg-del" onclick="apagarMensagemWidget(event, '${msg.id}', ${msg.fromMe})" title="Apagar mensagem" style="background: none; border: none; color: #ef4444; font-size: 0.75rem; cursor: pointer; opacity: 0; transition: opacity 0.2s; position: absolute; top: 5px; right: 5px; outline: none; padding: 2px; z-index: 10;">
+            <i class="fa-solid fa-trash-can"></i>
+        </button>
+    `;
+
     div.innerHTML = contentHtml;
 
     container.appendChild(div);
 
     if (scroll) {
         rolarChatWidgetParaBaixo();
+    }
+}
+
+function apagarMensagemWidget(event, msgId, fromMe) {
+    event.stopPropagation();
+    if (confirm('Deseja realmente apagar esta mensagem para você e para o cliente?')) {
+        if (waWidgetSocket && waWidgetActiveJid) {
+            waWidgetSocket.emit('delete_msg', { jid: waWidgetActiveJid, id: msgId, fromMe: fromMe });
+        }
     }
 }
 
