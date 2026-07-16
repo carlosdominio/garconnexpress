@@ -358,6 +358,7 @@ async function iniciarPainelAdmin() {
   carregarStatusDelivery();
   carregarStatusCardapio();
   carregarStatusWhatsApp(); 
+  setInterval(carregarStatusWhatsApp, 15000); // Sincroniza o status da conexão a cada 15 segundos
 
   // Listener para sincronizar o estado da aba assim que o iframe do WhatsApp carregar
   const zapIframe = document.getElementById('whatsapp-iframe');
