@@ -7330,12 +7330,8 @@ window.addEventListener('message', (event) => {
 
 
             // Exibe um Toast na tela do Admin indicando a nova mensagem do WhatsApp
-            // Resolução robusta do nome do remetente
-            let remetente = event.data.name || event.data.pushName || event.data.pushname || event.data.sender || event.data.senderName;
-            if (!remetente && event.data.jid) {
-                const numLimpo = event.data.jid.split('@')[0];
-                remetente = formatarTelefone(numLimpo);
-            }
+            // Resolução robusta do nome do remetente (oculta o número de telefone para design mais limpo)
+            let remetente = event.data.name || event.data.pushName || event.data.pushname || event.data.senderName;
             if (!remetente) remetente = 'Cliente';
 
             mostrarToast("Nova mensagem whatsapp chegou", 'info', `💬 WhatsApp: ${remetente}`, 6000);
