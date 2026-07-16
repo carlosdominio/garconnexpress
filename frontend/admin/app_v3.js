@@ -243,6 +243,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (salvo) {
     adminLogado = JSON.parse(salvo);
     document.getElementById('tela-login-admin').classList.add('hidden');
+    
+    // Exibe o widget do WhatsApp apenas quando logado
+    const waWidgetContainer = document.getElementById('wa-widget');
+    if (waWidgetContainer) waWidgetContainer.style.display = 'block';
+
     iniciarPainelAdmin();
   }
 
@@ -8966,23 +8971,32 @@ let waWidgetPollInterval = null;
 let waWidgetChatsPollInterval = null;
 
 function toggleWhatsAppWidget() {
+    console.log('🟢 [Widget Click] toggleWhatsAppWidget chamada!');
     const card = document.getElementById('wa-widget-card');
     const bubble = document.getElementById('wa-widget-bubble');
-    if (!card) return;
+    if (!card) {
+        console.error('❌ [Widget Error] Elemento #wa-widget-card não encontrado!');
+        return;
+    }
 
     const isOpen = card.classList.contains('active');
+    console.log('📊 [Widget Status] Aberto atualmente:', isOpen);
 
     if (!isOpen) {
         card.classList.add('active');
+        console.log('➕ [Widget Status] Adicionada classe active ao card. Classes atuais:', card.className);
         if (bubble) bubble.classList.remove('wa-pulse-active');
         
         if (!waWidgetSocket) {
+            console.log('🔌 [Widget Socket] Inicializando socket...');
             inicializarWhatsAppWidget();
         } else {
+            console.log('🔄 [Widget Data] Recarregando chats...');
             carregarWidgetChats();
         }
     } else {
         card.classList.remove('active');
+        console.log('➖ [Widget Status] Removida classe active do card.');
         voltarParaListaChats();
     }
 }
