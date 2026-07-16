@@ -9091,6 +9091,35 @@ async function inicializarWhatsAppWidget() {
                     atualizarBadgeUnreadGlobal();
                 }
             });
+
+            // Ativa o Modo Humano automaticamente no widget quando o admin começa a digitar
+            const widgetInput = document.getElementById('wa-widget-input');
+            if (widgetInput) {
+                widgetInput.addEventListener('input', async () => {
+                    if (waWidgetActiveJid) {
+                        const chat = waWidgetChats.find(c => c.jid === waWidgetActiveJid);
+                        if (chat && !chat.atendimentoManual) {
+                            console.log('✍️ [Widget] Admin digitando. Ativando Modo Humano automaticamente para:', waWidgetActiveJid);
+                            chat.atendimentoManual = true;
+                            
+                            // Atualiza a tela localmente
+                            atualizarModoAtendimentoTela(true);
+                            renderizarListaChats();
+                            
+                            // Envia para o servidor
+                            try {
+                                await fetch(`${waWidgetBotBaseUrl}/api/chats/${waWidgetActiveJid}/toggle-human?token=${waWidgetBotToken}`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ atendimentoManual: true })
+                                });
+                            } catch (e) {
+                                console.error('Erro ao ativar modo humano automaticamente no widget:', e.message);
+                            }
+                        }
+                    }
+                });
+            }
         }
     } catch (err) {
         console.error('Erro ao conectar Socket do widget:', err.message);
