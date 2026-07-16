@@ -2198,7 +2198,7 @@
        ========================================== -->
   <div id="wa-widget" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; font-family: 'Outfit', sans-serif; width: 0; height: 0;">
     <!-- Janela de Chat Expandida -->
-    <div id="wa-widget-card" style="width: 380px; height: 490px; max-height: calc(100vh - 110px); background: white; border-radius: 16px; box-shadow: 0 10px 35px rgba(0,0,0,0.18); flex-direction: column; overflow: hidden; border: 1px solid #e2e8f0;">
+    <div id="wa-widget-card" style="width: 380px; height: 490px; max-height: calc(100vh - 110px); background: white; border-radius: 16px; box-shadow: 0 10px 35px rgba(0,0,0,0.18); flex-direction: column; overflow: hidden; border: 1px solid #e2e8f0; position: relative;">
       <!-- Cabeçalho do Chat -->
       <div style="background: linear-gradient(135deg, #075e54, #128c7e); color: white; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #054d44;">
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -2261,6 +2261,17 @@
             <button onclick="enviarMensagemWidget()" style="background: #128c7e; border: none; border-radius: 50%; width: 38px; height: 38px; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; outline: none; box-shadow: 0 1px 3px rgba(0,0,0,0.15); transition: 0.2s;">
               <i class="fa-solid fa-paper-plane" style="font-size: 0.95rem; margin-left: 2px;"></i>
             </button>
+          </div>
+        </div>
+      </div>
+      <!-- Widget Custom Modal -->
+      <div id="wa-widget-confirm-modal" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+        <div style="background: white; border-radius: 12px; width: 85%; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.25); text-align: center; animation: waScaleUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);">
+          <h5 style="margin: 0 0 10px; font-size: 0.95rem; font-weight: bold; color: #1e293b;" id="wa-widget-modal-title">Apagar Mensagem?</h5>
+          <p style="margin: 0 0 20px; font-size: 0.8rem; color: #64748b; line-height: 1.4;" id="wa-widget-modal-text">Deseja realmente apagar esta mensagem? Esta ação não pode ser desfeita.</p>
+          <div style="display: flex; gap: 8px; justify-content: flex-end;">
+            <button onclick="fecharWidgetModal()" style="background: #f1f5f9; border: none; padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: bold; color: #475569; cursor: pointer; outline: none;">Cancelar</button>
+            <button id="wa-widget-btn-modal-confirm" style="background: #ef4444; border: none; padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: bold; color: white; cursor: pointer; outline: none;">Apagar</button>
           </div>
         </div>
       </div>

@@ -9356,13 +9356,40 @@ function voltarParaListaChats() {
     carregarWidgetChats();
 }
 
+let waWidgetMsgToDelete = null;
+let waWidgetMsgFromMe = null;
+let waWidgetChatToDelete = null;
+
 function apagarConversaWidget(event, jid) {
     event.stopPropagation();
-    if (confirm('Deseja realmente apagar esta conversa permanentemente?')) {
-        if (waWidgetSocket) {
-            waWidgetSocket.emit('delete_chat', jid);
-        }
+    waWidgetChatToDelete = jid;
+    
+    const modal = document.getElementById('wa-widget-confirm-modal');
+    const title = document.getElementById('wa-widget-modal-title');
+    const text = document.getElementById('wa-widget-modal-text');
+    const btnConfirm = document.getElementById('wa-widget-btn-modal-confirm');
+    
+    if (modal && title && text && btnConfirm) {
+        title.innerText = 'Apagar Conversa?';
+        text.innerText = 'Deseja realmente apagar esta conversa permanentemente?';
+        btnConfirm.onclick = executarApagarConversaWidget;
+        modal.style.display = 'flex';
     }
+}
+
+function executarApagarConversaWidget() {
+    if (waWidgetChatToDelete && waWidgetSocket) {
+        waWidgetSocket.emit('delete_chat', waWidgetChatToDelete);
+    }
+    fecharWidgetModal();
+}
+
+function fecharWidgetModal() {
+    const modal = document.getElementById('wa-widget-confirm-modal');
+    if (modal) modal.style.display = 'none';
+    waWidgetMsgToDelete = null;
+    waWidgetMsgFromMe = null;
+    waWidgetChatToDelete = null;
 }
 
 function adicionarMensagemWidgetNaTela(msg, scroll = true) {
@@ -9423,11 +9450,27 @@ function adicionarMensagemWidgetNaTela(msg, scroll = true) {
 
 function apagarMensagemWidget(event, msgId, fromMe) {
     event.stopPropagation();
-    if (confirm('Deseja realmente apagar esta mensagem para você e para o cliente?')) {
-        if (waWidgetSocket && waWidgetActiveJid) {
-            waWidgetSocket.emit('delete_msg', { jid: waWidgetActiveJid, id: msgId, fromMe: fromMe });
-        }
+    waWidgetMsgToDelete = msgId;
+    waWidgetMsgFromMe = fromMe;
+    
+    const modal = document.getElementById('wa-widget-confirm-modal');
+    const title = document.getElementById('wa-widget-modal-title');
+    const text = document.getElementById('wa-widget-modal-text');
+    const btnConfirm = document.getElementById('wa-widget-btn-modal-confirm');
+    
+    if (modal && title && text && btnConfirm) {
+        title.innerText = 'Apagar Mensagem?';
+        text.innerText = 'Deseja realmente apagar esta mensagem para você e para o cliente?';
+        btnConfirm.onclick = executarApagarMensagemWidget;
+        modal.style.display = 'flex';
     }
+}
+
+function executarApagarMensagemWidget() {
+    if (waWidgetMsgToDelete && waWidgetSocket && waWidgetActiveJid) {
+        waWidgetSocket.emit('delete_msg', { jid: waWidgetActiveJid, id: waWidgetMsgToDelete, fromMe: waWidgetMsgFromMe });
+    }
+    fecharWidgetModal();
 }
 
 function rolarChatWidgetParaBaixo() {
