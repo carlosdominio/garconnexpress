@@ -9092,6 +9092,16 @@ async function inicializarWhatsAppWidget() {
                 }
             });
 
+            waWidgetSocket.on('chat_deleted', (deletedJid) => {
+                console.log('🗑️ Widget recebeu chat_deleted via Socket:', deletedJid);
+                waWidgetChats = waWidgetChats.filter(c => c.jid !== deletedJid);
+                renderizarListaChats();
+                atualizarBadgeUnreadGlobal();
+                if (waWidgetActiveJid === deletedJid) {
+                    voltarParaListaChats();
+                }
+            });
+
             // Ativa o Modo Humano automaticamente no widget quando o admin começa a digitar
             const widgetInput = document.getElementById('wa-widget-input');
             if (widgetInput) {
@@ -9199,6 +9209,11 @@ function renderizarListaChats() {
                         <span style="background: #25d366; color: white; border-radius: 50%; font-size: 0.65rem; font-weight: bold; width: 18px; height: 18px; display: ${chat.unreadCount > 0 ? 'flex' : 'none'}; align-items: center; justify-content: center;">${chat.unreadCount}</span>
                     </div>
                 </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 5px; margin-left: 8px;">
+                <button onclick="apagarConversaWidget(event, '${chat.jid}')" title="Apagar conversa" style="background: none; border: none; color: #ef4444; font-size: 0.95rem; cursor: pointer; opacity: 0.5; transition: opacity 0.2s, transform 0.1s; padding: 4px; display: flex; align-items: center; justify-content: center; outline: none;">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
             </div>
         `;
         container.appendChild(div);
@@ -9328,6 +9343,15 @@ function voltarParaListaChats() {
     carregarWidgetChats();
 }
 
+function apagarConversaWidget(event, jid) {
+    event.stopPropagation();
+    if (confirm('Deseja realmente apagar esta conversa permanentemente?')) {
+        if (waWidgetSocket) {
+            waWidgetSocket.emit('delete_chat', jid);
+        }
+    }
+}
+
 function adicionarMensagemWidgetNaTela(msg, scroll = true) {
     const container = document.getElementById('wa-widget-messages-container');
     if (!container) return;
@@ -9339,12 +9363,35 @@ function adicionarMensagemWidgetNaTela(msg, scroll = true) {
     div.id = `wa-msg-${msg.id}`;
     div.className = `wa-bubble-msg ${msg.fromMe ? 'sent' : 'received'}`;
     
-    const textHtml = msg.text.replace(/\n/g, '<br>');
+    let contentHtml = '';
+    
+    // Se tiver imagem, adiciona a tag img
+    if (msg.imageUrl) {
+        let imgUrl = msg.imageUrl;
+        if (imgUrl.startsWith('/media/')) {
+            imgUrl = `${waWidgetBotBaseUrl}${imgUrl}`;
+        }
+        contentHtml += `<img src="${imgUrl}" style="max-width: 100%; border-radius: 8px; margin-bottom: 5px; cursor: pointer; display: block;" onclick="window.parent.postMessage({ type: 'open_image_fullscreen', url: '${imgUrl}' }, '*')" title="Clique para ampliar" /><br>`;
+    }
+    
+    // Se tiver áudio, adiciona a tag audio
+    if (msg.audioUrl) {
+        let audUrl = msg.audioUrl;
+        if (audUrl.startsWith('/media/')) {
+            audUrl = `${waWidgetBotBaseUrl}${audUrl}`;
+        }
+        contentHtml += `<audio controls style="max-width: 100%; margin-bottom: 5px; display: block;"><source src="${audUrl}" type="audio/ogg"></audio><br>`;
+    }
 
-    div.innerHTML = `
-        <span>${textHtml}</span>
-        <span class="wa-bubble-time">${msg.time || ''}</span>
-    `;
+    // Se tiver texto e não for apenas o placeholder de imagem/áudio
+    const isMediaPlaceholder = msg.text === '📷 Imagem recebida' || msg.text === '🖼️ Imagem' || msg.text === '🎵 Áudio recebido';
+    if (msg.text && (!isMediaPlaceholder || (!msg.imageUrl && !msg.audioUrl))) {
+        const textHtml = msg.text.replace(/\n/g, '<br>');
+        contentHtml += `<span>${textHtml}</span>`;
+    }
+
+    contentHtml += `<span class="wa-bubble-time">${msg.time || ''}</span>`;
+    div.innerHTML = contentHtml;
 
     container.appendChild(div);
 
