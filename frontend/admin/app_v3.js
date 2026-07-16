@@ -1087,6 +1087,9 @@ async function carregarStatusWhatsApp() {
     const status = await res.json();
     if (status.botUrl) {
       window.whatsappBotUrl = status.botUrl;
+      if (typeof inicializarWhatsAppWidget === 'function') {
+        inicializarWhatsAppWidget();
+      }
     }
 
     if (!status.configured) {
@@ -8949,6 +8952,499 @@ pingWhatsAppBot();
 
 // Agenda os próximos pings para rodarem a cada 5 minutos
 setInterval(pingWhatsAppBot, 5 * 60 * 1000);
+
+// ==========================================
+// LÓGICA DO WIDGET DE CHAT FLUTUANTE DO WHATSAPP
+// ==========================================
+let waWidgetChats = [];
+let waWidgetActiveJid = null;
+let waWidgetSocket = null;
+let waWidgetBotBaseUrl = '';
+let waWidgetBotToken = '';
+let waWidgetPollInterval = null;
+let waWidgetChatsPollInterval = null;
+
+function toggleWhatsAppWidget() {
+    const card = document.getElementById('wa-widget-card');
+    const bubble = document.getElementById('wa-widget-bubble');
+    if (!card) return;
+
+    const isOpen = card.classList.contains('active');
+
+    if (!isOpen) {
+        card.classList.add('active');
+        if (bubble) bubble.classList.remove('wa-pulse-active');
+        
+        if (!waWidgetSocket) {
+            inicializarWhatsAppWidget();
+        } else {
+            carregarWidgetChats();
+        }
+    } else {
+        card.classList.remove('active');
+    }
+}
+
+async function obterCredenciaisBot() {
+    try {
+        let rawUrl = window.whatsappBotUrl;
+        if (!rawUrl) {
+            const res = await fetch('/api/whatsapp-status?_=' + Date.now(), { cache: 'no-store' });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.botUrl) {
+                    window.whatsappBotUrl = data.botUrl;
+                    rawUrl = data.botUrl;
+                }
+            }
+        }
+
+        if (rawUrl) {
+            // Normaliza protocolo se estiver ausente (ex: "localhost:3002" -> "http://localhost:3002")
+            if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
+                rawUrl = 'http://' + rawUrl;
+            }
+            const botUrlObj = new URL(rawUrl);
+            waWidgetBotBaseUrl = botUrlObj.origin;
+            waWidgetBotToken = botUrlObj.searchParams.get('token') || '';
+            return true;
+        }
+    } catch (e) {
+        console.error('Erro ao ler credenciais do bot para o widget:', e.message);
+    }
+    return false;
+}
+
+async function inicializarWhatsAppWidget() {
+    const credsLoaded = await obterCredenciaisBot();
+    if (!credsLoaded || !waWidgetBotBaseUrl) {
+        const textEl = document.getElementById('wa-widget-status-text');
+        if (textEl) textEl.innerText = 'Buscando conexão do robô...';
+        
+        // Tenta reconectar a cada 4 segundos
+        setTimeout(inicializarWhatsAppWidget, 4000);
+        return;
+    }
+
+    try {
+        if (!waWidgetSocket && typeof io !== 'undefined') {
+            // Força transporte WebSocket para evitar bloqueios CORS de HTTP polling
+            waWidgetSocket = io(waWidgetBotBaseUrl, { transports: ['websocket'] });
+
+            waWidgetSocket.on('connect', () => {
+                const dot = document.getElementById('wa-widget-status-dot');
+                const txt = document.getElementById('wa-widget-status-text');
+                if (dot) {
+                    dot.style.background = '#25d366';
+                    dot.style.border = '1.5px solid #075e54';
+                }
+                if (txt) txt.innerText = 'Online (Tempo Real)';
+                carregarWidgetChats();
+            });
+
+            waWidgetSocket.on('disconnect', () => {
+                const dot = document.getElementById('wa-widget-status-dot');
+                const txt = document.getElementById('wa-widget-status-text');
+                if (dot) dot.style.background = '#ef4444';
+                if (txt) txt.innerText = 'Desconectado (Reconectando...)';
+            });
+
+            waWidgetSocket.on('new_msg', (data) => {
+                console.log('💬 Widget recebeu new_msg via Socket:', data);
+                
+                if (waWidgetActiveJid && (data.jid === waWidgetActiveJid || data.from === waWidgetActiveJid)) {
+                    adicionarMensagemWidgetNaTela(data);
+                    zerarNotificacoesChat(waWidgetActiveJid);
+                } else {
+                    if (!data.fromMe) {
+                        reproduzirSomNotificacaoWidget();
+                    }
+                    carregarWidgetChats(true);
+                }
+            });
+
+            waWidgetSocket.on('status_atendimento', (data) => {
+                if (waWidgetActiveJid && data.jid === waWidgetActiveJid) {
+                    atualizarModoAtendimentoTela(data.atendimentoManual);
+                }
+                const chat = waWidgetChats.find(c => c.jid === data.jid);
+                if (chat) {
+                    chat.atendimentoManual = data.atendimentoManual;
+                    if (typeof data.unreadCount !== 'undefined') {
+                        chat.unreadCount = data.unreadCount;
+                    }
+                    renderizarListaChats();
+                    atualizarBadgeUnreadGlobal();
+                }
+            });
+        }
+    } catch (err) {
+        console.error('Erro ao conectar Socket do widget:', err.message);
+    }
+
+    carregarWidgetChats();
+
+    // Polling redundante em segundo plano para manter a lista e os badges atualizados (cada 6 segundos)
+    if (waWidgetChatsPollInterval) clearInterval(waWidgetChatsPollInterval);
+    waWidgetChatsPollInterval = setInterval(() => {
+        carregarWidgetChats(true);
+    }, 6000);
+}
+
+async function carregarWidgetChats(isBackground = false) {
+    if (!waWidgetBotBaseUrl) return;
+
+    try {
+        const res = await fetch(`${waWidgetBotBaseUrl}/api/chats?token=${waWidgetBotToken}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        
+        waWidgetChats = await res.json();
+        renderizarListaChats();
+        atualizarBadgeUnreadGlobal();
+    } catch (e) {
+        console.error('Erro ao carregar lista de chats do robô:', e.message);
+        if (!isBackground) {
+            const container = document.getElementById('wa-widget-chats-container');
+            if (container) {
+                container.innerHTML = `
+                    <div style="padding: 30px; text-align: center; color: #ef4444;">
+                        <i class="fa-solid fa-triangle-exclamation" style="font-size: 1.5rem; margin-bottom: 10px;"></i>
+                        <p style="margin:0; font-size: 0.85rem;">Erro ao conectar com o robô.</p>
+                    </div>
+                `;
+            }
+        }
+    }
+}
+
+function renderizarListaChats() {
+    const container = document.getElementById('wa-widget-chats-container');
+    if (!container) return;
+
+    if (waWidgetChats.length === 0) {
+        container.innerHTML = `
+            <div style="padding: 30px; text-align: center; color: #94a3b8;">
+                <i class="fa-regular fa-comments" style="font-size: 1.5rem; margin-bottom: 10px;"></i>
+                <p style="margin:0; font-size: 0.85rem;">Nenhuma conversa ativa.</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = '';
+    waWidgetChats.forEach(chat => {
+        const div = document.createElement('div');
+        div.className = `wa-widget-contact-item ${waWidgetActiveJid === chat.jid ? 'active' : ''}`;
+        div.onclick = () => abrirConversaWidget(chat);
+
+        const modeBadge = chat.atendimentoManual 
+            ? '<span style="font-size: 0.65rem; color: #b45309; background: #fef3c7; border: 1px solid #fde68a; border-radius: 4px; padding: 1px 4px; font-weight: bold;">Humano</span>' 
+            : '<span style="font-size: 0.65rem; color: #475569; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1px 4px;">Robô</span>';
+
+        const lastMsgTime = chat.lastUpdate ? new Date(chat.lastUpdate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+
+        div.innerHTML = `
+            <div style="flex: 1; min-width: 0; text-align: left;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                    <strong style="font-size: 0.85rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 70%;">${chat.name}</strong>
+                    <span style="font-size: 0.68rem; color: #94a3b8;">${lastMsgTime}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; min-width: 0;">
+                    <span style="font-size: 0.75rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 70%;">${chat.lastMessage || 'Sem mensagens'}</span>
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        ${modeBadge}
+                        <span style="background: #25d366; color: white; border-radius: 50%; font-size: 0.65rem; font-weight: bold; width: 18px; height: 18px; display: ${chat.unreadCount > 0 ? 'flex' : 'none'}; align-items: center; justify-content: center;">${chat.unreadCount}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+
+    const searchInput = document.getElementById('wa-widget-search');
+    if (searchInput && searchInput.value) {
+        filtrarWidgetChats();
+    }
+}
+
+function filtrarWidgetChats() {
+    const query = document.getElementById('wa-widget-search').value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const items = document.querySelectorAll('.wa-widget-contact-item');
+
+    items.forEach((item, index) => {
+        const chat = waWidgetChats[index];
+        if (chat) {
+            const name = chat.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const jid = chat.jid.toLowerCase();
+            if (name.includes(query) || jid.includes(query)) {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        }
+    });
+}
+
+async function abrirConversaWidget(chat) {
+    waWidgetActiveJid = chat.jid;
+    renderizarListaChats();
+
+    const nameEl = document.getElementById('wa-widget-chat-name');
+    const statusEl = document.getElementById('wa-widget-chat-status');
+    if (nameEl) nameEl.innerText = chat.name;
+    if (statusEl) statusEl.innerText = 'Visualizando conversa';
+    
+    const listEl = document.getElementById('wa-widget-list-view');
+    const chatEl = document.getElementById('wa-widget-chat-view');
+    if (listEl) listEl.style.display = 'none';
+    if (chatEl) chatEl.style.display = 'flex';
+
+    const container = document.getElementById('wa-widget-messages-container');
+    if (container) {
+        container.innerHTML = `
+            <div style="padding: 30px; text-align: center; color: #94a3b8;">
+                <i class="fa-solid fa-spinner fa-spin" style="font-size: 1.5rem; margin-bottom: 10px;"></i>
+                <p style="margin:0; font-size: 0.85rem;">Carregando mensagens...</p>
+            </div>
+        `;
+    }
+
+    atualizarModoAtendimentoTela(chat.atendimentoManual);
+    chat.unreadCount = 0;
+    atualizarBadgeUnreadGlobal();
+
+    // Limpa qualquer polling anterior ativo
+    if (waWidgetPollInterval) {
+        clearInterval(waWidgetPollInterval);
+    }
+
+    // Polling de fallback em segundo plano a cada 3 segundos
+    waWidgetPollInterval = setInterval(async () => {
+        if (waWidgetActiveJid === chat.jid) {
+            try {
+                const res = await fetch(`${waWidgetBotBaseUrl}/api/chats/${chat.jid}/messages?token=${waWidgetBotToken}`);
+                if (res.ok) {
+                    const messages = await res.json();
+                    const mc = document.getElementById('wa-widget-messages-container');
+                    if (mc) {
+                        // Se era o indicador de carregamento, limpa
+                        if (mc.innerHTML.includes('fa-spinner')) {
+                            mc.innerHTML = '';
+                        }
+                        if (messages.length === 0 && mc.children.length === 0) {
+                            mc.innerHTML = `<div style="text-align: center; font-size: 0.75rem; color: #748897; background: #ffeaa7; padding: 6px 12px; border-radius: 8px; margin: 10px auto; max-width: 80%;">Sem mensagens no histórico. Digite abaixo para iniciar!</div>`;
+                        } else {
+                            // Se houver mensagens novas, adiciona na tela sem duplicar
+                            messages.forEach(msg => adicionarMensagemWidgetNaTela(msg, true));
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Erro ao atualizar histórico em background:', e.message);
+            }
+        }
+    }, 3000);
+
+    try {
+        const res = await fetch(`${waWidgetBotBaseUrl}/api/chats/${chat.jid}/messages?token=${waWidgetBotToken}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        
+        const messages = await res.json();
+        if (container) {
+            container.innerHTML = '';
+            if (messages.length === 0) {
+                container.innerHTML = `<div style="text-align: center; font-size: 0.75rem; color: #748897; background: #ffeaa7; padding: 6px 12px; border-radius: 8px; margin: 10px auto; max-width: 80%;">Sem mensagens no histórico. Digite abaixo para iniciar!</div>`;
+            } else {
+                messages.forEach(msg => adicionarMensagemWidgetNaTela(msg, false));
+            }
+        }
+
+        rolarChatWidgetParaBaixo();
+    } catch (e) {
+        console.error('Erro ao carregar histórico de mensagens:', e.message);
+        if (container) {
+            container.innerHTML = `
+                <div style="padding: 20px; text-align: center; color: #ef4444; font-size: 0.85rem;">
+                    Falha ao carregar mensagens.
+                </div>
+            `;
+        }
+    }
+}
+
+function voltarParaListaChats() {
+    waWidgetActiveJid = null;
+    if (waWidgetPollInterval) {
+        clearInterval(waWidgetPollInterval);
+        waWidgetPollInterval = null;
+    }
+    const chatEl = document.getElementById('wa-widget-chat-view');
+    const listEl = document.getElementById('wa-widget-list-view');
+    if (chatEl) chatEl.style.display = 'none';
+    if (listEl) listEl.style.display = 'flex';
+    carregarWidgetChats();
+}
+
+function adicionarMensagemWidgetNaTela(msg, scroll = true) {
+    const container = document.getElementById('wa-widget-messages-container');
+    if (!container) return;
+
+    const idExistente = document.getElementById(`wa-msg-${msg.id}`);
+    if (idExistente) return;
+
+    const div = document.createElement('div');
+    div.id = `wa-msg-${msg.id}`;
+    div.className = `wa-bubble-msg ${msg.fromMe ? 'sent' : 'received'}`;
+    
+    const textHtml = msg.text.replace(/\n/g, '<br>');
+
+    div.innerHTML = `
+        <span>${textHtml}</span>
+        <span class="wa-bubble-time">${msg.time || ''}</span>
+    `;
+
+    container.appendChild(div);
+
+    if (scroll) {
+        rolarChatWidgetParaBaixo();
+    }
+}
+
+function rolarChatWidgetParaBaixo() {
+    const container = document.getElementById('wa-widget-messages-container');
+    if (container) {
+        setTimeout(() => {
+            container.scrollTop = container.scrollHeight;
+        }, 50);
+    }
+}
+
+function checarEnterMensagemWidget(event) {
+    if (event.key === 'Enter') {
+        enviarMensagemWidget();
+    }
+}
+
+async function enviarMensagemWidget() {
+    const input = document.getElementById('wa-widget-input');
+    if (!input) return;
+
+    const text = input.value.trim();
+    if (!text || !waWidgetActiveJid) return;
+
+    input.value = '';
+
+    try {
+        const res = await fetch(`${waWidgetBotBaseUrl}/api/send-message?token=${waWidgetBotToken}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jid: waWidgetActiveJid, text })
+        });
+
+        if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.error || `HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        if (waWidgetActiveJid === data.message.jid || data.message.jid === waWidgetActiveJid) {
+            adicionarMensagemWidgetNaTela(data.message);
+        }
+        
+        atualizarModoAtendimentoTela(true);
+    } catch (e) {
+        console.error('Erro ao enviar mensagem no widget:', e.message);
+        mostrarToast('Erro ao enviar mensagem: ' + e.message, 'error');
+    }
+}
+
+async function toggleWidgetAtendimentoManual() {
+    if (!waWidgetActiveJid) return;
+
+    const btn = document.getElementById('wa-widget-btn-toggle-mode');
+    if (!btn) return;
+    const isCurrentlyHuman = btn.innerText === 'Devolver';
+    const novoEstado = !isCurrentlyHuman;
+
+    try {
+        const res = await fetch(`${waWidgetBotBaseUrl}/api/chats/${waWidgetActiveJid}/toggle-human?token=${waWidgetBotToken}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ atendimentoManual: novoEstado })
+        });
+
+        if (res.ok) {
+            atualizarModoAtendimentoTela(novoEstado);
+        }
+    } catch (e) {
+        console.error('Erro ao alterar modo do robô no widget:', e.message);
+    }
+}
+
+function atualizarModoAtendimentoTela(atendimentoManual) {
+    const label = document.getElementById('wa-widget-mode-label');
+    const btn = document.getElementById('wa-widget-btn-toggle-mode');
+    if (!label || !btn) return;
+
+    if (atendimentoManual) {
+        label.innerText = 'Humano';
+        label.style.background = '#fef3c7';
+        label.style.color = '#b45309';
+        label.style.border = '1px solid #fde68a';
+        
+        btn.innerText = 'Devolver';
+        btn.style.background = '#ef4444';
+    } else {
+        label.innerText = 'Robô';
+        label.style.background = '#e2e8f0';
+        label.style.color = '#475569';
+        label.style.border = '1px solid #cbd5e1';
+
+        btn.innerText = 'Assumir';
+        btn.style.background = '#25d366';
+    }
+}
+
+function zerarNotificacoesChat(jid) {
+    const chat = waWidgetChats.find(c => c.jid === jid);
+    if (chat) {
+        chat.unreadCount = 0;
+        renderizarListaChats();
+        atualizarBadgeUnreadGlobal();
+    }
+}
+
+function atualizarBadgeUnreadGlobal() {
+    const badge = document.getElementById('wa-widget-badge');
+    const bubble = document.getElementById('wa-widget-bubble');
+    if (!badge) return;
+
+    const totalUnread = waWidgetChats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+    badge.innerText = totalUnread;
+
+    if (totalUnread > 0) {
+        badge.style.display = 'block';
+        if (bubble) bubble.classList.add('wa-pulse-active');
+    } else {
+        badge.style.display = 'none';
+        if (bubble) bubble.classList.remove('wa-pulse-active');
+    }
+}
+
+function reproduzirSomNotificacaoWidget() {
+    const somZapAtivo = localStorage.getItem('admin_som_whatsapp') !== 'false';
+    if (somZapAtivo) {
+        const somTipo = localStorage.getItem('admin_som_global') || 'campainha_classica';
+        if (somTipo !== 'mudo') {
+            const audio = new Audio(getSoundPath(somTipo));
+            audio.play().catch(e => console.log('Erro ao tocar som no widget:', e.message));
+        }
+    }
+}
+
+// Dispara a inicialização após um delay
+setTimeout(inicializarWhatsAppWidget, 3000);
+
 
 
 
