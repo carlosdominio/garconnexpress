@@ -8983,6 +8983,7 @@ function toggleWhatsAppWidget() {
         }
     } else {
         card.classList.remove('active');
+        voltarParaListaChats();
     }
 }
 
