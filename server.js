@@ -2033,7 +2033,9 @@ async function initDb() {
     `CREATE INDEX IF NOT EXISTS idx_push_subs_endpoint ON push_subscriptions(endpoint)`,
     `CREATE INDEX IF NOT EXISTS idx_push_subs_garcom ON push_subscriptions(garcom_id, app_type)`,
     `CREATE INDEX IF NOT EXISTS idx_pagamentos_pedido_id ON pagamentos(pedido_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_ficha_tecnica_menu ON ficha_tecnica(menu_id)`
+    `CREATE INDEX IF NOT EXISTS idx_ficha_tecnica_menu ON ficha_tecnica(menu_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_pedidos_created_at ON pedidos(created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_estoque_mov_criado_at ON estoque_movimentacoes(criado_at)`
   ];
   
   // Executa queries sequencialmente para evitar sobrecarga de conexões
@@ -5745,7 +5747,9 @@ app.get('/api/diag', isAdmin, async (req, res) => {
         `CREATE INDEX IF NOT EXISTS idx_push_subs_endpoint ON push_subscriptions(endpoint)`,
         `CREATE INDEX IF NOT EXISTS idx_push_subs_garcom ON push_subscriptions(garcom_id, app_type)`,
         `CREATE INDEX IF NOT EXISTS idx_pagamentos_pedido_id ON pagamentos(pedido_id)`,
-        `CREATE INDEX IF NOT EXISTS idx_ficha_tecnica_menu ON ficha_tecnica(menu_id)`
+        `CREATE INDEX IF NOT EXISTS idx_ficha_tecnica_menu ON ficha_tecnica(menu_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_pedidos_created_at ON pedidos(created_at)`,
+        `CREATE INDEX IF NOT EXISTS idx_estoque_mov_criado_at ON estoque_movimentacoes(criado_at)`
       ];
       for (let tableSql of tables) {
         if (isPostgres) await db.query(tableSql);
