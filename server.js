@@ -2029,7 +2029,11 @@ async function initDb() {
     `CREATE TABLE IF NOT EXISTS estoque_movimentacoes (id SERIAL PRIMARY KEY, menu_id INTEGER NOT NULL, quantidade REAL NOT NULL, tipo TEXT NOT NULL, motivo TEXT, criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE INDEX IF NOT EXISTS idx_pedido_itens_pedido_id ON pedido_itens(pedido_id)`,
     `CREATE INDEX IF NOT EXISTS idx_pedidos_mesa_id ON pedidos(mesa_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_pedidos_status ON pedidos(status)`
+    `CREATE INDEX IF NOT EXISTS idx_pedidos_status ON pedidos(status)`,
+    `CREATE INDEX IF NOT EXISTS idx_push_subs_endpoint ON push_subscriptions(endpoint)`,
+    `CREATE INDEX IF NOT EXISTS idx_push_subs_garcom ON push_subscriptions(garcom_id, app_type)`,
+    `CREATE INDEX IF NOT EXISTS idx_pagamentos_pedido_id ON pagamentos(pedido_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_ficha_tecnica_menu ON ficha_tecnica(menu_id)`
   ];
   
   // Executa queries sequencialmente para evitar sobrecarga de conexões
@@ -5737,7 +5741,11 @@ app.get('/api/diag', isAdmin, async (req, res) => {
         `CREATE TABLE IF NOT EXISTS estoque_movimentacoes (id SERIAL PRIMARY KEY, menu_id INTEGER NOT NULL, quantidade REAL NOT NULL, tipo TEXT NOT NULL, motivo TEXT, criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
         `CREATE INDEX IF NOT EXISTS idx_pedido_itens_pedido_id ON pedido_itens(pedido_id)`,
         `CREATE INDEX IF NOT EXISTS idx_pedidos_mesa_id ON pedidos(mesa_id)`,
-        `CREATE INDEX IF NOT EXISTS idx_pedidos_status ON pedidos(status)`
+        `CREATE INDEX IF NOT EXISTS idx_pedidos_status ON pedidos(status)`,
+        `CREATE INDEX IF NOT EXISTS idx_push_subs_endpoint ON push_subscriptions(endpoint)`,
+        `CREATE INDEX IF NOT EXISTS idx_push_subs_garcom ON push_subscriptions(garcom_id, app_type)`,
+        `CREATE INDEX IF NOT EXISTS idx_pagamentos_pedido_id ON pagamentos(pedido_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_ficha_tecnica_menu ON ficha_tecnica(menu_id)`
       ];
       for (let tableSql of tables) {
         if (isPostgres) await db.query(tableSql);
