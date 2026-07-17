@@ -315,7 +315,7 @@ async function realizarLoginAdmin() {
       }
       setTimeout(() => {
         location.reload();
-      }, 550);
+      }, 280);
     } else {
       await mostrarAlerta("Credenciais inválidas", "Erro de Login", "❌");
       if (btn) {
