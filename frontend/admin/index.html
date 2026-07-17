@@ -10,6 +10,9 @@
   <script defer src="/_vercel/speed-insights/script.js"></script>
   <script>
     window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    if (localStorage.getItem('admin_token')) {
+      document.write('<style>.tela-login-admin { display: none !important; }</style>');
+    }
   </script>
   <script defer src="/_vercel/insights/script.js"></script>
   <link id="dynamic-favicon" rel="icon" type="image/svg+xml" href="favicon.svg">
