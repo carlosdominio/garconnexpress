@@ -805,7 +805,8 @@
                     <button type="button" onclick="gerarSenhaAleatoriaGarcom()" style="background: none; border: none; color: #3498db; font-size: 0.85rem; cursor: pointer; font-weight: bold; padding: 0; text-decoration: underline; transition: color 0.2s;" onmouseover="this.style.color='#2980b9'" onmouseout="this.style.color='#3498db'">Gerar Senha</button>
                   </div>
                   <div style="position: relative; display: flex; align-items: center; width: 100%; margin-top: 5px;">
-                    <input type="password" id="garcom-senha" placeholder="Senha" style="width: 100%;">
+                    <input type="password" id="garcom-senha" placeholder="Senha" style="padding-right: 40px !important; width: 100%;">
+                    <button type="button" onclick="toggleMostrarSenha('garcom-senha', this)" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; color: #7f8c8d; padding: 0; font-size: 1rem; width: auto; height: auto; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-eye"></i></button>
                   </div>
                 </div>
 

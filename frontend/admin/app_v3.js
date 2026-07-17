@@ -331,6 +331,10 @@ function gerarSenhaAleatoriaGarcom() {
   if (input) {
     input.value = password;
     input.type = 'text';
+    const btn = input.nextElementSibling;
+    if (btn && btn.tagName === 'BUTTON') {
+      btn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
+    }
     mostrarToast('Senha gerada com sucesso!', 'success');
   }
 }
