@@ -9403,8 +9403,7 @@ async function abrirConversaWidget(chat) {
     }
 
     atualizarModoAtendimentoTela(chat.atendimentoManual);
-    chat.unreadCount = 0;
-    atualizarBadgeUnreadGlobal();
+    zerarNotificacoesChat(chat.jid);
 
     // Limpa qualquer polling anterior ativo
     if (waWidgetPollInterval) {
@@ -9804,6 +9803,13 @@ function zerarNotificacoesChat(jid) {
         chat.unreadCount = 0;
         renderizarListaChats();
         atualizarBadgeUnreadGlobal();
+    }
+    
+    // Envia sinal para o servidor do robô zerar o contador dele também
+    if (waWidgetSocket && waWidgetSocket.connected) {
+        waWidgetSocket.emit('mark_seen', jid);
+    } else if (waWidgetBotBaseUrl && waWidgetBotToken) {
+        fetch(`${waWidgetBotBaseUrl}/api/chats/${jid}/messages?token=${waWidgetBotToken}`).catch(() => {});
     }
 }
 
