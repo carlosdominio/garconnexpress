@@ -639,7 +639,7 @@ const pusherConfig = {
 let pusher = new Pusher(pusherConfig);
 console.log('📡 PUSHER CONFIGURADO COM SUCESSO (LOCAL/VERCEL)');
 
-const isPostgres = !!(process.env.DATABASE_URL || process.env.POSTGRES_URL) && (!!process.env.VERCEL || process.env.NODE_ENV === 'production' || process.env.FORCE_POSTGRES_LOCAL === 'true');
+const isPostgres = !!process.env.VERCEL || (!!(process.env.DATABASE_URL || process.env.POSTGRES_URL) && (process.env.NODE_ENV === 'production' || process.env.FORCE_POSTGRES_LOCAL === 'true'));
 let db;
 
 if (isPostgres) {
