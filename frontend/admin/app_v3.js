@@ -9265,9 +9265,29 @@ function renderizarListaChats() {
         if (backBtn) backBtn.style.display = 'none';
     }
 
+    const searchInput = document.getElementById('wa-widget-search');
+    const query = searchInput ? searchInput.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
+    const isSearching = query.length > 0;
+
+    console.log('[Widget Search Debug]', {
+        query,
+        isSearching,
+        totalChats: waWidgetChats.length,
+        waWidgetExibindoArquivados
+    });
+
     const chatsToRender = waWidgetChats.filter(chat => {
+        if (isSearching) {
+            const name = (chat.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const cleanJid = (chat.jid || '').toLowerCase();
+            const matches = name.includes(query) || cleanJid.includes(query);
+            console.log(`- Chat: ${chat.name}, hidden: ${chat.hidden}, matches: ${matches}`);
+            return matches;
+        }
         return waWidgetExibindoArquivados ? chat.hidden : !chat.hidden;
     });
+
+    console.log('[Widget Search Debug] chatsToRender:', chatsToRender.length);
 
     if (chatsToRender.length === 0) {
         container.innerHTML = `
@@ -9293,7 +9313,7 @@ function renderizarListaChats() {
         const lastMsgTime = chat.lastUpdate ? new Date(chat.lastUpdate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
 
         // Ação de Arquivar / Desarquivar
-        const archiveActionHtml = waWidgetExibindoArquivados
+        const archiveActionHtml = chat.hidden
             ? `<button onclick="desarquivarConversaWidget(event, '${chat.jid}')" title="Desarquivar conversa" style="background: none; border: none; color: #64748b; font-size: 0.95rem; cursor: pointer; opacity: 0.6; transition: opacity 0.2s, transform 0.1s; padding: 4px; display: flex; align-items: center; justify-content: center; outline: none;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
                     📤
                </button>`
@@ -9301,10 +9321,12 @@ function renderizarListaChats() {
                     📥
                </button>`;
 
+        const archiveBadgeHtml = (isSearching && chat.hidden) ? '<span style="font-size: 0.6rem; background: #94a3b8; color: white; padding: 1px 4px; border-radius: 4px; margin-left: 4px; font-weight: bold;">Arquivada</span>' : '';
+
         div.innerHTML = `
             <div style="flex: 1; min-width: 0; text-align: left;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
-                    <strong style="font-size: 0.85rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 70%;">${chat.name}</strong>
+                    <strong style="font-size: 0.85rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; max-width: 70%;">${chat.name}${archiveBadgeHtml}</strong>
                     <span style="font-size: 0.68rem; color: #94a3b8;">${lastMsgTime}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; min-width: 0;">
@@ -9325,29 +9347,11 @@ function renderizarListaChats() {
         container.appendChild(div);
     });
 
-    const searchInput = document.getElementById('wa-widget-search');
-    if (searchInput && searchInput.value) {
-        filtrarWidgetChats();
-    }
+
 }
 
 function filtrarWidgetChats() {
-    const query = document.getElementById('wa-widget-search').value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const items = document.querySelectorAll('.wa-widget-contact-item');
-
-    items.forEach((item) => {
-        const jid = item.dataset.jid;
-        const chat = waWidgetChats.find(c => c.jid === jid);
-        if (chat) {
-            const name = (chat.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            const cleanJid = jid.toLowerCase();
-            if (name.includes(query) || cleanJid.includes(query)) {
-                item.style.display = 'flex';
-            } else {
-                item.style.display = 'none';
-            }
-        }
-    });
+    renderizarListaChats();
 }
 
 async function abrirConversaWidget(chat) {
