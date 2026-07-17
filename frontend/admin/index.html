@@ -800,8 +800,11 @@
                 </div>
 
                 <div class="modal-form-group">
-                  <label id="label-senha-garcom">Senha de Acesso</label>
-                  <div style="position: relative; display: flex; align-items: center; width: 100%;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <label id="label-senha-garcom" style="margin: 0;">Senha de Acesso</label>
+                    <button type="button" onclick="gerarSenhaAleatoriaGarcom()" style="background: none; border: none; color: #3498db; font-size: 0.85rem; cursor: pointer; font-weight: bold; padding: 0; text-decoration: underline; transition: color 0.2s;" onmouseover="this.style.color='#2980b9'" onmouseout="this.style.color='#3498db'">Gerar Senha</button>
+                  </div>
+                  <div style="position: relative; display: flex; align-items: center; width: 100%; margin-top: 5px;">
                     <input type="password" id="garcom-senha" placeholder="Senha" style="padding-right: 40px !important; width: 100%;">
                     <button type="button" onclick="toggleMostrarSenha('garcom-senha', this)" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; color: #7f8c8d; padding: 0; font-size: 1.1rem; width: auto; height: auto;">👁️</button>
                   </div>

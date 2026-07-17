@@ -321,6 +321,24 @@ function toggleMostrarSenha(inputId, button) {
   }
 }
 
+function gerarSenhaAleatoriaGarcom() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  let password = '';
+  for (let i = 0; i < 5; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  const input = document.getElementById('garcom-senha');
+  if (input) {
+    input.value = password;
+    input.type = 'text';
+    const btn = input.nextElementSibling;
+    if (btn && btn.tagName === 'BUTTON') {
+      btn.textContent = '🙈';
+    }
+    mostrarToast('Senha gerada com sucesso!', 'success');
+  }
+}
+
 const PRINT_PAPER_KEY = 'admin_print_paper_mm';
 
 function getPrintPaperMm() {
