@@ -288,6 +288,10 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 2px solid #eee; padding-bottom: 10px; flex-shrink: 0;">
           <h3 style="margin:0;">💬 Automação WhatsApp</h3>
           <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="position: relative; margin-right: 15px;">
+              <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #667781; font-size: 13px;"></i>
+              <input type="text" id="global-whatsapp-search" placeholder="Pesquisar conversa..." oninput="if(document.getElementById('whatsapp-iframe')) document.getElementById('whatsapp-iframe').contentWindow.postMessage({ type: 'search_chats', query: this.value }, '*')" style="width: 250px; padding: 6px 12px 6px 32px; border-radius: 20px; border: 1px solid #ccc; font-size: 13px; outline: none; transition: border-color 0.2s; background: #f8fafc;" onfocus="this.style.borderColor='#00a884'; this.style.boxShadow='0 0 0 3px rgba(0, 168, 132, 0.2)'" onblur="this.style.borderColor='#ccc'; this.style.boxShadow='none'">
+            </div>
             <div id="whatsapp-info-container" style="background: #f8fafc; padding: 4px 12px; border-radius: 20px; border: 1px solid #e2e8f0; font-size: 0.75rem;">
               <span style="color: #64748b; font-weight: bold;">NOTIFICAR: </span>
               <span id="whatsapp-notify-number" style="font-weight: bold; color: #2c3e50;">...</span>
@@ -2221,8 +2225,16 @@
       <div id="wa-widget-body" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #efeae2; position: relative;">
         <!-- Tela A: Lista de Conversas -->
         <div id="wa-widget-list-view" style="display: flex; flex-direction: column; height: 100%; width: 100%; background: #ffffff;">
-          <div style="padding: 10px; border-bottom: 1px solid #f1f5f9; background: #f8fafc;">
-            <input type="text" id="wa-widget-search" placeholder="🔍 Buscar conversa..." oninput="filtrarWidgetChats()" style="width: 100%; padding: 8px 14px; border-radius: 20px; border: 1px solid #cbd5e1; font-size: 0.85rem; outline: none; box-sizing: border-box;">
+          <div style="padding: 10px; border-bottom: 1px solid #f1f5f9; background: #f8fafc; display: flex; align-items: center; gap: 8px;">
+            <button id="wa-widget-btn-back-archived" onclick="toggleWidgetArchivedView()" style="display: none; background: none; border: none; color: #475569; font-size: 1rem; cursor: pointer; padding: 4px; outline: none; align-items: center; justify-content: center;">
+              <i class="fa-solid fa-arrow-left"></i>
+            </button>
+            <input type="text" id="wa-widget-search" placeholder="🔍 Buscar conversa..." oninput="filtrarWidgetChats()" style="flex: 1; padding: 8px 14px; border-radius: 20px; border: 1px solid #cbd5e1; font-size: 0.85rem; outline: none; box-sizing: border-box;">
+          </div>
+          <div id="wa-widget-archived-banner" onclick="toggleWidgetArchivedView()" style="display: none; padding: 10px 15px; border-bottom: 1px solid #f1f5f9; cursor: pointer; align-items: center; gap: 12px; color: #128c7e; font-weight: bold; background: #f8fafc; font-size: 0.8rem;">
+            <span>📥</span>
+            <span style="flex: 1;">Arquivadas</span>
+            <span id="wa-widget-archived-count" style="font-size: 0.7rem; background: #e8f5e9; color: #128c7e; padding: 1px 6px; border-radius: 10px; font-weight: bold;">0</span>
           </div>
           <div id="wa-widget-chats-container" style="flex: 1; overflow-y: auto;">
             <!-- Chats injetados por JS -->
