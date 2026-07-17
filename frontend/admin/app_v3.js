@@ -314,10 +314,10 @@ function toggleMostrarSenha(inputId, button) {
   if (!input) return;
   if (input.type === 'password') {
     input.type = 'text';
-    button.textContent = '🙈';
+    button.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
   } else {
     input.type = 'password';
-    button.textContent = '👁️';
+    button.innerHTML = '<i class="fa-solid fa-eye"></i>';
   }
 }
 
@@ -331,10 +331,6 @@ function gerarSenhaAleatoriaGarcom() {
   if (input) {
     input.value = password;
     input.type = 'text';
-    const btn = input.nextElementSibling;
-    if (btn && btn.tagName === 'BUTTON') {
-      btn.textContent = '🙈';
-    }
     mostrarToast('Senha gerada com sucesso!', 'success');
   }
 }
