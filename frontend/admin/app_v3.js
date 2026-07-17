@@ -9569,8 +9569,6 @@ function waWidgetRenderDateHeader(dateStr) {
     
     const div = document.createElement('div');
     div.className = 'wa-widget-date-header';
-    div.style.position = 'sticky';
-    div.style.top = '0';
     div.style.zIndex = '10';
     div.style.display = 'flex';
     div.style.justifyContent = 'center';
