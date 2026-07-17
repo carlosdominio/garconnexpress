@@ -1154,7 +1154,8 @@ async function carregarStatusWhatsApp() {
         const targetUrl = new URL(status.botUrl).origin;
         if (currentUrl !== targetUrl) {
           console.log('🔄 Atualizando URL do robô WhatsApp:', targetUrl);
-          iframe.src = status.botUrl;
+          const separator = status.botUrl.includes('?') ? '&' : '?';
+          iframe.src = `${status.botUrl}${separator}_cb=${Date.now()}`;
         }
       } catch (urlErr) {
         console.warn('⚠️ Erro ao validar URL do robô:', urlErr.message);
@@ -8986,7 +8987,9 @@ let waWidgetSocket = null;
 let waWidgetBotBaseUrl = '';
 let waWidgetBotToken = '';
 let waWidgetPollInterval = null;
+let waWidgetLastDateLabel = null; // Rastreia o agrupador de data da última mensagem exibida no widget
 let waWidgetChatsPollInterval = null;
+let waWidgetExibindoArquivados = false;
 
 function toggleWhatsAppWidget() {
     console.log('🟢 [Widget Click] toggleWhatsAppWidget chamada!');
@@ -9134,6 +9137,25 @@ async function inicializarWhatsAppWidget() {
                 }
             });
 
+            waWidgetSocket.on('chat_hidden', (hiddenJid) => {
+                console.log('📥 Widget recebeu chat_hidden via Socket:', hiddenJid);
+                const chat = waWidgetChats.find(c => c.jid === hiddenJid);
+                if (chat) chat.hidden = true;
+                renderizarListaChats();
+                atualizarBadgeUnreadGlobal();
+                if (waWidgetActiveJid === hiddenJid) {
+                    voltarParaListaChats();
+                }
+            });
+
+            waWidgetSocket.on('chat_unhidden', (unhiddenJid) => {
+                console.log('📤 Widget recebeu chat_unhidden via Socket:', unhiddenJid);
+                const chat = waWidgetChats.find(c => c.jid === unhiddenJid);
+                if (chat) chat.hidden = false;
+                renderizarListaChats();
+                atualizarBadgeUnreadGlobal();
+            });
+
             waWidgetSocket.on('msg_deleted', (data) => {
                 const { jid, id } = data;
                 console.log('🗑️ Widget recebeu msg_deleted:', jid, id);
@@ -9193,7 +9215,7 @@ async function carregarWidgetChats(isBackground = false) {
     if (!waWidgetBotBaseUrl) return;
 
     try {
-        const res = await fetch(`${waWidgetBotBaseUrl}/api/chats?token=${waWidgetBotToken}`);
+        const res = await fetch(`${waWidgetBotBaseUrl}/api/chats?token=${waWidgetBotToken}&include_hidden=true`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         
         waWidgetChats = await res.json();
@@ -9219,20 +9241,49 @@ function renderizarListaChats() {
     const container = document.getElementById('wa-widget-chats-container');
     if (!container) return;
 
-    if (waWidgetChats.length === 0) {
+    // Contar chats arquivados
+    let archivedCount = 0;
+    waWidgetChats.forEach(c => { if (c.hidden) archivedCount++; });
+
+    // Atualiza o banner de arquivados e botão de voltar no topo
+    const banner = document.getElementById('wa-widget-archived-banner');
+    const badge = document.getElementById('wa-widget-archived-count');
+    const backBtn = document.getElementById('wa-widget-btn-back-archived');
+
+    if (waWidgetExibindoArquivados) {
+        if (banner) banner.style.display = 'none';
+        if (backBtn) backBtn.style.display = 'flex';
+    } else {
+        if (banner) {
+            if (archivedCount > 0) {
+                banner.style.display = 'flex';
+                if (badge) badge.innerText = archivedCount;
+            } else {
+                banner.style.display = 'none';
+            }
+        }
+        if (backBtn) backBtn.style.display = 'none';
+    }
+
+    const chatsToRender = waWidgetChats.filter(chat => {
+        return waWidgetExibindoArquivados ? chat.hidden : !chat.hidden;
+    });
+
+    if (chatsToRender.length === 0) {
         container.innerHTML = `
             <div style="padding: 30px; text-align: center; color: #94a3b8;">
                 <i class="fa-regular fa-comments" style="font-size: 1.5rem; margin-bottom: 10px;"></i>
-                <p style="margin:0; font-size: 0.85rem;">Nenhuma conversa ativa.</p>
+                <p style="margin:0; font-size: 0.85rem;">${waWidgetExibindoArquivados ? 'Nenhuma conversa arquivada.' : 'Nenhuma conversa ativa.'}</p>
             </div>
         `;
         return;
     }
 
     container.innerHTML = '';
-    waWidgetChats.forEach(chat => {
+    chatsToRender.forEach(chat => {
         const div = document.createElement('div');
         div.className = `wa-widget-contact-item ${waWidgetActiveJid === chat.jid ? 'active' : ''}`;
+        div.dataset.jid = chat.jid;
         div.onclick = () => abrirConversaWidget(chat);
 
         const modeBadge = chat.atendimentoManual 
@@ -9240,6 +9291,15 @@ function renderizarListaChats() {
             : '<span style="font-size: 0.65rem; color: #475569; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1px 4px;">Robô</span>';
 
         const lastMsgTime = chat.lastUpdate ? new Date(chat.lastUpdate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+
+        // Ação de Arquivar / Desarquivar
+        const archiveActionHtml = waWidgetExibindoArquivados
+            ? `<button onclick="desarquivarConversaWidget(event, '${chat.jid}')" title="Desarquivar conversa" style="background: none; border: none; color: #64748b; font-size: 0.95rem; cursor: pointer; opacity: 0.6; transition: opacity 0.2s, transform 0.1s; padding: 4px; display: flex; align-items: center; justify-content: center; outline: none;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
+                    📤
+               </button>`
+            : `<button onclick="ocultarConversaWidget(event, '${chat.jid}')" title="Ocultar/Arquivar conversa" style="background: none; border: none; color: #64748b; font-size: 0.95rem; cursor: pointer; opacity: 0.6; transition: opacity 0.2s, transform 0.1s; padding: 4px; display: flex; align-items: center; justify-content: center; outline: none;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
+                    📥
+               </button>`;
 
         div.innerHTML = `
             <div style="flex: 1; min-width: 0; text-align: left;">
@@ -9256,6 +9316,7 @@ function renderizarListaChats() {
                 </div>
             </div>
             <div style="display: flex; align-items: center; gap: 5px; margin-left: 8px;">
+                ${archiveActionHtml}
                 <button onclick="apagarConversaWidget(event, '${chat.jid}')" title="Apagar conversa" style="background: none; border: none; color: #ef4444; font-size: 0.95rem; cursor: pointer; opacity: 0.5; transition: opacity 0.2s, transform 0.1s; padding: 4px; display: flex; align-items: center; justify-content: center; outline: none;">
                     <i class="fa-solid fa-trash-can"></i>
                 </button>
@@ -9274,12 +9335,13 @@ function filtrarWidgetChats() {
     const query = document.getElementById('wa-widget-search').value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const items = document.querySelectorAll('.wa-widget-contact-item');
 
-    items.forEach((item, index) => {
-        const chat = waWidgetChats[index];
+    items.forEach((item) => {
+        const jid = item.dataset.jid;
+        const chat = waWidgetChats.find(c => c.jid === jid);
         if (chat) {
-            const name = chat.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            const jid = chat.jid.toLowerCase();
-            if (name.includes(query) || jid.includes(query)) {
+            const name = (chat.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const cleanJid = jid.toLowerCase();
+            if (name.includes(query) || cleanJid.includes(query)) {
                 item.style.display = 'flex';
             } else {
                 item.style.display = 'none';
@@ -9290,6 +9352,7 @@ function filtrarWidgetChats() {
 
 async function abrirConversaWidget(chat) {
     waWidgetActiveJid = chat.jid;
+    waWidgetLastDateLabel = null; // Reseta o agrupador de data ao abrir a conversa no widget
     renderizarListaChats();
 
     const nameEl = document.getElementById('wa-widget-chat-name');
@@ -9404,9 +9467,66 @@ function apagarConversaWidget(event, jid) {
     if (modal && title && text && btnConfirm) {
         title.innerText = 'Apagar Conversa?';
         text.innerText = 'Deseja realmente apagar esta conversa permanentemente?';
+        btnConfirm.innerText = 'Apagar';
+        btnConfirm.style.background = '#ef4444';
         btnConfirm.onclick = executarApagarConversaWidget;
         modal.style.display = 'flex';
     }
+}
+
+function ocultarConversaWidget(event, jid) {
+    event.stopPropagation();
+    const modal = document.getElementById('wa-widget-confirm-modal');
+    const title = document.getElementById('wa-widget-modal-title');
+    const text = document.getElementById('wa-widget-modal-text');
+    const btnConfirm = document.getElementById('wa-widget-btn-modal-confirm');
+    if (modal && title && text && btnConfirm) {
+        title.innerText = 'Arquivar Conversa?';
+        text.innerText = 'Deseja realmente ocultar/arquivar esta conversa? Ela reaparecerá automaticamente se houver nova atividade.';
+        btnConfirm.innerText = 'Confirmar';
+        btnConfirm.style.background = '#00a884';
+        btnConfirm.onclick = () => {
+            if (waWidgetSocket && waWidgetSocket.connected) {
+                waWidgetSocket.emit('hide_chat', { jid: jid, hidden: true });
+            } else {
+                fetch(`${waWidgetBotBaseUrl}/api/chats/${jid}/hide?token=${waWidgetBotToken}`, { method: 'POST' })
+                    .then(res => { if (res.ok) { carregarWidgetChats(true); if (waWidgetActiveJid === jid) voltarParaListaChats(); } })
+                    .catch(err => console.error('Erro ao ocultar conversa via HTTP:', err));
+            }
+            fecharWidgetModal();
+        };
+        modal.style.display = 'flex';
+    }
+}
+
+function desarquivarConversaWidget(event, jid) {
+    event.stopPropagation();
+    const modal = document.getElementById('wa-widget-confirm-modal');
+    const title = document.getElementById('wa-widget-modal-title');
+    const text = document.getElementById('wa-widget-modal-text');
+    const btnConfirm = document.getElementById('wa-widget-btn-modal-confirm');
+    if (modal && title && text && btnConfirm) {
+        title.innerText = 'Desarquivar Conversa?';
+        text.innerText = 'Deseja realmente desarquivar esta conversa?';
+        btnConfirm.innerText = 'Confirmar';
+        btnConfirm.style.background = '#00a884';
+        btnConfirm.onclick = () => {
+            if (waWidgetSocket && waWidgetSocket.connected) {
+                waWidgetSocket.emit('hide_chat', { jid: jid, hidden: false });
+            } else {
+                fetch(`${waWidgetBotBaseUrl}/api/chats/${jid}/hide?token=${waWidgetBotToken}&unhide=true`, { method: 'POST' })
+                    .then(res => { if (res.ok) carregarWidgetChats(true); })
+                    .catch(err => console.error('Erro ao desarquivar conversa via HTTP:', err));
+            }
+            fecharWidgetModal();
+        };
+        modal.style.display = 'flex';
+    }
+}
+
+function toggleWidgetArchivedView() {
+    waWidgetExibindoArquivados = !waWidgetExibindoArquivados;
+    renderizarListaChats();
 }
 
 function executarApagarConversaWidget() {
@@ -9424,12 +9544,63 @@ function fecharWidgetModal() {
     waWidgetChatToDelete = null;
 }
 
+function waWidgetFormatDateLabel(date) {
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    
+    const isSameDay = (d1, d2) => 
+        d1.getDate() === d2.getDate() &&
+        d1.getMonth() === d2.getMonth() &&
+        d1.getFullYear() === d2.getFullYear();
+        
+    if (isSameDay(date, today)) {
+        return 'HOJE';
+    } else if (isSameDay(date, yesterday)) {
+        return 'ONTEM';
+    } else {
+        return date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+}
+
+function waWidgetRenderDateHeader(dateStr) {
+    const container = document.getElementById('wa-widget-messages-container');
+    if (!container) return;
+    
+    const div = document.createElement('div');
+    div.className = 'wa-widget-date-header';
+    div.style.position = 'sticky';
+    div.style.top = '0';
+    div.style.zIndex = '10';
+    div.style.display = 'flex';
+    div.style.justifyContent = 'center';
+    div.style.width = '100%';
+    div.style.margin = '10px 0';
+    div.style.pointerEvents = 'none';
+    
+    div.innerHTML = `<span style="pointer-events: auto; background: rgba(255, 255, 255, 0.95); color: #64748b; font-size: 0.65rem; font-weight: 700; padding: 4px 10px; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid #cbd5e1; display: inline-block;">${dateStr}</span>`;
+    
+    container.appendChild(div);
+}
+
 function adicionarMensagemWidgetNaTela(msg, scroll = true) {
     const container = document.getElementById('wa-widget-messages-container');
     if (!container) return;
 
     const idExistente = document.getElementById(`wa-msg-${msg.id}`);
     if (idExistente) return;
+
+    // Agrupamento por data (Hoje/Ontem)
+    const msgDate = msg.timestamp ? new Date(msg.timestamp) : new Date();
+    const dateStr = waWidgetFormatDateLabel(msgDate);
+    if (dateStr !== waWidgetLastDateLabel) {
+        // Se a mensagem no container era a de histórico vazio, limpa
+        if (container.innerHTML.includes('Sem mensagens no histórico')) {
+            container.innerHTML = '';
+        }
+        waWidgetRenderDateHeader(dateStr);
+        waWidgetLastDateLabel = dateStr;
+    }
 
     const div = document.createElement('div');
     div.id = `wa-msg-${msg.id}`;
@@ -9493,6 +9664,8 @@ function apagarMensagemWidget(event, msgId, fromMe) {
     if (modal && title && text && btnConfirm) {
         title.innerText = 'Apagar Mensagem?';
         text.innerText = 'Deseja realmente apagar esta mensagem para você e para o cliente?';
+        btnConfirm.innerText = 'Apagar';
+        btnConfirm.style.background = '#ef4444';
         btnConfirm.onclick = executarApagarMensagemWidget;
         modal.style.display = 'flex';
     }
