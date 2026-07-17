@@ -286,20 +286,50 @@ async function verificarVersaoSistema() {
 }
 
 async function realizarLoginAdmin() {
+  const btn = document.getElementById('btn-login-admin');
+  const loginBox = document.querySelector('.login-box');
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Entrando...';
+  }
+
   const usuario = document.getElementById('admin-usuario').value;
   const senha = document.getElementById('admin-senha').value;
-  const res = await fetch('/api/admin/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usuario, senha })
-  });
-  if (res.ok) {
-    const data = await res.json();
-    adminLogado = data.admin;
-    localStorage.setItem('admin_logado', JSON.stringify(adminLogado));
-    if (data.token) localStorage.setItem('admin_token', data.token); // Salva token
-    location.reload();
-  } else await mostrarAlerta("Credenciais inválidas", "Erro de Login", "❌");
+
+  try {
+    const res = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario, senha })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      adminLogado = data.admin;
+      localStorage.setItem('admin_logado', JSON.stringify(adminLogado));
+      if (data.token) localStorage.setItem('admin_token', data.token); // Salva token
+      
+      // Efeito de transição de entrada
+      if (loginBox) {
+        loginBox.classList.add('entering-active');
+      }
+      setTimeout(() => {
+        location.reload();
+      }, 550);
+    } else {
+      await mostrarAlerta("Credenciais inválidas", "Erro de Login", "❌");
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = 'Entrar no Sistema';
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = 'Entrar no Sistema';
+    }
+  }
 }
 
 async function logoutAdmin() {

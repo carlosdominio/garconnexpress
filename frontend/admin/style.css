@@ -845,6 +845,46 @@ button.btn-entregue { background-color: #95a5a6; }
   font-weight: bold;
   border-radius: 8px;
   cursor: pointer;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+.login-box button:hover {
+  background-color: #34495e;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(44, 62, 80, 0.2);
+}
+
+.login-box button:active {
+  transform: translateY(0);
+}
+
+.login-box button:disabled {
+  background-color: #95a5a6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Animação de entrar */
+.login-box.entering-active {
+  animation: loginEntering 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes loginEntering {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.9) translateY(-20px);
+    filter: blur(5px);
+  }
 }
 
 .login-box p {
