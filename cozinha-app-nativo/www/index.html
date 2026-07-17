@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GarçomExpress - Cozinha</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="style.css?v=1.0.9">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
@@ -52,7 +53,7 @@
                     <label for="login-senha">Senha</label>
                     <div style="position: relative; display: flex; align-items: center; width: 100%;">
                         <input type="password" id="login-senha" placeholder="Digite sua senha" style="padding-right: 40px; width: 100%;">
-                        <button type="button" onclick="toggleMostrarSenha('login-senha', this)" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; color: #7f8c8d; padding: 0; font-size: 1.1rem; width: auto; height: auto;">👁️</button>
+                        <button type="button" onclick="toggleMostrarSenha('login-senha', this)" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; color: #7f8c8d; padding: 0; font-size: 1rem; width: auto; height: auto; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-eye"></i></button>
                     </div>
                 </div>
 
@@ -62,10 +63,10 @@
                         if (!input) return;
                         if (input.type === 'password') {
                             input.type = 'text';
-                            button.textContent = '🙈';
+                            button.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
                         } else {
                             input.type = 'password';
-                            button.textContent = '👁️';
+                            button.innerHTML = '<i class="fa-solid fa-eye"></i>';
                         }
                     }
                 </script>
