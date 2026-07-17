@@ -308,14 +308,7 @@ async function realizarLoginAdmin() {
       adminLogado = data.admin;
       localStorage.setItem('admin_logado', JSON.stringify(adminLogado));
       if (data.token) localStorage.setItem('admin_token', data.token); // Salva token
-      
-      // Efeito de transição de entrada
-      if (loginBox) {
-        loginBox.classList.add('entering-active');
-      }
-      setTimeout(() => {
-        location.reload();
-      }, 280);
+      location.reload();
     } else {
       await mostrarAlerta("Credenciais inválidas", "Erro de Login", "❌");
       if (btn) {

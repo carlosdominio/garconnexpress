@@ -870,21 +870,7 @@ button.btn-entregue { background-color: #95a5a6; }
   box-shadow: none;
 }
 
-/* Animação de entrar */
-.login-box.entering-active {
-  animation: loginEntering 0.3s ease-out forwards;
-}
 
-@keyframes loginEntering {
-  0% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-}
 
 .login-box p {
   color: #e74c3c;
