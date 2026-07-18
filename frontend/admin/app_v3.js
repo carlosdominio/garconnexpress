@@ -47,7 +47,10 @@ window.onerror = function(msg, url, line) {
           ['POST', 'PUT', 'DELETE'].includes(method) &&
           !urlStr.includes('/api/notify-admin') &&
           !urlStr.includes('/api/pusher') &&
-          !urlStr.includes('/api/whatsapp-status')
+          !urlStr.includes('/api/whatsapp-status') &&
+          !urlStr.includes('/api/send-message') &&
+          !urlStr.includes('/api/chats/') &&
+          !urlStr.includes('/toggle-human')
         )
       );
 
