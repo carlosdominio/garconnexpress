@@ -2510,14 +2510,16 @@ async function processarAcaoMenu() {
         await fetch(`/api/menu/${savedId}/ficha-tecnica`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ itens })
+          body: JSON.stringify({ itens }),
+          showLoading: false
         });
       } else {
         // Limpa ficha se desmarcou
         await fetch(`/api/menu/${savedId}/ficha-tecnica`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ itens: [] })
+          body: JSON.stringify({ itens: [] }),
+          showLoading: false
         });
       }
     }
