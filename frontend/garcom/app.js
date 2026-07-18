@@ -616,6 +616,15 @@ function mostrarConfirmacao(msg, titulo = "Confirmação", txtConfirmar = "Confi
   });
 }
 
+function showLoading(show = true, text = "Processando...") {
+  const el = document.getElementById('loading-rapido');
+  const txt = document.getElementById('loading-rapido-texto');
+  if (el) {
+    if (txt) txt.innerText = text;
+    el.style.display = show ? 'flex' : 'none';
+  }
+}
+
 async function realizarLogin() {
   const usuario = document.getElementById('login-usuario').value;
   const senha = document.getElementById('login-senha').value;
@@ -2231,6 +2240,7 @@ async function confirmarSolicitacaoFechamento() {
   }
 
   try {
+    showLoading(true, "Registrando fechamento...");
     const forma_pagamento_principal = pagamentosDetalhados.length > 0 ? pagamentosDetalhados[0].forma_pagamento : 'Dinheiro';
 
     const res = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/solicitar-fechamento`, {
@@ -2264,6 +2274,7 @@ async function confirmarSolicitacaoFechamento() {
     await mostrarAlerta("Erro ao enviar solicitação.", "Erro", "❌");
   } finally {
     isSolicitandoFechamentoGarcom = false;
+    showLoading(false);
   }
 }
 
@@ -2507,6 +2518,7 @@ async function enviarPedido() {
   const originalTexto = btnEnviar.innerText;
   
   try {
+    showLoading(true, pedidoAbertoNaMesa ? "Adicionando itens..." : "Enviando pedido...");
     // Desabilita o botão para evitar duplicidade
     btnEnviar.disabled = true;
     btnEnviar.innerText = "Enviando...";
@@ -2576,12 +2588,14 @@ async function enviarPedido() {
     btnEnviar.innerText = originalTexto;
     btnEnviar.style.opacity = "1";
     btnEnviar.style.cursor = "pointer";
+    showLoading(false);
   }
 }
 
 async function gerarCodigoAcesso() {
   if (!mesaAtual) return;
   try {
+    showLoading(true, "Gerando código...");
     const res = await fetch('/api/acesso/gerar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2596,6 +2610,8 @@ async function gerarCodigoAcesso() {
     }
   } catch (error) {
     await mostrarAlerta("Erro de conexão.", "Erro", "❌");
+  } finally {
+    showLoading(false);
   }
 }
 
@@ -2606,6 +2622,7 @@ async function cancelarCodigoAcesso() {
   if (!confirm) return;
 
   try {
+    showLoading(true, "Cancelando acesso...");
     const res = await fetch('/api/acesso/cancelar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2620,6 +2637,8 @@ async function cancelarCodigoAcesso() {
     }
   } catch (error) {
     await mostrarAlerta("Erro de conexão.", "Erro", "❌");
+  } finally {
+    showLoading(false);
   }
 }
 
