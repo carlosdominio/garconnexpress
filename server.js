@@ -1283,7 +1283,7 @@ async function checkAndNotifyDelayedOrders() {
       
       // Toast pusher para o admin
       if (typeof safePusherTrigger !== 'undefined') {
-          await safePusherTrigger('garconnexpress', 'fechamento-atrasado', { pedido_id: p.id, mesa_numero: p.mesa_numero, mensagem: pushMsg });
+          await safePusherTrigger('garconnexpress', 'fechamento-atrasado', { pedido_id: p.id, mesa_numero: mesaName, mensagem: pushMsg });
       }
 
       // Notificacoes FCM/WebPush para Admin
@@ -1393,7 +1393,7 @@ async function checkAndNotifyDelayedOrders() {
 
       // Toast pusher para o garçom
       if (typeof safePusherTrigger !== 'undefined') {
-          await safePusherTrigger('garconnexpress', 'fechamento-atrasado', { mesa_numero: ca.mesa_numero, mensagem: pushMsg });
+          await safePusherTrigger('garconnexpress', 'fechamento-atrasado', { mesa_numero: mesaName, mensagem: pushMsg });
       }
 
       // Notificacoes FCM/WebPush para o Garçom responsável
