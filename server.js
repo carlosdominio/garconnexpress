@@ -1340,6 +1340,117 @@ async function checkAndNotifyDelayedOrders() {
       await Promise.all(pushPromises);
     }
 
+    // === NOVAS NOTIFICACOES: MESA EM AGUARDANDO CLIENTE SEM PEDIDO ATRASADA ===
+    // Buscamos códigos de acesso ativos que foram gerados há mais de 5 minutos, onde o status da mesa seja 'ocupada'
+    // e que NÃO possuam nenhum pedido (rascunho ou ativo) criado após a geração do código
+    const delayedAcessoRes = await query(`
+      SELECT ca.id, ca.mesa_id, ca.codigo, CAST(ca.criado_at AS TEXT) as criado_str, m.numero as mesa_numero, m.garcom_id 
+      FROM codigos_acesso ca
+      JOIN mesas m ON ca.mesa_id = m.id
+      WHERE ca.status = 'ativo' 
+        AND m.status = 'ocupada'
+        AND (ca.notificado_atraso_registro = 0 OR ca.notificado_atraso_registro IS NULL)
+        AND NOT EXISTS (
+          SELECT 1 FROM pedidos p 
+          WHERE p.mesa_id = ca.mesa_id 
+            AND p.created_at >= ca.criado_at
+        )
+    `);
+
+    const delayedAcessos = delayedAcessoRes.rows.filter(ca => {
+      let dateStr = ca.criado_str || '';
+      if (!dateStr.endsWith('Z')) dateStr = dateStr.replace(' ', 'T') + 'Z';
+      const createdAt = new Date(dateStr);
+      return ((now - createdAt) / 60000) >= 5;
+    });
+
+    for (const ca of delayedAcessos) {
+      const mesaName = ca.mesa_numero ? (String(ca.mesa_numero).toUpperCase().includes('MESA') ? ca.mesa_numero : 'Mesa ' + ca.mesa_numero) : 'BALCAO';
+      const updateRes = await query("UPDATE codigos_acesso SET notificado_atraso_registro = 1 WHERE id = ? AND (notificado_atraso_registro = 0 OR notificado_atraso_registro IS NULL)", [ca.id]);
+      if (updateRes.changes === 0) continue;
+
+      // Dispara o WhatsApp diretamente do servidor
+      const wppText = `⚠️ ALERTA: ${mesaName.toUpperCase()}\n\nCódigo ativo há mais de 5 minutos e o cliente ainda não enviou nenhum pedido!`;
+      const wppSent = await sendWhatsAppMessage(wppText, null, null).catch(err => {
+        console.error("Erro ao enviar WhatsApp de atraso de registro do cliente:", err.message);
+        return false;
+      });
+
+      if (!wppSent) {
+        console.warn(`🔄 Revertendo flag notificado_atraso_registro para o código #${ca.id} devido a falha no WhatsApp.`);
+        await query("UPDATE codigos_acesso SET notificado_atraso_registro = 0 WHERE id = ?", [ca.id]);
+      }
+
+      const pushObj = resolveAtrasoTemplate(
+        'aguardando-cliente-registro-atrasado',
+        '🛎️ MESA AGUARDANDO CLIENTE',
+        'A {mesa} está com o código de acesso ativo há mais de 5 minutos e nenhum pedido foi enviado ainda.',
+        mesaName,
+        null
+      );
+      const pushTitle = pushObj.title;
+      const pushMsg = pushObj.body;
+
+      // Toast pusher para o garçom
+      if (typeof safePusherTrigger !== 'undefined') {
+          await safePusherTrigger('garconnexpress', 'fechamento-atrasado', { mesa_numero: ca.mesa_numero, mensagem: pushMsg });
+      }
+
+      // Notificacoes FCM/WebPush para o Garçom responsável
+      const sentEndpoints = new Set();
+      const pushPromises = [];
+      for (const sub of subs) {
+        // Envia para o garçom atribuído à mesa
+        if (sub.app_type !== 'garcom' || (sub.garcom_id !== ca.garcom_id)) continue;
+        if (sentEndpoints.has(sub.endpoint)) continue;
+        sentEndpoints.add(sub.endpoint);
+
+        const isNativeSubAtraso = sub.is_native === 1 || sub.is_native === true || (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
+        if (!isNativeSubAtraso) {
+          const payload = JSON.stringify({ title: pushTitle, body: pushMsg, event: 'fechamento-atrasado' });
+          const pushSubscription = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh || '', auth: sub.auth || '' } };
+          pushPromises.push(
+            webpush.sendNotification(pushSubscription, payload).catch(e => {
+              if (e.statusCode === 410 || e.statusCode === 404 || e.message.includes('unsubscribed')) {
+                  query('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]).catch(err => console.error(err.message));
+              }
+            })
+          );
+        } else {
+          if (admin.apps.length > 0) {
+            const activeSound = configMap['config_som_garcom'] || 'campainha_classica';
+            const channelName = 'garcom_canal_' + activeSound + '_v2';
+            let fcmSoundFile = activeSound;
+            if (fcmSoundFile === 'original') fcmSoundFile = 'notificacao';
+
+            const androidNotification = {
+              channelId: channelName,
+              defaultSound: activeSound === 'original',
+              notificationPriority: 'PRIORITY_MAX'
+            };
+            if (activeSound !== 'original' && activeSound !== 'mudo') {
+              androidNotification.sound = fcmSoundFile;
+            }
+
+            const message = {
+              notification: { title: pushTitle, body: pushMsg },
+              data: { event: 'fechamento-atrasado', sound: fcmSoundFile },
+              android: { priority: 'high', notification: androidNotification },
+              token: sub.endpoint
+            };
+            pushPromises.push(
+              admin.messaging().send(message).catch(e => {
+                console.error('Erro FCM Registro Atrasado:', e.message);
+                if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
+                   query('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]).catch(err => console.error(err.message));
+                }
+              })
+            );
+          }
+        }
+      }
+      await Promise.all(pushPromises);
+    }
     if (delayedOrders.length === 0) return;
 
     for (const p of delayedOrders) {
@@ -2036,7 +2147,7 @@ async function initDb() {
     `CREATE TABLE IF NOT EXISTS sistema_config (chave TEXT PRIMARY KEY, valor TEXT)`,
     `CREATE TABLE IF NOT EXISTS fluxo_caixa (id SERIAL PRIMARY KEY, data_abertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, data_fechamento TIMESTAMP, valor_inicial REAL NOT NULL, valor_final REAL, status TEXT DEFAULT 'aberto', total_dinheiro REAL DEFAULT 0, total_pix REAL DEFAULT 0, total_cartao REAL DEFAULT 0, total_vendas REAL DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS caixa_movimentacoes (id SERIAL PRIMARY KEY, caixa_id INTEGER NOT NULL, tipo TEXT NOT NULL, valor REAL NOT NULL, motivo TEXT, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS codigos_acesso (id SERIAL PRIMARY KEY, mesa_id INTEGER, codigo TEXT NOT NULL, status TEXT DEFAULT 'ativo', criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
+    `CREATE TABLE IF NOT EXISTS codigos_acesso (id SERIAL PRIMARY KEY, mesa_id INTEGER, codigo TEXT NOT NULL, status TEXT DEFAULT 'ativo', criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, notificado_atraso_registro INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS push_subscriptions (id SERIAL PRIMARY KEY, garcom_id TEXT, endpoint TEXT, p256dh TEXT, auth TEXT, app_type TEXT DEFAULT 'garcom', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE TABLE IF NOT EXISTS ficha_tecnica (id SERIAL PRIMARY KEY, menu_id INTEGER NOT NULL, ingrediente_id INTEGER NOT NULL, quantidade REAL NOT NULL, unidade TEXT DEFAULT 'un')`,
     `CREATE TABLE IF NOT EXISTS estoque_movimentacoes (id SERIAL PRIMARY KEY, menu_id INTEGER NOT NULL, quantidade REAL NOT NULL, tipo TEXT NOT NULL, motivo TEXT, criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
@@ -2153,6 +2264,7 @@ async function initDb() {
     // Ficha técnica
     await addCol('menu', 'unidade', "TEXT DEFAULT 'un'");
     await addCol('menu', 'preco_custo', 'REAL DEFAULT 0');
+    await addCol('codigos_acesso', 'notificado_atraso_registro', 'INTEGER DEFAULT 0');
   } catch (e) { 
     console.error('Erro na migração:', e);
     dbInitError = e;
@@ -5780,7 +5892,7 @@ app.get('/api/diag', isAdmin, async (req, res) => {
         `CREATE TABLE IF NOT EXISTS sistema_config (chave TEXT PRIMARY KEY, valor TEXT)`,
         `CREATE TABLE IF NOT EXISTS fluxo_caixa (id SERIAL PRIMARY KEY, data_abertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, data_fechamento TIMESTAMP, valor_inicial REAL NOT NULL, valor_final REAL, status TEXT DEFAULT 'aberto', total_dinheiro REAL DEFAULT 0, total_pix REAL DEFAULT 0, total_cartao REAL DEFAULT 0, total_vendas REAL DEFAULT 0)`,
         `CREATE TABLE IF NOT EXISTS caixa_movimentacoes (id SERIAL PRIMARY KEY, caixa_id INTEGER NOT NULL, tipo TEXT NOT NULL, valor REAL NOT NULL, motivo TEXT, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-        `CREATE TABLE IF NOT EXISTS codigos_acesso (id SERIAL PRIMARY KEY, mesa_id INTEGER, codigo TEXT NOT NULL, status DEFAULT 'ativo', criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS codigos_acesso (id SERIAL PRIMARY KEY, mesa_id INTEGER, codigo TEXT NOT NULL, status DEFAULT 'ativo', criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, notificado_atraso_registro INTEGER DEFAULT 0)`,
         `CREATE TABLE IF NOT EXISTS push_subscriptions (id SERIAL PRIMARY KEY, garcom_id TEXT, endpoint TEXT, p256dh TEXT, auth TEXT, app_type TEXT DEFAULT 'garcom', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
         `CREATE TABLE IF NOT EXISTS ficha_tecnica (id SERIAL PRIMARY KEY, menu_id INTEGER NOT NULL, ingrediente_id INTEGER NOT NULL, quantidade REAL NOT NULL, unidade TEXT DEFAULT 'un')`,
         `CREATE TABLE IF NOT EXISTS estoque_movimentacoes (id SERIAL PRIMARY KEY, menu_id INTEGER NOT NULL, quantidade REAL NOT NULL, tipo TEXT NOT NULL, motivo TEXT, criado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
