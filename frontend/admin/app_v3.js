@@ -59,6 +59,12 @@ window.onerror = function(msg, url, line) {
       if (bodyStr.includes('"status":"cancelado"') || bodyStr.includes("'status':'cancelado'")) {
         title = "Cancelando Pedido...";
         msg = "Cancelando o pedido e liberando a mesa, aguarde por favor...";
+      } else if (urlStr.includes('/marcar-entregue')) {
+        title = "Confirmando Entrega...";
+        msg = "Registrando a entrega dos itens e atualizando o consumo, aguarde por favor...";
+      } else if (urlStr.includes('/transferir')) {
+        title = "Transferindo Pedido...";
+        msg = "Transferindo os itens para a nova mesa, aguarde por favor...";
       } else if (bodyStr.includes('"status":') || bodyStr.includes("'status':")) {
         title = "Atualizando Pedido...";
         msg = "Atualizando o status do pedido no servidor, aguarde por favor...";
@@ -71,6 +77,7 @@ window.onerror = function(msg, url, line) {
       } else if (method === 'DELETE' && /\/api\/pedidos\/\d+/.test(urlStr)) {
         title = "Excluindo Pedido...";
         msg = "Removendo o pedido permanentemente do banco de dados...";
+
       } else if (['POST', 'PUT'].includes(method) && (
         urlStr.includes('/api/config') || 
         urlStr.includes('/api/whatsapp') || 
