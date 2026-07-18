@@ -1231,8 +1231,8 @@ async function checkAndNotifyDelayedOrders() {
     const subsRes = await query("SELECT * FROM push_subscriptions");
     const subs = subsRes.rows;
 
-    // === NOVAS NOTIFICACOES: FECHAMENTO ATRASADO ===
-    const delayedClosureRes = await query("SELECT p.id, p.garcom_id, g.id as garcom_pk, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id LEFT JOIN garcons g ON (p.garcom_id = g.usuario OR p.garcom_id = CAST(g.id AS TEXT)) WHERE (p.status = 'aguardando_fechamento' OR p.solicitou_fechamento = TRUE OR p.solicitou_fechamento = 'true') AND p.fechamento_solicitado_em IS NOT NULL AND (p.notificado_atraso_fechamento = 0 OR p.notificado_atraso_fechamento IS NULL)");
+    // === NOVAS NOTIFICACOES: FECHAMENTO ATRASADO / AGUARDANDO CLIENTE ===
+    const delayedClosureRes = await query("SELECT p.id, p.garcom_id, g.id as garcom_pk, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, p.solicitou_fechamento FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id LEFT JOIN garcons g ON (p.garcom_id = g.usuario OR p.garcom_id = CAST(g.id AS TEXT)) WHERE (p.status = 'aguardando_fechamento' OR p.solicitou_fechamento = TRUE OR p.solicitou_fechamento = 'true') AND p.fechamento_solicitado_em IS NOT NULL AND (p.notificado_atraso_fechamento = 0 OR p.notificado_atraso_fechamento IS NULL)");
     const delayedClosures = delayedClosureRes.rows.filter(p => {
       // Força a string a ser tratada como UTC adicionando o Z, assim previne o driver pg de usar o fuso local da máquina na Vercel
       let dateStr = p.fechamento_str || '';
@@ -1246,8 +1246,13 @@ async function checkAndNotifyDelayedOrders() {
       const updateRes = await query("UPDATE pedidos SET notificado_atraso_fechamento = 1 WHERE id = ? AND (notificado_atraso_fechamento = 0 OR notificado_atraso_fechamento IS NULL)", [p.id]);
       if (updateRes.changes === 0) continue;
 
+      const isSolicitadoCliente = p.solicitou_fechamento === 1 || p.solicitou_fechamento === true || p.solicitou_fechamento === 'true' || p.solicitou_fechamento === '1';
+
       // Dispara o WhatsApp diretamente do servidor
-      const wppText = `⚠️ ATRASO: ${mesaName.toUpperCase()} #${p.id}\n\nSOLICITOU CONTA há mais de 5 minutos!`;
+      const wppText = isSolicitadoCliente
+        ? `⚠️ ATRASO: ${mesaName.toUpperCase()} #${p.id}\n\nSOLICITOU CONTA há mais de 5 minutos!`
+        : `⚠️ ATRASO: ${mesaName.toUpperCase()} #${p.id}\n\nAGUARDANDO CLIENTE há mais de 5 minutos!`;
+
       const wppSent = await sendWhatsAppMessage(wppText, null, p.id).catch(err => {
         console.error("Erro ao enviar WhatsApp de atraso de fechamento do servidor:", err.message);
         return false;
@@ -1258,13 +1263,21 @@ async function checkAndNotifyDelayedOrders() {
         await query("UPDATE pedidos SET notificado_atraso_fechamento = 0 WHERE id = ?", [p.id]);
       }
 
-      const pushObj = resolveAtrasoTemplate(
-        'fechamento-atrasado',
-        '⚠️ CAIXA: FECHAMENTO ATRASADO!',
-        'O fechamento da {mesa} foi solicitado há mais de 5 minutos e ainda não foi concluído!',
-        mesaName,
-        p.id
-      );
+      const pushObj = isSolicitadoCliente
+        ? resolveAtrasoTemplate(
+            'fechamento-atrasado',
+            '⚠️ CAIXA: FECHAMENTO ATRASADO!',
+            'O fechamento da {mesa} foi solicitado pelo cliente há mais de 5 minutos e ainda não foi concluído!',
+            mesaName,
+            p.id
+          )
+        : resolveAtrasoTemplate(
+            'aguardando-cliente-atrasado',
+            '⚠️ CAIXA: AGUARDANDO CLIENTE!',
+            'A {mesa} está aguardando o pagamento do cliente há mais de 5 minutos e ainda não foi concluída!',
+            mesaName,
+            p.id
+          );
       const pushTitle = pushObj.title;
       const pushMsg = pushObj.body;
       
@@ -5137,7 +5150,8 @@ const FCM_DEFAULTS = [
   { evento: 'saiu-entrega', tituloPadrao: 'Delivery Express', corpoPadrao: '🛵 O pedido #{pedido_id} ({mesa}) saiu para entrega!', destinatario: 'motoboy', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'pedido-entregue', tituloPadrao: 'Delivery Express', corpoPadrao: '✅ O pedido #{pedido_id} ({mesa}) foi entregue com sucesso!', destinatario: 'motoboy', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'pedido-servido', tituloPadrao: 'GarçomExpress', corpoPadrao: '🍽️ O pedido #{pedido_id} ({mesa}) foi servido/entregue!', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
-  { evento: 'fechamento-atrasado', tituloPadrao: '⚠️ CAIXA: FECHAMENTO ATRASADO!', corpoPadrao: 'O fechamento da {mesa} foi solicitado há mais de 5 minutos e ainda não foi concluído!', destinatario: 'garcom', variaveis: ['mesa'] },
+  { evento: 'fechamento-atrasado', tituloPadrao: '⚠️ CAIXA: FECHAMENTO ATRASADO!', corpoPadrao: 'O fechamento da {mesa} foi solicitado pelo cliente há mais de 5 minutos e ainda não foi concluído!', destinatario: 'garcom', variaveis: ['mesa'] },
+  { evento: 'aguardando-cliente-atrasado', tituloPadrao: '⚠️ CAIXA: AGUARDANDO CLIENTE!', corpoPadrao: 'A {mesa} está aguardando o pagamento do cliente há mais de 5 minutos e ainda não foi concluída!', destinatario: 'garcom', variaveis: ['mesa'] },
   { evento: 'pedido-atrasado-motoboy', tituloPadrao: '🔥 MOTOBOY: ENTREGA ATRASADA!', corpoPadrao: 'O pedido de entrega #{pedido_id} está parado há mais de 10 minutos!', destinatario: 'motoboy', variaveis: ['pedido_id'] },
   { evento: 'pedido-atrasado-garcom', tituloPadrao: '🔥 GARÇOM: PEDIDO ATRASADO!', corpoPadrao: 'O pedido da {mesa} (#{pedido_id}) está parado há mais de 10 minutos!', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'pedido-atrasado-cozinha', tituloPadrao: '🔥 COZINHA: PEDIDO ATRASADO!', corpoPadrao: 'O pedido #{pedido_id} ({mesa}) está aguardando há mais de 10 minutos!', destinatario: 'cozinha', variaveis: ['mesa', 'pedido_id'] },
@@ -5509,7 +5523,8 @@ const TOAST_DEFAULTS = [
   { evento: 'saiu-entrega', textoPadrao: '🛵 O pedido #{pedido_id} ({mesa}) saiu para entrega!', label: 'Saiu para Entrega', tipo: 'info', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'pedido-entregue', textoPadrao: '✅ O pedido #{pedido_id} ({mesa}) foi entregue com sucesso!', label: 'Pedido Concluído', tipo: 'sucesso', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'estoque-baixo', textoPadrao: '⚠️ Alerta de Estoque Baixo: {mensagem}', label: 'Estoque Baixo', tipo: 'erro', variaveis: ['mensagem'] },
-  { evento: 'fechamento-atrasado', textoPadrao: '⚠️ CAIXA: FECHAMENTO ATRASADO! O fechamento da {mesa} foi solicitado há mais de 5 minutos.', label: 'Caixa: Fechamento Atrasado', tipo: 'erro', variaveis: ['mesa'] },
+  { evento: 'fechamento-atrasado', textoPadrao: '⚠️ CAIXA: FECHAMENTO ATRASADO! O fechamento da {mesa} foi solicitado pelo cliente há mais de 5 minutos.', label: 'Caixa: Fechamento Atrasado', tipo: 'erro', variaveis: ['mesa'] },
+  { evento: 'aguardando-cliente-atrasado', textoPadrao: '⚠️ CAIXA: AGUARDANDO CLIENTE! A {mesa} está aguardando o pagamento do cliente há mais de 5 minutos.', label: 'Caixa: Aguardando Cliente (Atrasado)', tipo: 'erro', variaveis: ['mesa'] },
   { evento: 'pedido-atrasado-garcom', textoPadrao: '🔥 GARÇOM: PEDIDO ATRASADO! O pedido da {mesa} (#{pedido_id}) está parado há mais de 10 minutos!', label: 'Pedido Atrasado (Garçom)', tipo: 'erro', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'pedido-atrasado-cozinha', textoPadrao: '🔥 COZINHA: PEDIDO ATRASADO! O pedido #{pedido_id} ({mesa}) está aguardando há mais de 10 minutos!', label: 'Pedido Atrasado (Cozinha)', tipo: 'erro', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'pedido-atrasado-motoboy', textoPadrao: '🔥 MOTOBOY: ENTREGA ATRASADA! O pedido #{pedido_id} está parado há mais de 10 minutos!', label: 'Pedido Atrasado (Motoboy)', tipo: 'erro', variaveis: ['pedido_id'] },
