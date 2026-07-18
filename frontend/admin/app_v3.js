@@ -3048,7 +3048,8 @@ async function carregarHistorico() {
 }
 
 async function exibirHistorico() {
-  ITENS_POR_PAGINA_HISTORICO = window.innerHeight >= 750 ? 5 : 3;
+  ITENS_POR_PAGINA_HISTORICO = window.innerHeight >= 600 ? 5 : 3;
+  console.log('[DEBUG] Histórico - innerHeight:', window.innerHeight, 'Limite:', ITENS_POR_PAGINA_HISTORICO);
   const containerFinalizados = document.getElementById('lista-finalizados');
   const containerCancelados = document.getElementById('lista-cancelados');
   if (!containerFinalizados || !containerCancelados) return;
@@ -3746,7 +3747,8 @@ function filtrarPorSelect(valor) {
 }
 
 function aplicarFiltrosVisuais() {
-  ITENS_POR_PAGINA_ATIVOS = window.innerHeight >= 750 ? 5 : 4;
+  ITENS_POR_PAGINA_ATIVOS = window.innerHeight >= 600 ? 5 : 4;
+  console.log('[DEBUG] Ativos - innerHeight:', window.innerHeight, 'Limite:', ITENS_POR_PAGINA_ATIVOS);
   const cards = document.querySelectorAll('.pedido-card');
 
   // Listas auxiliares para aplicar a paginação por coluna e grupo
