@@ -155,6 +155,10 @@ function switchSubTab(sub) {
   
   // Limpa o filtro de seleção ao trocar de aba para evitar estados inconsistentes
   filtroSelectMesa = '';
+  filtroBuscaMesa = '';
+  const inputFiltro = document.getElementById('filtro-mesas');
+  if (inputFiltro) inputFiltro.value = '';
+
   const select = document.getElementById('select-mesas-ativas');
   if (select) {
     select.value = '';
