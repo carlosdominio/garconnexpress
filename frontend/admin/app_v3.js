@@ -6692,6 +6692,8 @@ async function reimprimirCupomById(id) {
     fecharModalDetalheHistorico();
   }
 
+  mostrarToast("Gerando nota de reimpressão...", "info");
+
   try {
     const res = await fetch(`/api/pedidos/${id}`);
     if (!res.ok) throw new Error("Erro ao buscar dados do pedido");
