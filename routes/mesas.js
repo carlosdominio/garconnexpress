@@ -38,21 +38,39 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     if (typeof checkAndNotifyDelayedOrders === 'function') checkAndNotifyDelayedOrders();
     try {
       res.json((await query(`
-        SELECT m.*, 
-          (SELECT p.id FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as pedido_id,
-          (SELECT p.created_at FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as pedido_created_at, 
-          COALESCE(
-            (SELECT p.garcom_id FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1),
-            m.garcom_id
-          ) as garcom_id,
-          (SELECT p.status FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as pedido_status,
-          (SELECT p.solicitou_fechamento FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as solicitou_fechamento,
-          (SELECT p.fechamento_solicitado_em FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as fechamento_solicitado_em,
-          (SELECT p.fechamento_liberado FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as fechamento_liberado,
-          (SELECT p.forma_pagamento FROM pedidos p WHERE p.mesa_id = m.id AND p.status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY p.id DESC LIMIT 1) as forma_pagamento,
-          (SELECT ca.codigo FROM codigos_acesso ca WHERE ca.mesa_id = m.id AND ca.status = 'ativo' ORDER BY ca.id DESC LIMIT 1) as codigo_acesso,
-          (SELECT ca.criado_at FROM codigos_acesso ca WHERE ca.mesa_id = m.id AND ca.status = 'ativo' ORDER BY ca.id DESC LIMIT 1) as codigo_criado_at
-        FROM mesas m ORDER BY m.numero
+        SELECT m.*,
+          p.id as pedido_id,
+          p.created_at as pedido_created_at,
+          COALESCE(p.garcom_id, m.garcom_id) as garcom_id,
+          p.status as pedido_status,
+          p.solicitou_fechamento as solicitou_fechamento,
+          p.fechamento_solicitado_em as fechamento_solicitado_em,
+          p.fechamento_liberado as fechamento_liberado,
+          p.forma_pagamento as forma_pagamento,
+          ca.codigo as codigo_acesso,
+          ca.criado_at as codigo_criado_at
+        FROM mesas m
+        LEFT JOIN (
+          SELECT p1.*
+          FROM pedidos p1
+          INNER JOIN (
+            SELECT mesa_id, MAX(id) as max_id
+            FROM pedidos
+            WHERE status NOT IN ('entregue', 'cancelado', 'rascunho')
+            GROUP BY mesa_id
+          ) p2 ON p1.id = p2.max_id
+        ) p ON p.mesa_id = m.id
+        LEFT JOIN (
+          SELECT ca1.*
+          FROM codigos_acesso ca1
+          INNER JOIN (
+            SELECT mesa_id, MAX(id) as max_id
+            FROM codigos_acesso
+            WHERE status = 'ativo'
+            GROUP BY mesa_id
+          ) ca2 ON ca1.id = ca2.max_id
+        ) ca ON ca.mesa_id = m.id
+        ORDER BY m.numero
       `)).rows); 
     } catch (error) { res.status(500).json({ error: error.message }); }
   });

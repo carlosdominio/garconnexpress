@@ -1,7 +1,11 @@
-const CACHE_NAME = 'cardapio-cache-v2';
+const CACHE_NAME = 'cardapio-cache-v3';
 const urlsToCache = [
   '/cardapio/',
-  '/cardapio/index.html'
+  '/cardapio/index.html',
+  '/notificacao.mp3',
+  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
+  'https://cdn.jsdelivr.net/npm/sweetalert2@11',
+  'https://js.pusher.com/8.2.0/pusher.min.js'
 ];
 
 self.addEventListener('install', event => {

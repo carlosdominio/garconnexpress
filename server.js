@@ -3899,6 +3899,9 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
+
+let cachedOrdemCategorias = null;
+
 app.get('/api/menu', ensureDbInitialized, async (req, res) => {
   try {
     const { admin, garcom } = req.query;
@@ -3928,19 +3931,31 @@ app.get('/api/menu', ensureDbInitialized, async (req, res) => {
       });
     }
 
-    const ordemRes = await query("SELECT valor FROM sistema_config WHERE chave = 'ordem_categorias'");
-    if (ordemRes.rows.length > 0 && ordemRes.rows[0].valor) {
-      const ordem = JSON.parse(ordemRes.rows[0].valor).map(c => c.trim().toUpperCase());
-      
+    let ordem = null;
+    if (cachedOrdemCategorias) {
+      ordem = cachedOrdemCategorias;
+    } else {
+      const ordemRes = await query("SELECT valor FROM sistema_config WHERE chave = 'ordem_categorias'");
+      if (ordemRes.rows.length > 0 && ordemRes.rows[0].valor) {
+        try {
+          ordem = JSON.parse(ordemRes.rows[0].valor).map(c => c.trim().toUpperCase());
+          cachedOrdemCategorias = ordem;
+        } catch (e) {
+          console.error("Erro ao fazer parse de ordem_categorias:", e.message);
+        }
+      }
+    }
+
+    if (ordem) {
       menu.sort((a, b) => {
         const catA = a.categoria.trim().toUpperCase();
         const catB = b.categoria.trim().toUpperCase();
         const indexA = ordem.indexOf(catA);
         const indexB = ordem.indexOf(catB);
         
-        // Se ambos estão na lista de ordem, segue a ordem
-        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-        // Se apenas um está, ele vem primeiro
+        if (indexA !== -1 && indexB !== -1) {
+          return indexA - indexB;
+        }
         if (indexA !== -1) return -1;
         if (indexB !== -1) return 1;
         // Se nenhum está, mantém ordem alfabética original ou id
