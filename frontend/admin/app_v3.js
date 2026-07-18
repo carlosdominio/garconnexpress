@@ -75,7 +75,7 @@ let pedidosFiltradosHistoricoFinalizados = [];
 let pedidosFiltradosHistoricoCancelados = [];
 let paginaAtualFinalizados = 1;
 let paginaAtualCancelados = 1;
-const ITENS_POR_PAGINA_HISTORICO = 3;
+let ITENS_POR_PAGINA_HISTORICO = 3;
 let mesaAtual = null;
 let pedidoEmEdicao = null;
 let itensEmEdicao = [];
@@ -3048,6 +3048,7 @@ async function carregarHistorico() {
 }
 
 async function exibirHistorico() {
+  ITENS_POR_PAGINA_HISTORICO = window.innerHeight >= 900 ? 5 : 3;
   const containerFinalizados = document.getElementById('lista-finalizados');
   const containerCancelados = document.getElementById('lista-cancelados');
   if (!containerFinalizados || !containerCancelados) return;
@@ -3726,7 +3727,7 @@ let paginaAtualAtivos = {
   balcao: { pendentes: 1, servidos: 1, fechamento: 1 },
   delivery: { pendentes: 1, servidos: 1, fechamento: 1 }
 };
-const ITENS_POR_PAGINA_ATIVOS = 4;
+let ITENS_POR_PAGINA_ATIVOS = 4;
 
 function mudarPagina(coluna, grupo, direcao) {
   paginaAtualAtivos[grupo][coluna] += direcao;
@@ -3745,6 +3746,7 @@ function filtrarPorSelect(valor) {
 }
 
 function aplicarFiltrosVisuais() {
+  ITENS_POR_PAGINA_ATIVOS = window.innerHeight >= 900 ? 5 : 4;
   const cards = document.querySelectorAll('.pedido-card');
 
   // Listas auxiliares para aplicar a paginação por coluna e grupo
