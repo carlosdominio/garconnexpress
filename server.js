@@ -3154,10 +3154,11 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
     // TRAVA DEFINITIVA: Verifica status da mesa no banco de mesas (MUITO MAIS SEGURO)
     if (mesa_id) {
       const mesaObj = (await query("SELECT status, garcom_id FROM mesas WHERE id = ?", [mesa_id])).rows[0];
-      if (mesaObj && mesaObj.status !== 'livre') {
+      if (mesaObj && (mesaObj.status === 'fechando' || mesaObj.status === 'aguardando_fechamento')) {
+
         return res.status(400).json({ 
           error: 'MESA_OCUPADA', 
-          message: 'Esta mesa já está ocupada, fechando ou aguardando pagamento.' 
+          message: 'Esta mesa está em processo de fechamento de conta ou aguardando pagamento.' 
         });
       }
 
