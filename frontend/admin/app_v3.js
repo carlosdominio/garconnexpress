@@ -52,8 +52,18 @@ window.onerror = function(msg, url, line) {
       );
 
     if (shouldShowLoading) {
-      const title = options.showLoadingTitle || "Aguarde...";
-      const msg = options.showLoadingMsg || "Comunicando com o servidor...";
+      let title = options.showLoadingTitle || "Aguarde...";
+      let msg = options.showLoadingMsg || "Comunicando com o servidor...";
+      
+      const bodyStr = options.body ? String(options.body) : '';
+      if (bodyStr.includes('"status":"cancelado"') || bodyStr.includes("'status':'cancelado'")) {
+        title = "Cancelando Pedido...";
+        msg = "Cancelando o pedido e liberando a mesa, aguarde por favor...";
+      } else if (method === 'DELETE' && /\/api\/pedidos\/\d+/.test(urlStr)) {
+        title = "Excluindo Pedido...";
+        msg = "Removendo o pedido permanentemente do banco de dados...";
+      }
+      
       mostrarLoading(title, msg);
     }
 
