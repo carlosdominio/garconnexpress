@@ -5747,11 +5747,12 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
       const resStatus = await fetch(`/api/pedidos/${idPedido}/status`, { 
         method: 'PUT', 
         headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ status: 'entregue', pagamentos_detalhados: formasPagamentoPessoas }) 
+        body: JSON.stringify({ status: 'entregue', pagamentos_detalhados: formasPagamentoPessoas }),
+        showLoading: false
       });
 
       if (!resStatus.ok) throw new Error("Erro ao finalizar pedido");
-      if (idMesa) await fetch(`/api/mesas/${idMesa}/liberar`, { method: 'PUT' });
+      if (idMesa) await fetch(`/api/mesas/${idMesa}/liberar`, { method: 'PUT', showLoading: false });
       
       mostrarToast("✅ Conta Total Finalizada!");
       const novosPagamentosCount = (formasPagamentoPessoas && formasPagamentoPessoas.length) ? formasPagamentoPessoas.length : 1;
