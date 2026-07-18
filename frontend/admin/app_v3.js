@@ -3048,7 +3048,7 @@ async function carregarHistorico() {
 }
 
 async function exibirHistorico() {
-  ITENS_POR_PAGINA_HISTORICO = window.innerHeight >= 700 ? 5 : 3;
+  ITENS_POR_PAGINA_HISTORICO = window.innerHeight >= 640 ? 5 : 3;
   console.log('[DEBUG] Histórico - innerHeight:', window.innerHeight, 'Limite:', ITENS_POR_PAGINA_HISTORICO);
   const containerFinalizados = document.getElementById('lista-finalizados');
   const containerCancelados = document.getElementById('lista-cancelados');
@@ -3747,7 +3747,7 @@ function filtrarPorSelect(valor) {
 }
 
 function aplicarFiltrosVisuais() {
-  ITENS_POR_PAGINA_ATIVOS = window.innerHeight >= 700 ? 5 : 4;
+  ITENS_POR_PAGINA_ATIVOS = window.innerHeight >= 640 ? 5 : 4;
   console.log('[DEBUG] Ativos - innerHeight:', window.innerHeight, 'Limite:', ITENS_POR_PAGINA_ATIVOS);
   const cards = document.querySelectorAll('.pedido-card');
 
