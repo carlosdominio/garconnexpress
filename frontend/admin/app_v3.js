@@ -5731,28 +5731,34 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
         finalFormaPagamento = 'Múltiplas';
       }
 
-      const resFechamento = await fetch(`/api/pedidos/${idPedido}/solicitar-fechamento`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          mesa_id: idMesa, 
-          forma_pagamento: finalFormaPagamento, 
-          desconto, acrescimo, valor_recebido, troco, total,
-          num_pessoas, valor_por_pessoa, cobrar_taxa: cobrarTaxa,
-          balcao_imediato: window.isFechamentoImediatoBalcao ? 1 : 0
-        })
-      });
-      if (!resFechamento.ok) throw new Error("Erro ao atualizar dados de fechamento");
+      mostrarLoading("Finalizando Conta...", "Fechando conta e liberando mesa, aguarde por favor...");
+      try {
+        const resFechamento = await fetch(`/api/pedidos/${idPedido}/solicitar-fechamento`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            mesa_id: idMesa, 
+            forma_pagamento: finalFormaPagamento, 
+            desconto, acrescimo, valor_recebido, troco, total,
+            num_pessoas, valor_por_pessoa, cobrar_taxa: cobrarTaxa,
+            balcao_imediato: window.isFechamentoImediatoBalcao ? 1 : 0
+          }),
+          showLoading: false
+        });
+        if (!resFechamento.ok) throw new Error("Erro ao atualizar dados de fechamento");
 
-      const resStatus = await fetch(`/api/pedidos/${idPedido}/status`, { 
-        method: 'PUT', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ status: 'entregue', pagamentos_detalhados: formasPagamentoPessoas }),
-        showLoading: false
-      });
+        const resStatus = await fetch(`/api/pedidos/${idPedido}/status`, { 
+          method: 'PUT', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ status: 'entregue', pagamentos_detalhados: formasPagamentoPessoas }),
+          showLoading: false
+        });
 
-      if (!resStatus.ok) throw new Error("Erro ao finalizar pedido");
-      if (idMesa) await fetch(`/api/mesas/${idMesa}/liberar`, { method: 'PUT', showLoading: false });
+        if (!resStatus.ok) throw new Error("Erro ao finalizar pedido");
+        if (idMesa) await fetch(`/api/mesas/${idMesa}/liberar`, { method: 'PUT', showLoading: false });
+      } finally {
+        ocultarLoading();
+      }
       
       mostrarToast("✅ Conta Total Finalizada!");
       const novosPagamentosCount = (formasPagamentoPessoas && formasPagamentoPessoas.length) ? formasPagamentoPessoas.length : 1;
