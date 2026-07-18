@@ -22,7 +22,7 @@ window.onerror = function(msg, url, line) {
     originalError.apply(console, args);
   };
   
-  // Interceptador global para redirecionar ao login se a sessão expirar
+  // Interceptador global para redirecionar ao login se a sessão expirar e exibir loading
   const originalFetch = window.fetch;
   window.fetch = async (...args) => {
     // Adiciona token ao header Authorization se existir no localStorage
@@ -32,6 +32,37 @@ window.onerror = function(msg, url, line) {
       if (!args[1].headers) args[1].headers = {};
       args[1].headers['Authorization'] = `Bearer ${token}`;
     }
+
+    const url = args[0];
+    const options = args[1] || {};
+    const method = (options.method || 'GET').toUpperCase();
+    const urlStr = String(url);
+    
+    // Determina se devemos exibir o loading para esta requisição
+    const shouldShowLoading = 
+      options.showLoading !== false && // Permite desativar passando showLoading: false
+      (
+        options.showLoading === true || // Ativa passando showLoading: true
+        (
+          ['POST', 'PUT', 'DELETE'].includes(method) &&
+          !urlStr.includes('/api/notify-admin') &&
+          !urlStr.includes('/api/pusher') &&
+          !urlStr.includes('/api/whatsapp-status')
+        )
+      );
+
+    if (shouldShowLoading) {
+      const title = options.showLoadingTitle || "Aguarde...";
+      const msg = options.showLoadingMsg || "Comunicando com o servidor...";
+      mostrarLoading(title, msg);
+    }
+
+    // Clona e limpa as opções customizadas para evitar avisos ou erros no fetch nativo
+    const cleanOptions = { ...options };
+    delete cleanOptions.showLoading;
+    delete cleanOptions.showLoadingTitle;
+    delete cleanOptions.showLoadingMsg;
+    args[1] = cleanOptions;
 
     try {
       const response = await originalFetch(...args);
@@ -64,6 +95,10 @@ window.onerror = function(msg, url, line) {
     } catch (error) {
       console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
       throw error;
+    } finally {
+      if (shouldShowLoading) {
+        ocultarLoading();
+      }
     }
   };
   
@@ -6621,47 +6656,6 @@ function ocultarLoading() {
     document.body.classList.remove('modal-open');
   }
 }
-
-// --- INTERCEPTADOR GLOBAL DE REQUISIÇÕES (FETCH) ---
-const originalFetch = window.fetch;
-window.fetch = async function (url, options = {}) {
-  const method = (options.method || 'GET').toUpperCase();
-  const urlStr = String(url);
-  
-  // Determina se devemos exibir o loading para esta requisição
-  const shouldShowLoading = 
-    options.showLoading !== false && // Permite desativar passando showLoading: false
-    (
-      options.showLoading === true || // Ativa passando showLoading: true
-      (
-        ['POST', 'PUT', 'DELETE'].includes(method) &&
-        !urlStr.includes('/api/notify-admin') &&
-        !urlStr.includes('/api/pusher') &&
-        !urlStr.includes('/api/whatsapp-status')
-      )
-    );
-
-  if (shouldShowLoading) {
-    const title = options.showLoadingTitle || "Aguarde...";
-    const msg = options.showLoadingMsg || "Comunicando com o servidor...";
-    mostrarLoading(title, msg);
-  }
-
-  // Clona e limpa as opções customizadas para evitar avisos ou erros no fetch nativo
-  const cleanOptions = { ...options };
-  delete cleanOptions.showLoading;
-  delete cleanOptions.showLoadingTitle;
-  delete cleanOptions.showLoadingMsg;
-
-  try {
-    const response = await originalFetch(url, cleanOptions);
-    return response;
-  } finally {
-    if (shouldShowLoading) {
-      ocultarLoading();
-    }
-  }
-};
 
 function formatarData(dataIso) {
   if (!dataIso) return '--/--/---- --:--';
