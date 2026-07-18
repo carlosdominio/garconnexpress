@@ -1393,7 +1393,7 @@ async function checkAndNotifyDelayedOrders() {
 
       // Toast pusher para o garçom
       if (typeof safePusherTrigger !== 'undefined') {
-          await safePusherTrigger('garconnexpress', 'fechamento-atrasado', { mesa_numero: mesaName, mensagem: pushMsg });
+          await safePusherTrigger('garconnexpress', 'aguardando-cliente-registro-atrasado', { mesa_numero: mesaName, mensagem: pushMsg });
       }
 
       // Notificacoes FCM/WebPush para o Garçom responsável
@@ -1407,7 +1407,7 @@ async function checkAndNotifyDelayedOrders() {
 
         const isNativeSubAtraso = sub.is_native === 1 || sub.is_native === true || (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
         if (!isNativeSubAtraso) {
-          const payload = JSON.stringify({ title: pushTitle, body: pushMsg, event: 'fechamento-atrasado' });
+          const payload = JSON.stringify({ title: pushTitle, body: pushMsg, event: 'aguardando-cliente-registro-atrasado' });
           const pushSubscription = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh || '', auth: sub.auth || '' } };
           pushPromises.push(
             webpush.sendNotification(pushSubscription, payload).catch(e => {
@@ -1434,7 +1434,7 @@ async function checkAndNotifyDelayedOrders() {
 
             const message = {
               notification: { title: pushTitle, body: pushMsg },
-              data: { event: 'fechamento-atrasado', sound: fcmSoundFile },
+              data: { event: 'aguardando-cliente-registro-atrasado', sound: fcmSoundFile },
               android: { priority: 'high', notification: androidNotification },
               token: sub.endpoint
             };

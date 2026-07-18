@@ -1052,6 +1052,12 @@ async function configurarPusher() {
       dispararToastSistema('fechamento-atrasado', { mesa: data.mesa_numero || 'Mesa' }, data.mensagem, 'error');
     });
 
+    channel.bind('aguardando-cliente-registro-atrasado', (data) => {
+      console.log('📢 Evento: aguardando-cliente-registro-atrasado', data);
+      if (deveTocarSom('aguardando-cliente-registro-atrasado')) tocarCampainha();
+      dispararToastSistema('aguardando-cliente-registro-atrasado', { mesa: data.mesa_numero || 'Mesa' }, data.mensagem, 'error');
+    });
+
     channel.bind('pedido-atrasado-garcom', (data) => {
       console.log('📢 Evento: pedido-atrasado-garcom', data);
       if (deveTocarSom('pedido-atrasado-garcom')) tocarCampainha();
