@@ -685,7 +685,8 @@ async function iniciarApp() {
     carregarConfigCozinha(),
     carregarMenu(),
     carregarMesas(),
-    atualizarStatusCaixa()
+    atualizarStatusCaixa(),
+    calcularClockOffset()
   ]);
   atualizarIconeSom();
   configurarEventos();
@@ -1397,15 +1398,39 @@ async function carregarMesas() {
   if (Array.isArray(mesas)) exibirMesas();
 }
 
+let serverClockOffset = 0;
+
+async function calcularClockOffset() {
+  try {
+    const start = Date.now();
+    const res = await fetch('/api/time');
+    if (res.ok) {
+      const data = await res.json();
+      const end = Date.now();
+      const serverTime = new Date(data.timestamp).getTime();
+      const rtt = (end - start) / 2;
+      const estimatedServerTime = serverTime + rtt;
+      serverClockOffset = estimatedServerTime - end;
+      console.log(`⏱️ Sincronização de tempo: Offset calculado em ${serverClockOffset}ms.`);
+    }
+  } catch (e) {
+    console.warn('⚠️ Não foi possível sincronizar o relógio com o servidor:', e);
+  }
+}
+
 function calcularMinutos(dataIso) {
   if (!dataIso) return 0;
   try {
-    const data = new Date(dataIso);
-    const agora = new Date();
+    let d = dataIso;
+    // Se for string no formato YYYY-MM-DD HH:MM:SS (padrão do backend)
+    // Adicionamos 'Z' para que o navegador trate como UTC e converta para o fuso local
+    if (typeof d === 'string' && d.includes('-') && d.includes(':') && !d.includes('Z') && !d.includes('+')) {
+      d = d.replace(' ', 'T') + 'Z';
+    }
+    const data = new Date(d);
+    const agora = new Date(Date.now() + serverClockOffset);
     const diffMs = agora - data;
-    // Se a diferença for negativa (relógio do cliente atrasado em relação ao servidor), retorna 0
-    const minutos = Math.floor(diffMs / 60000);
-    return minutos > 0 ? minutos : 0;
+    return Math.max(0, Math.floor(diffMs / 60000));
   } catch (e) {
     return 0;
   }
