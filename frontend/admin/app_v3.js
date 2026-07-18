@@ -1812,13 +1812,23 @@ async function abrirCaixa() {
     return await mostrarAlerta("O valor inicial do caixa deve ser maior que zero (Fundo de troco).", "Aviso", "⚠️");
   }
 
-  const res = await fetch('/api/caixa/abrir', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ valor_inicial: valor })
-  });
-  if (res.ok) {
-    carregarStatusCaixa(); // O toast é disparado pelo evento Pusher status-caixa-atualizado
+  mostrarLoading("Abrindo Caixa...", "Registrando fundo de troco e abrindo o caixa...");
+  try {
+    const res = await fetch('/api/caixa/abrir', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ valor_inicial: valor })
+    });
+    ocultarLoading();
+    if (res.ok) {
+      carregarStatusCaixa(); // O toast é disparado pelo evento Pusher status-caixa-atualizado
+    } else {
+      const errRes = await res.json();
+      mostrarAlerta(errRes.error || "Erro ao abrir caixa.", "Erro", "❌");
+    }
+  } catch (err) {
+    ocultarLoading();
+    mostrarAlerta("Erro ao se comunicar com o servidor: " + err.message, "Erro", "❌");
   }
 }
 
@@ -1829,43 +1839,50 @@ async function confirmarFechamentoCaixa() {
   const dadosCaixaParaRelatorio = { ...caixaAtual };
   const valorFinal = caixaAtual.valor_inicial + caixaAtual.total_dinheiro + caixaAtual.total_pix + caixaAtual.total_cartao;
   
-  const res = await fetch('/api/caixa/fechar', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: caixaAtual.id, valor_final: valorFinal })
-  });
-  
-  if (res.ok) {
-    await mostrarAlerta(`Caixa fechado com sucesso!\n\nTotal de Vendas: R$ ${dadosCaixaParaRelatorio.total_vendas.toFixed(2)}\nDinheiro em Caixa: R$ ${(dadosCaixaParaRelatorio.valor_inicial + dadosCaixaParaRelatorio.total_dinheiro).toFixed(2)}`, "Sucesso", "✅");
+  mostrarLoading("Fechando Caixa...", "Processando encerramento do expediente, calculando totais e enviando relatórios para o WhatsApp...");
+  try {
+    const res = await fetch('/api/caixa/fechar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: caixaAtual.id, valor_final: valorFinal })
+    });
+    ocultarLoading();
     
-    // Zera os indicadores de faturamento e vendas no topo imediatamente
-    const elFat = document.getElementById('faturamento-resumo');
-    const elVendas = document.getElementById('vendas-dia-resumo');
-    if (elFat) elFat.innerText = `R$ 0,00`;
-    if (elVendas) elVendas.innerText = `R$ 0,00`;
-    
-    // Pergunta se deseja imprimir o resumo (PDF)
-    // Forçamos a variável global temporariamente para o imprimirResumoDiario usar os dados corretos
-    const caixaOriginal = caixaAtual;
-    caixaAtual = dadosCaixaParaRelatorio;
-    
-    await carregarHistorico(); // Garante que o histórico está carregado
-    
-    if (await mostrarConfirmacao("Deseja imprimir o resumo diário (PDF) do histórico de vendas?", "Imprimir Resumo", "Sim, Imprimir", "Não agora", "💰")) {
-        await imprimirResumoDiario();
-    }
+    if (res.ok) {
+      await mostrarAlerta(`Caixa fechado com sucesso!\n\nTotal de Vendas: R$ ${dadosCaixaParaRelatorio.total_vendas.toFixed(2)}\nDinheiro em Caixa: R$ ${(dadosCaixaParaRelatorio.valor_inicial + dadosCaixaParaRelatorio.total_dinheiro).toFixed(2)}`, "Sucesso", "✅");
+      
+      // Zera os indicadores de faturamento e vendas no topo imediatamente
+      const elFat = document.getElementById('faturamento-resumo');
+      const elVendas = document.getElementById('vendas-dia-resumo');
+      if (elFat) elFat.innerText = `R$ 0,00`;
+      if (elVendas) elVendas.innerText = `R$ 0,00`;
+      
+      // Pergunta se deseja imprimir o resumo (PDF)
+      // Forçamos a variável global temporariamente para o imprimirResumoDiario usar os dados corretos
+      const caixaOriginal = caixaAtual;
+      caixaAtual = dadosCaixaParaRelatorio;
+      
+      await carregarHistorico(); // Garante que o histórico está carregado
+      
+      if (await mostrarConfirmacao("Deseja imprimir o resumo diário (PDF) do histórico de vendas?", "Imprimir Resumo", "Sim, Imprimir", "Não agora", "💰")) {
+          await imprimirResumoDiario();
+      }
 
-    // Pergunta se deseja limpar o histórico
-    if (await mostrarConfirmacao("Deseja LIMPAR o histórico de pedidos entregues e cancelados agora?", "Limpar Histórico", "Sim, Limpar", "Não", "🗑️")) {
-        await limparHistoricoTotal();
-    }
+      // Pergunta se deseja limpar o histórico
+      if (await mostrarConfirmacao("Deseja LIMPAR o histórico de pedidos entregues e cancelados agora?", "Limpar Histórico", "Sim, Limpar", "Não", "🗑️")) {
+          await limparHistoricoTotal();
+      }
 
-    // Restaura e atualiza o status real
-    caixaAtual = caixaOriginal;
-    carregarStatusCaixa();
-  } else {
-    const err = await res.json();
-    await mostrarAlerta("⚠️ Erro ao fechar caixa: " + (err.error || "Erro desconhecido"), "Erro", "❌");
+      // Restaura e atualiza o status real
+      caixaAtual = caixaOriginal;
+      carregarStatusCaixa();
+    } else {
+      const errRes = await res.json();
+      await mostrarAlerta("⚠️ Erro ao fechar caixa: " + (errRes.error || "Erro desconhecido"), "Erro", "❌");
+    }
+  } catch (err) {
+    ocultarLoading();
+    await mostrarAlerta("Erro ao se comunicar com o servidor: " + err.message, "Erro", "❌");
   }
 }
 
@@ -3474,8 +3491,20 @@ async function limparHistoricoTotal() {
   if (historico.length === 0) return await mostrarAlerta("O histórico já está vazio!", "Aviso", "⚠️");
 
   if (await mostrarConfirmacao("⚠️ ATENÇÃO: Isso apagará TODO o histórico de pedidos entregues e cancelados. Deseja continuar?", "Limpar Histórico", "Confirmar", "Cancelar", "🗑️")) {
-    const res = await fetch('/api/pedidos/limpar', { method: 'DELETE' });
-    if (res.ok) { mostrarToast("Histórico limpo!"); carregarHistorico(); }
+    mostrarLoading("Limpando Histórico...", "Apagando todos os registros de pedidos entregues e cancelados do banco de dados...");
+    try {
+      const res = await fetch('/api/pedidos/limpar', { method: 'DELETE' });
+      ocultarLoading();
+      if (res.ok) { 
+        mostrarToast("Histórico limpo!"); 
+        carregarHistorico(); 
+      } else {
+        mostrarAlerta("Não foi possível limpar o histórico.", "Erro", "❌");
+      }
+    } catch (e) {
+      ocultarLoading();
+      mostrarAlerta("Erro ao limpar histórico: " + e.message, "Erro", "❌");
+    }
   }
 }
 
@@ -6562,6 +6591,36 @@ function mostrarAlerta(msg, titulo = "Aviso", icone = "🔔") {
       resolve(false);
     };
   });
+}
+function mostrarLoading(titulo = "Aguarde...", mensagem = "Processando requisição...") {
+  if (typeof Swal !== 'undefined') {
+    Swal.fire({
+      title: titulo,
+      html: `<div style="font-size: 0.95rem; margin-top: 5px;">${mensagem}</div>`,
+      allowOutsideClick: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+  } else {
+    // Fallback simples caso SweetAlert2 não esteja carregado
+    const btnConfirm = document.getElementById('btn-sistema-confirmar');
+    if (btnConfirm) btnConfirm.disabled = true;
+    mostrarAlerta(mensagem, titulo, "⏳");
+  }
+}
+
+function ocultarLoading() {
+  if (typeof Swal !== 'undefined') {
+    Swal.close();
+  } else {
+    const modal = document.getElementById('modal-sistema');
+    if (modal) modal.style.display = 'none';
+    const btnConfirm = document.getElementById('btn-sistema-confirmar');
+    if (btnConfirm) btnConfirm.disabled = false;
+    document.body.classList.remove('modal-open');
+  }
 }
 function formatarData(dataIso) {
   if (!dataIso) return '--/--/---- --:--';
