@@ -4644,7 +4644,13 @@ async function irParaEdicaoDestePedido() {
   // Comportamento padrão para as outras abas (abre o modal de edição)
   veioDoFechamento = true; // Flag para saber que deve voltar ao fechamento
   fecharModalFechamentoAdmin();
-  fetch(`/api/pedidos/${idPedido}/itens`).then(res => res.json()).then(itens => abrirModalEdicao(pedidoParaFecharAdmin, itens, "🔔"));
+  // Otimização: Usa itens locais se já estiverem em memória para evitar requisição ao servidor
+  const localItens = pedidoParaFecharAdmin && pedidoParaFecharAdmin.itens;
+  if (localItens && localItens.length > 0) {
+    abrirModalEdicao(pedidoParaFecharAdmin, localItens, "🔔");
+  } else {
+    fetch(`/api/pedidos/${idPedido}/itens`).then(res => res.json()).then(itens => abrirModalEdicao(pedidoParaFecharAdmin, itens, "🔔")).catch(() => {});
+  }
 }
 
 function abrirModalEdicao(pedido, itens) {
@@ -7108,7 +7114,7 @@ async function abrirModalOpcoes(pedidoId) {
   
   // 1. DADOS BÁSICOS E CORES
   const headerBg = document.getElementById('modal-opcoes-header-bg');
-  const itens = await fetch(`/api/pedidos/${pedidoId}/itens`).then(res => res.json());
+  const itens = (pedido.itens && pedido.itens.length > 0) ? pedido.itens : await fetch(`/api/pedidos/${pedidoId}/itens`).then(res => res.json()).catch(() => []);
   const hasPend = itens.some(i => i.status === 'pendente' || i.status === 'pronto');
   const isAguardando = pedido.status === 'aguardando_fechamento';
   

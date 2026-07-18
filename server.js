@@ -2383,32 +2383,32 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
   }
 });
 
-// Helper para verificar se uma lista de IDs de menu contém itens para a cozinha (JS)
 async function checkTemItemCozinha(itensIds) {
+  if (!itensIds || itensIds.length === 0) return false;
   const configK = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
   const catsCozinha = configK.rows[0]?.valor ? JSON.parse(configK.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
   
-  for (const menuId of itensIds) {
-    const m = (await query("SELECT enviar_cozinha, categoria FROM menu WHERE id = ?", [menuId])).rows[0];
-    if (m) {
-      const envCozinha = m.enviar_cozinha;
-      const categoria = (m.categoria || '').trim().toUpperCase();
-      
-      // Lógica consistente com getFilterCozinha (Prioridade):
-      // 1. Override manual (0 ou 1) ganha sempre.
-      // 2. Se nulo ou não definido, segue a categoria.
-      let vaiCozinha = false;
-      if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') {
-        vaiCozinha = false;
-      } else if (envCozinha === 1 || envCozinha === true || envCozinha === '1' || envCozinha === 'true') {
-        vaiCozinha = true;
-      } else if (catsCozinha.length > 0) {
-        vaiCozinha = catsCozinha.includes(categoria);
-      } else {
-        vaiCozinha = true; // Default
-      }
-      if (vaiCozinha) return true;
+  const uniqueIds = [...new Set(itensIds)];
+  const menuItemsRes = await query(`SELECT enviar_cozinha, categoria FROM menu WHERE id IN (${uniqueIds.map(() => '?').join(',')})`, uniqueIds);
+  
+  for (const m of menuItemsRes.rows) {
+    const envCozinha = m.enviar_cozinha;
+    const categoria = (m.categoria || '').trim().toUpperCase();
+    
+    // Lógica consistente com getFilterCozinha (Prioridade):
+    // 1. Override manual (0 ou 1) ganha sempre.
+    // 2. Se nulo ou não definido, segue a categoria.
+    let vaiCozinha = false;
+    if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') {
+      vaiCozinha = false;
+    } else if (envCozinha === 1 || envCozinha === true || envCozinha === '1' || envCozinha === 'true') {
+      vaiCozinha = true;
+    } else if (catsCozinha.length > 0) {
+      vaiCozinha = catsCozinha.includes(categoria);
+    } else {
+      vaiCozinha = true; // Default
     }
+    if (vaiCozinha) return true;
   }
   return false;
 }
@@ -3309,31 +3309,35 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
       mesaNum = `DELIVERY #${pedidoId}`;
     }
 
-    // NOTIFICAÇÃO WHATSAPP DETALHADA
-    const itensNomes = [];
-    for (const item of itens) {
-      const p = (await query("SELECT nome FROM menu WHERE id = ?", [item.menu_id])).rows[0];
-      itensNomes.push(`${item.quantidade}x ${p ? p.nome : 'Item'}`);
-    }
+    // OTIMIZAÇÃO EM LOTE: Busca nomes, cozinha e categorias de todos os itens do menu em lote (uma única query)
+    const menuIds = [...new Set(itens.map(i => i.menu_id))];
+    const menuItemsRes = await query(`SELECT id, nome, enviar_cozinha, categoria FROM menu WHERE id IN (${menuIds.map(() => '?').join(',')})`, menuIds);
+    const menuMap = {};
+    menuItemsRes.rows.forEach(m => { menuMap[m.id] = m; });
+
+    // 1. Nomes para WhatsApp
+    const itensNomes = itens.map(item => {
+      const p = menuMap[item.menu_id];
+      return `${item.quantidade}x ${p ? p.nome : 'Item'}`;
+    });
     const msgWpp = `🚀 *NOVO PEDIDO #${pedidoId}*\n📍 Mesa: ${mesaNum}\n📝 Itens:\n${itensNomes.join('\n')}\n💰 Total: R$ ${total.toFixed(2)}`;
 
-    // Verifica se o pedido tem itens para a cozinha (respeitando as categorias configuradas)
+    // 2. Verifica se o pedido tem itens para a cozinha
     const configK = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
     const catsCozinha = configK.rows[0]?.valor ? JSON.parse(configK.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
     
     let temItemCozinha = false;
     for (const item of itens) {
-      const m = (await query("SELECT enviar_cozinha, categoria FROM menu WHERE id = ?", [item.menu_id])).rows[0];
+      const m = menuMap[item.menu_id];
       if (m) {
         const envCozinha = m.enviar_cozinha;
         const categoria = (m.categoria || '').trim().toUpperCase();
         
-        // Lógica consistente com getFilterCozinha:
         let vaiCozinha = false;
         if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') {
-          vaiCozinha = false; // Manualmente fora
+          vaiCozinha = false; 
         } else if (catsCozinha.length > 0) {
-          vaiCozinha = catsCozinha.includes(categoria); // Segue filtro de categorias
+          vaiCozinha = catsCozinha.includes(categoria); 
         } else {
           vaiCozinha = (envCozinha === 1 || envCozinha === true || envCozinha === '1' || envCozinha === 'true');
         }
@@ -3360,8 +3364,8 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
       })
     ]);
 
-    // WhatsApp
-    await sendWhatsAppMessage(msgWpp).catch(e => console.error('Erro WhatsApp:', e.message));
+    // WhatsApp (não-bloqueante: remove await para responder instantaneamente ao cliente)
+    sendWhatsAppMessage(msgWpp).catch(e => console.error('Erro WhatsApp:', e.message));
 
     res.json({ id: pedidoId, success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
@@ -3471,6 +3475,12 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
         }
     }
 
+    // OTIMIZAÇÃO EM LOTE: Busca preços do cardápio em lote para evitar múltiplas consultas consecutivas
+    const menuIds = [...new Set(itens.map(i => i.menu_id))];
+    const menuItemsRes = await query(`SELECT id, preco FROM menu WHERE id IN (${menuIds.map(() => '?').join(',')})`, menuIds);
+    const menuMap = {};
+    menuItemsRes.rows.forEach(m => { menuMap[m.id] = m; });
+
     for (const item of itens) {
       // 1. Validação Antifraude: Bloqueia Quantidade Zero ou Negativa
       if (!item.quantidade || item.quantidade <= 0) {
@@ -3480,7 +3490,7 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
       const checagemEstoque = await verificarEstoqueDisponivel(item.menu_id, item.quantidade);
       if (!checagemEstoque.disponivel) return res.status(400).json({ error: checagemEstoque.erro });
 
-      const pMenu = (await query("SELECT preco FROM menu WHERE id = ?", [item.menu_id])).rows[0];
+      const pMenu = menuMap[item.menu_id];
       const precoOficial = pMenu ? (parseFloat(pMenu.preco) || 0) : 0;
 
       const exist = await query('SELECT id, quantidade FROM pedido_itens WHERE pedido_id = ? AND menu_id = ? AND observacao = ? AND status = ?', [id, item.menu_id, item.observacao || '', 'pendente']);
