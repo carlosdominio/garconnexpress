@@ -4216,7 +4216,7 @@ async function exibirPedidos() {
                 )
               ) :
               (pedido.status === 'aguardando_fechamento' ? 
-                `<button style="background:#27ae60; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #219150; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 CONFIRMAR PAGAMENTO E LIBERAR</button>` : 
+                `<button style="background:#f1c40f; color:white; font-weight: 900; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #d68910; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 CONFIRMAR PAGAMENTO E LIBERAR</button>` : 
                 (hasPend ? 
                   `<button style="background:${pedido.garcom_id === 'ADMIN' ? '#e74c3c' : '#e67e22'}; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 ${pedido.garcom_id === 'ADMIN' ? '#c0392b' : '#d35400'}; border:none; color:white; cursor:pointer;" onclick="marcarPedidoEntregue(${pedido.id})">🚚 ENTREGAR TUDO AGORA</button>` :
                   `<button style="background:#27ae60; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #219150; border:none; color:white; cursor:pointer;" onclick="liberarMesa(${pedido.id}, ${pedido.mesa_id}, false)">🔓 LIBERAR MESA</button>`
