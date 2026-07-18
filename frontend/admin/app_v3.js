@@ -52,40 +52,47 @@ window.onerror = function(msg, url, line) {
       );
 
     if (shouldShowLoading) {
-      let title = options.showLoadingTitle || "Aguarde...";
-      let msg = options.showLoadingMsg || "Comunicando com o servidor...";
+      let title = options.showLoadingTitle;
+      let msg = options.showLoadingMsg;
       
-      const bodyStr = options.body ? String(options.body) : '';
-      if (bodyStr.includes('"status":"cancelado"') || bodyStr.includes("'status':'cancelado'")) {
-        title = "Cancelando Pedido...";
-        msg = "Cancelando o pedido e liberando a mesa, aguarde por favor...";
-      } else if (urlStr.includes('/marcar-entregue')) {
-        title = "Confirmando Entrega...";
-        msg = "Registrando a entrega dos itens e atualizando o consumo, aguarde por favor...";
-      } else if (urlStr.includes('/transferir')) {
-        title = "Transferindo Pedido...";
-        msg = "Transferindo os itens para a nova mesa, aguarde por favor...";
-      } else if (bodyStr.includes('"status":') || bodyStr.includes("'status':")) {
-        title = "Atualizando Pedido...";
-        msg = "Atualizando o status do pedido no servidor, aguarde por favor...";
-      } else if (['POST', 'PUT'].includes(method) && (urlStr.includes('/api/pedidos') || urlStr.includes('/adicionar'))) {
-        title = "Enviando Pedido...";
-        msg = "Enviando os itens do pedido para a cozinha/bar, aguarde por favor...";
-      } else if (['POST', 'PUT'].includes(method) && urlStr.includes('/api/menu')) {
-        title = "Salvando Item...";
-        msg = "Salvando as alterações do cardápio no servidor, aguarde por favor...";
-      } else if (method === 'DELETE' && /\/api\/pedidos\/\d+/.test(urlStr)) {
-        title = "Excluindo Pedido...";
-        msg = "Removendo o pedido permanentemente do banco de dados...";
-
-      } else if (['POST', 'PUT'].includes(method) && (
-        urlStr.includes('/api/config') || 
-        urlStr.includes('/api/whatsapp') || 
-        urlStr.includes('/api/fcm-config') ||
-        urlStr.includes('/api/bot-responses')
-      )) {
-        title = "Salvando Configurações...";
-        msg = "Salvando as alterações no servidor, aguarde por favor...";
+      if (!title || !msg) {
+        let fallbackTitle = "Aguarde...";
+        let fallbackMsg = "Comunicando com o servidor...";
+        
+        const bodyStr = options.body ? String(options.body) : '';
+        if (bodyStr.includes('"status":"cancelado"') || bodyStr.includes("'status':'cancelado'")) {
+          fallbackTitle = "Cancelando Pedido...";
+          fallbackMsg = "Cancelando o pedido e liberando a mesa, aguarde por favor...";
+        } else if (urlStr.includes('/marcar-entregue')) {
+          fallbackTitle = "Confirmando Entrega...";
+          fallbackMsg = "Registrando a entrega dos itens e atualizando o consumo, aguarde por favor...";
+        } else if (urlStr.includes('/transferir')) {
+          fallbackTitle = "Transferindo Pedido...";
+          fallbackMsg = "Transferindo os itens para a nova mesa, aguarde por favor...";
+        } else if (bodyStr.includes('"status":') || bodyStr.includes("'status':")) {
+          fallbackTitle = "Atualizando Pedido...";
+          fallbackMsg = "Atualizando o status do pedido no servidor, aguarde por favor...";
+        } else if (['POST', 'PUT'].includes(method) && (urlStr.includes('/api/pedidos') || urlStr.includes('/adicionar'))) {
+          fallbackTitle = "Enviando Pedido...";
+          fallbackMsg = "Enviando os itens do pedido para a cozinha/bar, aguarde por favor...";
+        } else if (['POST', 'PUT'].includes(method) && urlStr.includes('/api/menu')) {
+          fallbackTitle = "Salvando Item...";
+          fallbackMsg = "Salvando as alterações do cardápio no servidor, aguarde por favor...";
+        } else if (method === 'DELETE' && /\/api\/pedidos\/\d+/.test(urlStr)) {
+          fallbackTitle = "Excluindo Pedido...";
+          fallbackMsg = "Removendo o pedido permanentemente do banco de dados...";
+        } else if (['POST', 'PUT'].includes(method) && (
+          urlStr.includes('/api/config') || 
+          urlStr.includes('/api/whatsapp') || 
+          urlStr.includes('/api/fcm-config') ||
+          urlStr.includes('/api/bot-responses')
+        )) {
+          fallbackTitle = "Salvando Configurações...";
+          fallbackMsg = "Salvando as alterações no servidor, aguarde por favor...";
+        }
+        
+        if (!title) title = fallbackTitle;
+        if (!msg) msg = fallbackMsg;
       }
       
       mostrarLoading(title, msg);
