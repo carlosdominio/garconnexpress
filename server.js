@@ -1353,7 +1353,7 @@ async function checkAndNotifyDelayedOrders() {
         AND NOT EXISTS (
           SELECT 1 FROM pedidos p 
           WHERE p.mesa_id = ca.mesa_id 
-            AND p.created_at >= ca.criado_at
+            AND p.status NOT IN ('entregue', 'cancelado', 'rascunho')
         )
     `);
 

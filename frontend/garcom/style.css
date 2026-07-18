@@ -1763,31 +1763,18 @@ button:hover { background-color: #2ecc71; }
 /* Estilos para o Modal de Sistema (Alert/Confirm) */
 
 .modal {
-
   display: none; /* Mantém oculto por padrão */
-
   position: fixed;
-
   z-index: 20000;
-
   inset: 0;
-
   width: 100%;
-
   height: 100dvh;
-
-  background-color: rgba(0,0,0,0.8);
-
+  background-color: rgba(15, 23, 42, 0.7); /* Sleek, hardware-accelerated dark slate overlay */
   align-items: center;
-
   justify-content: center;
-
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-
   overflow-y: auto;
-
-  backdrop-filter: blur(2px);
-
+  will-change: opacity;
 }
 
 
@@ -2258,9 +2245,7 @@ button:active {
 }
 /* === HEADER PREMIUM V2 (FIX) === */
 header {
-  background: rgba(30, 39, 46, 0.95) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  background: rgb(30, 39, 46) !important; /* Solid background to prevent scrolling stutter */
   color: white !important;
   padding: 0.8rem 1rem !important;
   position: sticky !important;
@@ -2336,9 +2321,7 @@ header {
 
 /* === TOASTS PREMIUM V2 === */
 .toast-notificacao {
-    background: rgba(255, 255, 255, 0.85) !important;
-    backdrop-filter: blur(16px) !important;
-    -webkit-backdrop-filter: blur(16px) !important;
+    background: rgb(255, 255, 255) !important; /* Solid background to prevent rendering lag */
     border-radius: 20px !important;
     box-shadow: 0 15px 35px rgba(0,0,0,0.1), 0 5px 15px rgba(0,0,0,0.05) !important;
     border-left: none !important;
