@@ -3914,11 +3914,7 @@ async function exibirPedidos() {
   if (!lists.garcom.pendentes || !lists.balcao.pendentes || !lists.delivery.pendentes) return;
   
   isRenderingPedidos = true;
-
-  // Limpa todas as listas
-  Object.values(lists).forEach(group => {
-    Object.values(group).forEach(list => list.innerHTML = '');
-  });
+  const renderedCardIds = new Set();
 
   const counts = {
     garcom: { pendentes: 0, servidos: 0, fechamento: 0 },
@@ -4005,31 +4001,20 @@ async function exibirPedidos() {
             </style>`;
       }
 
-      const card = document.createElement('div');
-      card.id = `pedido-card-${pedido.id}`;
+      const cardId = `pedido-card-${pedido.id}`;
+      renderedCardIds.add(cardId);
+      
       const isPronto = pedido.status === 'pronto';
-      const pedidoIdStr = String(pedido.id);
-      const isExpanded = expandedPedidoIds.has(pedidoIdStr);
-
+      const isExpanded = expandedPedidoIds.has(String(pedido.id));
       let statusBadgeLabel = statusGeral === 'servido' ? 'EM ANDAMENTO' : 'PENDENTE';
       if (isDelivery) {
         if (isAguardando) statusBadgeLabel = 'ENTREGUE';
         else if (statusGeral === 'servido') statusBadgeLabel = 'A CAMINHO';
       }
 
-      card.className = `pedido-card ${isExpanded ? '' : 'minimized'} status-${statusGeral} ${pedido.id === pedidoAtualizadoId ? 'destaque-atualizacao' : ''} ${classeAlertaAtraso} ${isAguardando ? 'alerta-fechamento' : ''} ${isPronto ? 'pedido-pronto-admin' : ''}`;
-      card.dataset.pedidoId = pedido.id;
-      card.dataset.mesa = mesaNomeExibicao;
-
-      // Abrir modal de opções ao clicar em qualquer lugar do card (exceto botões/inputs)
-      card.addEventListener('click', (e) => {
-        if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('label') || e.target.closest('.slider')) {
-          return;
-        }
-
-        abrirModalOpcoes(pedido.id);
-      });
-      card.innerHTML = `
+      const newClassName = `pedido-card ${isExpanded ? '' : 'minimized'} status-${statusGeral} ${pedido.id === pedidoAtualizadoId ? 'destaque-atualizacao' : ''} ${classeAlertaAtraso} ${isAguardando ? 'alerta-fechamento' : ''} ${isPronto ? 'pedido-pronto-admin' : ''}`;
+      
+      const cardInnerHTML = `
         <div class="pedido-header">
           <div>
             <h3 style="display:flex; align-items:center; gap:8px;">
@@ -4122,28 +4107,52 @@ async function exibirPedidos() {
       if (isAguardando) targetCol = 'fechamento';
       else if (statusGeral === 'servido') targetCol = 'servidos';
 
-      // SE FOR BALCÃO E ESTIVER EM FECHAMENTO, MOVE PARA SERVIDOS (JÁ QUE NÃO TEM COLUNA DE FECHAMENTO NO BALCÃO)
       if (group === 'balcao' && targetCol === 'fechamento') targetCol = 'servidos';
+      const targetList = lists[group][targetCol];
 
-      lists[group][targetCol].appendChild(card);
+      let card = document.getElementById(cardId);
+      if (!card) {
+        card = document.createElement('div');
+        card.id = cardId;
+        card.className = newClassName;
+        card.dataset.pedidoId = pedido.id;
+        card.dataset.mesa = mesaNomeExibicao;
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('label') || e.target.closest('.slider')) return;
+          abrirModalOpcoes(pedido.id);
+        });
+        card.innerHTML = cardInnerHTML;
+        if (targetList.querySelector('div[style*="opacity: 0.3"]')) targetList.innerHTML = '';
+        targetList.appendChild(card);
+      } else {
+        if (card.className !== newClassName) card.className = newClassName;
+        if (card.dataset.mesa !== mesaNomeExibicao) card.dataset.mesa = mesaNomeExibicao;
+        const currentSig = card.getAttribute('data-content-signature');
+        const newSig = `${newClassName}_${itens.length}_${itensPendentes.length}_${itensProntos.length}_${itensEntregues.length}_${totalExibicao}_${pedido.status}_${pedido.forma_pagamento}_${minutosCronometro}`;
+        if (currentSig !== newSig) {
+          card.innerHTML = cardInnerHTML;
+          card.setAttribute('data-content-signature', newSig);
+        }
+        if (card.parentNode !== targetList) {
+          if (targetList.querySelector('div[style*="opacity: 0.3"]')) targetList.innerHTML = '';
+          targetList.appendChild(card);
+        }
+      }
       counts[group][targetCol]++;
     }
 
     // --- MESAS OCUPADAS AGUARDANDO CLIENTE ---
-    // Card estruturalmente idêntico aos outros (pedido-header + pedido-itens + pedido-footer)
     const mesasAguardando = (mesasPainel || []).filter(m => m.status === 'ocupada' && !m.pedido_id);
     for (const m of mesasAguardando) {
-      const card = document.createElement('div');
-      card.id = `mesa-virtual-card-${m.id}`;
-
+      const cardId = `mesa-virtual-card-${m.id}`;
+      renderedCardIds.add(cardId);
+      
+      let card = document.getElementById(cardId);
       const minutosEspera = m.codigo_criado_at ? calcularMinutos(m.codigo_criado_at) : 0;
-
-      card.className = `pedido-card minimized status-recebido`;
-      card.style.borderLeft = '6px solid #3498db';
-      card.style.background = '#f0f7fc';
-      card.style.cursor = 'pointer';
-
-      card.innerHTML = `
+      const newClassName = `pedido-card minimized status-recebido`;
+      const cardStyleText = `border-left: 6px solid #3498db; background: #f0f7fc; cursor: pointer;`;
+      
+      const cardInnerHTML = `
         <div class="pedido-header">
           <div>
             <h3 style="display:flex; align-items:center; gap:8px;">
@@ -4164,7 +4173,6 @@ async function exibirPedidos() {
             </div>
           </div>
         </div>
-
         <div class="pedido-itens" style="margin-top:12px;">
           <div style="border-left:4px solid #3498db; background:#d6eaf8; border-radius:6px; padding:10px 12px; font-size:0.9rem; color:#2980b9; font-style:italic;">
             O cliente está navegando no cardápio. O pedido aparecerá aqui automaticamente quando enviado.
@@ -4180,19 +4188,50 @@ async function exibirPedidos() {
         </div>
       `;
 
-      card.addEventListener('click', (e) => {
-        if (e.target.closest('button')) return;
-        abrirModalMesaAguardando(m.id);
-      });
-
       const group = 'garcom';
       const targetCol = 'pendentes';
+      const targetList = lists[group][targetCol];
 
-      if (lists[group] && lists[group][targetCol]) {
-        lists[group][targetCol].appendChild(card);
+      if (targetList) {
+        if (!card) {
+          card = document.createElement('div');
+          card.id = cardId;
+          card.className = newClassName;
+          card.setAttribute('style', cardStyleText);
+          card.addEventListener('click', (e) => {
+            if (e.target.closest('button')) return;
+            abrirModalMesaAguardando(m.id);
+          });
+          card.innerHTML = cardInnerHTML;
+          if (targetList.querySelector('div[style*="opacity: 0.3"]')) targetList.innerHTML = '';
+          targetList.appendChild(card);
+        } else {
+          if (card.className !== newClassName) card.className = newClassName;
+          const currentSig = card.getAttribute('data-content-signature');
+          const newSig = `virtual_${minutosEspera}_${m.codigo_acesso}_${m.garcom_id}`;
+          if (currentSig !== newSig) {
+            card.innerHTML = cardInnerHTML;
+            card.setAttribute('data-content-signature', newSig);
+          }
+          if (card.parentNode !== targetList) {
+            if (targetList.querySelector('div[style*="opacity: 0.3"]')) targetList.innerHTML = '';
+            targetList.appendChild(card);
+          }
+        }
         counts[group][targetCol]++;
       }
     }
+
+    // Remove cards órfãos (pedidos finalizados ou mesas liberadas) de todas as listas
+    Object.values(lists).forEach(group => {
+      Object.values(group).forEach(list => {
+        Array.from(list.children).forEach(child => {
+          if (child.id && !renderedCardIds.has(child.id)) {
+            child.remove();
+          }
+        });
+      });
+    });
 
     // Atualiza contadores dos títulos das colunas
     Object.keys(counts).forEach(group => {
