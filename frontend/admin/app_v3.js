@@ -412,7 +412,7 @@ async function iniciarPainelAdmin() {
     zapIframe.onload = () => {
       const sincronizarEstado = () => {
         if (zapIframe.contentWindow) {
-          console.log('📤 WhatsApp Iframe: enviando estado ativo:', abaAtiva === 'whatsapp');
+
           zapIframe.contentWindow.postMessage({ type: 'tab_change', active: (abaAtiva === 'whatsapp') }, '*');
         }
       };
@@ -7342,7 +7342,7 @@ function formatarTelefone(tel) {
 // Escuta mensagens do iframe do WhatsApp para atualizar o contador de não lidas e notificações
 window.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'whatsapp_unread') {
-        console.log('📥 Mensagem recebida do WhatsApp Bot (Contagem):', event.data);
+
         const count = parseInt(event.data.count) || 0;
         
         mensagensNaoLidasWhatsapp = count;
@@ -7363,7 +7363,7 @@ window.addEventListener('message', (event) => {
     }
 
     if (event.data && event.data.type === 'whatsapp_new_activity') {
-        console.log('📥 Nova atividade no WhatsApp Bot:', event.data);
+
         
         // Só notifica se a mensagem NÃO for enviada por nós (ou seja, é um cliente enviando)
         if (!event.data.fromMe) {
@@ -9015,7 +9015,7 @@ let waWidgetChatsPollInterval = null;
 let waWidgetExibindoArquivados = false;
 
 function toggleWhatsAppWidget() {
-    console.log('🟢 [Widget Click] toggleWhatsAppWidget chamada!');
+
     const card = document.getElementById('wa-widget-card');
     const bubble = document.getElementById('wa-widget-bubble');
     if (!card) {
@@ -9024,23 +9024,23 @@ function toggleWhatsAppWidget() {
     }
 
     const isOpen = card.classList.contains('active');
-    console.log('📊 [Widget Status] Aberto atualmente:', isOpen);
+
 
     if (!isOpen) {
         card.classList.add('active');
-        console.log('➕ [Widget Status] Adicionada classe active ao card. Classes atuais:', card.className);
+
         if (bubble) bubble.classList.remove('wa-pulse-active');
         
         if (!waWidgetSocket) {
             console.log('🔌 [Widget Socket] Inicializando socket...');
             inicializarWhatsAppWidget();
         } else {
-            console.log('🔄 [Widget Data] Recarregando chats...');
+
             carregarWidgetChats();
         }
     } else {
         card.classList.remove('active');
-        console.log('➖ [Widget Status] Removida classe active do card.');
+
         voltarParaListaChats();
     }
 }
@@ -9122,7 +9122,7 @@ async function inicializarWhatsAppWidget() {
             });
 
             waWidgetSocket.on('new_msg', (data) => {
-                console.log('💬 Widget recebeu new_msg via Socket:', data);
+
                 
                 if (waWidgetActiveJid && (data.jid === waWidgetActiveJid || data.from === waWidgetActiveJid)) {
                     adicionarMensagemWidgetNaTela(data);
@@ -9292,25 +9292,20 @@ function renderizarListaChats() {
     const query = searchInput ? searchInput.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
     const isSearching = query.length > 0;
 
-    console.log('[Widget Search Debug]', {
-        query,
-        isSearching,
-        totalChats: waWidgetChats.length,
-        waWidgetExibindoArquivados
-    });
+
 
     const chatsToRender = waWidgetChats.filter(chat => {
         if (isSearching) {
             const name = (chat.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             const cleanJid = (chat.jid || '').toLowerCase();
             const matches = name.includes(query) || cleanJid.includes(query);
-            console.log(`- Chat: ${chat.name}, hidden: ${chat.hidden}, matches: ${matches}`);
+
             return matches;
         }
         return waWidgetExibindoArquivados ? chat.hidden : !chat.hidden;
     });
 
-    console.log('[Widget Search Debug] chatsToRender:', chatsToRender.length);
+
 
     if (chatsToRender.length === 0) {
         container.innerHTML = `
