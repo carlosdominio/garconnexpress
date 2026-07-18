@@ -3515,7 +3515,7 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
     } else {
       await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', observacao = ? WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), observacao || '', id]);
     }
-    const pMesa = (await query("SELECT mesa_id, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
+    const pMesa = (await query("SELECT p.mesa_id, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
     if (pMesa && pMesa.mesa_id) {
       const mesaIdNum = pMesa.mesa_id;
       await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [mesaIdNum]);
@@ -3545,7 +3545,9 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
       safePusherTrigger('garconnexpress', 'novo-pedido', { 
         para_cozinha: temItemCozinha,
         is_addition: true,
-        pedido: { id: id, mesa_numero: mesaNum, status: 'recebido', garcom_id: pMesa ? pMesa.garcom_id : null } 
+        // garcom_id real do pedido: null = sem garçom atribuído (lançado pelo admin), ADMIN = admin direto
+        garcom_id: pMesa ? (pMesa.garcom_id || 'ADMIN') : 'ADMIN',
+        pedido: { id: id, mesa_numero: mesaNum, status: 'recebido', garcom_id: pMesa ? (pMesa.garcom_id || 'ADMIN') : 'ADMIN' } 
       })
     ]);
 

@@ -658,6 +658,15 @@ function switchTab(tab) {
   // Salva a posição do scroll antes de trocar
   const scrollPos = window.scrollY;
   abaAtiva = tab;
+
+  // Limpa busca e filtros do histórico ao trocar de aba principal
+  const inputHistoricoBusca = document.getElementById('filtro-historico-busca');
+  if (inputHistoricoBusca) inputHistoricoBusca.value = '';
+  const selectHistorico = document.getElementById('filtro-historico-select');
+  if (selectHistorico) {
+    selectHistorico.value = '';
+    if (typeof sincronizarFiltroCustomizadoHistorico === 'function') sincronizarFiltroCustomizadoHistorico();
+  }
   
   // BLOQUEIO DE SCROLL GLOBAL: Na aba de ativos, lançamento e whatsapp para manter o app fixo
   if (tab === 'lancar' || tab === 'ativos' || tab === 'whatsapp') {
@@ -2734,6 +2743,8 @@ function sincronizarFiltroCustomizadoHistorico() {
     item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
 
     item.addEventListener('click', () => {
+      const inputHistoricoBusca = document.getElementById('filtro-historico-busca');
+      if (inputHistoricoBusca) inputHistoricoBusca.value = '';
       nativeSelect.value = opt.value;
       customLabel.innerText = opt.innerText;
       customOptionsDiv.style.display = 'none';

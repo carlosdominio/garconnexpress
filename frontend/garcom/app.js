@@ -931,7 +931,7 @@ async function configurarPusher() {
     });
 
     channel.bind('pedido-pronto', (data) => {
-      if (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
+      if (!data || !data.garcom_id && !(data.pedido && data.pedido.garcom_id) || data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
         clearTimeout(timeoutPusher);
         timeoutPusher = setTimeout(() => carregarMesas(), 50);
         return;
@@ -967,7 +967,7 @@ async function configurarPusher() {
         timeoutPusher = setTimeout(() => carregarMesas(), 50);
         return;
       }
-      if (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
+      if (!data || !data.garcom_id && !(data.pedido && data.pedido.garcom_id) || data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
         clearTimeout(timeoutPusher);
         timeoutPusher = setTimeout(() => carregarMesas(), 50);
         return;
@@ -1009,7 +1009,7 @@ async function configurarPusher() {
     });
 
     channel.bind('status-atualizado', (data) => {
-      if (data && (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN'))) {
+      if (!data || !data.garcom_id && !(data.pedido && data.pedido.garcom_id) || data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
         clearTimeout(timeoutPusher);
         timeoutPusher = setTimeout(() => carregarMesas(), 50);
         return;
@@ -1058,7 +1058,7 @@ async function configurarPusher() {
     });
 
     channel.bind('pedido-cancelado', (data) => {
-      if (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
+      if (!data || !data.garcom_id && !(data.pedido && data.pedido.garcom_id) || data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
         clearTimeout(timeoutPusher);
         timeoutPusher = setTimeout(() => carregarMesas(), 50);
         return;
