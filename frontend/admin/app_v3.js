@@ -300,12 +300,12 @@ async function realizarLoginAdmin() {
 
   const usuario = document.getElementById('admin-usuario').value;
   const senha = document.getElementById('admin-senha').value;
-
   try {
     const res = await fetch('/api/admin/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ usuario, senha })
+      body: JSON.stringify({ usuario, senha }),
+      showLoading: false
     });
     if (res.ok) {
       const data = await res.json();
@@ -1812,14 +1812,14 @@ async function abrirCaixa() {
     return await mostrarAlerta("O valor inicial do caixa deve ser maior que zero (Fundo de troco).", "Aviso", "⚠️");
   }
 
-  mostrarLoading("Abrindo Caixa...", "Registrando fundo de troco e abrindo o caixa...");
   try {
     const res = await fetch('/api/caixa/abrir', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ valor_inicial: valor })
+      body: JSON.stringify({ valor_inicial: valor }),
+      showLoadingTitle: "Abrindo Caixa...",
+      showLoadingMsg: "Registrando fundo de troco e abrindo o caixa..."
     });
-    ocultarLoading();
     if (res.ok) {
       carregarStatusCaixa(); // O toast é disparado pelo evento Pusher status-caixa-atualizado
     } else {
@@ -1827,7 +1827,6 @@ async function abrirCaixa() {
       mostrarAlerta(errRes.error || "Erro ao abrir caixa.", "Erro", "❌");
     }
   } catch (err) {
-    ocultarLoading();
     mostrarAlerta("Erro ao se comunicar com o servidor: " + err.message, "Erro", "❌");
   }
 }
@@ -1839,14 +1838,14 @@ async function confirmarFechamentoCaixa() {
   const dadosCaixaParaRelatorio = { ...caixaAtual };
   const valorFinal = caixaAtual.valor_inicial + caixaAtual.total_dinheiro + caixaAtual.total_pix + caixaAtual.total_cartao;
   
-  mostrarLoading("Fechando Caixa...", "Processando encerramento do expediente, calculando totais e enviando relatórios para o WhatsApp...");
   try {
     const res = await fetch('/api/caixa/fechar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: caixaAtual.id, valor_final: valorFinal })
+      body: JSON.stringify({ id: caixaAtual.id, valor_final: valorFinal }),
+      showLoadingTitle: "Fechando Caixa...",
+      showLoadingMsg: "Processando encerramento do expediente, calculando totais e enviando relatórios para o WhatsApp..."
     });
-    ocultarLoading();
     
     if (res.ok) {
       await mostrarAlerta(`Caixa fechado com sucesso!\n\nTotal de Vendas: R$ ${dadosCaixaParaRelatorio.total_vendas.toFixed(2)}\nDinheiro em Caixa: R$ ${(dadosCaixaParaRelatorio.valor_inicial + dadosCaixaParaRelatorio.total_dinheiro).toFixed(2)}`, "Sucesso", "✅");
@@ -1881,7 +1880,6 @@ async function confirmarFechamentoCaixa() {
       await mostrarAlerta("⚠️ Erro ao fechar caixa: " + (errRes.error || "Erro desconhecido"), "Erro", "❌");
     }
   } catch (err) {
-    ocultarLoading();
     await mostrarAlerta("Erro ao se comunicar com o servidor: " + err.message, "Erro", "❌");
   }
 }
@@ -3487,14 +3485,17 @@ function fecharModalDetalheHistorico() {
   if (modal) modal.style.display = 'none';
 }
 
+
 async function limparHistoricoTotal() {
   if (historico.length === 0) return await mostrarAlerta("O histórico já está vazio!", "Aviso", "⚠️");
 
   if (await mostrarConfirmacao("⚠️ ATENÇÃO: Isso apagará TODO o histórico de pedidos entregues e cancelados. Deseja continuar?", "Limpar Histórico", "Confirmar", "Cancelar", "🗑️")) {
-    mostrarLoading("Limpando Histórico...", "Apagando todos os registros de pedidos entregues e cancelados do banco de dados...");
     try {
-      const res = await fetch('/api/pedidos/limpar', { method: 'DELETE' });
-      ocultarLoading();
+      const res = await fetch('/api/pedidos/limpar', { 
+        method: 'DELETE',
+        showLoadingTitle: "Limpando Histórico...",
+        showLoadingMsg: "Apagando todos os registros de pedidos entregues e cancelados do banco de dados..."
+      });
       if (res.ok) { 
         mostrarToast("Histórico limpo!"); 
         carregarHistorico(); 
@@ -3502,12 +3503,10 @@ async function limparHistoricoTotal() {
         mostrarAlerta("Não foi possível limpar o histórico.", "Erro", "❌");
       }
     } catch (e) {
-      ocultarLoading();
       mostrarAlerta("Erro ao limpar histórico: " + e.message, "Erro", "❌");
     }
   }
 }
-
 async function imprimirResumoDiario() {
   if (historico.length === 0) return await mostrarAlerta('Nenhum pedido no histórico para imprimir.', "Aviso", "⚠️");
 
@@ -6622,6 +6621,48 @@ function ocultarLoading() {
     document.body.classList.remove('modal-open');
   }
 }
+
+// --- INTERCEPTADOR GLOBAL DE REQUISIÇÕES (FETCH) ---
+const originalFetch = window.fetch;
+window.fetch = async function (url, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
+  const urlStr = String(url);
+  
+  // Determina se devemos exibir o loading para esta requisição
+  const shouldShowLoading = 
+    options.showLoading !== false && // Permite desativar passando showLoading: false
+    (
+      options.showLoading === true || // Ativa passando showLoading: true
+      (
+        ['POST', 'PUT', 'DELETE'].includes(method) &&
+        !urlStr.includes('/api/notify-admin') &&
+        !urlStr.includes('/api/pusher') &&
+        !urlStr.includes('/api/whatsapp-status')
+      )
+    );
+
+  if (shouldShowLoading) {
+    const title = options.showLoadingTitle || "Aguarde...";
+    const msg = options.showLoadingMsg || "Comunicando com o servidor...";
+    mostrarLoading(title, msg);
+  }
+
+  // Clona e limpa as opções customizadas para evitar avisos ou erros no fetch nativo
+  const cleanOptions = { ...options };
+  delete cleanOptions.showLoading;
+  delete cleanOptions.showLoadingTitle;
+  delete cleanOptions.showLoadingMsg;
+
+  try {
+    const response = await originalFetch(url, cleanOptions);
+    return response;
+  } finally {
+    if (shouldShowLoading) {
+      ocultarLoading();
+    }
+  }
+};
+
 function formatarData(dataIso) {
   if (!dataIso) return '--/--/---- --:--';
   
