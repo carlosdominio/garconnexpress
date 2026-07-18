@@ -6258,9 +6258,8 @@ async function configurarPusher() {
         mostrarToast(`✅ ${nMesa} liberada`);
       } 
       else if (data.status === 'itens_adicionados') {
-        tocarNotificacao();
-        exibirNotificacaoNativa('📝 Novos itens!', `${nMesa} adicionou novos produtos ao pedido.`, tagMesa);
-        mostrarToast(`📝 ${nMesa} adicionou itens`);
+        // Ignorado aqui para evitar alertas visuais, sonoros e envio de WhatsApp duplicados.
+        // O evento 'novo-pedido' com (is_addition = true) já notifica o painel.
         pedidoAtualizadoId = data.pedido_id;
       }
       else if (data.status === 'aguardando_fechamento') {
