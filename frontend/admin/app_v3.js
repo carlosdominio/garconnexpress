@@ -4597,17 +4597,27 @@ async function excluirPedido(id) {
 }
 
 async function atualizarStatus(id, status) {
-  if (status === 'cancelado' && !await mostrarConfirmacao("Deseja realmente CANCELAR este pedido? A mesa será liberada.", "Cancelar Pedido", "Confirmar", "Cancelar", "🗑️")) return;
+  const pedido = pedidos.find(p => p.id == id);
+  const isDelivery = pedido && pedido.garcom_id === 'DELIVERY';
+
+  if (status === 'cancelado') {
+    const confirmPrompt = isDelivery 
+      ? "Deseja realmente CANCELAR este pedido Delivery?"
+      : "Deseja realmente CANCELAR este pedido? A mesa será liberada.";
+    if (!await mostrarConfirmacao(confirmPrompt, "Cancelar Pedido", "Confirmar", "Cancelar", "🗑️")) return;
+  }
   
   const isCancel = status === 'cancelado';
   const res = await fetch(`/api/pedidos/${id}/status`, { 
     method: 'PUT', 
     headers: { 'Content-Type': 'application/json' }, 
     body: JSON.stringify({ status }),
-    showLoadingTitle: isCancel ? "Cancelando Pedido..." : "Atualizando Status...",
-    showLoadingMsg: isCancel ? "Processando o cancelamento do pedido e liberando a mesa..." : "Processando atualização de status do pedido..."
+    showLoadingTitle: isCancel ? (isDelivery ? "Cancelando Delivery..." : "Cancelando Pedido...") : "Atualizando Status...",
+    showLoadingMsg: isCancel 
+      ? (isDelivery ? "Processando o cancelamento do delivery, aguarde por favor..." : "Processando o cancelamento do pedido e liberando a mesa...")
+      : "Processando atualização de status do pedido..."
   });
-  
+
   if (res.ok) {
     mostrarToast(status === 'cancelado' ? "❌ Pedido Cancelado" : "Atualizado!");
     carregarPedidos();
@@ -4644,6 +4654,9 @@ async function confirmarEntregaDelivery(id) {
 
 async function marcarPedidoEntregue(id) {
   try {
+    const pedido = pedidos.find(p => p.id == id);
+    const isDelivery = pedido && pedido.garcom_id === 'DELIVERY';
+
     const resItens = await fetch(`/api/pedidos/${id}/itens`);
     const itens = await resItens.json();
 
@@ -4661,7 +4674,7 @@ async function marcarPedidoEntregue(id) {
             <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🚚</div>
             <p style="font-weight: bold; color: #e67e22; font-size: 1.1rem;">ENTREGA PARCIAL</p>
             <p style="color: #2c3e50; margin-bottom: 10px;">Existem <strong>${emPreparo.length} itens</strong> na cozinha. Deseja entregar apenas as bebidas e itens prontos?</p>
-            <p style="font-size: 0.8rem; color: #7f8c8d;">A mesa continuará ativa para os itens que ficarem.</p>
+            <p style="font-size: 0.8rem; color: #7f8c8d;">${isDelivery ? "O delivery continuará ativo para os itens que ficarem." : "A mesa continuará ativa para os itens que ficarem."}</p>
           </div>`,
           "Cozinha em Andamento",
           "Sim, Entregar Prontos",
@@ -4673,11 +4686,13 @@ async function marcarPedidoEntregue(id) {
         const res = await fetch(`/api/pedidos/${id}/marcar-entregue`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apenasProntos: true })
+          body: JSON.stringify({ apenasProntos: true }),
+          showLoadingTitle: isDelivery ? "Despachando Delivery..." : "Confirmando Entrega...",
+          showLoadingMsg: isDelivery ? "Registrando que o pedido saiu para entrega com o motoboy, aguarde por favor..." : "Registrando a entrega dos itens e atualizando o consumo, aguarde por favor..."
         });
 
         if (res.ok) {
-          mostrarToast("✅ Itens prontos entregues!");
+          mostrarToast(isDelivery ? "🛵 Enviado para entrega!" : "✅ Itens prontos entregues!");
           carregarPedidos();
         }
       } else {
@@ -4699,15 +4714,16 @@ async function marcarPedidoEntregue(id) {
     }
 
     // CASO 2: Não há nada na cozinha em preparo, mas pode haver itens 'prontos' ou 'bebidas'
-    if (await mostrarConfirmacao("Confirmar a entrega de todos os itens deste pedido?", "Entregar Tudo", "Confirmar", "Cancelar", "🚚")) {
+    const confirmPrompt = isDelivery ? "Confirmar o envio deste pedido para entrega com o motoboy?" : "Confirmar a entrega de todos os itens deste pedido?";
+    if (await mostrarConfirmacao(confirmPrompt, isDelivery ? "Enviar para Entrega" : "Entregar Tudo", "Confirmar", "Cancelar", "🚚")) {
       const res = await fetch(`/api/pedidos/${id}/marcar-entregue`, { 
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apenasProntos: false })
+        body: JSON.stringify({ apenasProntos: false }),
+        showLoadingTitle: isDelivery ? "Despachando Delivery..." : "Confirmando Entrega...",
+        showLoadingMsg: isDelivery ? "Registrando que o pedido saiu para entrega com o motoboy, aguarde por favor..." : "Registrando a entrega dos itens e atualizando o consumo, aguarde por favor..."
       });
       if (res.ok) {
-        const pedido = pedidos.find(p => p.id == id);
-        const isDelivery = pedido && pedido.garcom_id === 'DELIVERY';
         mostrarToast(isDelivery ? "🛵 Enviado para entrega!" : "✅ Pedido entregue!");
         carregarPedidos();
       }
@@ -5738,7 +5754,12 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
         finalFormaPagamento = 'Múltiplas';
       }
 
-      mostrarLoading("Finalizando Conta...", "Fechando conta e liberando mesa, aguarde por favor...");
+      const isDelivery = pedidoParaFecharAdmin && pedidoParaFecharAdmin.garcom_id === 'DELIVERY';
+      const loadingTitle = isDelivery ? "Finalizando Delivery..." : "Finalizando Conta...";
+      const loadingMsg = isDelivery 
+        ? "Processando fechamento do delivery e registrando o pagamento, aguarde..." 
+        : "Fechando conta e liberando mesa, aguarde por favor...";
+      mostrarLoading(loadingTitle, loadingMsg);
       try {
         const resFechamento = await fetch(`/api/pedidos/${idPedido}/solicitar-fechamento`, {
           method: 'PUT',
@@ -7244,12 +7265,19 @@ let pedidoEmOpcoes = null;
 async function confirmarCancelamentoDesdeOpcoes() {
     if (!pedidoEmOpcoes) return;
 
-    if (await mostrarConfirmacao("⚠️ DESEJA REALMENTE CANCELAR TODO O PEDIDO?\n\nA mesa será liberada e o pedido irá para o histórico como CANCELADO.", "Atenção", "SIM, CANCELAR", "NÃO")) {
+    const isDelivery = pedidoEmOpcoes && pedidoEmOpcoes.garcom_id === 'DELIVERY';
+    const confirmPrompt = isDelivery 
+      ? "⚠️ DESEJA REALMENTE CANCELAR ESTE PEDIDO DELIVERY?\n\nO pedido irá para o histórico como CANCELADO."
+      : "⚠️ DESEJA REALMENTE CANCELAR TODO O PEDIDO?\n\nA mesa será liberada e o pedido irá para o histórico como CANCELADO.";
+
+    if (await mostrarConfirmacao(confirmPrompt, "Atenção", "SIM, CANCELAR", "NÃO")) {
         try {
             const res = await fetch(`/api/pedidos/${pedidoEmOpcoes.id}/status`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'cancelado' })
+                body: JSON.stringify({ status: 'cancelado' }),
+                showLoadingTitle: isDelivery ? "Cancelando Delivery..." : "Cancelando Pedido...",
+                showLoadingMsg: isDelivery ? "Processando o cancelamento do delivery, aguarde por favor..." : "Cancelando o pedido e liberando a mesa, aguarde por favor..."
             });
             if (res.ok) {
                 fecharModalOpcoes();
