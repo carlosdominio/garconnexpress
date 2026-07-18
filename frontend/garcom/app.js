@@ -2265,16 +2265,17 @@ async function confirmarSolicitacaoFechamento() {
         atualizarBloqueioScroll();
       }
       
+      showLoading(false);
       await mostrarAlerta("Solicitação de fechamento enviada ao caixa!", "Sucesso", "✅");
       carregarMesas();
     } else {
       throw new Error("Falha na solicitação");
     }
   } catch (error) {
+    showLoading(false);
     await mostrarAlerta("Erro ao enviar solicitação.", "Erro", "❌");
   } finally {
     isSolicitandoFechamentoGarcom = false;
-    showLoading(false);
   }
 }
 
@@ -2554,6 +2555,7 @@ async function enviarPedido() {
     });
     
     if (res.ok) {
+      showLoading(false);
       await mostrarAlerta(pedidoAbertoNaMesa ? 'Itens adicionados!' : 'Pedido enviado!', "Sucesso", "✅");
       pedidoAtual = [];
       pedidoAbertoNaMesa = null;
@@ -2571,6 +2573,7 @@ async function enviarPedido() {
       document.getElementById('btn-header-mesas').style.display = 'none';
       carregarMesas();
     } else {
+      showLoading(false);
       const errorData = await res.json();
       const msg = errorData.error || 'Erro ao enviar pedido';
       if (msg.includes("⚠️")) {
@@ -2580,6 +2583,7 @@ async function enviarPedido() {
       }
     }
   } catch (error) { 
+    showLoading(false);
     console.error("Erro ao enviar pedido:", error);
     await mostrarAlerta('Erro de conexão com o servidor', "Erro", "❌"); 
   } finally {
@@ -2588,7 +2592,6 @@ async function enviarPedido() {
     btnEnviar.innerText = originalTexto;
     btnEnviar.style.opacity = "1";
     btnEnviar.style.cursor = "pointer";
-    showLoading(false);
   }
 }
 
@@ -2604,14 +2607,15 @@ async function gerarCodigoAcesso() {
     const data = await res.json();
     if (data.success) {
       fecharOpcoes();
+      showLoading(false);
       await mostrarAlerta(`CÓDIGO DE ACESSO: ${data.codigo}\n\nInforme este código ao cliente para liberar o cardápio digital na Mesa ${mesaAtual.numero}.`, "Código Gerado", "🔑", data.codigo);
     } else {
+      showLoading(false);
       await mostrarAlerta("Erro ao gerar código.", "Erro", "❌");
     }
   } catch (error) {
-    await mostrarAlerta("Erro de conexão.", "Erro", "❌");
-  } finally {
     showLoading(false);
+    await mostrarAlerta("Erro de conexão.", "Erro", "❌");
   }
 }
 
@@ -2631,14 +2635,15 @@ async function cancelarCodigoAcesso() {
     const data = await res.json();
     if (data.success) {
       fecharOpcoes();
+      showLoading(false);
       await mostrarAlerta("Acesso cancelado e mesa liberada com sucesso.", "Cancelado", "❌");
     } else {
+      showLoading(false);
       await mostrarAlerta("Erro ao cancelar acesso.", "Erro", "❌");
     }
   } catch (error) {
-    await mostrarAlerta("Erro de conexão.", "Erro", "❌");
-  } finally {
     showLoading(false);
+    await mostrarAlerta("Erro de conexão.", "Erro", "❌");
   }
 }
 
