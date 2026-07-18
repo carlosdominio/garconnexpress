@@ -4547,7 +4547,11 @@ async function removerItensSelecionados() {
 
 async function excluirPedido(id) {
   if (await mostrarConfirmacao("⚠️ EXCLUIR PERMANENTEMENTE?\n\nIsso removerá o pedido do banco de dados e do histórico. Esta ação não pode ser desfeita.", "Excluir Registro", "Confirmar", "Cancelar", "🗑️")) {
-    const res = await fetch(`/api/pedidos/${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/pedidos/${id}`, { 
+      method: 'DELETE',
+      showLoadingTitle: "Excluindo Pedido...",
+      showLoadingMsg: "Removendo o pedido permanentemente do banco de dados..."
+    });
     if (res.ok) {
       mostrarToast("🗑️ Pedido excluído!");
       if (abaAtiva === 'ativos') carregarPedidos();
@@ -4559,10 +4563,13 @@ async function excluirPedido(id) {
 async function atualizarStatus(id, status) {
   if (status === 'cancelado' && !await mostrarConfirmacao("Deseja realmente CANCELAR este pedido? A mesa será liberada.", "Cancelar Pedido", "Confirmar", "Cancelar", "🗑️")) return;
   
+  const isCancel = status === 'cancelado';
   const res = await fetch(`/api/pedidos/${id}/status`, { 
     method: 'PUT', 
     headers: { 'Content-Type': 'application/json' }, 
-    body: JSON.stringify({ status }) 
+    body: JSON.stringify({ status }),
+    showLoadingTitle: isCancel ? "Cancelando Pedido..." : "Atualizando Status...",
+    showLoadingMsg: isCancel ? "Processando o cancelamento do pedido e liberando a mesa..." : "Processando atualização de status do pedido..."
   });
   
   if (res.ok) {
