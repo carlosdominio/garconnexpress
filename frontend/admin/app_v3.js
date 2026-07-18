@@ -59,9 +59,26 @@ window.onerror = function(msg, url, line) {
       if (bodyStr.includes('"status":"cancelado"') || bodyStr.includes("'status':'cancelado'")) {
         title = "Cancelando Pedido...";
         msg = "Cancelando o pedido e liberando a mesa, aguarde por favor...";
+      } else if (bodyStr.includes('"status":') || bodyStr.includes("'status':")) {
+        title = "Atualizando Pedido...";
+        msg = "Atualizando o status do pedido no servidor, aguarde por favor...";
+      } else if (['POST', 'PUT'].includes(method) && (urlStr.includes('/api/pedidos') || urlStr.includes('/adicionar'))) {
+        title = "Enviando Pedido...";
+        msg = "Enviando os itens do pedido para a cozinha/bar, aguarde por favor...";
+      } else if (['POST', 'PUT'].includes(method) && urlStr.includes('/api/menu')) {
+        title = "Salvando Item...";
+        msg = "Salvando as alterações do cardápio no servidor, aguarde por favor...";
       } else if (method === 'DELETE' && /\/api\/pedidos\/\d+/.test(urlStr)) {
         title = "Excluindo Pedido...";
         msg = "Removendo o pedido permanentemente do banco de dados...";
+      } else if (['POST', 'PUT'].includes(method) && (
+        urlStr.includes('/api/config') || 
+        urlStr.includes('/api/whatsapp') || 
+        urlStr.includes('/api/fcm-config') ||
+        urlStr.includes('/api/bot-responses')
+      )) {
+        title = "Salvando Configurações...";
+        msg = "Salvando as alterações no servidor, aguarde por favor...";
       }
       
       mostrarLoading(title, msg);
