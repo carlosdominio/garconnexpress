@@ -7319,6 +7319,8 @@ async function imprimirRelatorioCaixa() {
   
   document.getElementById('titulo-modal-previa').innerText = '📄 Prévia do Cupom (Relatório de Caixa)';
   document.getElementById('modal-previa-cupom').style.display = 'flex';
+
+  mostrarToast(`💰 Relatório Parcial gerado — Vendas: R$ ${totalGeral.toFixed(2)}`, 'success', 'Relatório de Caixa');
 }
 
 // --- LOGICA DO NOVO MODAL DE OPÇÕES DA MESA ---
