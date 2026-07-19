@@ -3337,9 +3337,9 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
         }
       }
 
-      // BLOQUEIO DE DUPLICIDADE (LOCKOUT): Se já existe um pedido ativo, não permite criar outro (POST)
+      // BLOQUEIO DE DUPLICIDADE (LOCKOUT): Se já existe um pedido ativo (pendente/preparando), não permite criar outro (POST)
       // O correto em mesas ocupadas é usar ADICIONAR (PUT)
-      const pedidoAtivo = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho')", [mesa_id])).rows[0];
+      const pedidoAtivo = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho', 'aceito', 'recebido')", [mesa_id])).rows[0];
       if (pedidoAtivo) {
           console.log(`🚫 [BLOQUEIO] Tentativa de duplicar pedido na Mesa ${mesa_id}. Pedido ativo detectado: #${pedidoAtivo.id}`);
           return res.status(400).json({ 
@@ -3349,11 +3349,11 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
           });
       }
 
-      // LIMPEZA ANTECIPADA DE RASCUNHOS: Evita duplicação ao garantir que rascunhos sumam ANTES do novo pedido entrar
+      // LIMPEZA ANTECIPADA DE RASCUNHOS/ACEITOS: Evita duplicação ao converter o rascunho em pedido oficial
       const mesaIdNum = Number(mesa_id);
-      const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesaIdNum])).rows;
+      const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status IN ('rascunho', 'aceito', 'recebido')", [mesaIdNum])).rows;
       for (const r of rascunhos) {
-          console.log(`[LIMPEZA-PRE] Removendo rascunho #${r.id} para evitar duplicidade`);
+          console.log(`[LIMPEZA-PRE] Removendo rascunho/aceito #${r.id} para dar lugar ao novo pedido`);
           await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
           await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
       }
@@ -3635,6 +3635,16 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
                 message: `MESA BLOQUEADA! O garçom selecionado na fila (${pOrig.garcom_id}) deve atender esta mesa.`
             });
         }
+    }
+
+    // LIMPEZA DE RASCUNHOS/ACEITOS: Quando itens são adicionados a um pedido ativo, limpa rascunhos pendentes
+    if (pOrig && pOrig.mesa_id) {
+      const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status IN ('rascunho', 'aceito', 'recebido') AND id != ?", [pOrig.mesa_id, id])).rows;
+      for (const r of rascunhos) {
+        console.log(`[LIMPEZA-ADD] Removendo rascunho/aceito #${r.id} ao incorporar ao pedido oficial #${id}`);
+        await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
+        await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
+      }
     }
 
     // OTIMIZAÇÃO EM LOTE: Busca preços do cardápio em lote para evitar múltiplas consultas consecutivas
@@ -4493,7 +4503,7 @@ app.use('/api/mesas', mesasRouter);
 
 app.get('/api/pedidos/mesa/:mesaId', async (req, res) => { 
   try {
-    res.json((await query(`SELECT * FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY created_at DESC LIMIT 1`, [req.params.mesaId])).rows[0] || null); 
+    res.json((await query(`SELECT * FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho', 'aceito', 'recebido') ORDER BY created_at DESC LIMIT 1`, [req.params.mesaId])).rows[0] || null); 
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 // Cliente busca seus próprios pedidos ativos
@@ -5075,7 +5085,7 @@ app.post('/api/cliente/cancelar-rascunho', isAuthenticated, async (req, res) => 
   }
 });
 
-// Garçom aceita o rascunho recebido (limpa rascunho do BD e notifica cliente)
+// Garçom aceita o rascunho recebido (marca pedido e itens como aceitos)
 app.post('/api/pedidos/aceitar-rascunho', isAuthenticated, async (req, res) => {
   const { mesa_id } = req.body;
   if (!mesa_id) return res.status(400).json({ error: 'Mesa não identificada.' });
@@ -5083,8 +5093,8 @@ app.post('/api/pedidos/aceitar-rascunho', isAuthenticated, async (req, res) => {
   try {
     const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesa_id])).rows;
     for (const r of rascunhos) {
-      await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
-      await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
+      await query("UPDATE pedidos SET status = 'aceito' WHERE id = ?", [r.id]);
+      await query("UPDATE pedido_itens SET status = 'aceito' WHERE pedido_id = ?", [r.id]);
     }
     
     // Notifica o cliente que o rascunho foi aceito pelo garçom
