@@ -4503,7 +4503,7 @@ app.use('/api/mesas', mesasRouter);
 
 app.get('/api/pedidos/mesa/:mesaId', async (req, res) => { 
   try {
-    res.json((await query(`SELECT * FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho', 'aceito', 'recebido') ORDER BY created_at DESC LIMIT 1`, [req.params.mesaId])).rows[0] || null); 
+    res.json((await query(`SELECT * FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado') ORDER BY id DESC LIMIT 1`, [req.params.mesaId])).rows[0] || null); 
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 // Cliente busca seus próprios pedidos ativos
@@ -5076,8 +5076,16 @@ app.post('/api/cliente/cancelar-rascunho', isAuthenticated, async (req, res) => 
       await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
     }
     
-    // Notifica os garçons via Pusher para limpar o rascunho da tela
-    safePusherTrigger('garconnexpress', 'rascunho-cancelado', { mesa_id }).catch(console.error);
+    // Notifica os garçons via Pusher para limpar o rascunho da tela e avisar que o cliente cancelou
+    const mesaObj = (await query("SELECT numero FROM mesas WHERE id = ?", [mesa_id])).rows[0];
+    const mesa_numero = req.user.mesa_numero || (mesaObj ? mesaObj.numero : mesa_id);
+    
+    safePusherTrigger('garconnexpress', 'rascunho-cancelado', { 
+      mesa_id, 
+      mesa_numero, 
+      cancelado_pelo_cliente: true,
+      mensagem: `O rascunho da Mesa ${mesa_numero} foi cancelado pelo cliente.`
+    }).catch(console.error);
     
     res.json({ success: true, mensagem: 'Rascunho cancelado com sucesso.' });
   } catch (error) {
