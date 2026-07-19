@@ -145,6 +145,20 @@
     </main>
 
     <!-- Scripts -->
+  <!-- Modal de Carregamento Rápido (Lightweight) -->
+  <div id="loading-rapido" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); z-index: 99999; align-items: center; justify-content: center;">
+    <div style="background: white; padding: 20px 30px; border-radius: 16px; display: flex; align-items: center; gap: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+      <style>
+        @keyframes spinLoadingRapido {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      </style>
+      <div style="width: 30px; height: 30px; border: 3px solid #e2e8f0; border-top: 3px solid #e74c3c; border-radius: 50%; animation: spinLoadingRapido 0.8s linear infinite;"></div>
+      <span id="loading-rapido-texto" style="font-weight: bold; color: #2c3e50; font-size: 1rem; font-family: inherit;">Processando...</span>
+    </div>
+  </div>
+
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     <script src="app.js?v=1.0.3"></script>
 </body>

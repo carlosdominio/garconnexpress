@@ -463,18 +463,22 @@ async function confirmarConclusaoPedido() {
     btn.disabled = true;
 
     try {
+        showLoading(true, "Concluindo pedido...");
         const res = await fetch(`/api/pedidos/${pedidoId}/cozinha-pronto`, { method: 'PUT' });
         const result = await res.json();
         
         if (result.success) {
+            showLoading(false);
             mostrarToast(`Pedido #${pedidoId} enviado!`, 'success');
             carregarPedidos();
         } else {
+            showLoading(false);
             mostrarToast('Erro ao concluir pedido: ' + (result.error || 'Erro desconhecido'), 'error');
             btn.innerText = originalText;
             btn.disabled = false;
         }
     } catch (e) {
+        showLoading(false);
         console.error('Erro:', e);
         mostrarToast('Erro de conexão ao concluir pedido.', 'error');
         btn.innerText = originalText;
@@ -1310,5 +1314,14 @@ async function verificarVersaoSistema() {
     }
   } catch (e) {
     console.error('Erro ao verificar versão do sistema:', e);
+  }
+}
+
+function showLoading(show = true, text = "Processando...") {
+  const el = document.getElementById('loading-rapido');
+  const txt = document.getElementById('loading-rapido-texto');
+  if (el) {
+    if (txt) txt.innerText = text;
+    el.style.display = show ? 'flex' : 'none';
   }
 }

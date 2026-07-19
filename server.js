@@ -1100,7 +1100,9 @@ async function safePusherTrigger(channel, event, data) {
             }
           }
         }
-        await Promise.all(pushPromises);
+        Promise.all(pushPromises).catch(err => {
+          console.error('❌ Erro no WebPush/FCM em background:', err.message);
+        });
       } catch (err) {
         console.error('Erro ao buscar subscriptions:', err.message);
       }
@@ -1232,7 +1234,7 @@ async function checkAndNotifyDelayedOrders() {
     const subs = subsRes.rows;
 
     // === NOVAS NOTIFICACOES: FECHAMENTO ATRASADO / AGUARDANDO CLIENTE ===
-    const delayedClosureRes = await query("SELECT p.id, p.garcom_id, g.id as garcom_pk, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, p.solicitou_fechamento FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id LEFT JOIN garcons g ON (p.garcom_id = g.usuario OR p.garcom_id = CAST(g.id AS TEXT)) WHERE (p.status = 'aguardando_fechamento' OR p.solicitou_fechamento = TRUE OR p.solicitou_fechamento = 'true') AND p.fechamento_solicitado_em IS NOT NULL AND (p.notificado_atraso_fechamento = 0 OR p.notificado_atraso_fechamento IS NULL)");
+    const delayedClosureRes = await query("SELECT p.id, p.garcom_id, (SELECT CAST(id AS TEXT) FROM garcons WHERE usuario = p.garcom_id OR CAST(id AS TEXT) = p.garcom_id LIMIT 1) as garcom_pk, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, p.solicitou_fechamento FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE (p.status = 'aguardando_fechamento' OR p.solicitou_fechamento = TRUE OR p.solicitou_fechamento = 'true') AND p.fechamento_solicitado_em IS NOT NULL AND (p.notificado_atraso_fechamento = 0 OR p.notificado_atraso_fechamento IS NULL)");
     const delayedClosures = delayedClosureRes.rows.filter(p => {
       // Força a string a ser tratada como UTC adicionando o Z, assim previne o driver pg de usar o fuso local da máquina na Vercel
       let dateStr = p.fechamento_str || '';
@@ -2159,7 +2161,9 @@ async function initDb() {
     `CREATE INDEX IF NOT EXISTS idx_pagamentos_pedido_id ON pagamentos(pedido_id)`,
     `CREATE INDEX IF NOT EXISTS idx_ficha_tecnica_menu ON ficha_tecnica(menu_id)`,
     `CREATE INDEX IF NOT EXISTS idx_pedidos_created_at ON pedidos(created_at)`,
-    `CREATE INDEX IF NOT EXISTS idx_estoque_mov_criado_at ON estoque_movimentacoes(criado_at)`
+    `CREATE INDEX IF NOT EXISTS idx_estoque_mov_criado_at ON estoque_movimentacoes(criado_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_codigos_acesso_mesa_status ON codigos_acesso(mesa_id, status)`,
+    `CREATE INDEX IF NOT EXISTS idx_pedido_itens_menu_id ON pedido_itens(menu_id)`
   ];
   
   // Executa queries sequencialmente para evitar sobrecarga de conexões
@@ -5906,7 +5910,9 @@ app.get('/api/diag', isAdmin, async (req, res) => {
         `CREATE INDEX IF NOT EXISTS idx_pagamentos_pedido_id ON pagamentos(pedido_id)`,
         `CREATE INDEX IF NOT EXISTS idx_ficha_tecnica_menu ON ficha_tecnica(menu_id)`,
         `CREATE INDEX IF NOT EXISTS idx_pedidos_created_at ON pedidos(created_at)`,
-        `CREATE INDEX IF NOT EXISTS idx_estoque_mov_criado_at ON estoque_movimentacoes(criado_at)`
+        `CREATE INDEX IF NOT EXISTS idx_estoque_mov_criado_at ON estoque_movimentacoes(criado_at)`,
+        `CREATE INDEX IF NOT EXISTS idx_codigos_acesso_mesa_status ON codigos_acesso(mesa_id, status)`,
+        `CREATE INDEX IF NOT EXISTS idx_pedido_itens_menu_id ON pedido_itens(menu_id)`
       ];
       for (let tableSql of tables) {
         if (isPostgres) await db.query(tableSql);

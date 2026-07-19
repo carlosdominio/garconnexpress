@@ -1624,6 +1624,31 @@ function exibirMesas() {
     mesasExibidas = ocupadasAtivas;
   }
 
+  // OTIMIZAÇÃO: Evita re-renderizações do DOM (layout thrashing) se nada mudou estruturalmente nem os minutos decorridos
+  const estadoAtualKey = JSON.stringify(mesasExibidas.map(m => {
+    let minutos = 0;
+    if (m.solicitou_fechamento || m.status === 'fechando') {
+      if (m.fechamento_solicitado_em) minutos = calcularMinutos(m.fechamento_solicitado_em);
+    } else if (m.pedido_created_at && m.pedido_status !== 'servido') {
+      minutos = calcularMinutos(m.pedido_created_at);
+    }
+    return {
+      id: m.id,
+      status: m.status,
+      garcom_id: m.garcom_id,
+      pedido_status: m.pedido_status,
+      solicitou_fechamento: m.solicitou_fechamento,
+      fechamento_liberado: m.fechamento_liberado,
+      forma_pagamento: m.forma_pagamento,
+      minutos: minutos
+    };
+  })) + filtroMesaAtual + String(caixaAberto);
+
+  if (estadoAtualKey === window.ultimoEstadoMesasKey) {
+    return;
+  }
+  window.ultimoEstadoMesasKey = estadoAtualKey;
+
   grid.innerHTML = mesasExibidas.map(mesa => {
     let cronometroHtml = '';
     let classeAlerta = '';

@@ -808,13 +808,16 @@ const App = {
             if (!isConfirmed) return;
             btn.disabled = true;
             try {
+                showLoading(true, "Confirmando entrega...");
                 const res = await fetch(`${API_BASE_URL}/api/pedidos/${id}/status`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.state.token}` },
                     body: JSON.stringify({ status: 'aguardando_fechamento' })
                 });
-                if (res.ok) App.loadPedidos(); else btn.disabled = false;
-            } catch (e) { btn.disabled = false; }
+                if (res.ok) await App.loadPedidos(); else btn.disabled = false;
+            } catch (e) { btn.disabled = false; } finally {
+                showLoading(false);
+            }
         },
 
         showToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
@@ -884,3 +887,12 @@ document.addEventListener('click', function(event) {
         }
     }
 });
+
+function showLoading(show = true, text = "Processando...") {
+  const el = document.getElementById('loading-rapido');
+  const txt = document.getElementById('loading-rapido-texto');
+  if (el) {
+    if (txt) txt.innerText = text;
+    el.style.display = show ? 'flex' : 'none';
+  }
+}
