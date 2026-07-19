@@ -1885,6 +1885,7 @@ async function removerItemDoPedido(itemId) {
     const res = await fetch(`/api/pedidos/itens/${itemId}`, { method: 'DELETE' });
     showLoading(false);
     if (res.ok) {
+      // Recarrega o resumo da mesa para mostrar os dados atualizados
       verItensDaMesa();
     }
   } catch (error) { showLoading(false); await mostrarAlerta("Erro ao excluir item.", "Erro", "❌"); }
@@ -1893,6 +1894,7 @@ async function removerItemDoPedido(itemId) {
 async function marcarComoServido(idPedido) {
   showLoading(true, 'Verificando itens...');
   try {
+    // Busca itens atuais para saber se tem algo em preparo
     const resItens = await fetch(`/api/pedidos/${idPedido}/itens`);
     const itens = await resItens.json();
     showLoading(false);
@@ -1917,11 +1919,13 @@ async function marcarComoServido(idPedido) {
 
         if (!confirmParcial) return;
 
+        showLoading(true, 'Registrando entrega parcial...');
         const res = await fetch(`/api/pedidos/${idPedido}/marcar-entregue`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ apenasProntos: true })
         });
+        showLoading(false);
 
         if (res.ok) {
           await mostrarAlerta("Itens prontos marcados como entregues! Os demais continuam em preparo.", "Entrega Realizada", "🚚");
@@ -2101,6 +2105,7 @@ async function finalizarEDesocupar() {
     }
 
     if (prontosParaEntrega.length > 0) {
+      // Outras situações de pendência (bebidas ou prontos)
       return await mostrarAlerta(`Existem <strong>${prontosParaEntrega.length} itens</strong> que já estão prontos mas ainda não foram marcados como entregues. Entregue-os primeiro para poder fechar a conta!`, "Itens não Entregues", "⚠️");
     }
 
@@ -2114,8 +2119,9 @@ async function finalizarEDesocupar() {
     const elPessoas = document.getElementById('divisao-pessoas-garcom');
     if (elPessoas) elPessoas.value = '1';
     
-    calcularTrocoGarcom();
+    calcularTrocoGarcom(); // Isso vai gerar os campos iniciais
 
+    // Fecha o modal de opções antes de abrir o de fechamento
     fecharOpcoes();
     
     const modalFechamento = document.getElementById('modal-fechamento-garcom');
