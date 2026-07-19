@@ -665,7 +665,7 @@ if (isPostgres) {
       },
       max: process.env.VERCEL ? 2 : 10, // Conexões limitadas em Serverless (Vercel) para evitar estourar o limite de conexões do Neon
       idleTimeoutMillis: process.env.VERCEL ? 8000 : 30000, // Tempo menor para liberar conexões inativas mais rápido no Vercel
-      connectionTimeoutMillis: process.env.VERCEL ? 4000 : 15000, // Menor tempo no Vercel para dar tempo ao retry rápido
+      connectionTimeoutMillis: process.env.VERCEL ? 10000 : 15000, // Aumentado para 10s no Vercel para suportar cold starts do Neon sem dar timeout
     });
     
     db.on('error', (err) => {
