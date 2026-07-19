@@ -773,15 +773,27 @@
                 // --- CONTROLE DOS BOTÕES E BANNERS ---
                 
                 // 1. Botão de Enviar Pedido (Cardápio -> Cozinha)
-                if (d.tem_pendente || contaSolicitada) {
+                if (d.tem_pendente || contaSolicitada || temItensNaoEntregues) {
                     lockAtivo = true;
                     if (btnEnviar) {
                         btnEnviar.disabled = true;
-                        btnEnviar.innerHTML = contaSolicitada ? '<i class="fas fa-hand-paper"></i> CONTA SOLICITADA' : '<i class="fas fa-clock"></i> AGUARDANDO GARÇOM';
+                        if (contaSolicitada) {
+                            btnEnviar.innerHTML = '<i class="fas fa-hand-paper"></i> CONTA SOLICITADA';
+                        } else if (d.tem_pendente) {
+                            btnEnviar.innerHTML = '<i class="fas fa-clock"></i> AGUARDANDO GARÇOM';
+                        } else {
+                            btnEnviar.innerHTML = '<i class="fas fa-truck"></i> AGUARDANDO ENTREGA';
+                        }
                     }
                     if (banner) {
                         banner.style.display = 'block';
-                        banner.innerText = contaSolicitada ? 'Você já pediu a conta! Para novos itens, chame o garçom.' : 'O garçom precisa confirmar seu pedido anterior antes de você enviar novos itens.';
+                        if (contaSolicitada) {
+                            banner.innerText = 'Você já pediu a conta! Para novos itens, chame o garçom.';
+                        } else if (d.tem_pendente) {
+                            banner.innerText = 'O garçom precisa confirmar seu pedido anterior antes de você enviar novos itens.';
+                        } else {
+                            banner.innerText = 'Você possui itens em preparo ou aguardando entrega na cozinha. Aguarde a entrega para pedir novamente.';
+                        }
                     }
                 } else {
                     lockAtivo = false;

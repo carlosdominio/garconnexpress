@@ -4989,6 +4989,22 @@ app.post('/api/cliente/enviar-rascunho', isAuthenticated, async (req, res) => {
       });
     }
 
+    // TRAVA DE SEGURANÇA BACKEND: Verifica se há itens pendentes de entrega (status diferente de entregue, servido, cancelado, rascunho)
+    const itensPendentesEntrega = await query(`
+      SELECT COUNT(pi.id) as qtd
+      FROM pedido_itens pi
+      JOIN pedidos p ON pi.pedido_id = p.id
+      WHERE p.mesa_id = ? AND pi.status NOT IN ('entregue', 'servido', 'cancelado', 'rascunho')
+    `, [mesa_id]);
+
+    const qtdPendentesEntrega = itensPendentesEntrega.rows[0] ? (isPostgres ? Number(itensPendentesEntrega.rows[0].qtd) : Number(itensPendentesEntrega.rows[0].qtd)) : 0;
+    if (qtdPendentesEntrega > 0) {
+      return res.status(403).json({
+        error: 'PENDENTE_ENTREGA',
+        mensagem: 'Você possui itens em preparo ou aguardando entrega na cozinha. Aguarde a entrega desses itens para poder fazer um novo pedido.'
+      });
+    }
+
     // Cria um registro de pedido temporário (rascunho) no banco para bloquear novos envios
     let pedidoRascunhoId;
     const agora = new Date().toISOString();
