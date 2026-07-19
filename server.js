@@ -2326,9 +2326,22 @@ async function lazyInitDb() {
         if (isPostgres) await db.query('SELECT 1');
       }, 5, 2000);
 
-      await retryWithDelay(async () => {
-        await initDb();
-      }, 3, 1000);
+      let tablesExist = false;
+      try {
+        await db.query(isPostgres ? 'SELECT 1 FROM mesas LIMIT 1' : 'SELECT 1 FROM mesas LIMIT 1');
+        tablesExist = true;
+      } catch (err) {
+        // Tabela mesas não existe, precisa inicializar
+      }
+
+      if (!tablesExist) {
+        console.log('🏗️ Tabelas não encontradas. Criando schema inicial...');
+        await retryWithDelay(async () => {
+          await initDb();
+        }, 3, 1000);
+      } else {
+        console.log('⚡ Tabelas já existentes. DDL ignorado para acelerar cold start.');
+      }
 
       dbInitialized = true;
       console.log('✅ Banco de dados inicializado com sucesso (lazy)');
