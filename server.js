@@ -1,5 +1,10 @@
 const express = require('express');
 const helmet = require('helmet');
+const dns = require('dns');
+// Força Node.js a priorizar IPv4 para evitar timeouts na Vercel ao conectar com o Supabase (que expõe dual-stack IPv4/IPv6)
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first');
+}
 // v1.0.1 - Deploy forçado para ativação do menu bot
 const path = require('path');
 // Carregamento condicional do SQLite para evitar erros no Vercel
