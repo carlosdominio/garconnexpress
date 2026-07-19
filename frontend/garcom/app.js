@@ -1770,12 +1770,17 @@ async function mostrarOpcoesMesa(mesa) {
 
 async function verItensDaMesa() {
   if (!mesaAtual) return;
+  showLoading(true, 'Carregando itens...');
   try {
     const resPedido = await fetch(`/api/pedidos/mesa/${mesaAtual.id}`);
     pedidoAbertoNaMesa = await resPedido.json();
-    if (!pedidoAbertoNaMesa) return await mostrarAlerta("Nenhum pedido ativo.", "Aviso", "⚠️");
+    if (!pedidoAbertoNaMesa) {
+      showLoading(false);
+      return await mostrarAlerta("Nenhum pedido ativo.", "Aviso", "⚠️");
+    }
     const resItens = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/itens`);
     const itens = await resItens.json();
+    showLoading(false);
     
     // Agora consideramos 'pendente' e 'pronto' como pendentes de entrega
     const pendentes = itens.filter(i => i.status === 'pendente' || i.status === 'pronto');
@@ -1870,25 +1875,27 @@ async function verItensDaMesa() {
     fecharOpcoes();
     document.getElementById('modal-resumo-mesa').style.display = 'block';
     atualizarBloqueioScroll();
-  } catch (error) { await mostrarAlerta("Erro ao carregar dados.", "Erro", "❌"); }
+  } catch (error) { showLoading(false); await mostrarAlerta("Erro ao carregar dados.", "Erro", "❌"); }
 }
 
 async function removerItemDoPedido(itemId) {
   if (!await mostrarConfirmacao("Remover este item do pedido?", "Remover Item", "Confirmar", "Cancelar", "🗑️")) return;
+  showLoading(true, 'Removendo item...');
   try {
     const res = await fetch(`/api/pedidos/itens/${itemId}`, { method: 'DELETE' });
+    showLoading(false);
     if (res.ok) {
-      // Recarrega o resumo da mesa para mostrar os dados atualizados
       verItensDaMesa();
     }
-  } catch (error) { await mostrarAlerta("Erro ao excluir item.", "Erro", "❌"); }
+  } catch (error) { showLoading(false); await mostrarAlerta("Erro ao excluir item.", "Erro", "❌"); }
 }
 
 async function marcarComoServido(idPedido) {
+  showLoading(true, 'Verificando itens...');
   try {
-    // Busca itens atuais para saber se tem algo em preparo
     const resItens = await fetch(`/api/pedidos/${idPedido}/itens`);
     const itens = await resItens.json();
+    showLoading(false);
 
     const emPreparoCozinha = itens.filter(i => i.status === 'pendente' && isItemParaCozinha(i));
     const prontosOuForaCozinha = itens.filter(i => i.status === 'pronto' || (i.status === 'pendente' && !isItemParaCozinha(i)));
@@ -1942,11 +1949,13 @@ async function marcarComoServido(idPedido) {
     // Se não tem nada em preparo na cozinha, confirmação normal de tudo
     if (!await mostrarConfirmacao("Deseja marcar todos os itens como entregues?", "Entregar Pedido", "Confirmar", "Cancelar", "🚚")) return;
 
+    showLoading(true, 'Registrando entrega...');
     const res = await fetch(`/api/pedidos/${idPedido}/marcar-entregue`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apenasProntos: false })
     });
+    showLoading(false);
 
     if (res.ok) {
       await mostrarAlerta("Sucesso! Todos os itens foram entregues.", "Sucesso", "✅");
@@ -1954,7 +1963,7 @@ async function marcarComoServido(idPedido) {
       atualizarBloqueioScroll();
       carregarMesas();
     }
-  } catch (error) { await mostrarAlerta("Erro ao atualizar status de entrega.", "Erro", "❌"); }
+  } catch (error) { showLoading(false); await mostrarAlerta("Erro ao atualizar status de entrega.", "Erro", "❌"); }
 }
 function fecharResumoMesa() {
   document.getElementById('modal-resumo-mesa').style.display = 'none';
@@ -2059,15 +2068,17 @@ function voltarParaMesas() {
 
 async function finalizarEDesocupar() {
   if (!mesaAtual || !pedidoAbertoNaMesa) return;
-
+  showLoading(true, 'Verificando pedido...');
   try {
     const resItens = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/itens`);
     if (!resItens.ok) {
+      showLoading(false);
       const errorText = await resItens.text();
       console.error("Erro do servidor:", errorText);
       return await mostrarAlerta("O servidor demorou para responder (Timeout). Tente novamente em alguns segundos.", "Erro de Conexão", "❌");
     }
     const itens = await resItens.json();
+    showLoading(false);
     
     // Separa itens por tipo de pendência
     const emPreparo = itens.filter(i => i.status === 'pendente' && isItemParaCozinha(i));
@@ -2090,7 +2101,6 @@ async function finalizarEDesocupar() {
     }
 
     if (prontosParaEntrega.length > 0) {
-      // Outras situações de pendência (bebidas ou prontos)
       return await mostrarAlerta(`Existem <strong>${prontosParaEntrega.length} itens</strong> que já estão prontos mas ainda não foram marcados como entregues. Entregue-os primeiro para poder fechar a conta!`, "Itens não Entregues", "⚠️");
     }
 
@@ -2104,9 +2114,8 @@ async function finalizarEDesocupar() {
     const elPessoas = document.getElementById('divisao-pessoas-garcom');
     if (elPessoas) elPessoas.value = '1';
     
-    calcularTrocoGarcom(); // Isso vai gerar os campos iniciais
+    calcularTrocoGarcom();
 
-    // Fecha o modal de opções antes de abrir o de fechamento
     fecharOpcoes();
     
     const modalFechamento = document.getElementById('modal-fechamento-garcom');
@@ -2116,6 +2125,7 @@ async function finalizarEDesocupar() {
     }
 
   } catch (error) {
+    showLoading(false);
     console.error("Erro no fechamento:", error);
     await mostrarAlerta("Erro ao carregar dados do pedido.", "Erro", "❌");
   }

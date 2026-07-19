@@ -1814,12 +1814,110 @@ async function mostrarOpcoesMesa(mesa) {
 
 async function verItensDaMesa() {
   if (!mesaAtual) return;
+  showLoading(true, 'Carregando itens...');
   try {
     const resPedido = await fetch(`/api/pedidos/mesa/${mesaAtual.id}`);
     pedidoAbertoNaMesa = await resPedido.json();
-    if (!pedidoAbertoNaMesa) return await mostrarAlerta("Nenhum pedido ativo.", "Aviso", "⚠️");
+    if (!pedidoAbertoNaMesa) {
+      showLoading(false);
+      return await mostrarAlerta("Nenhum pedido ativo.", "Aviso", "⚠️");
+    }
     const resItens = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/itens`);
     const itens = await resItens.json();
+    showLoading(false);
+    
+    // Agora consideramos 'pendente' e 'pronto' como pendentes de entrega
+    const pendentes = itens.filter(i => i.status === 'pendente' || i.status === 'pronto');
+    const entregues = itens.filter(i => i.status === 'entregue');
+
+    let html = '';
+    if (pendentes.length > 0) {
+      html += `<h4 style="color:#e74c3c; margin-bottom:10px; border-bottom:2px solid #e74c3c;">⏳ PARA ENTREGAR AGORA</h4>`;
+      html += pendentes.map(item => {
+        const isPronto = item.status === 'pronto';
+        const emPreparo = item.status === 'pendente' && isItemParaCozinha(item);
+        
+        let bgColor = '#fff5f5';
+        let statusLabel = '';
+        
+        if (isPronto) {
+          bgColor = '#e8f8f5';
+          statusLabel = '<span style="background:#2ecc71; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-left:5px; white-space:nowrap; display:inline-block; vertical-align:middle;">PRONTO</span>';
+        } else if (emPreparo) {
+          bgColor = '#fff9f0';
+          statusLabel = '<span style="background:#f39c12; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-left:5px; white-space:nowrap; display:inline-block; vertical-align:middle;">EM PREPARO</span>';
+        }
+
+        return `
+          <div style="border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; background:${bgColor};">
+            <div style="width: 40px; height: 40px; flex-shrink: 0; margin-right: 10px; border-radius: 4px; overflow: hidden; background: #eee;">
+              <img src="${item.imagem}" style="width: 100%; height: 100%; object-fit: cover;">
+            </div>
+            <div style="flex-grow: 1; text-align: left;">
+              <p><strong>${item.quantidade}x ${item.nome}</strong> ${statusLabel}</p>
+              ${item.observacao ? `<small style="color:#e67e22;" id="obs-${item.id}"></small>` : ''}
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
+              <p style="white-space: nowrap; font-weight: bold;">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
+              <button onclick="removerItemDoPedido(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; width: auto !important; margin: 0 !important;">🗑️</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+      html += `<button class="btn-opcoes" onclick="marcarComoServido(${pedidoAbertoNaMesa.id})" style="background-color: #27ae60; margin: 1rem 0;">🚚 ENTREGUEI ESTES ITENS</button>`;
+    }
+
+    if (entregues.length > 0) {
+      html += `<h4 style="color:#27ae60; margin: 20px 0 10px 0; border-bottom:2px solid #27ae60;">✅ JÁ ESTÃO NA MESA</h4>`;
+      html += entregues.map(item => `
+        <div style="border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; opacity:0.7;">
+          <div style="width: 40px; height: 40px; flex-shrink: 0; margin-right: 10px; border-radius: 4px; overflow: hidden; background: #eee;">
+            <img src="${item.imagem}" style="width: 100%; height: 100%; object-fit: cover;">
+          </div>
+          <div style="flex-grow: 1; text-align: left;">
+            <p>${item.quantidade}x ${item.nome}</p>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
+            <p style="white-space: nowrap;">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
+            <button onclick="removerItemDoPedido(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; width: auto !important; margin: 0 !important;">🗑️</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    const lista = document.getElementById('lista-itens-mesa');
+    lista.innerHTML = html || '<p>Nenhum item no pedido.</p>';
+  
+    if (itens) {
+      itens.forEach(item => {
+        if (item.observacao) {
+          const obsElement = document.getElementById(`obs-${item.id}`);
+          if (obsElement) obsElement.textContent = `Obs: ${item.observacao}`;
+        }
+      });
+    }
+
+    const totalEntregue = entregues.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
+    const totalPendente = pendentes.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
+    const totalConsumido = totalEntregue + totalPendente;
+    const taxaServico = totalConsumido * 0.10;
+    const totalGeral = totalConsumido + taxaServico;
+
+    document.getElementById('total-resumo-mesa').innerHTML = `
+      <div style="text-align: right; border-top: 2px solid #eee; padding-top: 10px;">
+        <p style="color: #7f8c8d; font-size: 0.9rem; white-space: nowrap;">Subtotal Consumido: <strong>R$ ${totalConsumido.toFixed(2)}</strong></p>
+        <p style="color: #3498db; font-size: 0.9rem; white-space: nowrap;">Taxa de Serviço (10%): <strong>R$ ${taxaServico.toFixed(2)}</strong></p>
+        <p style="font-size: 1.2rem; margin-top: 8px; color: #2c3e50; border-top: 1px dashed #ddd; padding-top: 5px; white-space: nowrap;">Total Final: <strong>R$ ${totalGeral.toFixed(2)}</strong></p>
+      </div>
+    `;
+    
+    document.getElementById('resumo-mesa-titulo').textContent = `Resumo - Mesa ${mesaAtual.numero}`;
+    
+    fecharOpcoes();
+    document.getElementById('modal-resumo-mesa').style.display = 'block';
+    atualizarBloqueioScroll();
+  } catch (error) { showLoading(false); await mostrarAlerta("Erro ao carregar dados.", "Erro", "❌"); }
+}
     
     // Agora consideramos 'pendente' e 'pronto' como pendentes de entrega
     const pendentes = itens.filter(i => i.status === 'pendente' || i.status === 'pronto');
@@ -1919,20 +2017,83 @@ async function verItensDaMesa() {
 
 async function removerItemDoPedido(itemId) {
   if (!await mostrarConfirmacao("Remover este item do pedido?", "Remover Item", "Confirmar", "Cancelar", "🗑️")) return;
+  showLoading(true, 'Removendo item...');
   try {
     const res = await fetch(`/api/pedidos/itens/${itemId}`, { method: 'DELETE' });
-    if (res.ok) {
-      // Recarrega o resumo da mesa para mostrar os dados atualizados
-      verItensDaMesa();
-    }
-  } catch (error) { await mostrarAlerta("Erro ao excluir item.", "Erro", "❌"); }
+    showLoading(false);
+    if (res.ok) verItensDaMesa();
+  } catch (error) { showLoading(false); await mostrarAlerta("Erro ao excluir item.", "Erro", "❌"); }
 }
 
 async function marcarComoServido(idPedido) {
+  showLoading(true, 'Verificando itens...');
   try {
-    // Busca itens atuais para saber se tem algo em preparo
     const resItens = await fetch(`/api/pedidos/${idPedido}/itens`);
     const itens = await resItens.json();
+    showLoading(false);
+
+    const emPreparoCozinha = itens.filter(i => i.status === 'pendente' && isItemParaCozinha(i));
+    const prontosOuForaCozinha = itens.filter(i => i.status === 'pronto' || (i.status === 'pendente' && !isItemParaCozinha(i)));
+
+    if (emPreparoCozinha.length > 0) {
+      if (prontosOuForaCozinha.length > 0) {
+        const confirmParcial = await mostrarConfirmacao(
+          `<div style="text-align: center;">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🚚</div>
+            <p style="font-weight: bold; color: #e67e22;">ENTREGA PARCIAL</p>
+            <p style="font-size: 0.95rem; margin-bottom: 10px;">Existem <strong>${emPreparoCozinha.length} itens</strong> ainda na cozinha. Deseja entregar apenas as bebidas e itens prontos agora?</p>
+            <p style="font-size: 0.8rem; color: #7f8c8d;">O cronômetro continuará rodando para os itens que ficarem.</p>
+          </div>`,
+          "Cozinha em Andamento",
+          "Sim, Entregar Prontos",
+          "Não, Cancelar"
+        );
+        if (!confirmParcial) return;
+        showLoading(true, 'Registrando entrega parcial...');
+        const res = await fetch(`/api/pedidos/${idPedido}/marcar-entregue`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apenasProntos: true })
+        });
+        showLoading(false);
+        if (res.ok) {
+          await mostrarAlerta("Itens prontos marcados como entregues! Os demais continuam em preparo.", "Entrega Realizada", "🚚");
+          verItensDaMesa();
+          carregarMesas();
+        }
+      } else {
+        const msgHtml = `
+          <div style="text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">🍳</div>
+            <p style="font-weight: bold; color: #e74c3c; font-size: 1.1rem; margin-bottom: 10px;">AGUARDANDO COZINHA!</p>
+            <p style="color: #2c3e50; margin-bottom: 15px;">Todos os itens deste pedido estão sendo feitos na cozinha agora.</p>
+            <div style="background: #fff5f5; padding: 10px; border-radius: 8px; border: 1px solid #feb2b2; text-align: left; font-size: 0.9rem;">
+              ${emPreparoCozinha.map(i => `• ${i.quantidade}x ${i.nome}`).join('<br>')}
+            </div>
+            <p style="font-size: 0.8rem; color: #666; margin-top: 15px;">Você só poderá confirmar a entrega quando a cozinha finalizar ou quando houver bebidas prontas.</p>
+          </div>
+        `;
+        return await mostrarAlerta(msgHtml, "Cozinha Ativa", "🍳");
+      }
+      return;
+    }
+
+    if (!await mostrarConfirmacao("Deseja marcar todos os itens como entregues?", "Entregar Pedido", "Confirmar", "Cancelar", "🚚")) return;
+    showLoading(true, 'Registrando entrega...');
+    const res = await fetch(`/api/pedidos/${idPedido}/marcar-entregue`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apenasProntos: false })
+    });
+    showLoading(false);
+    if (res.ok) {
+      await mostrarAlerta("Sucesso! Todos os itens foram entregues.", "Sucesso", "✅");
+      document.getElementById('modal-resumo-mesa').style.display = 'none';
+      atualizarBloqueioScroll();
+      carregarMesas();
+    }
+  } catch (error) { showLoading(false); await mostrarAlerta("Erro ao atualizar status de entrega.", "Erro", "❌"); }
+}
 
     const emPreparoCozinha = itens.filter(i => i.status === 'pendente' && isItemParaCozinha(i));
     const prontosOuForaCozinha = itens.filter(i => i.status === 'pronto' || (i.status === 'pendente' && !isItemParaCozinha(i)));
@@ -2121,23 +2282,22 @@ function voltarParaMesas() {
 
 async function finalizarEDesocupar() {
   if (!mesaAtual || !pedidoAbertoNaMesa) return;
-
+  showLoading(true, 'Verificando pedido...');
   try {
     const resItens = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/itens`);
     if (!resItens.ok) {
+      showLoading(false);
       const errorText = await resItens.text();
       console.error("Erro do servidor:", errorText);
       return await mostrarAlerta("O servidor demorou para responder (Timeout). Tente novamente em alguns segundos.", "Erro de Conexão", "❌");
     }
     const itens = await resItens.json();
+    showLoading(false);
     
-    // Separa itens por tipo de pendência
     const emPreparo = itens.filter(i => i.status === 'pendente' && isItemParaCozinha(i));
     const prontosParaEntrega = itens.filter(i => (i.status === 'pendente' && !i.enviar_cozinha) || i.status === 'pronto');
-    const temPendentesGeral = emPreparo.length > 0 || prontosParaEntrega.length > 0;
 
     if (emPreparo.length > 0) {
-      // MODAL ESPECÍFICO PARA COZINHA (SOLICITADO PELO USUÁRIO)
       const msgHtml = `
         <div style="text-align: center;">
           <div style="font-size: 3rem; margin-bottom: 1rem;">🍳</div>
@@ -2152,7 +2312,6 @@ async function finalizarEDesocupar() {
     }
 
     if (prontosParaEntrega.length > 0) {
-      // Outras situações de pendência (bebidas ou prontos)
       return await mostrarAlerta(`Existem <strong>${prontosParaEntrega.length} itens</strong> que já estão prontos mas ainda não foram marcados como entregues. Entregue-os primeiro para poder fechar a conta!`, "Itens não Entregues", "⚠️");
     }
 
@@ -2162,13 +2321,10 @@ async function finalizarEDesocupar() {
     const elTotal = document.getElementById('total-fechamento-garcom');
     if (elTotal) elTotal.textContent = `R$ ${totalComTaxa.toFixed(2)}`;
     
-    // Zera divisão de conta
     const elPessoas = document.getElementById('divisao-pessoas-garcom');
     if (elPessoas) elPessoas.value = '1';
     
-    calcularTrocoGarcom(); // Isso vai gerar os campos iniciais
-
-    // Fecha o modal de opções antes de abrir o de fechamento
+    calcularTrocoGarcom();
     fecharOpcoes();
     
     const modalFechamento = document.getElementById('modal-fechamento-garcom');
@@ -2178,6 +2334,7 @@ async function finalizarEDesocupar() {
     }
 
   } catch (error) {
+    showLoading(false);
     console.error("Erro no fechamento:", error);
     await mostrarAlerta("Erro ao carregar dados do pedido.", "Erro", "❌");
   }
