@@ -1867,11 +1867,34 @@ function exibirMesas() {
   });
 }
 
+let opcoesExpandidas = false;
+
+function alternarExpansaoOpcoes() {
+  opcoesExpandidas = !opcoesExpandidas;
+  if (mesaAtual) {
+    atualizarVisibilidadeOpcoesMesa(mesaAtual);
+  }
+}
+
 async function mostrarOpcoesMesa(mesa) {
-  // Configura pedidoAbertoNaMesa sincronamente com o ID disponível no objeto mesa para carregamento instantâneo
+  mesaAtual = mesa;
+  opcoesExpandidas = false;
   pedidoAbertoNaMesa = mesa.pedido_id ? { id: mesa.pedido_id } : null;
 
-  // Ajusta visibilidade dos botões
+  atualizarVisibilidadeOpcoesMesa(mesa);
+
+  // Lógica de exibição do código ativo no título
+  let tituloModal = `Mesa ${mesa.numero}`;
+  if (mesa.codigo_acesso && mesa.status !== 'livre') {
+    tituloModal = `Mesa ${mesa.numero} [Código: ${mesa.codigo_acesso}]`;
+  }
+
+  document.getElementById('modal-mesa-titulo').textContent = tituloModal;
+  document.getElementById('modal-opcoes').style.display = 'block';
+  atualizarBloqueioScroll();
+}
+
+function atualizarVisibilidadeOpcoesMesa(mesa) {
   const btnRascunho = document.getElementById('btn-opcoes-rascunho');
   const btnVerItens = document.querySelector('.btn-ver-itens');
   const btnFecharConta = document.querySelector('.btn-fechar-conta');
@@ -1879,18 +1902,17 @@ async function mostrarOpcoesMesa(mesa) {
   const btnGerarCodigo = document.querySelector('.btn-gerar-codigo');
   const btnCancelarCodigo = document.querySelector('.btn-cancelar-codigo');
   const btnGerarQr = document.querySelector('.btn-gerar-qr');
+  const btnExpandir = document.getElementById('btn-opcoes-expandir');
 
   const estaFechando = mesa.solicitou_fechamento || mesa.status === 'fechando';
 
+  if (btnExpandir) {
+    btnExpandir.style.display = 'block';
+    btnExpandir.innerText = opcoesExpandidas ? '🔼 Menos Opções' : '🔽 Mais Opções';
+  }
+
   if (estaFechando) {
-    // Se a mesa estiver a liberar (solicitou fechamento ou já em fechamento), mostra APENAS "Processar Fechamento"
-    if (btnRascunho) btnRascunho.style.display = 'none';
-    if (btnVerItens) btnVerItens.style.display = 'none';
-    if (btnAdd) btnAdd.style.display = 'none';
-    if (btnGerarCodigo) btnGerarCodigo.style.display = 'none';
-    if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'none';
-    if (btnGerarQr) btnGerarQr.style.display = 'none';
-    
+    // CATEGORIA A LIBERAR: Mostra por padrão apenas "Processar Fechamento"
     if (btnFecharConta) {
       btnFecharConta.style.display = 'block';
       if (mesa.solicitou_fechamento && mesa.status !== 'fechando') {
@@ -1903,46 +1925,56 @@ async function mostrarOpcoesMesa(mesa) {
         btnFecharConta.style.animation = 'none';
       }
     }
-  } else {
-    // Lógica normal
+
+    // Se expandido, mostra as outras opções secundárias
+    const dispSecundario = opcoesExpandidas ? 'block' : 'none';
+    if (btnRascunho) btnRascunho.style.display = (opcoesExpandidas && mesa.tem_rascunho) ? 'block' : 'none';
+    if (btnVerItens) btnVerItens.style.display = (opcoesExpandidas && pedidoAbertoNaMesa) ? 'block' : 'none';
+    if (btnAdd) {
+      btnAdd.style.display = dispSecundario;
+      btnAdd.innerText = pedidoAbertoNaMesa ? '➕ Adicionar mais itens' : '📝 Abrir Mesa / Pedido';
+    }
+    if (btnGerarQr) btnGerarQr.style.display = dispSecundario;
+    if (btnGerarCodigo) btnGerarCodigo.style.display = 'none';
+    if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'none';
+  } else if (mesa.status === 'ocupada') {
+    // CATEGORIA OCUPADA:
     if (btnRascunho) {
-      btnRascunho.style.display = (mesa.status !== 'livre' && (mesa.tem_rascunho || mesa.tem_rascunho === 1)) ? 'block' : 'none';
+      btnRascunho.style.display = (mesa.tem_rascunho || mesa.tem_rascunho === 1) ? 'block' : 'none';
     }
     if (btnVerItens) btnVerItens.style.display = pedidoAbertoNaMesa ? 'block' : 'none';
     if (btnAdd) {
       btnAdd.style.display = 'block';
       btnAdd.innerText = pedidoAbertoNaMesa ? '➕ Adicionar mais itens' : '📝 Abrir Mesa / Pedido';
     }
-    if (btnGerarQr) btnGerarQr.style.display = 'block';
-    
     if (btnFecharConta) {
       btnFecharConta.style.display = (pedidoAbertoNaMesa && mesa.status !== 'fechando') ? 'block' : 'none';
       btnFecharConta.innerText = '💰 Fechar Conta (Liberar)';
-      btnFecharConta.style.background = '#9b59b6'; // Roxo padrão
+      btnFecharConta.style.background = '#9b59b6';
       btnFecharConta.style.animation = 'none';
     }
 
-    if (mesa.status === 'livre') {
-      if (btnGerarCodigo) btnGerarCodigo.style.display = 'block';
-      if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'none';
-    } else if (mesa.status === 'ocupada' && !pedidoAbertoNaMesa) {
-      if (btnGerarCodigo) btnGerarCodigo.style.display = 'none';
-      if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'block';
-    } else {
-      if (btnGerarCodigo) btnGerarCodigo.style.display = 'none';
-      if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'none';
+    // Opções secundárias (visíveis apenas se expandido)
+    const dispSecundario = opcoesExpandidas ? 'block' : 'none';
+    if (btnGerarQr) btnGerarQr.style.display = dispSecundario;
+    if (btnGerarCodigo) btnGerarCodigo.style.display = 'none';
+    if (btnCancelarCodigo) {
+      btnCancelarCodigo.style.display = (!pedidoAbertoNaMesa && mesa.codigo_acesso) ? dispSecundario : 'none';
     }
+  } else {
+    // CATEGORIA LIVRE:
+    if (btnExpandir) btnExpandir.style.display = 'none';
+    if (btnRascunho) btnRascunho.style.display = 'none';
+    if (btnVerItens) btnVerItens.style.display = 'none';
+    if (btnAdd) {
+      btnAdd.style.display = 'block';
+      btnAdd.innerText = '📝 Abrir Mesa / Pedido';
+    }
+    if (btnGerarQr) btnGerarQr.style.display = 'block';
+    if (btnGerarCodigo) btnGerarCodigo.style.display = 'block';
+    if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'none';
+    if (btnFecharConta) btnFecharConta.style.display = 'none';
   }
-
-  // Lógica de exibição do código ativo no título
-  let tituloModal = `Mesa ${mesa.numero}`;
-  if (mesa.codigo_acesso && mesa.status !== 'livre') {
-    tituloModal = `Mesa ${mesa.numero} [Código: ${mesa.codigo_acesso}]`;
-  }
-
-  document.getElementById('modal-mesa-titulo').textContent = tituloModal;
-  document.getElementById('modal-opcoes').style.display = 'block';
-  atualizarBloqueioScroll();
 }
 
 async function verItensDaMesa() {
