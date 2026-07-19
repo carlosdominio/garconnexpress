@@ -3337,47 +3337,53 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
         }
       }
 
-    let pedidoId;
-    let resPedido;
-    let modoAdicionar = false;
-
-    if (mesa_id) {
-      const mesaIdNum = Number(mesa_id);
-      
-      // 1. Verifica se já existe um pedido oficial ativo (ex: 'pendente', 'preparando')
-      const pedidoAtivo = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho', 'aceito', 'recebido') ORDER BY id DESC LIMIT 1", [mesaIdNum])).rows[0];
-      
-      // 2. Verifica se existe rascunho/aceito
-      const rascunhoExistente = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status IN ('rascunho', 'aceito', 'recebido') ORDER BY id DESC LIMIT 1", [mesaIdNum])).rows[0];
-
+      // BLOQUEIO DE DUPLICIDADE (LOCKOUT): Se já existe um pedido ativo, não permite criar outro (POST)
+      // O correto em mesas ocupadas é usar ADICIONAR (PUT)
+      const pedidoAtivo = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho')", [mesa_id])).rows[0];
       if (pedidoAtivo) {
-        modoAdicionar = true;
-        pedidoId = pedidoAtivo.id;
-        console.log(`[POST /api/pedidos] Incorporando novos itens ao pedido ativo #${pedidoId} da mesa ${mesaIdNum}`);
-      } else if (rascunhoExistente) {
-        pedidoId = rascunhoExistente.id;
-        console.log(`[POST /api/pedidos] Promovendo pedido rascunho/aceito #${pedidoId} da mesa ${mesaIdNum} para 'pendente'`);
+          console.log(`🚫 [BLOQUEIO] Tentativa de duplicar pedido na Mesa ${mesa_id}. Pedido ativo detectado: #${pedidoAtivo.id}`);
+          return res.status(400).json({ 
+              error: 'MESA_OCUPADA', 
+              message: 'Já existe um pedido em andamento para esta mesa. Use a função de adicionar itens.',
+              pedido_id: pedidoAtivo.id 
+          });
+      }
+
+      // LIMPEZA ANTECIPADA DE RASCUNHOS: Evita duplicação ao garantir que rascunhos sumam ANTES do novo pedido entrar
+      const mesaIdNum = Number(mesa_id);
+      const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesaIdNum])).rows;
+      for (const r of rascunhos) {
+          console.log(`[LIMPEZA-PRE] Removendo rascunho #${r.id} para evitar duplicidade`);
+          await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
+          await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
       }
     }
-
     let subtotalReal = 0;
 
     for (const item of itens) {
+      // 1. Validação Antifraude: Bloqueia Quantidade Zero ou Negativa
       if (!item.quantidade || item.quantidade <= 0) {
         return res.status(400).json({ error: `Quantidade inválida (menor ou igual a zero) detectada.` });
       }
 
+      // 2. Busca o preço oficial no Banco (Ignora o preço enviado pelo cliente)
       const p = (await query("SELECT nome, estoque, preco FROM menu WHERE id = ?", [item.menu_id])).rows[0];
-      if (!p) return res.status(400).json({ error: `Produto não encontrado: ID ${item.menu_id}` });
+      if (!p) {
+        return res.status(400).json({ error: `Produto não encontrado: ID ${item.menu_id}` });
+      }
       
       const checagemEstoque = await verificarEstoqueDisponivel(item.menu_id, item.quantidade);
-      if (!checagemEstoque.disponivel) return res.status(400).json({ error: checagemEstoque.erro });
+      if (!checagemEstoque.disponivel) {
+        return res.status(400).json({ error: checagemEstoque.erro });
+      }
 
+      // 3. Cálculo Seguro do Subtotal
       const precoOficial = parseFloat(p.preco) || 0;
       item.preco_unitario = precoOficial;
       subtotalReal += (precoOficial * item.quantidade);
     }
 
+    // 4. Cálculo do Total Seguro (Ignora req.body.total enviado pelo cliente)
     let total;
     if (garcom_id === 'DELIVERY') {
       total = subtotalReal + 3.00;
@@ -3386,53 +3392,65 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
       total = deveCobrarTaxa ? Math.round(subtotalReal * taxaMultiplicador * 100) / 100 : subtotalReal;
     }
 
+    let pedidoId;
+    let resPedido;
+
+    // Captura a forma de pagamento (tenta ambos os nomes para evitar erros de versão)
     const fPag = forma_pagamento || metodo_pagamento || null;
     const vRec = valor_recebido || 0;
     const vTrc = troco || 0;
 
-    if (modoAdicionar && pedidoId) {
-      // Adiciona total ao pedido ativo existente
-      await query("UPDATE pedidos SET total = total + ?, garcom_id = ?, observacao = COALESCE(NULLIF(?, ''), observacao), cobrar_taxa = ? WHERE id = ?",
-        [total, garcom_id, observacao || '', deveCobrarTaxa ? 1 : 0, pedidoId]);
-    } else if (pedidoId) {
-      // Promove o pedido rascunho/aceito existente mantendo a mesma ID
-      await query("UPDATE pedidos SET total = ?, status = 'pendente', garcom_id = ?, created_at = ?, observacao = ?, cobrar_taxa = ?, forma_pagamento = ?, valor_recebido = ?, troco = ? WHERE id = ?",
-        [total, garcom_id, new Date().toISOString(), observacao || '', deveCobrarTaxa ? 1 : 0, fPag, vRec, vTrc, pedidoId]);
-      await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [pedidoId]);
+    if (isPostgres) {
+      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc]);
+      pedidoId = resPedido.rows[0].id;
     } else {
-      // Cria novo pedido do zero
-      if (isPostgres) {
-        resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'pendente', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc]);
-        pedidoId = resPedido.rows[0].id;
-      } else {
-        resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'pendente', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc]);
-        pedidoId = resPedido.lastInsertRowid;
-      }
+      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc]);
+      pedidoId = resPedido.lastInsertRowid;
     }
 
+    // NOTIFICAÇÃO PARA DELIVERY (MANTÉM MODO AUTOMÁTICO DO ROBÔ)
+    if (garcom_id === 'DELIVERY' && cliente_telefone) {
+      const numClean = cliente_telefone.replace(/\D/g, '');
+      if (numClean) {
+        console.log(`📦 [Delivery] Notificando cliente ${numClean} sobre recebimento...`);
+        
+        if (whatsappSocket && whatsappSocket.connected) {
+          // Apenas notifica o status, o Robô agora está configurado para manter o modo automático
+          notifyDeliveryStatusToBot(numClean, 'recebido', pedidoId).catch(console.error);
+        }
+      }
+    }
     if (mesa_id) {
       const mesaIdNum = Number(mesa_id);
-      // Remove quaisquer rascunhos obsoletos mantendo apenas o pedido ativo
-      const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status IN ('rascunho', 'aceito', 'recebido') AND id != ?", [mesaIdNum, pedidoId])).rows;
+      console.log(`[Pedido] Processando mesa ${mesaIdNum}. Garçom: ${garcom_id}`);
+      
+      // LIMPA RASCUNHOS: Quando o garçom lança o pedido oficial, removemos o rascunho de bloqueio
+      const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesaIdNum])).rows;
       for (const r of rascunhos) {
-          console.log(`[LIMPEZA] Removendo rascunho obsoleto #${r.id} da mesa ${mesaIdNum}`);
+          console.log(`[LIMPEZA] Removendo rascunho #${r.id} da mesa ${mesaIdNum}`);
           await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
           await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
       }
 
+      // Notifica o cliente que o rascunho foi processado e ele pode pedir mais
       safePusherTrigger('garconnexpress', `rascunho-processado-mesa-${mesaIdNum}`, { success: true }).catch(console.error);
+
       await query("UPDATE mesas SET status = 'ocupada', garcom_id = ? WHERE id = ?", [garcom_id, mesaIdNum]);
 
+      // GERAÇÃO AUTOMÁTICA DE CÃ“DIGO DE ACESSO (Só se não houver um ativo)
       const acessoExistente = (await query("SELECT id, codigo FROM codigos_acesso WHERE mesa_id = ? AND status = 'ativo' LIMIT 1", [mesaIdNum])).rows[0];
+
       if (!acessoExistente) {
         const caracteres = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
         let novoCodigo = '';
         for (let i = 0; i < 4; i++) novoCodigo += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
-        await query("INSERT INTO codigos_acesso (mesa_id, codigo, status) VALUES (?, ?, 'ativo')", [mesaIdNum, novoCodigo]);
-      }
-    }
 
-    if (itens.length > 0) {
+        await query("INSERT INTO codigos_acesso (mesa_id, codigo, status) VALUES (?, ?, 'ativo')", [mesaIdNum, novoCodigo]);
+        console.log(`🔑 Código automático gerado para Mesa ${mesaIdNum}: ${novoCodigo}`);
+      } else {
+        console.log(`ℹ️ Mesa ${mesaIdNum} já possui código de acesso ativo (ID: ${acessoExistente.id}, Código: ${acessoExistente.codigo}). Mantendo sessão.`);
+      }
+    }    if (itens.length > 0) {
       const placeholders = itens.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
       const values = [];
       for (const item of itens) {
@@ -3617,16 +3635,6 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
                 message: `MESA BLOQUEADA! O garçom selecionado na fila (${pOrig.garcom_id}) deve atender esta mesa.`
             });
         }
-    }
-
-    // LIMPEZA DE RASCUNHOS/ACEITOS: Quando itens são adicionados a um pedido ativo, limpa rascunhos pendentes
-    if (pOrig && pOrig.mesa_id) {
-      const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status IN ('rascunho', 'aceito', 'recebido') AND id != ?", [pOrig.mesa_id, id])).rows;
-      for (const r of rascunhos) {
-        console.log(`[LIMPEZA-ADD] Removendo rascunho/aceito #${r.id} ao incorporar ao pedido oficial #${id}`);
-        await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
-        await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
-      }
     }
 
     // OTIMIZAÇÃO EM LOTE: Busca preços do cardápio em lote para evitar múltiplas consultas consecutivas
@@ -4485,7 +4493,7 @@ app.use('/api/mesas', mesasRouter);
 
 app.get('/api/pedidos/mesa/:mesaId', async (req, res) => { 
   try {
-    res.json((await query(`SELECT * FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado') ORDER BY id DESC LIMIT 1`, [req.params.mesaId])).rows[0] || null); 
+    res.json((await query(`SELECT * FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY created_at DESC LIMIT 1`, [req.params.mesaId])).rows[0] || null); 
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 // Cliente busca seus próprios pedidos ativos
@@ -5058,16 +5066,8 @@ app.post('/api/cliente/cancelar-rascunho', isAuthenticated, async (req, res) => 
       await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
     }
     
-    // Notifica os garçons via Pusher para limpar o rascunho da tela e avisar que o cliente cancelou
-    const mesaObj = (await query("SELECT numero FROM mesas WHERE id = ?", [mesa_id])).rows[0];
-    const mesa_numero = req.user.mesa_numero || (mesaObj ? mesaObj.numero : mesa_id);
-    
-    safePusherTrigger('garconnexpress', 'rascunho-cancelado', { 
-      mesa_id, 
-      mesa_numero, 
-      cancelado_pelo_cliente: true,
-      mensagem: `O rascunho da Mesa ${mesa_numero} foi cancelado pelo cliente.`
-    }).catch(console.error);
+    // Notifica os garçons via Pusher para limpar o rascunho da tela
+    safePusherTrigger('garconnexpress', 'rascunho-cancelado', { mesa_id }).catch(console.error);
     
     res.json({ success: true, mensagem: 'Rascunho cancelado com sucesso.' });
   } catch (error) {
@@ -5075,7 +5075,7 @@ app.post('/api/cliente/cancelar-rascunho', isAuthenticated, async (req, res) => 
   }
 });
 
-// Garçom aceita o rascunho recebido (marca pedido e itens como aceitos)
+// Garçom aceita o rascunho recebido (limpa rascunho do BD e notifica cliente)
 app.post('/api/pedidos/aceitar-rascunho', isAuthenticated, async (req, res) => {
   const { mesa_id } = req.body;
   if (!mesa_id) return res.status(400).json({ error: 'Mesa não identificada.' });
@@ -5083,8 +5083,8 @@ app.post('/api/pedidos/aceitar-rascunho', isAuthenticated, async (req, res) => {
   try {
     const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesa_id])).rows;
     for (const r of rascunhos) {
-      await query("UPDATE pedidos SET status = 'aceito' WHERE id = ?", [r.id]);
-      await query("UPDATE pedido_itens SET status = 'aceito' WHERE pedido_id = ?", [r.id]);
+      await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
+      await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
     }
     
     // Notifica o cliente que o rascunho foi aceito pelo garçom
