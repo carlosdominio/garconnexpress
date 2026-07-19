@@ -1216,21 +1216,14 @@ async function configurarPusher() {
 
     channel.bind('rascunho-cancelado', (data) => {
       console.log('📢 Evento recebido: rascunho-cancelado', data);
-      const numMesa = data.mesa_numero || (mesas.find(m => m.id == data.mesa_id)?.numero) || data.mesa_id;
-      
       const modal = document.getElementById('modal-sistema');
       if (modal && modal.style.display === 'flex') {
         const titulo = document.getElementById('modal-sistema-titulo').innerText;
         if (titulo === "📝 RASCUNHO RECEBIDO") {
           modal.style.display = 'none';
           atualizarBloqueioScroll();
+          mostrarToast("O rascunho desta mesa foi processado/cancelado.", "info");
         }
-      }
-      
-      if (data.cancelado_pelo_cliente && numMesa) {
-        mostrarToast(`O rascunho da Mesa ${numMesa} foi cancelado pelo cliente.`, "info", "🚫 RASCUNHO CANCELADO");
-      } else if (numMesa) {
-        mostrarToast(`O rascunho da Mesa ${numMesa} foi processado/cancelado.`, "info");
       }
       carregarMesas();
     });
