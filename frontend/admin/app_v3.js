@@ -3645,20 +3645,44 @@ async function imprimirResumoDiario() {
       if (!performanceGarcons[garcomId]) {
         const infoG = garconsLista.find(g => g && g.usuario === garcomId) || { comissao: 0 };
         performanceGarcons[garcomId] = {
+          id: garcomId,
           nome: garcomNome,
           vendas: 0,
           atendimentos: 0,
-          percComissao: infoG.comissao || 0
+          percComissao: infoG.comissao || 0,
+          taxasEntrega: 0
         };
       }
       performanceGarcons[garcomId].vendas += valorTotalPedido;
       performanceGarcons[garcomId].atendimentos++;
+      if (garcomId === 'DELIVERY') {
+        const cobrarTaxaNoPedido = (p.cobrar_taxa == 1 || p.cobrar_taxa === true);
+        performanceGarcons[garcomId].taxasEntrega += cobrarTaxaNoPedido ? 3.00 : 0;
+      }
     } else if (p.status === 'cancelado') {
       totalCancelado += valorTotalPedido;
     }
   });
 
   const htmlPerformance = Object.values(performanceGarcons).map(g => {
+    if (g.id === 'DELIVERY') {
+      return `
+        <div style="border-bottom: 1px dotted #ccc; padding: 5px 0;">
+          <div style="display:flex; justify-content:space-between; font-weight: bold;">
+            <span>🛵 ${g.nome.toUpperCase()}</span>
+            <span>${g.atendimentos} atend.</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size: 9pt; opacity: 0.8;">
+            <span>Total Vendido:</span>
+            <span>R$ ${g.vendas.toFixed(2)}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size: 9pt; color: #27ae60; font-weight: bold;">
+            <span>Total Taxas de Entrega:</span>
+            <span>R$ ${g.taxasEntrega.toFixed(2)}</span>
+          </div>
+        </div>
+      `;
+    }
     const vComissao = g.vendas * (g.percComissao / 100);
     return `
       <div style="border-bottom: 1px dotted #ccc; padding: 5px 0;">
@@ -7142,22 +7166,27 @@ async function imprimirRelatorioCaixa() {
   }
 
   let totalTaxasRelatorio = 0;
-  historicoAtualizado.forEach(p => {    if (p.status === 'entregue') {
+  historicoAtualizado.forEach(p => {
+    if (p.status === 'entregue') {
       const valorTotalPedido = (p.total || 0) + (p.pago_parcial || 0);
       const garcomId = p.garcom_id || 'SISTEMA';
       const garcomNome = p.garcom_nome || p.garcom_id || 'Administrador';
 
-      // Cálculo aproximado da taxa (10% se estiver ativa no pedido)
+      const isDelivery = (garcomId === 'DELIVERY');
+      let taxaPedido = 0;
       if (p.cobrar_taxa) {
-        // Se p.total já inclui a taxa, precisamos extraí-la ou basear no consumo
-        // No sistema, p.total geralmente é o consumo + taxa.
-        const consumoSemTaxa = valorTotalPedido / 1.1;
-        totalTaxasRelatorio += (valorTotalPedido - consumoSemTaxa);
+        if (isDelivery) {
+          taxaPedido = 3.00;
+        } else {
+          taxaPedido = valorTotalPedido - (valorTotalPedido / 1.1);
+        }
+        totalTaxasRelatorio += taxaPedido;
       }
 
       if (!performanceGarcons[garcomId]) {
         const infoG = (Array.isArray(garconsLista) ? garconsLista : []).find(g => g && g.usuario === garcomId) || { comissao: 0 };
         performanceGarcons[garcomId] = {
+          id: garcomId,
           nome: garcomNome,
           vendas: 0,
           atendimentos: 0,
@@ -7169,14 +7198,26 @@ async function imprimirRelatorioCaixa() {
       performanceGarcons[garcomId].atendimentos++;
       
       if (p.cobrar_taxa) {
-        const consumoSemTaxa = valorTotalPedido / 1.1;
-        performanceGarcons[garcomId].taxasGeradas += (valorTotalPedido - consumoSemTaxa);
+        performanceGarcons[garcomId].taxasGeradas += taxaPedido;
       }
     }
   });
 
   const htmlPerformance = Object.values(performanceGarcons).map(g => {
-    // Usamos o valor das taxas geradas (10%) como a comissão principal exibida no relatório
+    if (g.id === 'DELIVERY') {
+      return `
+        <div style="border-bottom: 1px dotted #ccc; padding: 4px 0; font-size: 9pt;">
+          <div style="display:flex; justify-content:space-between; font-weight: bold;">
+            <span>🛵 ${g.nome.toUpperCase()}</span>
+            <span>${g.atendimentos} atend.</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; opacity: 0.9;">
+            <span>Vendas: R$ ${g.vendas.toFixed(2)}</span>
+            <span style="font-weight: 900; color: #27ae60;">Taxas de Entrega: R$ ${g.taxasGeradas.toFixed(2)}</span>
+          </div>
+        </div>
+      `;
+    }
     return `
       <div style="border-bottom: 1px dotted #ccc; padding: 4px 0; font-size: 9pt;">
         <div style="display:flex; justify-content:space-between; font-weight: bold;">
@@ -7235,7 +7276,7 @@ async function imprimirRelatorioCaixa() {
 
       <div style="border-top: 1px dashed #000; padding-top: 8px; margin-top: 10px;">
         <div style="display:flex; justify-content:space-between; font-size: 0.9rem; opacity: 0.8; margin-bottom: 4px;">
-          <span>TOTAL EM TAXAS (10%):</span>
+          <span>TOTAL TAXAS / ENTREGAS:</span>
           <span>R$ ${totalTaxasRelatorio.toFixed(2)}</span>
         </div>
         <div style="display:flex; justify-content:space-between; font-weight: bold;">
