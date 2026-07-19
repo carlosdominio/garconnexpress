@@ -3337,9 +3337,9 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
         }
       }
 
-      // BLOQUEIO DE DUPLICIDADE (LOCKOUT): Se já existe um pedido ativo, não permite criar outro (POST)
+      // BLOQUEIO DE DUPLICIDADE (LOCKOUT): Se já existe um pedido ativo (pendente/preparando), não permite criar outro (POST)
       // O correto em mesas ocupadas é usar ADICIONAR (PUT)
-      const pedidoAtivo = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho')", [mesa_id])).rows[0];
+      const pedidoAtivo = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho', 'recebido')", [mesa_id])).rows[0];
       if (pedidoAtivo) {
           console.log(`🚫 [BLOQUEIO] Tentativa de duplicar pedido na Mesa ${mesa_id}. Pedido ativo detectado: #${pedidoAtivo.id}`);
           return res.status(400).json({ 
@@ -3349,11 +3349,11 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
           });
       }
 
-      // LIMPEZA ANTECIPADA DE RASCUNHOS: Evita duplicação ao garantir que rascunhos sumam ANTES do novo pedido entrar
+      // LIMPEZA ANTECIPADA DE RASCUNHOS/RECEBIDOS: Evita duplicação ao converter o rascunho em pedido oficial
       const mesaIdNum = Number(mesa_id);
-      const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesaIdNum])).rows;
+      const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status IN ('rascunho', 'recebido')", [mesaIdNum])).rows;
       for (const r of rascunhos) {
-          console.log(`[LIMPEZA-PRE] Removendo rascunho #${r.id} para evitar duplicidade`);
+          console.log(`[LIMPEZA-PRE] Removendo rascunho/recebido #${r.id} para dar lugar ao novo pedido`);
           await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
           await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
       }
@@ -5077,7 +5077,7 @@ app.post('/api/cliente/cancelar-rascunho', isAuthenticated, async (req, res) => 
   }
 });
 
-// Garçom aceita o rascunho recebido (limpa rascunho do BD e notifica cliente)
+// Garçom aceita o rascunho recebido (marca pedido e itens como recebidos)
 app.post('/api/pedidos/aceitar-rascunho', isAuthenticated, async (req, res) => {
   const { mesa_id } = req.body;
   if (!mesa_id) return res.status(400).json({ error: 'Mesa não identificada.' });
@@ -5085,14 +5085,14 @@ app.post('/api/pedidos/aceitar-rascunho', isAuthenticated, async (req, res) => {
   try {
     const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesa_id])).rows;
     for (const r of rascunhos) {
-      await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
-      await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
+      await query("UPDATE pedidos SET status = 'recebido' WHERE id = ?", [r.id]);
+      await query("UPDATE pedido_itens SET status = 'recebido' WHERE pedido_id = ?", [r.id]);
     }
     
-    // Notifica o cliente que o rascunho foi aceito pelo garçom
+    // Notifica o cliente que o rascunho foi recebido pelo garçom
     safePusherTrigger('garconnexpress', `rascunho-aceito-mesa-${mesa_id}`, {
-      status: 'aceito',
-      mensagem: 'Seu pedido foi aceito pelo garçom!'
+      status: 'recebido',
+      mensagem: 'Seu pedido foi recebido pelo garçom!'
     }).catch(console.error);
     
     res.json({ success: true, mensagem: 'Rascunho aceito com sucesso.' });
