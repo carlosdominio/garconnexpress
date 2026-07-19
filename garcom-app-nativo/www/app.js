@@ -1404,7 +1404,8 @@ async function mostrarRascunho(data) {
     modal.style.display = 'none';
     atualizarBloqueioScroll();
     
-    if (confirm(`Deseja realmente RECUSAR o rascunho da Mesa ${data.mesa_numero}?`)) {
+    const recusar = await mostrarConfirmacao(`Deseja realmente RECUSAR o rascunho da Mesa ${data.mesa_numero}?`, "Aviso de Recusa", "Sim, Recusar", "Cancelar", "⚠️");
+    if (recusar) {
       showLoading(true);
       try {
         const token = localStorage.getItem('token');
