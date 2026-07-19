@@ -3767,6 +3767,17 @@ async function imprimirResumoDiario() {
   
   document.getElementById('titulo-modal-previa').innerText = '📄 Prévia do Cupom (Resumo Diário)';
   document.getElementById('modal-previa-cupom').style.display = 'flex';
+
+  // Sincroniza automaticamente os dados do Histórico e do Caixa em background
+  try {
+    await Promise.all([
+      carregarHistorico(),
+      carregarStatusCaixa()
+    ]);
+    mostrarToast('📊 Histórico e Caixa sincronizados!', 'success', 'Resumo Diário');
+  } catch (e) {
+    console.warn('⚠️ Erro ao sincronizar abas após Resumo Diário:', e);
+  }
 }
 
 async function carregarPedidos() {
