@@ -179,6 +179,12 @@ app.use((req, res, next) => {
 });
 app.use(cookieParser());
 
+// Log global de todas as requisições (antes do ensureDbInitialized para garantir ordem correta nos logs)
+app.use((req, res, next) => {
+  console.log(`📡 [${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
+  next();
+});
+
 // Garante que o banco de dados está inicializado para qualquer chamada de API
 app.use('/api/', ensureDbInitialized);
 
@@ -567,11 +573,7 @@ async function sendWhatsAppMessage(text, targetNumber = null, pedidoId = 9999) {
   }
 }
 
-// Log global de todas as requisições
-app.use((req, res, next) => {
-  console.log(`📡 [${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
-  next();
-});
+
 
 if (!process.env.JWT_SECRET) {
   console.warn('\n⚠️  [SEGURANÇA] JWT_SECRET não está definido como variável de ambiente!');
@@ -664,7 +666,7 @@ if (isPostgres) {
         require: true 
       },
       max: process.env.VERCEL ? 2 : 10, // Conexões limitadas em Serverless (Vercel) para evitar estourar o limite de conexões do Neon
-      idleTimeoutMillis: process.env.VERCEL ? 8000 : 30000, // Tempo menor para liberar conexões inativas mais rápido no Vercel
+      idleTimeoutMillis: process.env.VERCEL ? 3000 : 30000, // Tempo reduzido para devolver conexões ao PgBouncer antes que ele as considere stale
       connectionTimeoutMillis: process.env.VERCEL ? 10000 : 15000, // Aumentado para 10s no Vercel para suportar cold starts do Neon sem dar timeout
     });
     
