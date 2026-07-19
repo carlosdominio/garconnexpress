@@ -3637,6 +3637,16 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
         }
     }
 
+    // LIMPEZA DE RASCUNHOS/RECEBIDOS: Quando itens são adicionados a um pedido ativo, limpa rascunhos pendentes
+    if (pOrig && pOrig.mesa_id) {
+      const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status IN ('rascunho', 'recebido')", [pOrig.mesa_id])).rows;
+      for (const r of rascunhos) {
+        console.log(`[LIMPEZA-ADD] Removendo rascunho/recebido #${r.id} ao incorporar ao pedido oficial #${id}`);
+        await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
+        await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
+      }
+    }
+
     // OTIMIZAÇÃO EM LOTE: Busca preços do cardápio em lote para evitar múltiplas consultas consecutivas
     const menuIds = [...new Set(itens.map(i => i.menu_id))];
     const menuItemsRes = await query(`SELECT id, preco FROM menu WHERE id IN (${menuIds.map(() => '?').join(',')})`, menuIds);
@@ -4543,19 +4553,34 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
     const mesaStatus = mesaAtual ? mesaAtual.status : 'livre';
 
     // 3. Busca todos os pedidos vinculados a esta mesa que ainda não foram finalizados (PAGOS)
-    // Buscamos pedidos com status 'aberto' ou 'pendente', mas também incluímos pedidos 'entregues' 
-    // que tenham sido criados após a geração do código de acesso para que o cliente veja seu histórico.
-    const pedidosSessao = (await query(`
-      SELECT id, total, status, cobrar_taxa, desconto, acrescimo, solicitou_fechamento, fechamento_solicitado_em, fechamento_liberado 
-      FROM pedidos 
-      WHERE mesa_id = ? 
-      AND (
-        status NOT IN ('entregue', 'cancelado') -- Pedidos ativos na mesa (lançados pelo garçom ou cliente)
-        OR 
-        (status = 'entregue' AND created_at >= ?) -- Pedidos já entregues nesta sessão
-      )
-      ORDER BY id ASC
-    `, [mesaId, acesso.criado_at])).rows;
+    // Se já existirem pedidos oficiais em andamento ou entregues (status != rascunho/recebido/cancelado), 
+    // ignoramos pedidos com status 'rascunho' ou 'recebido' para evitar duplicidade de itens exibidos ao cliente.
+    const temOficial = (await query(`
+      SELECT id FROM pedidos 
+      WHERE mesa_id = ? AND status NOT IN ('rascunho', 'recebido', 'cancelado')
+    `, [mesaId])).rows.length > 0;
+
+    const queryPedidos = temOficial 
+      ? `SELECT id, total, status, cobrar_taxa, desconto, acrescimo, solicitou_fechamento, fechamento_solicitado_em, fechamento_liberado 
+         FROM pedidos 
+         WHERE mesa_id = ? 
+         AND (
+           status NOT IN ('entregue', 'cancelado', 'rascunho', 'recebido') 
+           OR 
+           (status = 'entregue' AND created_at >= ?)
+         )
+         ORDER BY id ASC`
+      : `SELECT id, total, status, cobrar_taxa, desconto, acrescimo, solicitou_fechamento, fechamento_solicitado_em, fechamento_liberado 
+         FROM pedidos 
+         WHERE mesa_id = ? 
+         AND (
+           status NOT IN ('entregue', 'cancelado') 
+           OR 
+           (status = 'entregue' AND created_at >= ?)
+         )
+         ORDER BY id ASC`;
+
+    const pedidosSessao = (await query(queryPedidos, [mesaId, acesso.criado_at])).rows;
 
     if (pedidosSessao.length === 0) {
       return res.json({ success: true, pedido: null, itens: [] });
