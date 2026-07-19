@@ -1296,10 +1296,10 @@ async function abrirRascunhoMesaAtual() {
 async function mostrarRascunho(data) {
   const itensHtml = data.itens.map(i => `<li>${i.quantidade}x ${i.nome}</li>`).join('');
   const msgHtml = `
-    <div style="text-align: left; background: #fdf9f3; padding: 15px; border-radius: 10px; border: 1px solid #f3e5ab; color: #2f3542;">
-      <p style="margin-bottom: 10px; font-weight: bold; color: #d35400;">Mesa ${data.mesa_numero} enviou um rascunho:</p>
-      <ul style="padding-left: 20px; margin-bottom: 15px;">${itensHtml}</ul>
-      <p style="font-size: 0.85rem; color: #7f8c8d; border-top: 1px dashed #f3e5ab; pt: 10px;">Deseja carregar estes itens no carrinho agora?</p>
+    <div style="text-align: left; background: #2f3542; padding: 15px; border-radius: 10px; border: 1px solid #34495e; color: #ffffff;">
+      <p style="margin-bottom: 10px; font-weight: bold; color: #f1c40f;">Mesa ${data.mesa_numero} enviou um rascunho:</p>
+      <ul style="padding-left: 20px; margin-bottom: 15px; color: #ffffff;">${itensHtml}</ul>
+      <p style="font-size: 0.85rem; color: #bdc3c7; border-top: 1px dashed #57606f; padding-top: 10px;">Deseja carregar estes itens no carrinho agora?</p>
     </div>
   `;
 
