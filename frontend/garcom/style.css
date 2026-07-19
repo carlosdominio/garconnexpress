@@ -2444,9 +2444,22 @@ header {
   to { background-color: #f1c40f; color: #2c3e50; box-shadow: 0 0 10px rgba(241, 196, 15, 0.8); }
 }
 
+/* Animação pulsar cinza escuro para rascunhos */
+@keyframes pulsar-cinza-escuro {
+  0% { background-color: #2f3542; box-shadow: 0 0 0 0 rgba(47, 53, 66, 0.7); }
+  70% { background-color: #57606f; box-shadow: 0 0 0 12px rgba(47, 53, 66, 0); }
+  100% { background-color: #2f3542; box-shadow: 0 0 0 0 rgba(47, 53, 66, 0); }
+}
+
 /* Mesa com rascunho pendente no Grid */
 .mesa.rascunho-pendente-alert {
-  background: #fdf9f3 !important;
-  border: 2.5px dashed #e67e22 !important;
-  animation: pulsar-amarelo 1.5s infinite !important;
+  background-color: #2f3542 !important;
+  color: #ffffff !important;
+  border: 2.5px dashed #747d8c !important;
+  animation: pulsar-cinza-escuro 1.5s infinite !important;
+}
+
+.mesa.rascunho-pendente-alert h3,
+.mesa.rascunho-pendente-alert p {
+  color: #ffffff !important;
 }
