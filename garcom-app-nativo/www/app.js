@@ -1873,56 +1873,71 @@ async function mostrarOpcoesMesa(mesa) {
 
   // Ajusta visibilidade dos botões
   const btnRascunho = document.getElementById('btn-opcoes-rascunho');
-  if (btnRascunho) {
-    btnRascunho.style.display = (mesa.tem_rascunho || mesa.tem_rascunho === 1) ? 'block' : 'none';
-  }
   const btnVerItens = document.querySelector('.btn-ver-itens');
   const btnFecharConta = document.querySelector('.btn-fechar-conta');
   const btnAdd = document.querySelector('.btn-adicionar');
   const btnGerarCodigo = document.querySelector('.btn-gerar-codigo');
   const btnCancelarCodigo = document.querySelector('.btn-cancelar-codigo');
-  
-  if (btnVerItens) btnVerItens.style.display = pedidoAbertoNaMesa ? 'block' : 'none';
-  if (btnFecharConta) {
-      btnFecharConta.style.display = (pedidoAbertoNaMesa && mesa.status !== 'fechando') ? 'block' : 'none';
-      
-      // DESTAQUE PARA PROCESSAR FECHAMENTO (Novo fluxo)
-      if (mesa.solicitou_fechamento && mesa.status !== 'fechando') {
-          btnFecharConta.innerText = '💰 PROCESSAR FECHAMENTO';
-          btnFecharConta.style.background = '#e67e22'; // Laranja
-          btnFecharConta.style.animation = 'pulsar-amarelo 1.5s infinite';
-      } else {
-          btnFecharConta.innerText = '💰 Fechar Conta (Liberar)';
-          btnFecharConta.style.background = '#9b59b6'; // Roxo padrão
-          btnFecharConta.style.animation = 'none';
-      }
-  }
-  if (btnAdd) btnAdd.innerText = pedidoAbertoNaMesa ? '➕ Adicionar mais itens' : '📝 Abrir Mesa / Pedido';
+  const btnGerarQr = document.querySelector('.btn-gerar-qr');
 
-  // Lógica dos botões de código digital e exibição do código ativo
-  let tituloModal = `Mesa ${mesa.numero}`;
-  
-  if (mesa.status === 'livre') {
-    if (btnGerarCodigo) btnGerarCodigo.style.display = 'block';
-    if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'none';
-  } else if (mesa.status === 'ocupada' && !pedidoAbertoNaMesa) {
-    // Mesa ocupada sem pedido = Mesa aberta via código digital
+  const estaFechando = mesa.solicitou_fechamento || mesa.status === 'fechando';
+
+  if (estaFechando) {
+    // Se a mesa estiver a liberar (solicitou fechamento ou já em fechamento), mostra APENAS "Processar Fechamento"
+    if (btnRascunho) btnRascunho.style.display = 'none';
+    if (btnVerItens) btnVerItens.style.display = 'none';
+    if (btnAdd) btnAdd.style.display = 'none';
     if (btnGerarCodigo) btnGerarCodigo.style.display = 'none';
-    if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'block';
+    if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'none';
+    if (btnGerarQr) btnGerarQr.style.display = 'none';
     
-    // Adiciona o código ao título para o garçom ver
-    if (mesa.codigo_acesso) {
-      tituloModal = `Mesa ${mesa.numero} [Código: ${mesa.codigo_acesso}]`;
+    if (btnFecharConta) {
+      btnFecharConta.style.display = 'block';
+      if (mesa.solicitou_fechamento && mesa.status !== 'fechando') {
+        btnFecharConta.innerText = '💰 PROCESSAR FECHAMENTO';
+        btnFecharConta.style.background = '#e67e22'; // Laranja
+        btnFecharConta.style.animation = 'pulsar-amarelo 1.5s infinite';
+      } else {
+        btnFecharConta.innerText = '💰 Fechar Conta (Liberar)';
+        btnFecharConta.style.background = '#9b59b6'; // Roxo padrão
+        btnFecharConta.style.animation = 'none';
+      }
     }
   } else {
-    // Mesa ocupada com pedido real
-    if (btnGerarCodigo) btnGerarCodigo.style.display = 'none';
-    if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'none';
-    
-    // Mesmo com pedido, se houver código ativo, mostra no título
-    if (mesa.codigo_acesso) {
-      tituloModal = `Mesa ${mesa.numero} [Código: ${mesa.codigo_acesso}]`;
+    // Lógica normal
+    if (btnRascunho) {
+      btnRascunho.style.display = (mesa.tem_rascunho || mesa.tem_rascunho === 1) ? 'block' : 'none';
     }
+    if (btnVerItens) btnVerItens.style.display = pedidoAbertoNaMesa ? 'block' : 'none';
+    if (btnAdd) {
+      btnAdd.style.display = 'block';
+      btnAdd.innerText = pedidoAbertoNaMesa ? '➕ Adicionar mais itens' : '📝 Abrir Mesa / Pedido';
+    }
+    if (btnGerarQr) btnGerarQr.style.display = 'block';
+    
+    if (btnFecharConta) {
+      btnFecharConta.style.display = (pedidoAbertoNaMesa && mesa.status !== 'fechando') ? 'block' : 'none';
+      btnFecharConta.innerText = '💰 Fechar Conta (Liberar)';
+      btnFecharConta.style.background = '#9b59b6'; // Roxo padrão
+      btnFecharConta.style.animation = 'none';
+    }
+
+    if (mesa.status === 'livre') {
+      if (btnGerarCodigo) btnGerarCodigo.style.display = 'block';
+      if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'none';
+    } else if (mesa.status === 'ocupada' && !pedidoAbertoNaMesa) {
+      if (btnGerarCodigo) btnGerarCodigo.style.display = 'none';
+      if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'block';
+    } else {
+      if (btnGerarCodigo) btnGerarCodigo.style.display = 'none';
+      if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'none';
+    }
+  }
+
+  // Lógica de exibição do código ativo no título
+  let tituloModal = `Mesa ${mesa.numero}`;
+  if (mesa.codigo_acesso && mesa.status !== 'livre') {
+    tituloModal = `Mesa ${mesa.numero} [Código: ${mesa.codigo_acesso}]`;
   }
 
   document.getElementById('modal-mesa-titulo').textContent = tituloModal;
