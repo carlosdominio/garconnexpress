@@ -818,15 +818,48 @@
                 if (container && d.success && d.pedido && d.itens && d.itens.length > 0) {
                     lastOrderData = d; // Salva para uso no cupom fiscal pós-logout
                     let statusLabel = d.pedido.status.toUpperCase();
-                    if (d.pedido.status === 'aguardando_fechamento') statusLabel = 'CONTA SOLICITADA';
+                    let bgStatus = '#f8f9fa';
+                    let borderStatus = '1px solid #eee';
+                    let corTextoStatus = '#777';
+                    
+                    if (d.pedido.status === 'rascunho') {
+                        bgStatus = '#fff3cd'; // Amarelo suave em vez de cinza/branco
+                        borderStatus = '1px solid #ffeeba';
+                        corTextoStatus = '#856404';
+                        statusLabel = '📝 AGUARDANDO GARÇOM';
+                    } else if (d.pedido.status === 'aguardando_fechamento') {
+                        bgStatus = '#d4edda'; // Verde suave
+                        borderStatus = '1px solid #c3e6cb';
+                        corTextoStatus = '#155724';
+                        statusLabel = '💰 CONTA SOLICITADA';
+                    }
 
-                    container.innerHTML = `<div style="background:#f8f9fa; padding:12px; border-radius:12px; margin-bottom:15px; border:1px solid #eee; display:flex; justify-content:space-between; font-weight:800; font-size:0.8rem; color:#777;"><span>PEDIDO: #${d.pedido.id}</span><span>${statusLabel}</span></div>`;
+                    container.innerHTML = `<div style="background:${bgStatus}; padding:12px; border-radius:12px; margin-bottom:15px; border:${borderStatus}; display:flex; justify-content:space-between; font-weight:800; font-size:0.8rem; color:${corTextoStatus};"><span>PEDIDO: #${d.pedido.id}</span><span>${statusLabel}</span></div>`;
                     
                     let subtotal = 0;
                     container.innerHTML += d.itens.map(i => {
                         const pr = i.preco || i.menu_preco || 0; 
                         subtotal += (i.quantidade * pr);
-                        return `<div class="item-row" style="padding:10px 0;"><div><h4>${i.quantidade}x ${i.menu_nome}</h4><p>R$ ${(i.quantidade*pr).toFixed(2)}</p></div><span class="status-badge">${i.status}</span></div>`;
+                        
+                        let badgeBg = '#eee';
+                        let badgeColor = '#777';
+                        let statusItemText = i.status.toUpperCase();
+                        
+                        if (i.status === 'rascunho') {
+                            badgeBg = '#ffe7cc'; // Laranja claro para rascunho
+                            badgeColor = '#d35400';
+                            statusItemText = 'AGUARDANDO';
+                        } else if (i.status === 'pronto') {
+                            badgeBg = '#d4edda';
+                            badgeColor = '#155724';
+                            statusItemText = 'PRONTO';
+                        } else if (i.status === 'preparando') {
+                            badgeBg = '#cce5ff';
+                            badgeColor = '#004085';
+                            statusItemText = 'PREPARANDO';
+                        }
+                        
+                        return `<div class="item-row" style="padding:10px 0;"><div><h4>${i.quantidade}x ${i.menu_nome}</h4><p>R$ ${(i.quantidade*pr).toFixed(2)}</p></div><span class="status-badge" style="background:${badgeBg}; color:${badgeColor}; font-weight:bold;">${statusItemText}</span></div>`;
                     }).join('');
 
                     document.getElementById('pedidos-subtotal').innerText = `R$ ${subtotal.toFixed(2)}`;
