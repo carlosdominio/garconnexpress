@@ -613,6 +613,7 @@
             
             pusherChannel.bind(`rascunho-aceito-mesa-${sessionMesa.mesa_id}`, (data) => {
                 carregarMeusPedidos();
+                togglePedidosModal(true);
                 Swal.fire({
                     title: 'Pedido Aceito! 🎉',
                     text: data.mensagem || 'O garçom aceitou o seu pedido.',
