@@ -351,6 +351,11 @@
                         <span id="pedidos-total" style="font-weight: bold; color: #2c3e50;">R$ 0,00</span>
                     </div>
                 </div>
+                <div id="container-cancelar-rascunho" style="display: none; margin-bottom: 12px;">
+                    <button class="btn-send" style="background: #ff4757; color: white; width: 100%; font-size: 0.85rem; border-radius: 8px;" onclick="cancelarRascunhoPendente()">
+                        <i class="fas fa-trash-alt"></i> CANCELAR PEDIDO AGUARDANDO GARÇOM
+                    </button>
+                </div>
                 <div style="display: flex; gap: 10px;">
                     <button class="btn-send" style="background: #95a5a6; flex: 1;" onclick="carregarMeusPedidos()"><i class="fas fa-sync"></i></button>
                     <button id="btn-solicitar-fechamento" class="btn-send" style="background: #f1c40f; color: #2f3542; flex: 4;" onclick="solicitarFechamento()">PEDIR CONTA</button>
@@ -592,9 +597,17 @@
             
             console.log(`🔗 Conectando eventos para Mesa ${sessionMesa.mesa_id}`);
             
-            pusherChannel.bind(`rascunho-processado-mesa-${sessionMesa.mesa_id}`, () => {
+            pusherChannel.bind(`rascunho-processado-mesa-${sessionMesa.mesa_id}`, (data) => {
                 if(isClosingSession) return;
                 console.log('✅ Botão Liberado pelo Garçom!');
+                if (data && data.rejeitado) {
+                    Swal.fire({
+                        title: 'Pedido Recusado',
+                        text: data.mensagem || 'Seu rascunho de pedido foi recusado pelo garçom. Verifique os itens e tente novamente.',
+                        icon: 'warning',
+                        confirmButtonColor: '#ff4757'
+                    });
+                }
                 carregarMeusPedidos();
             });
             
@@ -827,11 +840,16 @@
                     }
 
                     document.getElementById('pedidos-total').innerText = `R$ ${Number(d.pedido.total).toFixed(2)}`;
+                    
+                    // Exibe ou oculta o botão de cancelar rascunho
+                    const rascunhoAtivo = d.pedido.status === 'rascunho';
+                    document.getElementById('container-cancelar-rascunho').style.display = rascunhoAtivo ? 'block' : 'none';
                 } else if (container) {
                     container.innerHTML = '<div style="text-align:center; padding:20px; color:#95a5a6;"><i class="fas fa-receipt" style="font-size:2rem; display:block; margin-bottom:10px;"></i>Nenhum pedido realizado ainda.</div>';
                     document.getElementById('pedidos-subtotal').innerText = 'R$ 0,00';
                     document.getElementById('pedidos-taxa-row').style.display = 'none';
                     document.getElementById('pedidos-total').innerText = 'R$ 0,00';
+                    document.getElementById('container-cancelar-rascunho').style.display = 'none';
                 }
             } catch (e) { console.error('Erro ao carregar status:', e); }
         }
@@ -998,6 +1016,40 @@
         async function chamarGarcom() {
             if (await Swal.fire({ title: 'Chamar Garçom?', icon: 'question', showCancelButton: true, confirmButtonColor: '#ff4757' }).then(r => r.isConfirmed)) {
                 showLoading(true); try { await fetch('/api/cliente/chamar-garcom', { method:'POST', headers:{'Content-Type':'application/json', 'Authorization': `Bearer ${sessionMesa.token}`}, body:JSON.stringify({ mesa_id:sessionMesa.mesa_id, mesa_numero:sessionMesa.mesa_numero }) }); Swal.fire('Enviado','Garçom notificado!','success'); } finally { showLoading(false); }
+            }
+        }
+        async function cancelarRascunhoPendente() {
+            if (await Swal.fire({
+                title: 'Cancelar Pedido?',
+                text: 'Deseja realmente cancelar este pedido pendente? Ele será excluído e você poderá fazer um novo pedido.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#ff4757',
+                confirmButtonText: 'Sim, cancelar',
+                cancelButtonText: 'Não'
+            }).then(r => r.isConfirmed)) {
+                showLoading(true);
+                try {
+                    const res = await fetch('/api/cliente/cancelar-rascunho', {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${sessionMesa.token}`
+                        },
+                        body: JSON.stringify({ token: sessionMesa.token, mesa_id: sessionMesa.mesa_id })
+                    });
+                    const d = await res.json();
+                    if (res.ok) {
+                        Swal.fire('Cancelado', 'Seu pedido pendente foi cancelado.', 'success');
+                        carregarMeusPedidos();
+                    } else {
+                        Swal.fire('Erro', d.error || 'Falha ao cancelar rascunho.', 'error');
+                    }
+                } catch (e) {
+                    Swal.fire('Erro', 'Falha na conexão com o servidor.', 'error');
+                } finally {
+                    showLoading(false);
+                }
             }
         }
         function showLoading(s) { document.getElementById('loading').style.display=s?'flex':'none'; }

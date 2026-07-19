@@ -670,8 +670,8 @@ if (isPostgres) {
         rejectUnauthorized: false, // Aceita certificados self-signed do Neon
         require: true 
       },
-      max: process.env.VERCEL ? 2 : 10, // Conexões limitadas em Serverless (Vercel) para evitar estourar o limite de conexões do Neon
-      idleTimeoutMillis: process.env.VERCEL ? 3000 : 30000, // Tempo reduzido para devolver conexões ao PgBouncer antes que ele as considere stale
+      max: process.env.VERCEL ? 1 : 10, // Conexão única por container na Vercel para evitar vazamento
+      idleTimeoutMillis: process.env.VERCEL ? 1000 : 30000, // Tempo de 1s para fechar a conexão antes do container congelar na Vercel
       connectionTimeoutMillis: process.env.VERCEL ? 10000 : 15000, // Aumentado para 10s no Vercel para suportar cold starts do Neon sem dar timeout
     });
     
@@ -4518,6 +4518,21 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
     const acessoId = decoded.acesso_id;
     const pedidoIdSessao = decoded.pedido_id; // ID do pedido vinculado no login
 
+    // Limpeza de rascunhos expirados por inatividade do garçom (> 5 min)
+    const cincoMinutosAtras = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const rascunhosExpirados = (await query(`
+      SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho' AND created_at < ?
+    `, [mesaId, cincoMinutosAtras])).rows;
+    
+    if (rascunhosExpirados.length > 0) {
+      for (const r of rascunhosExpirados) {
+        console.log(`[TIMEOUT] Removendo rascunho expirado #${r.id} da mesa ${mesaId}`);
+        await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
+        await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
+      }
+      safePusherTrigger('garconnexpress', 'rascunho-cancelado', { mesa_id: mesaId }).catch(console.error);
+    }
+
     // 2. Verifica se o código de acesso existe.
     // Buscamos o status e a data de criação para garantir isolamento entre sessões.
     const acesso = (await query("SELECT id, status, criado_at, mesa_id FROM codigos_acesso WHERE id = ?", [acessoId])).rows[0];
@@ -4939,6 +4954,18 @@ app.post('/api/cliente/enviar-rascunho', isAuthenticated, async (req, res) => {
   const mesa_id = req.user.role === 'cliente' ? req.user.mesa_id : req.body.mesa_id;
   const mesa_numero = req.user.role === 'cliente' ? req.user.mesa_numero : req.body.mesa_numero;
   try {
+    // Limpeza de rascunhos expirados (> 5 min) antes de checar a trava
+    if (mesa_id) {
+      const cincoMinutosAtras = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const rascunhosExpirados = (await query(`
+        SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho' AND created_at < ?
+      `, [mesa_id, cincoMinutosAtras])).rows;
+      for (const r of rascunhosExpirados) {
+        console.log(`[TIMEOUT-PRE] Removendo rascunho expirado #${r.id} da mesa ${mesa_id}`);
+        await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
+        await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
+      }
+    }
     // BLOQUEIO DEFINITIVO: Verifica status real da mesa
     if (mesa_id) {
       const mesaObj = (await query("SELECT status FROM mesas WHERE id = ?", [mesa_id])).rows[0];
@@ -5000,6 +5027,55 @@ app.post('/api/cliente/enviar-rascunho', isAuthenticated, async (req, res) => {
     await sendWhatsAppMessage(`📝 *RASCUNHO DE PEDIDO*\n📍 Mesa: ${mesa_numero}\n\n${itensFormatados}\n\n⚠️ _Aguardando confirmação do garçom._`).catch(e => console.error('Erro Wpp Rascunho:', e.message));
 
     res.json({ success: true, pedido_id: pedidoRascunhoId });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Cliente desiste e cancela o próprio rascunho pendente
+app.post('/api/cliente/cancelar-rascunho', isAuthenticated, async (req, res) => {
+  const mesa_id = req.user.role === 'cliente' ? req.user.mesa_id : req.body.mesa_id;
+  if (!mesa_id) return res.status(400).json({ error: 'Mesa não identificada.' });
+
+  try {
+    const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesa_id])).rows;
+    for (const r of rascunhos) {
+      await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
+      await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
+    }
+    
+    // Notifica os garçons via Pusher para limpar o rascunho da tela
+    safePusherTrigger('garconnexpress', 'rascunho-cancelado', { mesa_id }).catch(console.error);
+    
+    res.json({ success: true, mensagem: 'Rascunho cancelado com sucesso.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Garçom rejeita/recusa o rascunho recebido
+app.post('/api/pedidos/rejeitar-rascunho', isAuthenticated, async (req, res) => {
+  const { mesa_id } = req.body;
+  if (!mesa_id) return res.status(400).json({ error: 'Mesa não identificada.' });
+
+  try {
+    const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesa_id])).rows;
+    for (const r of rascunhos) {
+      await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
+      await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
+    }
+    
+    // Notifica o cliente que o rascunho foi recusado/processado com falha
+    safePusherTrigger('garconnexpress', `rascunho-processado-mesa-${mesa_id}`, {
+      success: false,
+      rejeitado: true,
+      mensagem: "Seu rascunho foi recusado pelo garçom."
+    }).catch(console.error);
+
+    // Notifica os outros garçons para limpar a tela
+    safePusherTrigger('garconnexpress', 'rascunho-cancelado', { mesa_id }).catch(console.error);
+
+    res.json({ success: true, mensagem: 'Rascunho recusado com sucesso.' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

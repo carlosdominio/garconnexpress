@@ -1180,6 +1180,19 @@ async function configurarPusher() {
       mostrarRascunho(data);
     });
 
+    channel.bind('rascunho-cancelado', (data) => {
+      console.log('📢 Evento recebido: rascunho-cancelado', data);
+      const modal = document.getElementById('modal-sistema');
+      if (modal && modal.style.display === 'flex') {
+        const titulo = document.getElementById('modal-sistema-titulo').innerText;
+        if (titulo === "📝 RASCUNHO RECEBIDO") {
+          modal.style.display = 'none';
+          atualizarBloqueioScroll();
+          mostrarToast("O rascunho desta mesa foi processado/cancelado.", "info");
+        }
+      }
+    });
+
     channel.bind('solicitacao-fechamento-cliente', (data) => {
       console.log('📢 Evento recebido: solicitacao-fechamento-cliente', data);
 
@@ -1233,12 +1246,17 @@ async function mostrarRascunho(data) {
   const btnCancelar = document.getElementById('btn-sistema-cancelar');
   const btnConfirmar = document.getElementById('btn-sistema-confirmar');
   
-  // Esconde o botão de cancelar ("SÓ VER") conforme solicitado pelo usuário
-  btnCancelar.classList.add('hidden');
+  // Reativa o botão de cancelar como "RECUSAR"
+  btnCancelar.classList.remove('hidden');
+  btnCancelar.innerText = "RECUSAR";
+  btnCancelar.style.background = "#e74c3c"; // Vermelho
+  btnCancelar.style.color = "white";
+  btnCancelar.style.width = "48%";
   
-  btnConfirmar.innerText = "ACEITAR / CARREGAR ITENS";
-  btnConfirmar.style.background = "#2ecc71"; // Verde para ação positiva
-  btnConfirmar.style.width = "100%"; // Ocupa todo o espaço já que o outro sumiu
+  btnConfirmar.innerText = "ACEITAR";
+  btnConfirmar.style.background = "#2ecc71"; // Verde
+  btnConfirmar.style.color = "white";
+  btnConfirmar.style.width = "48%";
 
   const modal = document.getElementById('modal-sistema');
   modal.style.display = 'flex';
@@ -1250,9 +1268,33 @@ async function mostrarRascunho(data) {
     aceitarRascunho(data);
   };
 
-  btnCancelar.onclick = () => {
+  btnCancelar.onclick = async () => {
     modal.style.display = 'none';
     atualizarBloqueioScroll();
+    
+    if (confirm(`Deseja realmente RECUSAR o rascunho da Mesa ${data.mesa_numero}?`)) {
+      showLoading(true);
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/pedidos/rejeitar-rascunho', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ mesa_id: data.mesa_id })
+        });
+        if (res.ok) {
+          mostrarToast(`Rascunho da Mesa ${data.mesa_numero} recusado com sucesso.`, 'success');
+        } else {
+          mostrarToast('Erro ao recusar rascunho.', 'error');
+        }
+      } catch (e) {
+        mostrarToast('Erro ao se conectar ao servidor.', 'error');
+      } finally {
+        showLoading(false);
+      }
+    }
   };
 }
 
