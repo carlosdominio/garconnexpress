@@ -611,6 +611,17 @@
                 carregarMeusPedidos();
             });
             
+            pusherChannel.bind(`rascunho-aceito-mesa-${sessionMesa.mesa_id}`, (data) => {
+                carregarMeusPedidos();
+                Swal.fire({
+                    title: 'Pedido Aceito! 🎉',
+                    text: data.mensagem || 'O garçom aceitou o seu pedido.',
+                    icon: 'success',
+                    timer: 3000,
+                    showConfirmButton: false
+                });
+            });
+            
             pusherChannel.bind(`fechamento-liberado-mesa-${sessionMesa.mesa_id}`, () => { 
                 if(isClosingSession) return;
                 carregarMeusPedidos(); 
@@ -1100,6 +1111,9 @@
                     const d = await res.json();
                     if (res.ok) {
                         Swal.fire('Cancelado', 'Seu pedido pendente foi cancelado.', 'success');
+                        carregarMeusPedidos();
+                    } else if (res.status === 403 || d.error === 'PEDIDO_JA_ACEITO') {
+                        Swal.fire('Pedido Aceito', d.mensagem || d.error || 'O garçom já aceitou o seu pedido! Não é mais possível cancelá-lo.', 'warning');
                         carregarMeusPedidos();
                     } else {
                         Swal.fire('Erro', d.error || 'Falha ao cancelar rascunho.', 'error');

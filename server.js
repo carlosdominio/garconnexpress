@@ -5055,6 +5055,12 @@ app.post('/api/cliente/cancelar-rascunho', isAuthenticated, async (req, res) => 
 
   try {
     const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesa_id])).rows;
+    if (rascunhos.length === 0) {
+      return res.status(403).json({ 
+        error: 'PEDIDO_JA_ACEITO',
+        mensagem: 'O garçom já aceitou o seu pedido! Não é mais possível cancelá-lo.' 
+      });
+    }
     for (const r of rascunhos) {
       await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
       await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
@@ -5064,6 +5070,30 @@ app.post('/api/cliente/cancelar-rascunho', isAuthenticated, async (req, res) => 
     safePusherTrigger('garconnexpress', 'rascunho-cancelado', { mesa_id }).catch(console.error);
     
     res.json({ success: true, mensagem: 'Rascunho cancelado com sucesso.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Garçom aceita o rascunho recebido (limpa rascunho do BD e notifica cliente)
+app.post('/api/pedidos/aceitar-rascunho', isAuthenticated, async (req, res) => {
+  const { mesa_id } = req.body;
+  if (!mesa_id) return res.status(400).json({ error: 'Mesa não identificada.' });
+
+  try {
+    const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesa_id])).rows;
+    for (const r of rascunhos) {
+      await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
+      await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
+    }
+    
+    // Notifica o cliente que o rascunho foi aceito pelo garçom
+    safePusherTrigger('garconnexpress', `rascunho-aceito-mesa-${mesa_id}`, {
+      status: 'aceito',
+      mensagem: 'Seu pedido foi aceito pelo garçom!'
+    }).catch(console.error);
+    
+    res.json({ success: true, mensagem: 'Rascunho aceito com sucesso.' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

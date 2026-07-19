@@ -1438,6 +1438,20 @@ async function aceitarRascunho(data) {
   if (!mesa) return;
 
   mesaAtual = mesa;
+
+  // Notifica o backend que o garçom aceitou o rascunho (para atualizar estado do banco e desativar cancelamento pelo cliente)
+  try {
+    const token = localStorage.getItem('token');
+    await fetch('/api/pedidos/aceitar-rascunho', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ mesa_id: data.mesa_id })
+    });
+    await carregarMesas();
+  } catch (e) { console.warn("Erro ao notificar aceite do rascunho:", e); }
   
   // 2. Verifica se já existe um pedido aberto na mesa (para adicionar a ele)
   pedidoAbertoNaMesa = null;
