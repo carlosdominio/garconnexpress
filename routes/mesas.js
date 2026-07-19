@@ -16,6 +16,10 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [mesaId]); 
       await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [mesaId]);
       
+      // Limpa rascunhos antigos/órfãos da mesa liberada
+      await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho')", [mesaId]);
+      await query("DELETE FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesaId]);
+
       // Notifica o cliente para encerrar o acesso
       await safePusherTrigger('garconnexpress', `deslogar-mesa-${mesaId}`, { 
         status: 'cancelado',
@@ -37,6 +41,10 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
   router.get('/', ensureDbInitialized, isAuthenticated, async (req, res) => { 
     if (typeof checkAndNotifyDelayedOrders === 'function') checkAndNotifyDelayedOrders();
     try {
+      // Limpa rascunhos antigos de mesas que já estão LIVRES
+      await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT p.id FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.status = 'rascunho' AND m.status = 'livre')");
+      await query("DELETE FROM pedidos WHERE status = 'rascunho' AND mesa_id IN (SELECT id FROM mesas WHERE status = 'livre')");
+
       res.json((await query(`
         SELECT m.*,
           p.id as pedido_id,
@@ -49,7 +57,7 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
           p.forma_pagamento as forma_pagamento,
           ca.codigo as codigo_acesso,
           ca.criado_at as codigo_criado_at,
-          (SELECT COUNT(id) FROM pedidos WHERE mesa_id = m.id AND status = 'rascunho') > 0 as tem_rascunho
+          (CASE WHEN m.status != 'livre' AND (SELECT COUNT(id) FROM pedidos WHERE mesa_id = m.id AND status = 'rascunho') > 0 THEN 1 ELSE 0 END) as tem_rascunho
         FROM mesas m
         LEFT JOIN (
           SELECT p1.*

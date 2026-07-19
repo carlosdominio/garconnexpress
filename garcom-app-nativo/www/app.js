@@ -1906,7 +1906,7 @@ async function mostrarOpcoesMesa(mesa) {
   } else {
     // Lógica normal
     if (btnRascunho) {
-      btnRascunho.style.display = (mesa.tem_rascunho || mesa.tem_rascunho === 1) ? 'block' : 'none';
+      btnRascunho.style.display = (mesa.status !== 'livre' && (mesa.tem_rascunho || mesa.tem_rascunho === 1)) ? 'block' : 'none';
     }
     if (btnVerItens) btnVerItens.style.display = pedidoAbertoNaMesa ? 'block' : 'none';
     if (btnAdd) {
