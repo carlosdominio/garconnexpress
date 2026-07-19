@@ -549,10 +549,21 @@ function verificarSessao() {
 // FUNÇÕES DE SISTEMA (SUBSTITUIÇÃO DE ALERT/CONFIRM)
 function mostrarAlerta(msg, titulo = "Aviso", icone = "🔔", textoParaCopiar = null) {
   return new Promise(resolve => {
+    const btnCancelar = document.getElementById('btn-sistema-cancelar');
+    const btnConfirmar = document.getElementById('btn-sistema-confirmar');
+    
+    // Reseta larguras e estilos customizados para respeitar o flexbox/css original
+    btnCancelar.style.width = '';
+    btnCancelar.style.background = '';
+    btnCancelar.style.color = '';
+    btnConfirmar.style.width = '';
+    btnConfirmar.style.background = '';
+    btnConfirmar.style.color = '';
+
     document.getElementById('modal-sistema-icon').innerText = icone;
     document.getElementById('modal-sistema-titulo').innerText = titulo;
     document.getElementById('modal-sistema-mensagem').innerHTML = msg;
-    document.getElementById('btn-sistema-cancelar').classList.add('hidden');
+    btnCancelar.classList.add('hidden');
     
     const btnCopiar = document.getElementById('btn-sistema-copiar');
     if (textoParaCopiar && btnCopiar) {
@@ -572,14 +583,14 @@ function mostrarAlerta(msg, titulo = "Aviso", icone = "🔔", textoParaCopiar = 
       btnCopiar.style.display = 'none';
     }
 
-    document.getElementById('btn-sistema-confirmar').innerText = "OK";
-    document.getElementById('btn-sistema-confirmar').style.background = "#27ae60";
+    btnConfirmar.innerText = "OK";
+    btnConfirmar.style.background = "#27ae60";
 
     const modal = document.getElementById('modal-sistema');
     modal.style.display = 'flex';
     atualizarBloqueioScroll();
 
-    document.getElementById('btn-sistema-confirmar').onclick = () => {
+    btnConfirmar.onclick = () => {
       modal.style.display = 'none';
       atualizarBloqueioScroll();
       if (btnCopiar) btnCopiar.style.display = 'none';
@@ -590,25 +601,36 @@ function mostrarAlerta(msg, titulo = "Aviso", icone = "🔔", textoParaCopiar = 
 
 function mostrarConfirmacao(msg, titulo = "Confirmação", txtConfirmar = "Confirmar", txtCancelar = "Cancelar", icone = "❓") {
   return new Promise(resolve => {
+    const btnCancelar = document.getElementById('btn-sistema-cancelar');
+    const btnConfirmar = document.getElementById('btn-sistema-confirmar');
+    
+    // Reseta larguras e estilos customizados para respeitar o flexbox/css original
+    btnCancelar.style.width = '';
+    btnCancelar.style.background = '';
+    btnCancelar.style.color = '';
+    btnConfirmar.style.width = '';
+    btnConfirmar.style.background = '';
+    btnConfirmar.style.color = '';
+
     document.getElementById('modal-sistema-icon').innerText = icone;
     document.getElementById('modal-sistema-titulo').innerText = titulo;
     document.getElementById('modal-sistema-mensagem').innerHTML = msg;
-    document.getElementById('btn-sistema-cancelar').classList.remove('hidden');
-    document.getElementById('btn-sistema-cancelar').innerText = txtCancelar;
-    document.getElementById('btn-sistema-confirmar').innerText = txtConfirmar;
-    document.getElementById('btn-sistema-confirmar').style.background = "#e74c3c";
+    btnCancelar.classList.remove('hidden');
+    btnCancelar.innerText = txtCancelar;
+    btnConfirmar.innerText = txtConfirmar;
+    btnConfirmar.style.background = "#e74c3c";
 
     const modal = document.getElementById('modal-sistema');
     modal.style.display = 'flex';
     atualizarBloqueioScroll();
 
-    document.getElementById('btn-sistema-confirmar').onclick = () => {
+    btnConfirmar.onclick = () => {
       modal.style.display = 'none';
       atualizarBloqueioScroll();
       resolve(true);
     };
 
-    document.getElementById('btn-sistema-cancelar').onclick = () => {
+    btnCancelar.onclick = () => {
       modal.style.display = 'none';
       atualizarBloqueioScroll();
       resolve(false);
@@ -1177,7 +1199,19 @@ async function configurarPusher() {
         return;
       }
       if (deveTocarSom('rascunho-recebido')) tocarCampainha();
-      mostrarRascunho(data);
+      
+      const cardapioAberto = !document.getElementById('pedido').classList.contains('hidden');
+      const carrinhoComItens = typeof pedidoAtual !== 'undefined' && pedidoAtual.length > 0;
+      const modalOpcoesAberto = document.getElementById('modal-opcoes').style.display === 'block';
+      const modalCarrinhoAberto = document.getElementById('modal-carrinho') && document.getElementById('modal-carrinho').style.display === 'flex';
+
+      if (cardapioAberto || carrinhoComItens || modalOpcoesAberto || modalCarrinhoAberto) {
+        const mesaNumStr = data.mesa_numero || mesaId;
+        mostrarToast(`📝 Novo rascunho recebido da Mesa ${mesaNumStr}. Acesse a mesa para ver.`, "info", "Rascunho Recebido", 8000);
+        carregarMesas();
+      } else {
+        mostrarRascunho(data);
+      }
     });
 
     channel.bind('rascunho-cancelado', (data) => {
@@ -1191,6 +1225,7 @@ async function configurarPusher() {
           mostrarToast("O rascunho desta mesa foi processado/cancelado.", "info");
         }
       }
+      carregarMesas();
     });
 
     channel.bind('solicitacao-fechamento-cliente', (data) => {
@@ -1229,6 +1264,35 @@ async function configurarPusher() {
   } catch (e) { console.warn('Pusher init error:', e); }
 }
 
+async function abrirRascunhoMesaAtual() {
+  if (!mesaAtual) return;
+  
+  // Esconde o modal de opções da mesa
+  document.getElementById('modal-opcoes').style.display = 'none';
+  atualizarBloqueioScroll();
+  
+  showLoading(true, 'Buscando rascunho...');
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`/api/pedidos/rascunho/mesa/${mesaAtual.id}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      showLoading(false);
+      mostrarRascunho(data);
+    } else {
+      showLoading(false);
+      mostrarAlerta("Não foi possível carregar os dados do rascunho.", "Erro", "❌");
+    }
+  } catch (e) {
+    showLoading(false);
+    mostrarAlerta("Erro de conexão ao buscar rascunho.", "Erro", "❌");
+  }
+}
+
 async function mostrarRascunho(data) {
   const itensHtml = data.itens.map(i => `<li>${i.quantidade}x ${i.nome}</li>`).join('');
   const msgHtml = `
@@ -1251,12 +1315,12 @@ async function mostrarRascunho(data) {
   btnCancelar.innerText = "RECUSAR";
   btnCancelar.style.background = "#e74c3c"; // Vermelho
   btnCancelar.style.color = "white";
-  btnCancelar.style.width = "48%";
+  btnCancelar.style.width = '';
   
   btnConfirmar.innerText = "ACEITAR";
   btnConfirmar.style.background = "#2ecc71"; // Verde
   btnConfirmar.style.color = "white";
-  btnConfirmar.style.width = "48%";
+  btnConfirmar.style.width = '';
 
   const modal = document.getElementById('modal-sistema');
   modal.style.display = 'flex';
@@ -1638,6 +1702,7 @@ function exibirMesas() {
       solicitou_fechamento: m.solicitou_fechamento,
       fechamento_liberado: m.fechamento_liberado,
       forma_pagamento: m.forma_pagamento,
+      tem_rascunho: m.tem_rascunho,
       minutos: minutos
     };
   })) + filtroMesaAtual + String(caixaAberto);
@@ -1660,8 +1725,13 @@ function exibirMesas() {
     } else if (mesa.status === 'ocupada' || mesa.status === 'fechando') {
       const eMeuPedido = mesa.garcom_id === garcomLogado.usuario;
       
+      // DESTAQUE PARA RASCUNHO PENDENTE (Alta prioridade)
+      if (mesa.tem_rascunho && mesa.status !== 'fechando' && !mesa.solicitou_fechamento) {
+        classeAlerta = 'rascunho-pendente-alert';
+        statusTexto = '📝 RASCUNHO RECEBIDO';
+      }
       // DESTAQUE PARA SOLICITAÇÃO DE FECHAMENTO DO CLIENTE (Prioridade)
-      if (mesa.solicitou_fechamento && mesa.status !== 'fechando') {
+      else if (mesa.solicitou_fechamento && mesa.status !== 'fechando') {
         classeAlerta = 'solicitacao-fechamento';
         let icone = '🙋‍♂️';
         if (mesa.forma_pagamento === 'Pix') icone = '💠';
@@ -1756,6 +1826,10 @@ async function mostrarOpcoesMesa(mesa) {
   pedidoAbertoNaMesa = mesa.pedido_id ? { id: mesa.pedido_id } : null;
 
   // Ajusta visibilidade dos botões
+  const btnRascunho = document.getElementById('btn-opcoes-rascunho');
+  if (btnRascunho) {
+    btnRascunho.style.display = (mesa.tem_rascunho || mesa.tem_rascunho === 1) ? 'block' : 'none';
+  }
   const btnVerItens = document.querySelector('.btn-ver-itens');
   const btnFecharConta = document.querySelector('.btn-fechar-conta');
   const btnAdd = document.querySelector('.btn-adicionar');

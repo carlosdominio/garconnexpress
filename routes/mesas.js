@@ -48,7 +48,8 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
           p.fechamento_liberado as fechamento_liberado,
           p.forma_pagamento as forma_pagamento,
           ca.codigo as codigo_acesso,
-          ca.criado_at as codigo_criado_at
+          ca.criado_at as codigo_criado_at,
+          (SELECT COUNT(id) FROM pedidos WHERE mesa_id = m.id AND status = 'rascunho') > 0 as tem_rascunho
         FROM mesas m
         LEFT JOIN (
           SELECT p1.*

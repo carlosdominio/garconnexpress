@@ -5081,6 +5081,34 @@ app.post('/api/pedidos/rejeitar-rascunho', isAuthenticated, async (req, res) => 
   }
 });
 
+// Busca os dados e itens do rascunho de uma mesa
+app.get('/api/pedidos/rascunho/mesa/:mesaId', isAuthenticated, async (req, res) => {
+  const mesaId = req.params.mesaId;
+  try {
+    const rascunho = (await query("SELECT id, mesa_id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho' LIMIT 1", [mesaId])).rows[0];
+    if (!rascunho) return res.status(404).json({ error: 'Nenhum rascunho encontrado para esta mesa.' });
+    
+    const itens = (await query(`
+      SELECT pi.quantidade, m.id as menu_id, m.nome
+      FROM pedido_itens pi
+      JOIN menu m ON pi.menu_id = m.id
+      WHERE pi.pedido_id = ? AND pi.status = 'rascunho'
+    `, [rascunho.id])).rows;
+    
+    const rm = await query("SELECT numero FROM mesas WHERE id = ?", [mesaId]);
+    const mesa_numero = rm.rows[0] ? rm.rows[0].numero : mesaId;
+
+    res.json({
+      mesa_id: Number(mesaId),
+      mesa_numero: mesa_numero,
+      pedido_id: rascunho.id,
+      itens: itens
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/whatsapp-status', isAuthenticated, async (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
