@@ -1351,6 +1351,7 @@ async function mostrarRascunho(data) {
         });
         if (res.ok) {
           mostrarToast(`Rascunho da Mesa ${data.mesa_numero} recusado com sucesso.`, 'success');
+          await carregarMesas();
         } else {
           mostrarToast('Erro ao recusar rascunho.', 'error');
         }
