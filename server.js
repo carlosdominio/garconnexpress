@@ -5066,8 +5066,10 @@ app.post('/api/cliente/cancelar-rascunho', isAuthenticated, async (req, res) => 
       await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
     }
     
-    // Notifica os garçons via Pusher para limpar o rascunho da tela
-    safePusherTrigger('garconnexpress', 'rascunho-cancelado', { mesa_id }).catch(console.error);
+    // Notifica os garçons via Pusher para limpar o rascunho da tela e avisar quem cancelou
+    const mesaObj = (await query("SELECT numero FROM mesas WHERE id = ?", [mesa_id])).rows[0];
+    const mesa_numero = req.user.mesa_numero || (mesaObj ? mesaObj.numero : mesa_id);
+    safePusherTrigger('garconnexpress', 'rascunho-cancelado', { mesa_id, mesa_numero, cancelado_pelo_cliente: true }).catch(console.error);
     
     res.json({ success: true, mensagem: 'Rascunho cancelado com sucesso.' });
   } catch (error) {
