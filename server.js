@@ -1187,12 +1187,24 @@ app.post('/api/subscribe-cozinha', isAuthenticated, async (req, res) => {
 });
 
 
-let lastDelayedCheck = 0;
-
 async function checkAndNotifyDelayedOrders() {
-  const nowTime = Date.now();
-  if (nowTime - lastDelayedCheck < 30000) return; // Checa no máximo 1 vez a cada 30 segundos
-  lastDelayedCheck = nowTime;
+  try {
+    const agora = Date.now();
+    const rCheck = await query("SELECT valor FROM sistema_config WHERE chave = 'last_delayed_check'");
+    const lastCheckTime = rCheck.rows && rCheck.rows.length > 0 ? parseInt(rCheck.rows[0].valor) || 0 : 0;
+    
+    if (agora - lastCheckTime < 120000) { // Checa no máximo 1 vez a cada 2 minutos globalmente
+      return;
+    }
+    
+    if (isPostgres) {
+      await query("INSERT INTO sistema_config (chave, valor) VALUES ('last_delayed_check', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [String(agora)]);
+    } else {
+      await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('last_delayed_check', ?)", [String(agora)]);
+    }
+  } catch (err) {
+    console.error("Erro no throttle de checkAndNotifyDelayedOrders:", err.message);
+  }
   
   try {
     // 1. Busca pedidos ativos não notificados ainda
@@ -4498,10 +4510,6 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
     // 3. Busca todos os pedidos vinculados a esta mesa que ainda não foram finalizados (PAGOS)
     // Buscamos pedidos com status 'aberto' ou 'pendente', mas também incluímos pedidos 'entregues' 
     // que tenham sido criados após a geração do código de acesso para que o cliente veja seu histórico.
-    const dateComparison = isPostgres 
-      ? "created_at >= ?" 
-      : "STRFTIME('%Y-%m-%d %H:%M:%S', created_at) >= STRFTIME('%Y-%m-%d %H:%M:%S', ?)";
-
     const pedidosSessao = (await query(`
       SELECT id, total, status, cobrar_taxa, desconto, acrescimo, solicitou_fechamento, fechamento_solicitado_em, fechamento_liberado 
       FROM pedidos 
@@ -4509,7 +4517,7 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
       AND (
         status NOT IN ('entregue', 'cancelado') -- Pedidos ativos na mesa (lançados pelo garçom ou cliente)
         OR 
-        (status = 'entregue' AND ${dateComparison}) -- Pedidos já entregues nesta sessão
+        (status = 'entregue' AND created_at >= ?) -- Pedidos já entregues nesta sessão
       )
       ORDER BY id ASC
     `, [mesaId, acesso.criado_at])).rows;

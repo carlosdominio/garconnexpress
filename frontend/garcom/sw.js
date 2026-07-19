@@ -106,3 +106,28 @@ self.addEventListener('notificationclick', event => {
     })
   );
 });
+
+// Interceptor de requisições para Cache PWA
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET' || event.request.url.includes('/api/') || event.request.url.includes('pusher')) {
+    return;
+  }
+
+  // Estratégia Network-First para a página principal (garante última versão online)
+  if (event.request.mode === 'navigate' || event.request.url.includes('index.html')) {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.match(event.request).then(res => res || new Response("Offline", { status: 503, statusText: "Offline" }));
+      })
+    );
+    return;
+  }
+  
+  // Estratégia Cache-First para os assets estáticos (CSS, JS, Favicon)
+  event.respondWith(
+    caches.match(event.request).then(response => {
+      if (response) return response;
+      return fetch(event.request).catch(() => new Response("Offline", { status: 503, statusText: "Offline" }));
+    })
+  );
+});
