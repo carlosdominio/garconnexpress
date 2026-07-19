@@ -3349,14 +3349,9 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
           });
       }
 
-      // LIMPEZA ANTECIPADA DE RASCUNHOS/ACEITOS: Evita duplicação ao converter o rascunho em pedido oficial
+      // Busca rascunho/aceito existente para reaproveitar o mesmo ID de pedido e evitar duplicidade no cliente
       const mesaIdNum = Number(mesa_id);
-      const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status IN ('rascunho', 'aceito', 'recebido')", [mesaIdNum])).rows;
-      for (const r of rascunhos) {
-          console.log(`[LIMPEZA-PRE] Removendo rascunho/aceito #${r.id} para dar lugar ao novo pedido`);
-          await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
-          await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
-      }
+      rascunhoExistente = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status IN ('rascunho', 'aceito', 'recebido') ORDER BY id DESC LIMIT 1", [mesaIdNum])).rows[0];
     }
     let subtotalReal = 0;
 
@@ -3400,11 +3395,19 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
     const vRec = valor_recebido || 0;
     const vTrc = troco || 0;
 
-    if (isPostgres) {
-      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc]);
+    if (rascunhoExistente) {
+      pedidoId = rascunhoExistente.id;
+      console.log(`[PROMOÇÃO DE PEDIDO] Atualizando pedido #${pedidoId} existente de rascunho/aceito para 'pendente'`);
+      await query("UPDATE pedidos SET total = ?, status = 'pendente', garcom_id = ?, created_at = ?, observacao = ?, cobrar_taxa = ?, forma_pagamento = ?, valor_recebido = ?, troco = ? WHERE id = ?",
+        [total, garcom_id, new Date().toISOString(), observacao || '', deveCobrarTaxa ? 1 : 0, fPag, vRec, vTrc, pedidoId]);
+      
+      // Limpa os itens antigos do rascunho para gravar a lista oficial do pedido
+      await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [pedidoId]);
+    } else if (isPostgres) {
+      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'pendente', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc]);
       pedidoId = resPedido.rows[0].id;
     } else {
-      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc]);
+      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'pendente', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc]);
       pedidoId = resPedido.lastInsertRowid;
     }
 
@@ -3424,10 +3427,10 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
       const mesaIdNum = Number(mesa_id);
       console.log(`[Pedido] Processando mesa ${mesaIdNum}. Garçom: ${garcom_id}`);
       
-      // LIMPA RASCUNHOS: Quando o garçom lança o pedido oficial, removemos o rascunho de bloqueio
-      const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesaIdNum])).rows;
+      // LIMPA RASCUNHOS SOBRANTES: Remove rascunhos obsoletos mantendo apenas o pedido promovido
+      const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status IN ('rascunho', 'aceito', 'recebido') AND id != ?", [mesaIdNum, pedidoId])).rows;
       for (const r of rascunhos) {
-          console.log(`[LIMPEZA] Removendo rascunho #${r.id} da mesa ${mesaIdNum}`);
+          console.log(`[LIMPEZA] Removendo rascunho obsoleto #${r.id} da mesa ${mesaIdNum}`);
           await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
           await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
       }
