@@ -370,6 +370,7 @@
         let lockAtivo = true; // Começa travado por segurança
         let sessionBindingsAttached = false;
         let lastOrderData = null; // Armazena os últimos dados para o cupom fiscal
+        let lastRascunhoCache = null; // Cache local dos itens do rascunho enviado ao garçom
 
         /**
          * Exibe uma notificação elegante no canto da tela (Toast)
@@ -840,6 +841,9 @@
                 const container = document.getElementById('pedidos-lista');
                 if (container && d.success && d.pedido && d.itens && d.itens.length > 0) {
                     lastOrderData = d; // Salva para uso no cupom fiscal pós-logout
+                    // Limpa cache do rascunho pois agora há pedido real no banco
+                    if (d.pedido.status !== 'rascunho') lastRascunhoCache = null;
+                    
                     let statusLabel = d.pedido.status.toUpperCase();
                     let bgStatus = '#f8f9fa';
                     let borderStatus = '1px solid #eee';
@@ -878,6 +882,21 @@
                     // Exibe ou oculta o botão de cancelar rascunho
                     const rascunhoAtivo = d.pedido.status === 'rascunho';
                     document.getElementById('container-cancelar-rascunho').style.display = rascunhoAtivo ? 'block' : 'none';
+                } else if (container && lastRascunhoCache) {
+                    // Garçom aceitou e apagou o rascunho do banco, mas temos o cache local.
+                    // Mostra os itens enviados com status "ACEITO PELO GARÇOM" sem alterar nenhuma lógica do servidor.
+                    const cache = lastRascunhoCache;
+                    container.innerHTML = `<div style="background:#27ae60; padding:12px; border-radius:12px; margin-bottom:15px; border:1px solid #27ae60; display:flex; justify-content:space-between; font-weight:800; font-size:0.8rem; color:#fff;"><span>✅ PEDIDO ENVIADO</span><span>ACEITO PELO GARÇOM</span></div>`;
+                    let subtotal = 0;
+                    container.innerHTML += cache.itens.map(i => {
+                        const pr = i.preco || 0;
+                        subtotal += (i.quantidade * pr);
+                        return `<div class="item-row" style="padding:10px 0;"><div><h4>${i.quantidade}x ${i.nome}</h4><p>R$ ${(i.quantidade*pr).toFixed(2)}</p></div><span class="status-badge" style="background:#27ae60;color:#fff;">aceito</span></div>`;
+                    }).join('');
+                    document.getElementById('pedidos-subtotal').innerText = `R$ ${subtotal.toFixed(2)}`;
+                    document.getElementById('pedidos-taxa-row').style.display = 'none';
+                    document.getElementById('pedidos-total').innerText = `R$ ${subtotal.toFixed(2)}`;
+                    document.getElementById('container-cancelar-rascunho').style.display = 'none';
                 } else if (container) {
                     container.innerHTML = '<div style="text-align:center; padding:20px; color:#95a5a6;"><i class="fas fa-receipt" style="font-size:2rem; display:block; margin-bottom:10px;"></i>Nenhum pedido realizado ainda.</div>';
                     document.getElementById('pedidos-subtotal').innerText = 'R$ 0,00';
@@ -932,6 +951,8 @@
                 }
 
                 Swal.fire({title:'Pedido Enviado!', text: 'Agora o garçom precisa confirmar para você pedir mais.', icon:'success', timer:3000, showConfirmButton:false}); 
+                // Salva os itens do carrinho no cache local antes de limpar
+                lastRascunhoCache = { itens: cart.map(i => ({nome: i.nome, quantidade: i.qty, preco: i.preco})) };
                 cart=[]; 
                 updateCartBar(); 
                 toggleCartModal(false); 
@@ -1110,6 +1131,7 @@
                     });
                     const d = await res.json();
                     if (res.ok) {
+                        lastRascunhoCache = null; // Limpa o cache local ao cancelar o rascunho
                         Swal.fire('Cancelado', 'Seu pedido pendente foi cancelado.', 'success');
                         carregarMeusPedidos();
                     } else if (res.status === 403 || d.error === 'PEDIDO_JA_ACEITO') {
