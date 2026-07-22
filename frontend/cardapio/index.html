@@ -89,6 +89,10 @@
         }
         .btn-send:active { transform: scale(0.98); }
         .btn-send:disabled { background: #95a5a6 !important; box-shadow: none; cursor: not-allowed; opacity: 0.8; }
+        /* Remove sombra dos botões dentro do modal Meus Pedidos */
+        #modal-pedidos .btn-send { box-shadow: none; }
+        @keyframes spin-once { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .fa-sync.girando { animation: spin-once 0.6s linear; }
         
         .item-row { display: flex; justify-content: space-between; align-items: center; padding: 22px 0; border-bottom: 1px solid #f8f9fa; }
         .item-row h4 { font-size: 1.15rem; font-weight: 800; margin-bottom: 5px; }
@@ -357,7 +361,7 @@
                     </button>
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <button class="btn-send" style="background: #95a5a6; flex: 1;" onclick="carregarMeusPedidos()"><i class="fas fa-sync"></i></button>
+                    <button class="btn-send" style="background: #95a5a6; flex: 1;" onclick="atualizarMeusPedidosManual()"><i class="fas fa-sync" id="icon-sync-pedidos"></i></button>
                     <button id="btn-solicitar-fechamento" class="btn-send" style="background: #f1c40f; color: #2f3542; flex: 4;" onclick="solicitarFechamento()">PEDIR CONTA</button>
                 </div>
             </div>
@@ -905,6 +909,18 @@
                     document.getElementById('container-cancelar-rascunho').style.display = 'none';
                 }
             } catch (e) { console.error('Erro ao carregar status:', e); }
+        }
+
+        // Função chamada pelo botão manual de atualizar - anima o ícone e chama carregarMeusPedidos
+        function atualizarMeusPedidosManual() {
+            const icon = document.getElementById('icon-sync-pedidos');
+            if (icon) {
+                icon.classList.remove('girando');
+                void icon.offsetWidth; // força reflow para reiniciar animação
+                icon.classList.add('girando');
+                setTimeout(() => icon.classList.remove('girando'), 700);
+            }
+            carregarMeusPedidos();
         }
 
         async function enviarRascunho() { 
