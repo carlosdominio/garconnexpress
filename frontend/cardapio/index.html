@@ -86,14 +86,18 @@
             gap: 10px;
             box-shadow: 0 6px 20px rgba(255, 71, 87, 0.2);
             transition: 0.3s;
+            -webkit-tap-highlight-color: transparent !important;
+            -webkit-touch-callout: none !important;
+            user-select: none !important;
+            outline: none !important;
         }
         .btn-send:active { transform: scale(0.98); }
         .btn-send:disabled { background: #95a5a6 !important; box-shadow: none; cursor: not-allowed; opacity: 0.8; }
         /* Remove sombra e contorno azul dos botões dentro do modal Meus Pedidos */
-        #modal-pedidos .btn-send { box-shadow: none; outline: none; }
+        #modal-pedidos .btn-send { box-shadow: none; outline: none; -webkit-tap-highlight-color: transparent !important; }
         #modal-pedidos .btn-send:focus,
         #modal-pedidos .btn-send:focus-visible,
-        #modal-pedidos .btn-send:active { outline: none !important; box-shadow: none !important; }
+        #modal-pedidos .btn-send:active { outline: none !important; box-shadow: none !important; -webkit-tap-highlight-color: transparent !important; }
         @keyframes spin-once { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .fa-sync.girando { animation: spin-once 0.6s linear; }
         
@@ -364,8 +368,8 @@
                     </button>
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <button class="btn-send" style="background: #95a5a6; flex: 1; outline: none; border: none;" onclick="atualizarMeusPedidosManual()"><i class="fas fa-sync" id="icon-sync-pedidos"></i></button>
-                    <button id="btn-solicitar-fechamento" class="btn-send" style="background: #f1c40f; color: #2f3542; flex: 4; outline: none; border: none;" onclick="solicitarFechamento()">PEDIR CONTA</button>
+                    <button class="btn-send" style="background: #95a5a6; flex: 1; outline: none; border: none; -webkit-tap-highlight-color: transparent;" onclick="atualizarMeusPedidosManual()"><i class="fas fa-sync" id="icon-sync-pedidos"></i></button>
+                    <button id="btn-solicitar-fechamento" class="btn-send" style="background: #f1c40f; color: #2f3542; flex: 4; outline: none; border: none; -webkit-tap-highlight-color: transparent;" onclick="solicitarFechamento()">PEDIR CONTA</button>
                 </div>
             </div>
         </div>
