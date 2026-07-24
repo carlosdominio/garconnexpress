@@ -1527,12 +1527,22 @@ async function carregarMenu() {
   }
 }
 
+let isFetchingMesas = false;
+let carregarMesasTimeout = null;
+
 async function carregarMesas() {
-  const res = await fetch('/api/mesas');
-  // Se der erro 401 ou outro, não tenta converter para JSON nem exibir, para evitar o "map is not a function"
-  if (!res.ok) return; 
-  mesas = await res.json();
-  if (Array.isArray(mesas)) exibirMesas();
+  if (isFetchingMesas) return;
+  isFetchingMesas = true;
+  try {
+    const res = await fetch('/api/mesas');
+    if (!res.ok) return; 
+    mesas = await res.json();
+    if (Array.isArray(mesas)) exibirMesas();
+  } catch (e) {
+    console.warn('⚠️ Falha temporária de conexão ao carregar mesas:', e.message || e);
+  } finally {
+    isFetchingMesas = false;
+  }
 }
 
 let serverClockOffset = 0;
