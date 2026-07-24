@@ -896,11 +896,6 @@
                     }
                     window._lastConfirmedItemsCount = qtdConfirmados;
 
-                    // Se a resposta do servidor diz que há rascunho pendente no banco, o garçom ainda NÃO aceitou
-                    if (d.tem_pendente && lastRascunhoCache) {
-                        lastRascunhoCache.aceito = false;
-                    }
-
                     let subtotal = 0;
                     let htmlOutput = '';
 
