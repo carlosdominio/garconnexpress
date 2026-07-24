@@ -2873,6 +2873,7 @@ app.put('/api/pedidos/:id/taxa', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { cobrar_taxa } = req.body;
   try {
+    const pedidoOriginal = (await query("SELECT mesa_id FROM pedidos WHERE id = ?", [id])).rows[0];
     const todosItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
     const subtotal = todosItens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
     const taxaMultiplicador = await getTaxaServicoMultiplicador();
@@ -2880,6 +2881,21 @@ app.put('/api/pedidos/:id/taxa', isAuthenticated, async (req, res) => {
 
     const taxaBanco = isPostgres ? cobrar_taxa : (cobrar_taxa ? 1 : 0);
     await query("UPDATE pedidos SET total = ?, cobrar_taxa = ? WHERE id = ?", [total, taxaBanco, id]);
+
+    // Notifica garçom e admin em tempo real
+    safePusherTrigger('garconnexpress', 'status-atualizado', {
+      pedido_id: id,
+      mesa_id: pedidoOriginal ? pedidoOriginal.mesa_id : null,
+      cobrar_taxa: cobrar_taxa
+    }).catch(console.error);
+
+    // Notifica o cardápio digital do cliente em tempo real
+    if (pedidoOriginal && pedidoOriginal.mesa_id) {
+      safePusherTrigger('garconnexpress', `taxa-atualizada-mesa-${pedidoOriginal.mesa_id}`, {
+        cobrar_taxa: cobrar_taxa
+      }).catch(console.error);
+    }
+
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });

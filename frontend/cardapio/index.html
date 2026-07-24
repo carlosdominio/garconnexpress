@@ -658,6 +658,11 @@
                 if(isClosingSession) return;
                 carregarMeusPedidos(); 
             });
+
+            pusherChannel.bind(`taxa-atualizada-mesa-${sessionMesa.mesa_id}`, () => { 
+                if(isClosingSession) return;
+                carregarMeusPedidos(); 
+            });
             
             pusherChannel.bind(`deslogar-mesa-${sessionMesa.mesa_id}`, (d) => {
                 if (isClosingSession) return;
