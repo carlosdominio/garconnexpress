@@ -2047,7 +2047,7 @@ async function verItensDaMesa() {
 
     const totalEntregue = entregues.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
     const totalPendente = pendentes.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
-    const totalConsumido = totalEntregue + totalPendente;
+    const totalConsumido = totalEntregue; // Considera apenas itens efetivamente entregues na mesa
     const taxaServico = totalConsumido * 0.10;
     const totalGeral = totalConsumido + taxaServico;
 
