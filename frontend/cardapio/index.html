@@ -1040,10 +1040,11 @@
                     document.getElementById('pedidos-subtotal').innerText = `R$ ${subtotal.toFixed(2)}`;
                     
                     if (d.pedido && d.pedido.cobrar_taxa) {
-                        const taxa = Number(d.pedido.total) - subtotal;
+                        const taxa = subtotal * 0.10;
+                        const totalGeral = subtotal + taxa;
                         document.getElementById('pedidos-taxa-row').style.display = 'flex';
-                        document.getElementById('pedidos-taxa').innerText = `R$ ${Math.max(0, taxa).toFixed(2)}`;
-                        document.getElementById('pedidos-total').innerText = `R$ ${Number(d.pedido.total).toFixed(2)}`;
+                        document.getElementById('pedidos-taxa').innerText = `R$ ${taxa.toFixed(2)}`;
+                        document.getElementById('pedidos-total').innerText = `R$ ${totalGeral.toFixed(2)}`;
                     } else {
                         document.getElementById('pedidos-taxa-row').style.display = 'none';
                         document.getElementById('pedidos-total').innerText = `R$ ${subtotal.toFixed(2)}`;

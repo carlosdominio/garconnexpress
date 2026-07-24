@@ -4679,11 +4679,8 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
 
     let totalReal = 0;
     itens.forEach(i => {
-      const s = (i.status || '').toLowerCase();
-      if (s === 'entregue' || s === 'servido') {
-        const preco = i.preco || i.menu_preco || 0;
-        totalReal += (i.quantidade * preco);
-      }
+      const preco = i.preco || i.menu_preco || 0;
+      totalReal += (i.quantidade * preco);
     });
 
     // Aplica taxa de serviço (baseada na preferência do último pedido ou se algum deles cobrar)
