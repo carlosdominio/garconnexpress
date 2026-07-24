@@ -94,10 +94,21 @@
         .btn-send:active { transform: scale(0.98); }
         .btn-send:disabled { background: #95a5a6 !important; box-shadow: none; cursor: not-allowed; opacity: 0.8; }
         /* Remove sombra e contorno azul dos botões dentro do modal Meus Pedidos */
-        #modal-pedidos .btn-send { box-shadow: none; outline: none; -webkit-tap-highlight-color: transparent !important; }
-        #modal-pedidos .btn-send:focus,
-        #modal-pedidos .btn-send:focus-visible,
-        #modal-pedidos .btn-send:active { outline: none !important; box-shadow: none !important; -webkit-tap-highlight-color: transparent !important; }
+        /* Remove 100% da sombra, borda e destaque de clique em navegadores mobile */
+        #btn-download-cupom,
+        #btn-download-cupom:hover,
+        #btn-download-cupom:focus,
+        #btn-download-cupom:focus-visible,
+        #btn-download-cupom:active {
+            box-shadow: none !important;
+            -webkit-box-shadow: none !important;
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            border: none !important;
+            outline: none !important;
+            filter: none !important;
+            -webkit-tap-highlight-color: transparent !important;
+        }
         @keyframes spin-once { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .fa-sync.girando { animation: spin-once 0.6s linear; }
         
