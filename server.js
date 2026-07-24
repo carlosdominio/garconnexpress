@@ -2127,18 +2127,6 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
     // Dispara Pusher IMEDIATAMENTE (Prioridade)
     await safePusherTrigger('garconnexpress', 'status-atualizado', payload);
 
-    // NOTIFICAÇÃO PUSH DE SEGUNDO PLANO APENAS PARA O GARÇOM RESPONSÁVEL (OU TODOS SE LIVRE)
-    if (status === 'liberada') {
-      const mesaNomeFormatada = mesaNum.toString().toUpperCase().includes('MESA') ? mesaNum : `Mesa ${mesaNum}`;
-      sendPushToGarcons(
-        `🟢 ${mesaNomeFormatada.toUpperCase()} LIBERADA!`,
-        `A ${mesaNomeFormatada} foi liberada no caixa e está pronta para atender novos clientes.`,
-        'mesa-liberada',
-        { mesa_id: String(finalMesaId || ''), mesa_numero: String(mesaNum) },
-        garcomId
-      ).catch(e => console.error('Erro Push Mesa Liberada:', e.message));
-    }
-
     const statusMessages = {
       recebido: '✅ *PEDIDO RECEBIDO!*\n\nOlá! Seu pedido *#{pedidoId}* foi recebido com sucesso!',
       preparando: '🍳 *PREPARANDO SEU PEDIDO*\n\nSeu pedido *#{pedidoId}* já está sendo preparado pela nossa cozinha!',
