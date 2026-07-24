@@ -855,28 +855,101 @@
                     // Limpa cache do rascunho pois agora há pedido real no banco
                     if (d.pedido.status !== 'rascunho') lastRascunhoCache = null;
                     
-                    let statusLabel = d.pedido.status.toUpperCase();
-                    let bgStatus = '#f8f9fa';
-                    let borderStatus = '1px solid #eee';
-                    let corTextoStatus = '#777';
-                    
-                    if (d.pedido.status === 'rascunho') {
-                        bgStatus = '#2f3542'; // Fundo cinza escuro
-                        borderStatus = '1px solid #2f3542';
-                        corTextoStatus = '#ffffff'; // Texto branco
-                        statusLabel = 'AGUARDANDO GARÇOM';
-                    } else if (d.pedido.status === 'aguardando_fechamento') {
-                        statusLabel = 'CONTA SOLICITADA';
+                    let subtotal = 0;
+                    d.itens.forEach(i => {
+                        const pr = i.preco || i.menu_preco || 0;
+                        subtotal += (i.quantidade * pr);
+                    });
+
+                    // Separando os itens por categoria: Entregues vs Em Andamento/Rascunho
+                    const itensEntregues = d.itens.filter(i => {
+                        const s = (i.status || '').toLowerCase();
+                        return s === 'entregue' || s === 'servido';
+                    });
+
+                    const itensEmAndamento = d.itens.filter(i => {
+                        const s = (i.status || '').toLowerCase();
+                        return s !== 'entregue' && s !== 'servido' && s !== 'cancelado';
+                    });
+
+                    let htmlOutput = '';
+
+                    // SEÇÃO 1: RASCUNHO / EM ANDAMENTO / AGUARDANDO GARÇOM
+                    if (d.pedido.status === 'rascunho' || itensEmAndamento.length > 0) {
+                        let headerBg = '#2f3542';
+                        let headerBorder = '#2f3542';
+                        let headerColor = '#ffffff';
+                        let statusText = d.pedido.status === 'rascunho' ? 'AGUARDANDO GARÇOM' : 'EM ANDAMENTO';
+
+                        if (d.pedido.status === 'aguardando_fechamento') {
+                            headerBg = '#f39c12';
+                            headerBorder = '#f39c12';
+                            statusText = 'CONTA SOLICITADA';
+                        }
+
+                        htmlOutput += `
+                            <div style="background:${headerBg}; padding:12px 16px; border-radius:14px; margin-bottom:15px; border:1px solid ${headerBorder}; color:${headerColor}; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                                <div style="display:flex; justify-content:space-between; align-items:center; font-weight:800; font-size:0.85rem;">
+                                    <span>⏳ NOVO PEDIDO #${d.pedido.id}</span>
+                                    <span style="background:rgba(255,255,255,0.25); padding:3px 10px; border-radius:12px; font-size:0.75rem; font-weight:800;">${statusText}</span>
+                                </div>
+                                <div style="font-size:0.75rem; opacity:0.85; margin-top:4px;">
+                                    ${d.pedido.status === 'rascunho' ? 'Aguardando o garçom confirmar para enviar à cozinha' : 'Itens em preparo na cozinha ou aguardando entrega'}
+                                </div>
+                            </div>
+                        `;
+
+                        const listaItensProvisoria = itensEmAndamento.length > 0 ? itensEmAndamento : (d.pedido.status === 'rascunho' ? d.itens : []);
+                        if (listaItensProvisoria.length > 0) {
+                            htmlOutput += `<div style="margin-bottom:20px; padding: 0 5px;">`;
+                            htmlOutput += listaItensProvisoria.map(i => {
+                                const pr = i.preco || i.menu_preco || 0;
+                                const statusStr = (i.status || '').toLowerCase();
+                                let badgeStyle = 'background:#f1c40f; color:#2f3542;';
+                                if (statusStr === 'em_preparo') badgeStyle = 'background:#e67e22; color:#fff;';
+                                else if (statusStr === 'pronto') badgeStyle = 'background:#3498db; color:#fff;';
+                                else if (statusStr === 'rascunho') badgeStyle = 'background:#ff4757; color:#fff;';
+
+                                return `<div class="item-row" style="padding:10px 0; border-bottom:1px dashed #eee; display:flex; justify-content:space-between; align-items:center;">
+                                    <div>
+                                        <h4 style="font-size:0.95rem; font-weight:700; color:#2c3e50; margin-bottom:2px;">${i.quantidade}x ${i.menu_nome}</h4>
+                                        <p style="font-size:0.85rem; color:#7f8c8d;">R$ ${(i.quantidade*pr).toFixed(2)}</p>
+                                    </div>
+                                    <span class="status-badge" style="${badgeStyle} padding:4px 10px; border-radius:8px; font-weight:800; font-size:0.75rem; text-transform:uppercase;">${i.status}</span>
+                                </div>`;
+                            }).join('');
+                            htmlOutput += `</div>`;
+                        }
                     }
 
-                    container.innerHTML = `<div style="background:${bgStatus}; padding:12px; border-radius:12px; margin-bottom:15px; border:${borderStatus}; display:flex; justify-content:space-between; font-weight:800; font-size:0.8rem; color:${corTextoStatus};"><span>PEDIDO: #${d.pedido.id}</span><span>${statusLabel}</span></div>`;
-                    
-                    let subtotal = 0;
-                    container.innerHTML += d.itens.map(i => {
-                        const pr = i.preco || i.menu_preco || 0; 
-                        subtotal += (i.quantidade * pr);
-                        return `<div class="item-row" style="padding:10px 0;"><div><h4>${i.quantidade}x ${i.menu_nome}</h4><p>R$ ${(i.quantidade*pr).toFixed(2)}</p></div><span class="status-badge">${i.status}</span></div>`;
-                    }).join('');
+                    // SEÇÃO 2: PEDIDOS ENTREGUES NA MESA
+                    if (itensEntregues.length > 0) {
+                        htmlOutput += `
+                            <div style="background:#f8f9fa; padding:12px 16px; border-radius:14px; margin-bottom:12px; border:1px solid #27ae60; border-left:5px solid #27ae60; margin-top:10px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; font-weight:800; font-size:0.85rem; color:#27ae60;">
+                                    <span><i class="fas fa-check-circle"></i> ENTREGUES NA MESA</span>
+                                    <span style="font-size:0.75rem; background:#e8f5e9; color:#27ae60; padding:2px 8px; border-radius:10px; font-weight:800;">${itensEntregues.length} ${itensEntregues.length === 1 ? 'item' : 'itens'}</span>
+                                </div>
+                                <div style="font-size:0.75rem; color:#7f8c8d; margin-top:2px;">Itens já servidos no seu atendimento</div>
+                            </div>
+                            <div style="margin-bottom:20px; padding: 0 5px;">
+                        `;
+
+                        htmlOutput += itensEntregues.map(i => {
+                            const pr = i.preco || i.menu_preco || 0;
+                            return `<div class="item-row" style="padding:10px 0; border-bottom:1px dashed #eee; display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <h4 style="font-size:0.95rem; font-weight:700; color:#2c3e50; margin-bottom:2px;">${i.quantidade}x ${i.menu_nome}</h4>
+                                    <p style="font-size:0.85rem; color:#27ae60; font-weight:600;">R$ ${(i.quantidade*pr).toFixed(2)}</p>
+                                </div>
+                                <span class="status-badge" style="background:#27ae60; color:#fff; padding:4px 10px; border-radius:8px; font-weight:800; font-size:0.75rem; text-transform:uppercase;"><i class="fas fa-check"></i> entregue</span>
+                            </div>`;
+                        }).join('');
+
+                        htmlOutput += `</div>`;
+                    }
+
+                    container.innerHTML = htmlOutput;
 
                     document.getElementById('pedidos-subtotal').innerText = `R$ ${subtotal.toFixed(2)}`;
                     
