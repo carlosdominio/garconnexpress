@@ -2005,6 +2005,72 @@ async function verificarEstoqueDisponivel(menuId, quantidadeDesejada) {
   }
 }
 
+async function sendPushToGarcons(title, body, event = 'geral', dataExtra = {}) {
+  try {
+    const subsRes = await query("SELECT * FROM push_subscriptions WHERE app_type = 'garcom'");
+    const subs = subsRes.rows || [];
+    if (subs.length === 0) return;
+
+    const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave IN ('config_som_garcom')")).rows;
+    const configMap = {};
+    for (const r of configData) configMap[r.chave] = r.valor;
+    const activeSound = configMap['config_som_garcom'] || 'campainha_classica';
+    let fcmSoundFile = activeSound === 'original' ? 'notificacao' : activeSound;
+
+    const sentEndpoints = new Set();
+    const pushPromises = [];
+
+    for (const sub of subs) {
+      if (sentEndpoints.has(sub.endpoint)) continue;
+      sentEndpoints.add(sub.endpoint);
+
+      const isNativeSub = sub.is_native === 1 || sub.is_native === true || (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
+      if (!isNativeSub) {
+        const payload = JSON.stringify({ title, body, event, ...dataExtra });
+        const pushSubscription = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh || '', auth: sub.auth || '' } };
+        pushPromises.push(
+          webpush.sendNotification(pushSubscription, payload).catch(e => {
+            if (e.statusCode === 410 || e.statusCode === 404 || e.message?.includes('unsubscribed')) {
+              query('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]).catch(err => console.error(err.message));
+            }
+          })
+        );
+      } else {
+        if (admin.apps.length > 0) {
+          const channelName = 'garcom_canal_' + fcmSoundFile + '_v2';
+          const androidNotification = {
+            channelId: channelName,
+            defaultSound: activeSound === 'original',
+            notificationPriority: 'PRIORITY_MAX'
+          };
+          if (activeSound !== 'original' && activeSound !== 'mudo') {
+            androidNotification.sound = fcmSoundFile;
+          }
+
+          const message = {
+            notification: { title, body },
+            data: { event, sound: fcmSoundFile, ...dataExtra },
+            android: { priority: 'high', notification: androidNotification },
+            token: sub.endpoint
+          };
+          pushPromises.push(
+            admin.messaging().send(message).catch(e => {
+              if (e.code === 'messaging/invalid-registration-token' || e.code === 'messaging/registration-token-not-registered') {
+                query('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]).catch(err => console.error(err.message));
+              }
+            })
+          );
+        }
+      }
+    }
+
+    await Promise.all(pushPromises);
+    console.log(`📡 [Push Garçom] Notificação '${title}' enviada para ${sentEndpoints.size} dispositivos.`);
+  } catch (err) {
+    console.error('❌ Erro ao enviar Push aos garçons:', err.message);
+  }
+}
+
 async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null) {
   try {
     let mesaNum = mesaNumPredefined;
@@ -2040,6 +2106,17 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
 
     // Dispara Pusher IMEDIATAMENTE (Prioridade)
     await safePusherTrigger('garconnexpress', 'status-atualizado', payload);
+
+    // NOTIFICAÇÃO PUSH DE SEGUNDO PLANO PARA GARÇONS QUANDO MESA É LIBERADA
+    if (status === 'liberada') {
+      const mesaNomeFormatada = mesaNum.toString().toUpperCase().includes('MESA') ? mesaNum : `Mesa ${mesaNum}`;
+      sendPushToGarcons(
+        `🟢 ${mesaNomeFormatada.toUpperCase()} LIBERADA!`,
+        `A ${mesaNomeFormatada} foi liberada no caixa e está pronta para atender novos clientes.`,
+        'mesa-liberada',
+        { mesa_id: String(finalMesaId || ''), mesa_numero: String(mesaNum) }
+      ).catch(e => console.error('Erro Push Mesa Liberada:', e.message));
+    }
 
     const statusMessages = {
       recebido: '✅ *PEDIDO RECEBIDO!*\n\nOlá! Seu pedido *#{pedidoId}* foi recebido com sucesso!',
