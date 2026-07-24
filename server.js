@@ -2005,9 +2005,26 @@ async function verificarEstoqueDisponivel(menuId, quantidadeDesejada) {
   }
 }
 
-async function sendPushToGarcons(title, body, event = 'geral', dataExtra = {}) {
+async function sendPushToGarcons(title, body, event = 'geral', dataExtra = {}, targetGarcomId = null) {
   try {
-    const subsRes = await query("SELECT * FROM push_subscriptions WHERE app_type = 'garcom'");
+    let querySql = "SELECT * FROM push_subscriptions WHERE app_type = 'garcom'";
+    let params = [];
+
+    // Se a notificação for direcionada a um garçom específico que atendia a mesa
+    if (targetGarcomId && targetGarcomId !== 'ADMIN' && targetGarcomId !== 'DELIVERY' && targetGarcomId !== 'QRCODE') {
+      const garcomRes = await query(
+        "SELECT usuario, CAST(id AS TEXT) as id_str FROM garcons WHERE usuario = ? OR CAST(id AS TEXT) = ?",
+        [String(targetGarcomId), String(targetGarcomId)]
+      );
+      if (garcomRes.rows && garcomRes.rows.length > 0) {
+        const gUser = garcomRes.rows[0].usuario;
+        const gId = garcomRes.rows[0].id_str;
+        querySql += " AND (garcom_id = ? OR garcom_id = ? OR garcom_id = 'ADMIN')";
+        params = [gUser, gId];
+      }
+    }
+
+    const subsRes = await query(querySql, params);
     const subs = subsRes.rows || [];
     if (subs.length === 0) return;
 
@@ -2094,8 +2111,11 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
 
     // Caso não tenha pedidoId ou a busca falhou, tenta buscar pela mesaDbId
     if (!mesaNum && finalMesaId) {
-      const res = await query("SELECT numero FROM mesas WHERE id = ?", [finalMesaId]);
-      mesaNum = res.rows[0] ? `Mesa ${res.rows[0].numero}` : 'BALCÃO';
+      const res = await query("SELECT numero, garcom_id FROM mesas WHERE id = ?", [finalMesaId]);
+      if (res.rows[0]) {
+        garcomId = res.rows[0].garcom_id;
+        if (!mesaNum) mesaNum = `Mesa ${res.rows[0].numero}`;
+      }
     }
 
     // Fallback final
@@ -2107,14 +2127,15 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
     // Dispara Pusher IMEDIATAMENTE (Prioridade)
     await safePusherTrigger('garconnexpress', 'status-atualizado', payload);
 
-    // NOTIFICAÇÃO PUSH DE SEGUNDO PLANO PARA GARÇONS QUANDO MESA É LIBERADA
+    // NOTIFICAÇÃO PUSH DE SEGUNDO PLANO APENAS PARA O GARÇOM RESPONSÁVEL (OU TODOS SE LIVRE)
     if (status === 'liberada') {
       const mesaNomeFormatada = mesaNum.toString().toUpperCase().includes('MESA') ? mesaNum : `Mesa ${mesaNum}`;
       sendPushToGarcons(
         `🟢 ${mesaNomeFormatada.toUpperCase()} LIBERADA!`,
         `A ${mesaNomeFormatada} foi liberada no caixa e está pronta para atender novos clientes.`,
         'mesa-liberada',
-        { mesa_id: String(finalMesaId || ''), mesa_numero: String(mesaNum) }
+        { mesa_id: String(finalMesaId || ''), mesa_numero: String(mesaNum) },
+        garcomId
       ).catch(e => console.error('Erro Push Mesa Liberada:', e.message));
     }
 
