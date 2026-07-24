@@ -641,6 +641,9 @@
             });
             
             pusherChannel.bind(`rascunho-aceito-mesa-${sessionMesa.mesa_id}`, (data) => {
+                if (lastRascunhoCache) {
+                    lastRascunhoCache.aceito = true;
+                }
                 carregarMeusPedidos();
                 Swal.fire({
                     title: 'Pedido Aceito! 🎉',
@@ -877,28 +880,28 @@
 
                 // Renderiza lista de consumo se houver
                 const container = document.getElementById('pedidos-lista');
-                if (container && d.success && d.pedido && d.itens && d.itens.length > 0) {
+                if (container && d.success) {
                     lastOrderData = d; // Salva para uso no cupom fiscal pós-logout
-                    // Limpa cache do rascunho pois agora há pedido real no banco
-                    if (d.pedido.status !== 'rascunho') lastRascunhoCache = null;
-                    
+
+                    // Itens confirmados (reais) no banco (exclui rascunhos e cancelados)
+                    const itensReais = (d.itens || []).filter(i => {
+                        const s = (i.status || '').toLowerCase();
+                        return s !== 'rascunho' && s !== 'cancelado';
+                    });
+
+                    // Limpa o cache se o número de itens confirmados aumentar (garçom enviou o pedido final no tablet)
+                    const qtdConfirmados = itensReais.length;
+                    if (window._lastConfirmedItemsCount !== undefined && qtdConfirmados > window._lastConfirmedItemsCount) {
+                        lastRascunhoCache = null;
+                    }
+                    window._lastConfirmedItemsCount = qtdConfirmados;
+
+                    // Se a resposta do servidor diz que há rascunho pendente no banco, o garçom ainda NÃO aceitou
+                    if (d.tem_pendente && lastRascunhoCache) {
+                        lastRascunhoCache.aceito = false;
+                    }
+
                     let subtotal = 0;
-                    d.itens.forEach(i => {
-                        const pr = i.preco || i.menu_preco || 0;
-                        subtotal += (i.quantidade * pr);
-                    });
-
-                    // Separando os itens por categoria: Entregues vs Em Andamento/Rascunho
-                    const itensEntregues = d.itens.filter(i => {
-                        const s = (i.status || '').toLowerCase();
-                        return s === 'entregue' || s === 'servido';
-                    });
-
-                    const itensEmAndamento = d.itens.filter(i => {
-                        const s = (i.status || '').toLowerCase();
-                        return s !== 'entregue' && s !== 'servido' && s !== 'cancelado';
-                    });
-
                     let htmlOutput = '';
 
                     // TARJA DE ALERTA: CONTA SOLICITADA
@@ -918,14 +921,40 @@
                         `;
                     }
 
-                    // SEÇÃO 1: RASCUNHO / EM ANDAMENTO / AGUARDANDO GARÇOM
-                    if (d.pedido.status === 'rascunho' || itensEmAndamento.length > 0) {
+                    // SEÇÃO 0: FAKE CACHE DE "ACEITO PELO GARÇOM"
+                    // Exibido enquanto o garçom processa o pedido aceito no tablet dele (funciona no 1º, 2º ou qualquer pedido)
+                    if (lastRascunhoCache && lastRascunhoCache.aceito && lastRascunhoCache.itens && lastRascunhoCache.itens.length > 0) {
+                        htmlOutput += `<div style="background:#27ae60; padding:12px 16px; border-radius:14px; margin-bottom:15px; border:1px solid #27ae60; display:flex; justify-content:space-between; align-items:center; font-weight:800; font-size:0.8rem; color:#fff; box-shadow: 0 4px 10px rgba(39, 174, 96, 0.2);"><span>✅ PEDIDO ENVIADO</span><span>ACEITO PELO GARÇOM</span></div>`;
+                        htmlOutput += `<div style="margin-bottom:20px; padding: 0 5px;">`;
+                        htmlOutput += lastRascunhoCache.itens.map(i => {
+                            const pr = i.preco || 0;
+                            subtotal += (i.quantidade * pr);
+                            return `<div class="item-row" style="padding:10px 0; border-bottom:1px dashed #eee; display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <h4 style="font-size:0.95rem; font-weight:700; color:#2c3e50; margin-bottom:2px;">${i.quantidade}x ${i.nome}</h4>
+                                    <p style="font-size:0.85rem; color:#7f8c8d;">R$ ${(i.quantidade*pr).toFixed(2)}</p>
+                                </div>
+                                <span class="status-badge" style="background:#27ae60; color:#fff; padding:4px 10px; border-radius:8px; font-weight:800; font-size:0.75rem; text-transform:uppercase;">aceito</span>
+                            </div>`;
+                        }).join('');
+                        htmlOutput += `</div>`;
+                    }
+
+                    // SEÇÃO 1: RASCUNHO / EM ANDAMENTO / AGUARDANDO GARÇOM (Do Banco)
+                    const itensEmAndamento = (d.itens || []).filter(i => {
+                        const s = (i.status || '').toLowerCase();
+                        return s !== 'entregue' && s !== 'servido' && s !== 'cancelado';
+                    });
+
+                    const isRascunhoReal = d.pedido && d.pedido.status === 'rascunho';
+
+                    if (isRascunhoReal || itensEmAndamento.length > 0) {
                         let headerBg = '#2f3542';
                         let headerBorder = '#2f3542';
                         let headerColor = '#ffffff';
-                        let statusText = d.pedido.status === 'rascunho' ? 'AGUARDANDO GARÇOM' : 'EM ANDAMENTO';
+                        let statusText = isRascunhoReal ? 'AGUARDANDO GARÇOM' : 'EM ANDAMENTO';
 
-                        if (d.pedido.status === 'aguardando_fechamento') {
+                        if (d.pedido && d.pedido.status === 'aguardando_fechamento') {
                             headerBg = '#f39c12';
                             headerBorder = '#f39c12';
                             statusText = 'CONTA SOLICITADA';
@@ -934,20 +963,21 @@
                         htmlOutput += `
                             <div style="background:${headerBg}; padding:12px 16px; border-radius:14px; margin-bottom:15px; border:1px solid ${headerBorder}; color:${headerColor}; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
                                 <div style="display:flex; justify-content:space-between; align-items:center; font-weight:800; font-size:0.85rem;">
-                                    <span>⏳ NOVO PEDIDO #${d.pedido.id}</span>
+                                    <span>⏳ ${isRascunhoReal ? 'NOVO PEDIDO' : 'PEDIDO ATUAL'} #${d.pedido ? d.pedido.id : ''}</span>
                                     <span style="background:rgba(255,255,255,0.25); padding:3px 10px; border-radius:12px; font-size:0.75rem; font-weight:800;">${statusText}</span>
                                 </div>
                                 <div style="font-size:0.75rem; opacity:0.85; margin-top:4px;">
-                                    ${d.pedido.status === 'rascunho' ? 'Aguardando o garçom confirmar para enviar à cozinha' : 'Itens em preparo na cozinha ou aguardando entrega'}
+                                    ${isRascunhoReal ? 'Aguardando o garçom confirmar para enviar à cozinha' : 'Itens em preparo na cozinha ou aguardando entrega'}
                                 </div>
                             </div>
                         `;
 
-                        const listaItensProvisoria = itensEmAndamento.length > 0 ? itensEmAndamento : (d.pedido.status === 'rascunho' ? d.itens : []);
+                        const listaItensProvisoria = itensEmAndamento.length > 0 ? itensEmAndamento : (isRascunhoReal ? (d.itens || []) : []);
                         if (listaItensProvisoria.length > 0) {
                             htmlOutput += `<div style="margin-bottom:20px; padding: 0 5px;">`;
                             htmlOutput += listaItensProvisoria.map(i => {
                                 const pr = i.preco || i.menu_preco || 0;
+                                subtotal += (i.quantidade * pr);
                                 const statusStr = (i.status || '').toLowerCase();
                                 let badgeStyle = 'background:#f1c40f; color:#2f3542;';
                                 if (statusStr === 'em_preparo') badgeStyle = 'background:#e67e22; color:#fff;';
@@ -967,12 +997,20 @@
                     }
 
                     // SEÇÃO 2: PEDIDOS ENTREGUES NA MESA
+                    const itensEntregues = (d.itens || []).filter(i => {
+                        const s = (i.status || '').toLowerCase();
+                        return s === 'entregue' || s === 'servido';
+                    });
+
                     if (itensEntregues.length > 0) {
+                        let totalQtdEntregue = 0;
+                        itensEntregues.forEach(i => totalQtdEntregue += i.quantidade);
+
                         htmlOutput += `
                             <div style="background:#f8f9fa; padding:12px 16px; border-radius:14px; margin-bottom:12px; border:1px solid #27ae60; border-left:5px solid #27ae60; margin-top:10px;">
                                 <div style="display:flex; justify-content:space-between; align-items:center; font-weight:800; font-size:0.85rem; color:#27ae60;">
                                     <span><i class="fas fa-check-circle"></i> ENTREGUES NA MESA</span>
-                                    <span style="font-size:0.75rem; background:#e8f5e9; color:#27ae60; padding:2px 8px; border-radius:10px; font-weight:800;">${itensEntregues.length} ${itensEntregues.length === 1 ? 'item' : 'itens'}</span>
+                                    <span style="font-size:0.75rem; background:#e8f5e9; color:#27ae60; padding:2px 8px; border-radius:10px; font-weight:800;">${totalQtdEntregue} ${totalQtdEntregue === 1 ? 'item' : 'itens'}</span>
                                 </div>
                                 <div style="font-size:0.75rem; color:#7f8c8d; margin-top:2px;">Itens já servidos no seu atendimento</div>
                             </div>
@@ -981,6 +1019,7 @@
 
                         htmlOutput += itensEntregues.map(i => {
                             const pr = i.preco || i.menu_preco || 0;
+                            subtotal += (i.quantidade * pr);
                             return `<div class="item-row" style="padding:10px 0; border-bottom:1px dashed #eee; display:flex; justify-content:space-between; align-items:center;">
                                 <div>
                                     <h4 style="font-size:0.95rem; font-weight:700; color:#2c3e50; margin-bottom:2px;">${i.quantidade}x ${i.menu_nome}</h4>
@@ -993,38 +1032,28 @@
                         htmlOutput += `</div>`;
                     }
 
+                    // CASO NÃO HAJA NENHUM ITEM E NENHUM CACHE
+                    if (!htmlOutput) {
+                        htmlOutput = '<div style="text-align:center; padding:20px; color:#95a5a6;"><i class="fas fa-receipt" style="font-size:2rem; display:block; margin-bottom:10px;"></i>Nenhum pedido realizado ainda.</div>';
+                    }
+
                     container.innerHTML = htmlOutput;
 
                     document.getElementById('pedidos-subtotal').innerText = `R$ ${subtotal.toFixed(2)}`;
                     
-                    if (d.pedido.cobrar_taxa) {
+                    if (d.pedido && d.pedido.cobrar_taxa) {
                         const taxa = Number(d.pedido.total) - subtotal;
                         document.getElementById('pedidos-taxa-row').style.display = 'flex';
                         document.getElementById('pedidos-taxa').innerText = `R$ ${Math.max(0, taxa).toFixed(2)}`;
+                        document.getElementById('pedidos-total').innerText = `R$ ${Number(d.pedido.total).toFixed(2)}`;
                     } else {
                         document.getElementById('pedidos-taxa-row').style.display = 'none';
+                        document.getElementById('pedidos-total').innerText = `R$ ${subtotal.toFixed(2)}`;
                     }
-
-                    document.getElementById('pedidos-total').innerText = `R$ ${Number(d.pedido.total).toFixed(2)}`;
                     
                     // Exibe ou oculta o botão de cancelar rascunho
-                    const rascunhoAtivo = d.pedido.status === 'rascunho';
+                    const rascunhoAtivo = d.pedido && d.pedido.status === 'rascunho';
                     document.getElementById('container-cancelar-rascunho').style.display = rascunhoAtivo ? 'block' : 'none';
-                } else if (container && lastRascunhoCache) {
-                    // Garçom aceitou e apagou o rascunho do banco, mas temos o cache local.
-                    // Mostra os itens enviados com status "ACEITO PELO GARÇOM" sem alterar nenhuma lógica do servidor.
-                    const cache = lastRascunhoCache;
-                    container.innerHTML = `<div style="background:#27ae60; padding:12px; border-radius:12px; margin-bottom:15px; border:1px solid #27ae60; display:flex; justify-content:space-between; font-weight:800; font-size:0.8rem; color:#fff;"><span>✅ PEDIDO ENVIADO</span><span>ACEITO PELO GARÇOM</span></div>`;
-                    let subtotal = 0;
-                    container.innerHTML += cache.itens.map(i => {
-                        const pr = i.preco || 0;
-                        subtotal += (i.quantidade * pr);
-                        return `<div class="item-row" style="padding:10px 0;"><div><h4>${i.quantidade}x ${i.nome}</h4><p>R$ ${(i.quantidade*pr).toFixed(2)}</p></div><span class="status-badge" style="background:#27ae60;color:#fff;">aceito</span></div>`;
-                    }).join('');
-                    document.getElementById('pedidos-subtotal').innerText = `R$ ${subtotal.toFixed(2)}`;
-                    document.getElementById('pedidos-taxa-row').style.display = 'none';
-                    document.getElementById('pedidos-total').innerText = `R$ ${subtotal.toFixed(2)}`;
-                    document.getElementById('container-cancelar-rascunho').style.display = 'none';
                 } else if (container) {
                     container.innerHTML = '<div style="text-align:center; padding:20px; color:#95a5a6;"><i class="fas fa-receipt" style="font-size:2rem; display:block; margin-bottom:10px;"></i>Nenhum pedido realizado ainda.</div>';
                     document.getElementById('pedidos-subtotal').innerText = 'R$ 0,00';
