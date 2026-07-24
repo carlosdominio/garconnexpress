@@ -1,4 +1,4 @@
-const CACHE_NAME = 'garcom-cache-v10'; // Incrementado para forçar atualização
+const CACHE_NAME = 'garcom-cache-v11'; // Incrementado para forçar atualização
 const urlsToCache = [
   'index.html',
   'style.css',
@@ -117,7 +117,7 @@ self.addEventListener('fetch', event => {
   if (event.request.mode === 'navigate' || event.request.url.includes('index.html')) {
     event.respondWith(
       fetch(event.request).catch(() => {
-        return caches.match(event.request).then(res => res || new Response("Offline", { status: 503, statusText: "Offline" }));
+        return caches.match(event.request).then(res => res || new Response("", { status: 200, statusText: "OK" }));
       })
     );
     return;
@@ -127,7 +127,7 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request).then(response => {
       if (response) return response;
-      return fetch(event.request).catch(() => new Response("Offline", { status: 503, statusText: "Offline" }));
+      return fetch(event.request).catch(() => new Response("", { status: 200, statusText: "OK" }));
     })
   );
 });
