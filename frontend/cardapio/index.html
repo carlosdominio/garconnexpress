@@ -325,21 +325,21 @@
             <div class="categories" id="categories-container"></div>
         </div>
         <div class="container" id="menu-container"></div>
-        <div class="cart-bar" id="cart-bar" onclick="toggleCartModal(true)">
+        <div class="cart-bar" id="cart-bar" onclick="toggleCartModal(true)" role="button" aria-label="Abrir rascunho de pedidos">
             <div class="info"><span id="cart-qty">0 itens</span><span id="cart-total" style="display: block; font-weight: 900; font-size: 1.2rem;">R$ 0,00</span></div>
             <div style="font-weight: 800; font-size: 0.9rem;">RASCUNHO <i class="fas fa-chevron-right"></i></div>
         </div>
         <div class="actions-bar">
-            <button class="action-item active" onclick="location.reload()"><i class="fas fa-book-open"></i><span>Menu</span></button>
-            <button class="action-item" onclick="chamarGarcom()"><i class="fas fa-bell"></i><span>Garçom</span></button>
-            <button class="action-item" onclick="verMeusPedidos()"><i class="fas fa-receipt"></i><span>Pedidos</span></button>
+            <button class="action-item active" onclick="location.reload()" aria-label="Ir para o menu de produtos"><i class="fas fa-book-open"></i><span>Menu</span></button>
+            <button class="action-item" onclick="chamarGarcom()" aria-label="Chamar garçom na mesa"><i class="fas fa-bell"></i><span>Garçom</span></button>
+            <button class="action-item" onclick="verMeusPedidos()" aria-label="Ver meus pedidos realizados"><i class="fas fa-receipt"></i><span>Pedidos</span></button>
         </div>
     </div>
 
     <!-- MODAL DE RASCUNHO (CARRINHO) -->
     <div class="modal-cart" id="modal-cart">
         <div class="modal-content">
-            <div class="modal-header"><h2>Rascunho</h2><i class="fas fa-times close-modal" onclick="toggleCartModal(false)"></i></div>
+            <div class="modal-header"><h2>Rascunho</h2><i class="fas fa-times close-modal" onclick="toggleCartModal(false)" role="button" aria-label="Fechar rascunho"></i></div>
             <div id="modal-cart-items"></div>
             <div id="cart-footer-logic" style="margin-top:35px;">
                 <div class="value-card">
@@ -348,7 +348,7 @@
                 </div>
                 
                 <!-- TRAVA DE SEGURANÇA BLASTER V2 -->
-                <button id="btn-final-enviar" class="btn-send" onclick="enviarRascunho()" disabled>
+                <button id="btn-final-enviar" class="btn-send" onclick="enviarRascunho()" disabled aria-label="Enviar rascunho ao garçom">
                     <i class="fas fa-clock"></i> AGUARDANDO GARÇOM
                 </button>
                 
@@ -362,7 +362,7 @@
     <!-- MODAL DE PEDIDOS JÁ FEITOS -->
     <div class="modal-cart" id="modal-pedidos">
         <div class="modal-content">
-            <div class="modal-header"><h2>Meus Pedidos</h2><i class="fas fa-times close-modal" onclick="togglePedidosModal(false)"></i></div>
+            <div class="modal-header"><h2>Meus Pedidos</h2><i class="fas fa-times close-modal" onclick="togglePedidosModal(false)" role="button" aria-label="Fechar meus pedidos"></i></div>
             <div id="pedidos-lista"></div>
             <div id="pedidos-footer" style="margin-top:25px;">
                 <div id="pedidos-valores-container" style="background: #f8f9fa; padding: 12px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #eee;">
@@ -380,13 +380,13 @@
                     </div>
                 </div>
                 <div id="container-cancelar-rascunho" style="display: none; margin-bottom: 12px;">
-                    <button class="btn-send" style="background: #ff4757; color: white; width: 100%; font-size: 0.85rem; border-radius: 8px; box-shadow: none !important; -webkit-box-shadow: none !important; -webkit-appearance: none !important; border: none; outline: none; -webkit-tap-highlight-color: transparent !important;" onclick="cancelarRascunhoPendente()">
+                    <button class="btn-send" style="background: #ff4757; color: white; width: 100%; font-size: 0.85rem; border-radius: 8px; box-shadow: none !important; -webkit-box-shadow: none !important; -webkit-appearance: none !important; border: none; outline: none; -webkit-tap-highlight-color: transparent !important;" onclick="cancelarRascunhoPendente()" aria-label="Cancelar pedido rascunho pendente">
                         <i class="fas fa-trash-alt"></i> CANCELAR PEDIDO
                     </button>
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <button class="btn-send" style="background: #95a5a6; flex: 1; outline: none; border: none; box-shadow: none !important; -webkit-box-shadow: none !important; -webkit-appearance: none !important; -webkit-tap-highlight-color: transparent !important;" onclick="atualizarMeusPedidosManual()"><i class="fas fa-sync" id="icon-sync-pedidos"></i></button>
-                    <button id="btn-solicitar-fechamento" class="btn-send" style="background: #f1c40f; color: #2f3542; flex: 4; outline: none; border: none; box-shadow: none !important; -webkit-box-shadow: none !important; -webkit-appearance: none !important; -webkit-tap-highlight-color: transparent !important;" onclick="solicitarFechamento()">PEDIR CONTA</button>
+                    <button class="btn-send" style="background: #95a5a6; flex: 1; outline: none; border: none; box-shadow: none !important; -webkit-box-shadow: none !important; -webkit-appearance: none !important; -webkit-tap-highlight-color: transparent !important;" onclick="atualizarMeusPedidosManual()" aria-label="Atualizar lista de pedidos"><i class="fas fa-sync" id="icon-sync-pedidos"></i></button>
+                    <button id="btn-solicitar-fechamento" class="btn-send" style="background: #f1c40f; color: #2f3542; flex: 4; outline: none; border: none; box-shadow: none !important; -webkit-box-shadow: none !important; -webkit-appearance: none !important; -webkit-tap-highlight-color: transparent !important;" onclick="solicitarFechamento()" aria-label="Solicitar fechamento da conta">PEDIR CONTA</button>
                 </div>
             </div>
         </div>
