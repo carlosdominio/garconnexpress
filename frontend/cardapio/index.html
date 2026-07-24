@@ -94,12 +94,18 @@
         .btn-send:active { transform: scale(0.98); }
         .btn-send:disabled { background: #95a5a6 !important; box-shadow: none; cursor: not-allowed; opacity: 0.8; }
         /* Remove sombra e contorno azul dos botões dentro do modal Meus Pedidos */
-        /* Remove 100% da sombra, borda e destaque de clique em navegadores mobile */
+        /* Remove 100% da sombra, borda e destaque de clique dos botões no modal Meus Pedidos e Cupom Fiscal */
         #btn-download-cupom,
+        #modal-pedidos .btn-send,
+        #btn-solicitar-fechamento,
         #btn-download-cupom:hover,
         #btn-download-cupom:focus,
         #btn-download-cupom:focus-visible,
-        #btn-download-cupom:active {
+        #btn-download-cupom:active,
+        #modal-pedidos .btn-send:hover,
+        #modal-pedidos .btn-send:focus,
+        #modal-pedidos .btn-send:focus-visible,
+        #modal-pedidos .btn-send:active {
             box-shadow: none !important;
             -webkit-box-shadow: none !important;
             -webkit-appearance: none !important;
@@ -374,13 +380,13 @@
                     </div>
                 </div>
                 <div id="container-cancelar-rascunho" style="display: none; margin-bottom: 12px;">
-                    <button class="btn-send" style="background: #ff4757; color: white; width: 100%; font-size: 0.85rem; border-radius: 8px;" onclick="cancelarRascunhoPendente()">
+                    <button class="btn-send" style="background: #ff4757; color: white; width: 100%; font-size: 0.85rem; border-radius: 8px; box-shadow: none !important; -webkit-box-shadow: none !important; -webkit-appearance: none !important; border: none; outline: none; -webkit-tap-highlight-color: transparent !important;" onclick="cancelarRascunhoPendente()">
                         <i class="fas fa-trash-alt"></i> CANCELAR PEDIDO
                     </button>
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <button class="btn-send" style="background: #95a5a6; flex: 1; outline: none; border: none; -webkit-tap-highlight-color: transparent;" onclick="atualizarMeusPedidosManual()"><i class="fas fa-sync" id="icon-sync-pedidos"></i></button>
-                    <button id="btn-solicitar-fechamento" class="btn-send" style="background: #f1c40f; color: #2f3542; flex: 4; outline: none; border: none; -webkit-tap-highlight-color: transparent;" onclick="solicitarFechamento()">PEDIR CONTA</button>
+                    <button class="btn-send" style="background: #95a5a6; flex: 1; outline: none; border: none; box-shadow: none !important; -webkit-box-shadow: none !important; -webkit-appearance: none !important; -webkit-tap-highlight-color: transparent !important;" onclick="atualizarMeusPedidosManual()"><i class="fas fa-sync" id="icon-sync-pedidos"></i></button>
+                    <button id="btn-solicitar-fechamento" class="btn-send" style="background: #f1c40f; color: #2f3542; flex: 4; outline: none; border: none; box-shadow: none !important; -webkit-box-shadow: none !important; -webkit-appearance: none !important; -webkit-tap-highlight-color: transparent !important;" onclick="solicitarFechamento()">PEDIR CONTA</button>
                 </div>
             </div>
         </div>
