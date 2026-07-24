@@ -661,12 +661,25 @@
                 isClosingSession = true; // Bloqueia outros recarregamentos
                 console.log('🚪 Logout remoto recebido!', d);
                 
-                // Antes de limpar, tentamos pegar os dados finais se d não trouxer
-                const finalData = d.dados_fechamento || lastOrderData;
-
-                // Limpa a sessão imediatamente para evitar re-acesso automático
+                // 1. Limpa a sessão imediatamente no localStorage
                 localStorage.removeItem('sessionMesa');
                 
+                // 2. Oculta imediatamente o conteúdo do cardápio e modais para evitar piscar o fundo
+                const mainEl = document.getElementById('main-content');
+                const cartEl = document.getElementById('modal-cart');
+                const pedEl = document.getElementById('modal-pedidos');
+                if (mainEl) mainEl.style.display = 'none';
+                if (cartEl) cartEl.style.display = 'none';
+                if (pedEl) pedEl.style.display = 'none';
+                document.body.classList.add('modal-open');
+
+                // 3. Prepara a transição de saída limpa
+                const redirecionarComLoading = () => {
+                    showLoading(true);
+                    location.reload();
+                };
+
+                const finalData = d.dados_fechamento || lastOrderData;
                 const msg = (d && d.mensagem) ? d.mensagem : "Seu acesso foi encerrado pelo estabelecimento.";
                 const icon = (d && d.status === 'cancelado') ? 'error' : 'info';
                 const title = (d && d.status === 'cancelado') ? 'Acesso Cancelado' : 'Sessão Encerrada';
@@ -692,13 +705,12 @@
                         allowOutsideClick: false,
                         allowEscapeKey: false,
                         didOpen: () => {
-                            document.getElementById('btn-download-cupom').onclick = () => {
-                                gerarPDFCupom(finalData);
-                            };
+                            const btnCupom = document.getElementById('btn-download-cupom');
+                            if (btnCupom) {
+                                btnCupom.onclick = () => gerarPDFCupom(finalData);
+                            }
                         }
-                    }).then(() => {
-                        location.reload();
-                    });
+                    }).then(redirecionarComLoading);
                 } else {
                     Swal.fire({
                         title: title,
@@ -710,9 +722,7 @@
                         timerProgressBar: true,
                         allowOutsideClick: false,
                         allowEscapeKey: false
-                    }).then(() => {
-                        location.reload();
-                    });
+                    }).then(redirecionarComLoading);
                 }
             });
 
