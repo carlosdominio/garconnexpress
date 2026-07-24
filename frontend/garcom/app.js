@@ -389,7 +389,7 @@ console.error = function(...args) {
     }
 
     try {
-      console.log(`🌐 FETCH INICIADO: ${args[0]}`, args[1] || {});
+      // console.log(`🌐 FETCH INICIADO: ${args[0]}`, args[1] || {});
       const response = await originalFetch(...args);
 
       if (!response.ok) {
