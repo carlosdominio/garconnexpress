@@ -659,9 +659,50 @@
                 carregarMeusPedidos(); 
             });
 
-            pusherChannel.bind(`taxa-atualizada-mesa-${sessionMesa.mesa_id}`, () => { 
+            pusherChannel.bind(`taxa-atualizada-mesa-${sessionMesa.mesa_id}`, (data) => { 
                 if(isClosingSession) return;
                 carregarMeusPedidos(); 
+                if (typeof Swal !== 'undefined') {
+                    const msg = (data && data.cobrar_taxa === false) ? 'Taxa de 10% removida da conta.' : 'Os valores da sua conta foram atualizados.';
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'info',
+                        title: msg,
+                        showConfirmButton: false,
+                        timer: 3500
+                    });
+                }
+            });
+
+            pusherChannel.bind(`item-removido-mesa-${sessionMesa.mesa_id}`, () => { 
+                if(isClosingSession) return;
+                carregarMeusPedidos(); 
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'warning',
+                        title: 'Um item foi removido da sua conta.',
+                        showConfirmButton: false,
+                        timer: 3500
+                    });
+                }
+            });
+
+            pusherChannel.bind(`itens-atualizados-mesa-${sessionMesa.mesa_id}`, () => { 
+                if(isClosingSession) return;
+                carregarMeusPedidos(); 
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'info',
+                        title: 'Os itens da sua conta foram alterados.',
+                        showConfirmButton: false,
+                        timer: 3500
+                    });
+                }
             });
             
             pusherChannel.bind(`deslogar-mesa-${sessionMesa.mesa_id}`, (d) => {

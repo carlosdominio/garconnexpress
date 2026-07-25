@@ -3333,6 +3333,13 @@ app.delete('/api/pedidos/itens/:id', isAuthenticated, async (req, res) => {
 
       await notifyStatus(item.pedido_id, pedido ? pedido.mesa_id : null, 'cancelado');
     } else {
+      const pedidoObj = (await query("SELECT mesa_id FROM pedidos WHERE id = ?", [item.pedido_id])).rows[0];
+      if (pedidoObj && pedidoObj.mesa_id) {
+        safePusherTrigger('garconnexpress', `item-removido-mesa-${pedidoObj.mesa_id}`, {
+          pedido_id: item.pedido_id,
+          item_id: id
+        }).catch(console.error);
+      }
       const temPendente = itensRestantes.some(i => i.status === 'pendente');
       if (!temPendente) { await query("UPDATE pedidos SET status = 'servido' WHERE id = ?", [item.pedido_id]); await notifyStatus(item.pedido_id, null, 'servido'); }
       else await notifyStatus(item.pedido_id, null, 'itens_atualizados');
