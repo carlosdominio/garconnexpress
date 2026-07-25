@@ -6444,6 +6444,12 @@ async function configurarPusher() {
         exibirNotificacaoNativa('✅ Concluído', `${nMesa} foi finalizado e concluído com sucesso.`, tagMesa);
         mostrarToast(`✅ Concluído: ${nMesa}`);
       }
+      else if (data.cobrar_taxa !== undefined) {
+        mostrarToast(`ℹ️ ${nMesa}: Taxa de 10% ${data.cobrar_taxa ? 'ativada' : 'desativada'}`);
+      }
+      else if (data.status === 'itens_atualizados') {
+        mostrarToast(`📝 ${nMesa}: Itens / valores da conta atualizados`);
+      }
 
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => {
