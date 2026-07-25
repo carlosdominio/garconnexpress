@@ -4539,7 +4539,15 @@ app.post('/api/menu', isAdmin, async (req, res) => {
   }
   catch (error) { res.status(500).json({ error: error.message }); }
 });
-app.delete('/api/menu/:id', isAdmin, async (req, res) => { try { await query('DELETE FROM menu WHERE id = ?', [req.params.id]); res.json({ success: true }); } catch (error) { res.status(500).json({ error: error.message }); } });
+app.delete('/api/menu/:id', isAdmin, async (req, res) => {
+  try {
+    await query('DELETE FROM menu WHERE id = ?', [req.params.id]);
+    await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // ─── Ficha Técnica (Doses / Drinks) ─────────────────────────────────────────
 app.get('/api/menu/:id/ficha-tecnica', isAdmin, async (req, res) => {
@@ -4593,6 +4601,7 @@ app.delete('/api/menu/categoria/:categoria', isAdmin, async (req, res) => {
   try {
     // Usamos UPPER para garantir que pegue variações de caixa se houver (ex: Bebidas vs bebidas)
     await query('DELETE FROM menu WHERE UPPER(categoria) = UPPER(?)', [categoria]);
+    await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -4634,6 +4643,7 @@ app.put('/api/menu/categoria/:categoria', isAdmin, async (req, res) => {
       }
     }
 
+    await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
     res.json({ success: true });
   } catch (error) {
     console.error('Erro ao renomear categoria:', error);
