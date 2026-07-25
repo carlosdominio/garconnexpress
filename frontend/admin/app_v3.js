@@ -4097,10 +4097,14 @@ async function exibirPedidos() {
       const isDelivery = (pedido.garcom_id === 'DELIVERY');
       const mesaNomeExibicao = isDelivery ? `🛵 DELIVERY #${pedido.id}` : (pedido.mesa_numero ? `Mesa ${pedido.mesa_numero}` : `BALCÃO #${pedido.id}`);
       
-      // Sincroniza sempre o estado da taxa com o valor vindo do banco de dados (converte 1/true em boolean)
-      pedidosStatusTaxa[pedido.id] = (pedido.cobrar_taxa === undefined || pedido.cobrar_taxa === null) 
-        ? true 
-        : (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true);
+      // Sincroniza o estado da taxa (preserva atualizações locais otimistas)
+      if (pedidosStatusTaxa[pedido.id] === undefined) {
+        pedidosStatusTaxa[pedido.id] = (pedido.cobrar_taxa === undefined || pedido.cobrar_taxa === null) 
+          ? true 
+          : (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true);
+      } else {
+        pedido.cobrar_taxa = pedidosStatusTaxa[pedido.id];
+      }
       const cobrarTaxaNoPedido = pedidosStatusTaxa[pedido.id];
 
       // USAR ITENS QUE JÁ VEM NO OBJETO PEDIDO (ECONOMIZA N FETCHS)
@@ -4533,6 +4537,20 @@ async function atualizarPessoasPedido(id, numPessoas) {
 async function alternarTaxaPedido(id, checkboxEl) {
   const novoEstado = checkboxEl ? checkboxEl.checked : !pedidosStatusTaxa[id];
   const estadoAnterior = !novoEstado;
+  
+  // 1. Atualização otimista imediata na memória local (0ms de atraso visual)
+  pedidosStatusTaxa[id] = novoEstado;
+  const pedidoRef = pedidos.find(p => p.id === id);
+  if (pedidoRef) pedidoRef.cobrar_taxa = novoEstado;
+
+  // 2. Atualiza os componentes do modal imediatamente se estiver aberto
+  const modalOpcoes = document.getElementById('modal-opcoes');
+  if (modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.dataset.pedidoId == id) {
+    if (typeof abrirModalOpcoes === 'function') {
+      abrirModalOpcoes(id);
+    }
+  }
+
   if (checkboxEl) checkboxEl.disabled = true;
   
   try {
@@ -4545,26 +4563,25 @@ async function alternarTaxaPedido(id, checkboxEl) {
     
     if (res.ok) {
       pedidosStatusTaxa[id] = novoEstado;
-      const pedidoRef = pedidos.find(p => p.id === id);
       if (pedidoRef) pedidoRef.cobrar_taxa = novoEstado;
-
       await carregarPedidos();
-
-      // Se o modal de opções do pedido estiver aberto, atualiza em tempo real
-      const modalOpcoes = document.getElementById('modal-opcoes');
-      if (modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.dataset.pedidoId == id) {
-        if (typeof abrirModalOpcoes === 'function') {
-          abrirModalOpcoes(id);
-        }
-      }
     } else {
+      // Reverte se o servidor falhou
       pedidosStatusTaxa[id] = estadoAnterior;
+      if (pedidoRef) pedidoRef.cobrar_taxa = estadoAnterior;
       if (checkboxEl) checkboxEl.checked = estadoAnterior;
+      if (modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.dataset.pedidoId == id) {
+        if (typeof abrirModalOpcoes === 'function') abrirModalOpcoes(id);
+      }
     }
   } catch (e) {
     console.error("Erro ao alternar taxa:", e);
     pedidosStatusTaxa[id] = estadoAnterior;
+    if (pedidoRef) pedidoRef.cobrar_taxa = estadoAnterior;
     if (checkboxEl) checkboxEl.checked = estadoAnterior;
+    if (modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.dataset.pedidoId == id) {
+      if (typeof abrirModalOpcoes === 'function') abrirModalOpcoes(id);
+    }
   } finally {
     if (checkboxEl) checkboxEl.disabled = false;
   }
