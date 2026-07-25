@@ -943,6 +943,18 @@
                     window._lastConfirmedItemsCount = qtdConfirmados;
 
                     let subtotal = 0;
+                    
+                    // Soma itens do fake cache se ativo
+                    if (lastRascunhoCache && lastRascunhoCache.aceito && lastRascunhoCache.itens && lastRascunhoCache.itens.length > 0) {
+                        lastRascunhoCache.itens.forEach(i => {
+                            subtotal += (i.quantidade * (i.preco || 0));
+                        });
+                    }
+                    
+                    // Soma todos os itens reais do banco que não estão cancelados
+                    const itensValidos = (d.itens || []).filter(i => (i.status || '').toLowerCase() !== 'cancelado');
+                    subtotal += itensValidos.reduce((sum, i) => sum + (i.quantidade * (i.preco || i.menu_preco || 0)), 0);
+
                     let htmlOutput = '';
 
                     // TARJA DE ALERTA: CONTA SOLICITADA
@@ -1058,7 +1070,6 @@
 
                         htmlOutput += itensEntregues.map(i => {
                             const pr = i.preco || i.menu_preco || 0;
-                            subtotal += (i.quantidade * pr);
                             return `<div class="item-row" style="padding:10px 0; border-bottom:1px dashed #eee; display:flex; justify-content:space-between; align-items:center;">
                                 <div>
                                     <h4 style="font-size:0.95rem; font-weight:700; color:#2c3e50; margin-bottom:2px;">${i.quantidade}x ${i.menu_nome}</h4>
