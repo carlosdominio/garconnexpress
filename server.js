@@ -3821,7 +3821,7 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
 
     // OTIMIZAÇÃO EM LOTE: Busca preços do cardápio em lote para evitar múltiplas consultas consecutivas
     const menuIds = [...new Set(itens.map(i => i.menu_id))];
-    const menuItemsRes = await query(`SELECT id, preco FROM menu WHERE id IN (${menuIds.map(() => '?').join(',')})`, menuIds);
+    const menuItemsRes = await query(`SELECT id, preco, nome FROM menu WHERE id IN (${menuIds.map(() => '?').join(',')})`, menuIds);
     const menuMap = {};
     menuItemsRes.rows.forEach(m => { menuMap[m.id] = m; });
 
@@ -3882,9 +3882,17 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
     // Verifica se os NOVOS itens vão para a cozinha
     const temItemCozinha = await checkTemItemCozinha(itens.map(i => i.menu_id));
 
+    const alteracoes = [];
+    for (const item of itens) {
+      const pMenu = menuMap[item.menu_id];
+      const nomeItem = pMenu ? pMenu.nome : `Item #${item.menu_id}`;
+      alteracoes.push(`➕ ${item.quantidade}x ${nomeItem}`);
+    }
+    const detalhesEdicao = alteracoes.join(', ');
+
     // Notifica em paralelo
     await Promise.all([
-      notifyStatus(id, null, 'itens_adicionados'),
+      notifyStatus(id, null, 'itens_atualizados', null, detalhesEdicao),
       safePusherTrigger('garconnexpress', 'menu-atualizado', {}),
       safePusherTrigger('garconnexpress', 'novo-pedido', { 
         para_cozinha: temItemCozinha,
