@@ -4134,8 +4134,8 @@ async function exibirPedidos() {
         }
       }
 
-      const itensEntreguesApenas = itens.filter(i => i.status === 'entregue');
-      const subtotal = itensEntreguesApenas.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+      const itensParaSoma = itens.filter(i => (i.status || '').toLowerCase() !== 'cancelado');
+      const subtotal = itensParaSoma.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
       const taxaServico = cobrarTaxaNoPedido ? (isDelivery ? 3.00 : (subtotal * 0.10)) : 0;
       const pagoParcial = pedido.pago_parcial || 0;
       const totalConsumo = (subtotal + taxaServico);
@@ -7375,8 +7375,8 @@ async function abrirModalOpcoes(pedidoId) {
 
   // 2. TOTAIS E TAXA
   const cobrarTaxaNoPedido = (pedidosStatusTaxa[pedidoId] !== undefined) ? pedidosStatusTaxa[pedidoId] : (pedido.cobrar_taxa === undefined || pedido.cobrar_taxa === null ? true : (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true));
-  const itensEntreguesModal = itens.filter(i => (i.status || '').toLowerCase() === 'entregue');
-  const subtotal = itensEntreguesModal.reduce((sum, i) => sum + ((i.preco || 0) * (i.quantidade || 1)), 0);
+  const itensParaSomaModal = itens.filter(i => (i.status || '').toLowerCase() !== 'cancelado');
+  const subtotal = itensParaSomaModal.reduce((sum, i) => sum + ((i.preco || 0) * (i.quantidade || 1)), 0);
   const taxaServico = cobrarTaxaNoPedido ? (isDelivery ? 3.00 : (subtotal * 0.10)) : 0;
   const pagoParcial = pedido.pago_parcial || 0;
   const isAguardandoReal = isAguardando && !isDelivery;
