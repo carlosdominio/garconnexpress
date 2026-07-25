@@ -1047,7 +1047,12 @@ async function configurarPusher() {
     });
 
     channel.bind('status-atualizado', (data) => {
-      if (!data || !data.garcom_id && !(data.pedido && data.pedido.garcom_id) || data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
+      // Se a mesa aberta no garçom for a mesa atualizada, recarrega o modal em tempo real
+      if (mesaAtual && data && data.mesa_id && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_id)) {
+        verItensDaMesa();
+      }
+
+      if (!data || (!data.cobrar_taxa && !data.garcom_id && !(data.pedido && data.pedido.garcom_id)) || data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
         clearTimeout(timeoutPusher);
         timeoutPusher = setTimeout(() => carregarMesas(), 50);
         return;
@@ -2045,16 +2050,20 @@ async function verItensDaMesa() {
       });
     }
 
+    const cobrarTaxa = (pedidoAbertoNaMesa.cobrar_taxa === undefined || pedidoAbertoNaMesa.cobrar_taxa === null)
+      ? true
+      : (pedidoAbertoNaMesa.cobrar_taxa == 1 || pedidoAbertoNaMesa.cobrar_taxa === true);
+
     const totalEntregue = entregues.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
     const totalPendente = pendentes.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
     const totalConsumido = totalEntregue; // Considera apenas itens efetivamente entregues na mesa
-    const taxaServico = totalConsumido * 0.10;
+    const taxaServico = cobrarTaxa ? totalConsumido * 0.10 : 0;
     const totalGeral = totalConsumido + taxaServico;
 
     document.getElementById('total-resumo-mesa').innerHTML = `
       <div style="text-align: right; border-top: 2px solid #eee; padding-top: 10px;">
         <p style="color: #7f8c8d; font-size: 0.9rem; white-space: nowrap;">Subtotal Consumido: <strong>R$ ${totalConsumido.toFixed(2)}</strong></p>
-        <p style="color: #3498db; font-size: 0.9rem; white-space: nowrap;">Taxa de Serviço (10%): <strong>R$ ${taxaServico.toFixed(2)}</strong></p>
+        <p style="color: ${cobrarTaxa ? '#3498db' : '#95a5a6'}; font-size: 0.9rem; white-space: nowrap;">Taxa de Serviço (10%): <strong>${cobrarTaxa ? `R$ ${taxaServico.toFixed(2)}` : 'R$ 0,00 (ISENTO)'}</strong></p>
         <p style="font-size: 1.2rem; margin-top: 8px; color: #2c3e50; border-top: 1px dashed #ddd; padding-top: 5px; white-space: nowrap;">Total Final: <strong>R$ ${totalGeral.toFixed(2)}</strong></p>
       </div>
     `;
