@@ -1047,9 +1047,18 @@ async function configurarPusher() {
     });
 
     channel.bind('status-atualizado', (data) => {
-      // Se a mesa aberta no garçom for a mesa atualizada, recarrega o modal em tempo real
-      if (mesaAtual && data && data.mesa_id && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_id)) {
-        verItensDaMesa();
+      // 1. Apenas se o garçom já estiver com o modal daquela mesa ABERTO na tela, atualiza silenciosamente
+      const modalResumo = document.getElementById('modal-resumo-mesa');
+      const isModalAberto = modalResumo && modalResumo.style.display !== 'none' && modalResumo.style.display !== '';
+      if (isModalAberto && mesaAtual && data && data.mesa_id && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_id)) {
+        verItensDaMesa(true);
+      }
+
+      if (data && data.cobrar_taxa !== undefined) {
+        const nMesa = data.mesa_numero || data.mesa_id || 'X';
+        let strMesa = nMesa.toString();
+        if (!strMesa.toLowerCase().startsWith('mesa') && strMesa.toLowerCase() !== 'balcão') strMesa = `Mesa ${strMesa}`;
+        dispararToastSistema('taxa-atualizada', { mesa: strMesa }, `ℹ️ ${strMesa}: Taxa de 10% ${data.cobrar_taxa ? 'ativada' : 'desativada'} pelo Admin`, 'info');
       }
 
       if (!data || (!data.cobrar_taxa && !data.garcom_id && !(data.pedido && data.pedido.garcom_id)) || data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
@@ -1962,19 +1971,19 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
   }
 }
 
-async function verItensDaMesa() {
+async function verItensDaMesa(isSilencioso = false) {
   if (!mesaAtual) return;
-  showLoading(true, 'Carregando itens...');
+  if (!isSilencioso) showLoading(true, 'Carregando itens...');
   try {
     const resPedido = await fetch(`/api/pedidos/mesa/${mesaAtual.id}`);
     pedidoAbertoNaMesa = await resPedido.json();
     if (!pedidoAbertoNaMesa) {
-      showLoading(false);
+      if (!isSilencioso) showLoading(false);
       return await mostrarAlerta("Nenhum pedido ativo.", "Aviso", "⚠️");
     }
     const resItens = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/itens`);
     const itens = await resItens.json();
-    showLoading(false);
+    if (!isSilencioso) showLoading(false);
     
     // Agora consideramos 'pendente' e 'pronto' como pendentes de entrega
     const pendentes = itens.filter(i => { const s = (i.status || '').toLowerCase(); return s === 'pendente' || s === 'pronto'; });
