@@ -3701,7 +3701,7 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
       const addIdx = adicionados.findIndex(a => a.qtd === rem.qtd);
       if (addIdx !== -1) {
         const add = adicionados[addIdx];
-        substituicoes.push(`🔄 ${rem.qtd}x ${rem.nome} ➡️ ${add.nome}`);
+        substituicoes.push(`🔄 Item '${rem.nome}' substituído por '${add.nome}' com sucesso!`);
         removidos.splice(i, 1);
         adicionados.splice(addIdx, 1);
       }
@@ -3710,7 +3710,7 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
     if (removidos.length === 1 && adicionados.length === 1) {
       const rem = removidos[0];
       const add = adicionados[0];
-      substituicoes.push(`🔄 ${rem.qtd}x ${rem.nome} ➡️ ${add.qtd}x ${add.nome}`);
+      substituicoes.push(`🔄 ${rem.qtd}x '${rem.nome}' substituído por ${add.qtd}x '${add.nome}' com sucesso!`);
       removidos.splice(0, 1);
       adicionados.splice(0, 1);
     }

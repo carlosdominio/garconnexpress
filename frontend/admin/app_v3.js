@@ -6472,8 +6472,12 @@ async function configurarPusher() {
           String(data.pedido_id) === String(ultimoPedidoEditadoPeloAdmin)
         );
         if (!isPropriaEdicaoAdmin) {
-          const det = data.detalhes_edicao ? `: ${data.detalhes_edicao}` : '';
-          mostrarToast(`📝 ${nMesa}: Itens atualizados${det}`);
+          if (data.detalhes_edicao && data.detalhes_edicao.includes('🔄')) {
+            mostrarToast(`${data.detalhes_edicao.replace('🔄', '🔄 ' + nMesa + ':')}`);
+          } else {
+            const det = data.detalhes_edicao ? `: ${data.detalhes_edicao}` : '';
+            mostrarToast(`📝 ${nMesa}: Itens atualizados${det}`);
+          }
         }
       }
 

@@ -1110,8 +1110,12 @@ async function configurarPusher() {
             );
             if (!isPropriaEdicaoGarcom) {
               if (deveTocarSom('item-adicionado')) tocarCampainha(true);
-              const det = data.detalhes_edicao ? `: ${data.detalhes_edicao}` : '';
-              dispararToastSistema('item-adicionado', { mesa: strMesa }, `📝 Pedido da ${strMesa} atualizado pelo Admin${det}`, 'info');
+              if (data.detalhes_edicao && data.detalhes_edicao.includes('🔄')) {
+                mostrarToast(data.detalhes_edicao.replace('🔄', '🔄 ' + strMesa + ':'), 'success');
+              } else {
+                const det = data.detalhes_edicao ? `: ${data.detalhes_edicao}` : '';
+                mostrarToast(`📝 Pedido da ${strMesa} atualizado pelo Admin${det}`, 'info');
+              }
             }
           }
 
@@ -2170,7 +2174,7 @@ function substituirItemGarcom(itemId) {
   abrirCardapio();
   
   // Dispara toast orientando
-  dispararToastSistema('item-adicionado', { mesa: '' }, `🔄 Selecione o novo produto no cardápio para substituir '${itemAtual.nome}'`, 'info');
+  mostrarToast(`🔄 Selecione o novo produto no cardápio para substituir '${itemAtual.nome}'`, 'info');
 }
 
 function verificarSeHaAlteracoesGarcom() {
@@ -2789,7 +2793,7 @@ async function exibirMenu(categoria, queryTexto = '') {
         document.getElementById('modal-resumo-mesa').style.display = 'block';
         atualizarBloqueioScroll();
         
-        dispararToastSistema('item-adicionado', { mesa: `Mesa ${mesaAtual ? mesaAtual.numero : ''}` }, `🔄 Item substituído por ${menuItem.nome}! Lembre-se de salvar.`, 'success');
+        mostrarToast(`🔄 Item substituído por '${menuItem.nome}'! Lembre-se de salvar as alterações.`, 'success');
         return;
       }
       
