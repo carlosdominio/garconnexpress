@@ -4534,16 +4534,17 @@ async function atualizarPessoasPedido(id, numPessoas) {
   }
 }
 
+let taxaDebounceTimers = {};
+
 async function alternarTaxaPedido(id, checkboxEl) {
   const novoEstado = checkboxEl ? checkboxEl.checked : !pedidosStatusTaxa[id];
-  const estadoAnterior = !novoEstado;
   
-  // 1. Atualização otimista imediata na memória local (0ms de atraso visual)
+  // 1. Atualização otimista imediata na memória local (0ms de atraso visual, nunca trava o clique)
   pedidosStatusTaxa[id] = novoEstado;
   const pedidoRef = pedidos.find(p => p.id === id);
   if (pedidoRef) pedidoRef.cobrar_taxa = novoEstado;
 
-  // 2. Atualiza os componentes do modal imediatamente se estiver aberto
+  // 2. Atualiza os componentes do modal imediatamente a cada clique
   const modalOpcoes = document.getElementById('modal-opcoes');
   if (modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.dataset.pedidoId == id) {
     if (typeof abrirModalOpcoes === 'function') {
@@ -4551,40 +4552,30 @@ async function alternarTaxaPedido(id, checkboxEl) {
     }
   }
 
-  if (checkboxEl) checkboxEl.disabled = true;
-  
-  try {
-    const res = await fetch(`/api/pedidos/${id}/taxa`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cobrar_taxa: novoEstado }),
-      showLoading: false
-    });
-    
-    if (res.ok) {
-      pedidosStatusTaxa[id] = novoEstado;
-      if (pedidoRef) pedidoRef.cobrar_taxa = novoEstado;
-      await carregarPedidos();
-    } else {
-      // Reverte se o servidor falhou
-      pedidosStatusTaxa[id] = estadoAnterior;
-      if (pedidoRef) pedidoRef.cobrar_taxa = estadoAnterior;
-      if (checkboxEl) checkboxEl.checked = estadoAnterior;
-      if (modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.dataset.pedidoId == id) {
-        if (typeof abrirModalOpcoes === 'function') abrirModalOpcoes(id);
-      }
-    }
-  } catch (e) {
-    console.error("Erro ao alternar taxa:", e);
-    pedidosStatusTaxa[id] = estadoAnterior;
-    if (pedidoRef) pedidoRef.cobrar_taxa = estadoAnterior;
-    if (checkboxEl) checkboxEl.checked = estadoAnterior;
-    if (modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.dataset.pedidoId == id) {
-      if (typeof abrirModalOpcoes === 'function') abrirModalOpcoes(id);
-    }
-  } finally {
-    if (checkboxEl) checkboxEl.disabled = false;
+  // 3. Debounce de 250ms: se clicar várias vezes rápido, apenas o estado final é enviado ao servidor
+  if (taxaDebounceTimers[id]) {
+    clearTimeout(taxaDebounceTimers[id]);
   }
+
+  taxaDebounceTimers[id] = setTimeout(async () => {
+    try {
+      const estadoFinal = pedidosStatusTaxa[id];
+      const res = await fetch(`/api/pedidos/${id}/taxa`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cobrar_taxa: estadoFinal }),
+        showLoading: false
+      });
+      
+      if (res.ok) {
+        await carregarPedidos();
+      }
+    } catch (e) {
+      console.error("Erro ao sincronizar taxa com o servidor:", e);
+    } finally {
+      delete taxaDebounceTimers[id];
+    }
+  }, 250);
 }
 
 // Bloco de funções duplicadas removido. Usando definições em L1530+
