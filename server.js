@@ -2088,7 +2088,7 @@ async function sendPushToGarcons(title, body, event = 'geral', dataExtra = {}, t
   }
 }
 
-async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null) {
+async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null, detalhesEdicao = null) {
   try {
     let mesaNum = mesaNumPredefined;
     let finalMesaId = mesaDbId;
@@ -2121,7 +2121,14 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
     // Fallback final
     if (!mesaNum) mesaNum = 'BALCÃO';
     
-    const payload = { pedido_id: pedidoId, mesa_id: finalMesaId, mesa_numero: mesaNum, status: status, garcom_id: garcomId };
+    const payload = { 
+      pedido_id: pedidoId, 
+      mesa_id: finalMesaId, 
+      mesa_numero: mesaNum, 
+      status: status, 
+      garcom_id: garcomId,
+      detalhes_edicao: detalhesEdicao 
+    };
     console.log(`🔔 [Notificação] ${status.toUpperCase()}: ${mesaNum} (ID Pedido: ${pedidoId || 'N/A'})`);
 
     // Dispara Pusher IMEDIATAMENTE (Prioridade)
@@ -3647,6 +3654,40 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
   const { itens, observacao } = req.body;
   try {
     const itensAtuais = (await query("SELECT id, menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
+    
+    // Calcula as alterações detalhadas da edição realizada
+    const menuItems = (await query("SELECT id, nome FROM menu")).rows;
+    const menuMap = {};
+    menuItems.forEach(m => { menuMap[m.id] = m.nome; });
+    
+    const atuaisMap = {};
+    itensAtuais.forEach(i => { atuaisMap[i.menu_id] = (atuaisMap[i.menu_id] || 0) + i.quantidade; });
+    
+    const novosMap = {};
+    (itens || []).forEach(i => { novosMap[i.menu_id] = (novosMap[i.menu_id] || 0) + i.quantidade; });
+    
+    const alteracoes = [];
+    for (const menuId in novosMap) {
+      const novaQtd = novosMap[menuId];
+      const antigaQtd = atuaisMap[menuId] || 0;
+      const nomeItem = menuMap[menuId] || `Item #${menuId}`;
+      if (antigaQtd === 0) {
+        alteracoes.push(`➕ ${novaQtd}x ${nomeItem}`);
+      } else if (novaQtd > antigaQtd) {
+        alteracoes.push(`➕ ${novaQtd - antigaQtd}x ${nomeItem}`);
+      } else if (novaQtd < antigaQtd) {
+        alteracoes.push(`➖ ${antigaQtd - novaQtd}x ${nomeItem}`);
+      }
+    }
+    for (const menuId in atuaisMap) {
+      if (!novosMap[menuId]) {
+        const antigaQtd = atuaisMap[menuId];
+        const nomeItem = menuMap[menuId] || `Item #${menuId}`;
+        alteracoes.push(`➖ ${antigaQtd}x ${nomeItem}`);
+      }
+    }
+    const detalhesEdicao = alteracoes.length > 0 ? alteracoes.join(', ') : null;
+
     for (const item of itensAtuais) await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
     for (const item of itens) {
       if (!item.quantidade || item.quantidade <= 0) return res.status(400).json({ error: 'Quantidade inválida (negativa ou zero)' });
@@ -3706,7 +3747,7 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
       
       // Notifica em paralelo
       await Promise.all([
-        notifyStatus(id, null, 'itens_atualizados'),
+        notifyStatus(id, null, 'itens_atualizados', null, detalhesEdicao),
         safePusherTrigger('garconnexpress', 'menu-atualizado', {}),
         safePusherTrigger('garconnexpress', 'novo-pedido', { 
           para_cozinha: temItemCozinha,
@@ -3717,11 +3758,11 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
     } else {
       await query("UPDATE pedidos SET total = ?, status = ?, observacao = ? WHERE id = ?", [total, novoStatusPedido, observacao || '', id]);
       await Promise.all([
-        notifyStatus(id, null, 'itens_atualizados'),
+        notifyStatus(id, null, 'itens_atualizados', null, detalhesEdicao),
         safePusherTrigger('garconnexpress', 'menu-atualizado', {})
       ]);
     }
-    res.json({ success: true });
+    res.json({ success: true, detalhes_edicao: detalhesEdicao });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 

@@ -1095,7 +1095,8 @@ async function configurarPusher() {
             dispararToastSistema('pedido-servido', { mesa: strMesa, pedido_id: data.pedido_id || '' }, `🍽️ Pedido da ${strMesa} entregue!`, 'success');
           } else if (data.status === 'itens_atualizados') {
             if (deveTocarSom('item-adicionado')) tocarCampainha(true);
-            dispararToastSistema('item-adicionado', { mesa: strMesa }, `📝 Pedido da ${strMesa} atualizado pelo Admin`, 'info');
+            const det = data.detalhes_edicao ? `: ${data.detalhes_edicao}` : '';
+            dispararToastSistema('item-adicionado', { mesa: strMesa }, `📝 Pedido da ${strMesa} atualizado pelo Admin${det}`, 'info');
           }
 
           if (data.status === 'liberada') {

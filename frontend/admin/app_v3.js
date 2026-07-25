@@ -5057,8 +5057,16 @@ async function adicionarItemNaEdicao(itemId) {
   renderizarMenuEdicao(categoriaEdicaoAtual); // ATUALIZAÇÃO EM TEMPO REAL DO ESTOQUE NO CARDÁPIO
 }
 
+let ultimoPedidoEditadoPeloAdmin = null;
+let timerIgnoreEdit = null;
+
 async function salvarAlteracoes() {
   if (!pedidoEmEdicao) return;
+  const idEditado = pedidoEmEdicao.id;
+  ultimoPedidoEditadoPeloAdmin = idEditado;
+  if (timerIgnoreEdit) clearTimeout(timerIgnoreEdit);
+  timerIgnoreEdit = setTimeout(() => { ultimoPedidoEditadoPeloAdmin = null; }, 5000);
+
   try {
     const res = await fetch(`/api/pedidos/${pedidoEmEdicao.id}/atualizar-itens`, {
       method: 'PUT',
@@ -5066,7 +5074,9 @@ async function salvarAlteracoes() {
       body: JSON.stringify({ itens: itensEmEdicao })
     });
     if (res.ok) {
-      mostrarToast("✅ Pedido atualizado!");
+      const data = await res.json();
+      const det = data.detalhes_edicao ? `\n(${data.detalhes_edicao})` : '';
+      mostrarToast(`✅ Pedido atualizado!${det}`);
       const idPed = pedidoEmEdicao.id;
       const idMesa = pedidoEmEdicao.mesa_id;
       
@@ -6301,10 +6311,21 @@ async function configurarPusher() {
     // EVENTO: NOVO PEDIDO
     channel.bind('novo-pedido', (data) => {
       console.log('📢 Admin: Novo pedido recebido!', data);
+      
+      const p = data.pedido;
+      const isAddition = !!data.is_addition;
+      const isPropriaEdicaoAdmin = (ultimoPedidoEditadoPeloAdmin !== null) && (
+        (p && String(p.id) === String(ultimoPedidoEditadoPeloAdmin)) ||
+        (data && String(data.pedido_id) === String(ultimoPedidoEditadoPeloAdmin))
+      );
+
+      if (isAddition && isPropriaEdicaoAdmin) {
+        return; // Ignora alertas e sons para edições da própria sessão
+      }
+
       tocarNotificacao(); 
       iniciarPiscarTitulo();
 
-      const p = data.pedido;
       const isDelivery = (p && p.garcom_id === 'DELIVERY');
       let nomeExibicao = 'X';
       
@@ -6315,7 +6336,6 @@ async function configurarPusher() {
       }
 
       const mesaId = p ? p.mesa_id : 'geral';
-      const isAddition = !!data.is_addition;
 
       if (isAddition) {
         exibirNotificacaoNativa('➕ ITEM ADICIONADO', `Novos itens adicionados na ${nomeExibicao}.`, `mesa-${mesaId}`);
@@ -6448,7 +6468,13 @@ async function configurarPusher() {
         mostrarToast(`ℹ️ ${nMesa}: Taxa de 10% ${data.cobrar_taxa ? 'ativada' : 'desativada'}`);
       }
       else if (data.status === 'itens_atualizados') {
-        mostrarToast(`📝 ${nMesa}: Itens / valores da conta atualizados`);
+        const isPropriaEdicaoAdmin = (ultimoPedidoEditadoPeloAdmin !== null) && (
+          String(data.pedido_id) === String(ultimoPedidoEditadoPeloAdmin)
+        );
+        if (!isPropriaEdicaoAdmin) {
+          const det = data.detalhes_edicao ? `: ${data.detalhes_edicao}` : '';
+          mostrarToast(`📝 ${nMesa}: Itens atualizados${det}`);
+        }
       }
 
       clearTimeout(timeoutPusher);
