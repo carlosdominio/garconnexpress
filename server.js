@@ -810,6 +810,7 @@ async function safePusherTrigger(channel, event, data) {
               .replace(/{itens}/g, itemsList)
               .replace(/{item}/g, data.item || data.nome || '')
               .replace(/{qtd}/g, data.qtd || data.estoque || '1')
+              .replace(/{detalhes}/g, data.detalhes_edicao || '')
               .replace(/{pedido_id}/g, String(data.pedido_id || data.id || ''));
           };
           return { title: mapVars(t), body: mapVars(b), som: s };
@@ -875,6 +876,8 @@ async function safePusherTrigger(channel, event, data) {
             msgMotoboy = resolveTemplate('saiu-entrega', '🛵 SAIU PARA ENTREGA', `🛵 SAIU PARA ENTREGA: ${mesaFormatada}`);
           } else if (data.status === 'liberada') {
             msgGarcom = resolveTemplate('mesa-liberada', '🔓 MESA LIBERADA', `🔓 MESA LIBERADA: ${mesaFormatada}`);
+          } else if (data.status === 'itens_atualizados') {
+            msgGarcom = resolveTemplate('itens-atualizados', '📝 PEDIDO ATUALIZADO', '{mesa}: {detalhes}');
           } else {
             return true; // Ignora outros status
           }
@@ -3668,27 +3671,54 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
     const novosMap = {};
     (itens || []).forEach(i => { novosMap[i.menu_id] = (novosMap[i.menu_id] || 0) + i.quantidade; });
     
-    const alteracoes = [];
+    const adicionados = [];
+    const removidos = [];
     for (const menuId in novosMap) {
       const novaQtd = novosMap[menuId];
       const antigaQtd = atuaisMap[menuId] || 0;
       const nomeItem = menuMap[menuId] || `Item #${menuId}`;
       if (antigaQtd === 0) {
-        alteracoes.push(`➕ ${novaQtd}x ${nomeItem}`);
+        adicionados.push({ nome: nomeItem, qtd: novaQtd });
       } else if (novaQtd > antigaQtd) {
-        alteracoes.push(`➕ ${novaQtd - antigaQtd}x ${nomeItem}`);
+        adicionados.push({ nome: nomeItem, qtd: novaQtd - antigaQtd });
       } else if (novaQtd < antigaQtd) {
-        alteracoes.push(`➖ ${antigaQtd - novaQtd}x ${nomeItem}`);
+        removidos.push({ nome: nomeItem, qtd: antigaQtd - novaQtd });
       }
     }
     for (const menuId in atuaisMap) {
       if (!novosMap[menuId]) {
         const antigaQtd = atuaisMap[menuId];
         const nomeItem = menuMap[menuId] || `Item #${menuId}`;
-        alteracoes.push(`➖ ${antigaQtd}x ${nomeItem}`);
+        removidos.push({ nome: nomeItem, qtd: antigaQtd });
       }
     }
-    const detalhesEdicao = alteracoes.length > 0 ? alteracoes.join(', ') : null;
+
+    const substituicoes = [];
+    const alteracoes = [];
+    // Pareia os removidos com adicionados que tenham a mesma quantidade (substituição ideal)
+    for (let i = removidos.length - 1; i >= 0; i--) {
+      const rem = removidos[i];
+      const addIdx = adicionados.findIndex(a => a.qtd === rem.qtd);
+      if (addIdx !== -1) {
+        const add = adicionados[addIdx];
+        substituicoes.push(`🔄 ${rem.qtd}x ${rem.nome} ➡️ ${add.nome}`);
+        removidos.splice(i, 1);
+        adicionados.splice(addIdx, 1);
+      }
+    }
+    // Pareia o resto 1-para-1 se sobrar apenas um de cada (quantidades diferentes)
+    if (removidos.length === 1 && adicionados.length === 1) {
+      const rem = removidos[0];
+      const add = adicionados[0];
+      substituicoes.push(`🔄 ${rem.qtd}x ${rem.nome} ➡️ ${add.qtd}x ${add.nome}`);
+      removidos.splice(0, 1);
+      adicionados.splice(0, 1);
+    }
+    adicionados.forEach(a => { alteracoes.push(`➕ ${a.qtd}x ${a.nome}`); });
+    removidos.forEach(r => { alteracoes.push(`➖ ${r.qtd}x ${r.nome}`); });
+
+    const totalAlteracoes = [...substituicoes, ...alteracoes];
+    const detalhesEdicao = totalAlteracoes.length > 0 ? totalAlteracoes.join(', ') : null;
 
     for (const item of itensAtuais) await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
     for (const item of itens) {

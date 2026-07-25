@@ -30,7 +30,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   console.log(`📱 Ambiente Nativo detectado: ${isNativeApp} (Protocolo: ${window.location.protocol})`);
   
   if (isNativeApp) {
-     await AppUpdater.check();
      document.body.classList.add('native-app');
      
      // VERIFICA OTIMIZAÇÃO DE BATERIA (Evita suspensão do Pusher e FCM)
@@ -70,119 +69,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   verificarVersaoSistema();
   setInterval(verificarVersaoSistema, 5 * 60 * 1000);
 });
-
-const AppUpdater = {
-    web_version: '1.0.0', // Versão local do código web (baseline)
-    apk_version: '2.0.0', // Versão padrão do APK local (se não puder ler pelo User Agent)
-
-    getLocalApkVersion() {
-        const ua = navigator.userAgent;
-        const match = ua.match(/GarconnExpressGarcom\/([0-9.]+)/);
-        return match ? match[1] : this.apk_version;
-    },
-
-    async check() {
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/config/versao-app?_t=${Date.now()}`);
-            if (!res.ok) return;
-            const data = await res.json();
-            if (!data.success) return;
-
-            const localApk = this.getLocalApkVersion();
-            const serverApk = data.garcom_apk_version;
-
-            // 1. Verifica se exige atualização do APK nativo
-            if (this.compareVersions(localApk, serverApk) < 0) {
-                this.showApkUpdateScreen(data.garcom_apk_url, serverApk);
-                return;
-            }
-
-            // 2. Verifica se exige atualização do código Web (OTA)
-            const localWeb = localStorage.getItem('garcom_web_version') || this.web_version;
-            const serverWeb = data.web_version;
-
-            if (this.compareVersions(localWeb, serverWeb) < 0) {
-                await this.runWebUpdate(serverWeb);
-            }
-        } catch (e) {
-            console.error("Erro ao verificar atualizações nativas:", e);
-        }
-    },
-
-    compareVersions(v1, v2) {
-        const parts1 = v1.split('.').map(Number);
-        const parts2 = v2.split('.').map(Number);
-        for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-            const num1 = parts1[i] || 0;
-            const num2 = parts2[i] || 0;
-            if (num1 < num2) return -1;
-            if (num1 > num2) return 1;
-        }
-        return 0;
-    },
-
-    showApkUpdateScreen(apkUrl, targetVersion) {
-        const overlay = document.getElementById('update-app');
-        const title = document.getElementById('update-title');
-        const subtitle = document.getElementById('update-subtitle');
-        const icon = document.getElementById('update-icon');
-        const progressBar = document.getElementById('update-progress-bar');
-        const percentage = document.getElementById('update-percentage');
-        const btn = document.getElementById('update-btn');
-
-        if (!overlay) return;
-
-        icon.textContent = '🤖';
-        title.textContent = 'Atualização Necessária';
-        subtitle.innerHTML = `Instale a nova versão do aplicativo (<strong>v${targetVersion}</strong>) para continuar utilizando o sistema.`;
-        progressBar.style.width = '0%';
-        percentage.textContent = 'Pendente';
-        btn.classList.remove('hidden');
-        overlay.classList.remove('hidden');
-
-        btn.onclick = async () => {
-            const url = `${API_BASE_URL}${apkUrl}`;
-            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
-                try {
-                    await window.Capacitor.Plugins.Browser.open({ url });
-                } catch (e) {
-                    console.error("Erro ao abrir navegador com plugin:", e);
-                    window.open(url, '_system');
-                }
-            } else {
-                window.open(url, '_system');
-            }
-        };
-    },
-
-    async runWebUpdate(targetVersion) {
-        const overlay = document.getElementById('update-app');
-        const title = document.getElementById('update-title');
-        const subtitle = document.getElementById('update-subtitle');
-        const icon = document.getElementById('update-icon');
-        const progressBar = document.getElementById('update-progress-bar');
-        const percentage = document.getElementById('update-percentage');
-        const btn = document.getElementById('update-btn');
-
-        if (!overlay) return;
-
-        icon.textContent = '⚡';
-        title.textContent = 'Atualizando Sistema';
-        subtitle.textContent = 'Carregando melhorias e novos arquivos de áudio...';
-        btn.classList.add('hidden');
-        overlay.classList.remove('hidden');
-
-        // Simula uma barra de progresso suave para o reload limpo
-        for (let i = 0; i <= 100; i += 10) {
-            progressBar.style.width = `${i}%`;
-            percentage.textContent = `${i}%`;
-            await new Promise(r => setTimeout(r, 150));
-        }
-
-        localStorage.setItem('garcom_web_version', targetVersion);
-        window.location.reload(true);
-    }
-};
 
 const CLIENT_VERSION = '1.3.1';
 async function verificarVersaoSistema() {
@@ -249,8 +135,7 @@ async function registerNativePush() {
     if (window.Capacitor.getPlatform() === 'android') {
       const somTipo = localStorage.getItem('garcom_som_global') || 'campainha_classica';
       const somRec = somTipo === 'original' ? 'notificacao' : somTipo;
-      const canalId = 'garcom_canal_' + somTipo + '_v2';
-
+      const canalId = 'garcom_canal_' + somTipo;
 
       try { await PushNotifications.deleteChannel({ id: 'pedidos' }); } catch(e) {}
       try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}
@@ -279,22 +164,16 @@ async function registerNativePush() {
     }
 
     let permStatus = await PushNotifications.checkPermissions();
-    if (permStatus.receive !== 'granted') {
+    if (permStatus.receive === 'prompt') {
       permStatus = await PushNotifications.requestPermissions();
     }
 
     if (permStatus.receive !== 'granted') {
       console.warn('❌ Permissão de notificação negada.');
-      alert('⚠️ Notificações Desativadas:\nPara receber alertas de pedidos e chamados em tempo real, por favor ative as notificações nas configurações do seu celular.');
       return;
     }
 
     await PushNotifications.register();
-    try {
-      await PushNotifications.removeAllListeners();
-    } catch (e) {
-      console.warn('Erro ao remover listeners:', e);
-    }
 
     PushNotifications.addListener('registration', async (token) => {
       console.log('🔥 Token FCM recebido:', token.value);
@@ -323,15 +202,14 @@ async function registerNativePush() {
         return;
       }
       
-      // Verifica se é um evento de status de caixa
-      if (notification.data && notification.data.event === 'status-caixa-atualizado') {
-        console.log('📲 [FCM Background] Recebido evento de caixa:', notification.data);
-        if (typeof atualizarStatusCaixa === 'function') atualizarStatusCaixa();
-        return;
-      }
-
       // Tenta tocar o som manualmente se estiver em primeiro plano
-      // Removido a pedido do usuário: o websocket (Pusher) já cuida dos alertas sonoros com o app aberto!
+      try {
+        if (Date.now() - ultimoSomTocado > 2000) {
+          ultimoSomTocado = Date.now();
+          const audio = new Audio('notificacao.mp3');
+          await audio.play();
+        }
+      } catch (e) { console.error("Erro ao tocar áudio foreground:", e); }
 
       // Vibração Nativa (Haptics)
       if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
@@ -362,11 +240,6 @@ async function registerNativePush() {
     // --- NOVO: TRATAMENTO DE CLIQUE NA NOTIFICAÇÃO ---
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
       console.log('🖱️ Clique na notificação detectado:', notification);
-      // Se clicou em uma notificação de caixa, sincroniza o status
-      if (notification.notification && notification.notification.data && notification.notification.data.event === 'status-caixa-atualizado') {
-        if (typeof atualizarStatusCaixa === 'function') atualizarStatusCaixa();
-        return;
-      }
       // Ao clicar, garante que os dados estão atualizados
       if (typeof carregarMesas === 'function') carregarMesas();
       // Tenta focar na janela do app (nativo já faz isso, mas aqui reforçamos)
@@ -399,6 +272,10 @@ async function subscribeToPush() {
     if (!subscription) {
       const response = await fetch('/api/vapid-publicKey');
       const data = await response.json();
+      if (!data.publicKey || data.publicKey.trim() === '') {
+        console.warn('⚠️ Web Push desativado: Chave VAPID_PUBLIC_KEY não configurada no servidor Vercel.');
+        return;
+      }
       const convertedVapidKey = urlBase64ToUint8Array(data.publicKey);
       
       subscription = await reg.pushManager.subscribe({
@@ -495,6 +372,15 @@ console.error = function(...args) {
         url = API_BASE_URL + url;
         args[0] = url;
     }
+    
+    // Tratamento OFFLINE-FIRST
+    if (!navigator.onLine && typeof window.salvarPedidoOffline === 'function') {
+        const method = (args[1] && args[1].method) ? args[1].method.toUpperCase() : 'GET';
+        if (method === 'POST' || method === 'PUT') {
+            console.log("🌐 Sem internet. Salvando requisição no IndexedDB para sincronizar depois:", url);
+            return await window.salvarPedidoOffline(url, args[1]);
+        }
+    }
 
     if (token) {
       if (!args[1]) args[1] = {};
@@ -503,13 +389,21 @@ console.error = function(...args) {
     }
 
     try {
-      console.log(`🌐 FETCH INICIADO: ${args[0]}`, args[1] || {});
+      // console.log(`🌐 FETCH INICIADO: ${args[0]}`, args[1] || {});
       const response = await originalFetch(...args);
 
       if (!response.ok) {
         console.error(`❌ ERRO DE FETCH [${response.status}] URL:`, args[0]);
         const text = await response.clone().text().catch(() => 'Erro ao ler corpo da resposta');
         console.error('📄 CORPO DO ERRO:', text.substring(0, 200));
+        
+        // Remove eternal loaders
+        document.querySelectorAll('button:disabled').forEach(b => b.disabled = false);
+        document.querySelectorAll('.loading, .loader, .spinner').forEach(l => l.style.display = 'none');
+        
+        if (response.status >= 500) {
+            if (typeof mostrarToast === 'function') mostrarToast("Erro no servidor. Tente novamente.", 'error');
+        }
       }
 
       if ((response.status === 401 || response.status === 403) && !args[0].includes('/api/login')) {
@@ -525,9 +419,14 @@ console.error = function(...args) {
     } catch (error) {
       console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
       // Mostra um alerta visual no app para o usuário saber que a conexão falhou
-      if (typeof mostrarToast === 'function') {
-        mostrarToast(`Erro de conexão com o servidor remoto.\n\nDetalhe: ${error.message}\nURL: ${args[0]}`, "error", "Falha de Conexão");
+      if (typeof mostrarAlerta === 'function') {
+        mostrarAlerta(`Erro de conexão com o servidor remoto.\n\nDetalhe: ${error.message}\nURL: ${args[0]}`, "Falha de Conexão", "🌐");
       }
+      
+      // Remove eternal loaders
+      document.querySelectorAll('button:disabled').forEach(b => b.disabled = false);
+      document.querySelectorAll('.loading, .loader, .spinner').forEach(l => l.style.display = 'none');
+
       throw error;
     }
   };
@@ -558,19 +457,25 @@ async function requestWakeLock() {
 }
 
 // --- VISIBILITY SYNC (Reconexão Agressiva ao voltar ao app) ---
+let lastSyncTime = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
-    console.log('👀 App voltou ao foco! Sincronizando dados...');
     requestWakeLock(); // Refaz o lock caso tenha se perdido
     
-    // Força atualização das mesas e status do caixa imediatamente
-    carregarMesas();
-    if (typeof atualizarStatusCaixa === 'function') atualizarStatusCaixa();
-    
-    // Força a reconexão do Web Socket se estiver desconectado
-    if (pusherInstancia && pusherInstancia.connection.state !== 'connected') {
-      console.log('🔌 Reconectando Pusher...');
-      pusherInstancia.connect();
+    const now = Date.now();
+    // Evita múltiplas chamadas em menos de 5 segundos
+    if (now - lastSyncTime > 5000) {
+        lastSyncTime = now;
+        console.log('👀 App voltou ao foco! Sincronizando dados...');
+        
+        // Força atualização das mesas imediatamente
+        carregarMesas();
+        
+        // Força a reconexão do Web Socket se estiver desconectado
+        if (pusherInstancia && pusherInstancia.connection.state !== 'connected') {
+          console.log('🔌 Reconectando Pusher...');
+          pusherInstancia.connect();
+        }
     }
   }
 });
@@ -755,21 +660,13 @@ async function realizarLogin() {
 
   if (!usuario || !senha) return await mostrarAlerta("Preencha todos os campos", "Aviso", "⚠️");
 
-  // Ativar Loading do botão
+  // Ativar Loading
   if (btnLogin) btnLogin.disabled = true;
   if (spinner) spinner.style.display = 'inline-block';
   if (btnText) btnText.textContent = 'Entrando...';
 
-  // Mostrar tela cheia de carregamento
-  var ov = document.getElementById('loading-cardapio');
-  var ovMsg = ov ? ov.querySelector('h3') : null;
-  if (ov) ov.classList.remove('hidden');
-  if (ovMsg) ovMsg.textContent = 'Entrando...';
-
-  // Espera um tempinho (600ms) para garantir que a interface atualize e a mensagem seja lida
-  setTimeout(async () => {
-    try {
-      const res = await fetch('/api/login', {
+  try {
+    const res = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ usuario, senha })
@@ -780,20 +677,15 @@ async function realizarLogin() {
       garcomLogado = data.garcom;
       localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
       if (data.token) localStorage.setItem('garcom_token', data.token); // Salva token
-      
-      // Muda a mensagem na mesma tela de carregamento
-      if (ovMsg) ovMsg.textContent = 'Carregando mesas do cardápio...';
-      setTimeout(function() { if (typeof mostrarToast === 'function') mostrarToast("Login realizado com sucesso!", "success"); setTimeout(() => location.reload(), 1000); }, 400);
+      if (typeof mostrarToast === 'function') mostrarToast("Login realizado com sucesso!", "success");
+      setTimeout(() => location.reload(), 1000);
     } else if (res.status === 429) {
-      if (ov) ov.classList.add('hidden'); // esconde overlay no erro
       await mostrarAlerta("Muitas tentativas incorretas. Conta bloqueada por 15 minutos.", "Atenção (Segurança)", "🔒");
       // Resetar Loading em caso de erro
       if (btnLogin) btnLogin.disabled = false;
       if (spinner) spinner.style.display = 'none';
       if (btnText) btnText.textContent = 'Entrar';
-
     } else {
-      if (ov) ov.classList.add('hidden'); // esconde overlay no erro
       await mostrarAlerta("Usuário ou senha incorretos.\n\nPor favor, verifique os dados digitados e tente novamente. Caso o erro persista, confirme suas credenciais com a gerência do restaurante.", "Acesso Negado", "❌");
       // Resetar Loading em caso de erro
       if (btnLogin) btnLogin.disabled = false;
@@ -801,7 +693,6 @@ async function realizarLogin() {
       if (btnText) btnText.textContent = 'Entrar';
     }
   } catch (err) {
-    if (ov) ov.classList.add('hidden'); // esconde overlay no erro
     console.error("Erro no login:", err);
     await mostrarAlerta("Erro de conexão com o servidor.", "Erro", "❌");
     // Resetar Loading em caso de erro de rede
@@ -809,26 +700,9 @@ async function realizarLogin() {
     if (spinner) spinner.style.display = 'none';
     if (btnText) btnText.textContent = 'Entrar';
   }
-  }, 600); // Fim do setTimeout de 600ms
 }
 
-function logout() {
-  var modal = document.getElementById('tela-saida');
-  modal.style.display = 'flex';
-}
-
-function cancelarSaida() {
-  document.getElementById('tela-saida').style.display = 'none';
-}
-
-async function confirmarSaida() {
-  // Mostra loading antes de sair
-  var ov = document.getElementById('loading-cardapio');
-  var ovMsg = ov ? ov.querySelector('h3') : null;
-  if (ov) ov.classList.remove('hidden');
-  if (ovMsg) ovMsg.textContent = 'Saindo...';
-  document.getElementById('tela-saida').style.display = 'none';
-
+async function logout() {
   await fetch('/api/logout', { method: 'POST' });
   localStorage.removeItem('garcom_logado');
   localStorage.removeItem('garcom_token');
@@ -836,32 +710,23 @@ async function confirmarSaida() {
 }
 
 async function iniciarApp() {
-  // Mostra overlay de carregamento enquanto carrega as mesas
-  var ov = document.getElementById('loading-cardapio');
-  var ovMsg = ov ? ov.querySelector('h3') : null;
-  if (ov) ov.classList.remove('hidden');
-  if (ovMsg) ovMsg.textContent = 'Carregando mesas do cardápio...';
-
   await Promise.all([
     carregarSomGlobalGarcom(),
     carregarConfiguracoesToasts(),
     carregarConfigCozinha(),
     carregarMenu(),
     carregarMesas(),
-    atualizarStatusCaixa()
+    atualizarStatusCaixa(),
+    calcularClockOffset()
   ]);
   atualizarIconeSom();
   configurarEventos();
   configurarPusher();
-
-  // Esconde overlay depois que tudo carregou
-  setTimeout(function() {
-    if (ov) ov.classList.add('hidden');
-    if (ovMsg) ovMsg.textContent = 'Carregando Cardápio...';
-  }, 500);
   
   // Atualiza os cronômetros das mesas a cada 1 segundo (visual apenas)
-  setInterval(() => { exibirMesas(); }, 60000);
+  setInterval(() => {
+    exibirMesas();
+  }, 1000);
 
   // Recarrega os dados das mesas a cada 60 segundos para garantir sincronia
   setInterval(() => {
@@ -883,7 +748,7 @@ async function carregarConfigCozinha() {
 
 async function atualizarStatusCaixa() {
   try {
-    const res = await fetch(`/api/caixa/status?_t=${new Date().getTime()}`);
+    const res = await fetch('/api/caixa/status');
     const caixa = await res.json();
     caixaAberto = !!caixa;
     
@@ -893,6 +758,7 @@ async function atualizarStatusCaixa() {
     if (screenFechado) {
         if (!caixaAberto) {
             screenFechado.style.display = 'flex';
+            if (typeof limparNotificacoes === 'function') limparNotificacoes();
             atualizarBloqueioScroll();
         } else {
             screenFechado.style.display = 'none';
@@ -915,16 +781,10 @@ async function atualizarStatusCaixa() {
   } catch (e) { console.error('Erro status caixa:', e); }
 }
 
-let somAtivo = localStorage.getItem('garcom_som_ativo');
-if (somAtivo === null) {
-  somAtivo = true; // Ativado por padrão
-  localStorage.setItem('garcom_som_ativo', 'true');
-} else {
-  somAtivo = somAtivo === 'true';
-}
+let somAtivo = localStorage.getItem('garcom_som_ativo') !== 'false';
 let audioDesbloqueado = false;
 let ultimoSomTocado = 0;
-const somTiposDisponiveis = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave', 'sino_cristal', 'alerta_moderno'];
+const somTiposDisponiveis = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave'];
 const audiosNotificacao = {};
 function inicializarAudios() {
   for (const som of somTiposDisponiveis) {
@@ -932,16 +792,6 @@ function inicializarAudios() {
   }
 }
 inicializarAudios();
-document.body.addEventListener('click', function unlockAudio() {
-  if (audioNotificacao) {
-    audioNotificacao.play().then(() => {
-      audioNotificacao.pause();
-      audioNotificacao.currentTime = 0;
-    }).catch(() => {});
-  }
-  document.body.removeEventListener('click', unlockAudio);
-}, { once: true });
-
 
 function atualizarIconeSom() {
   const check = document.getElementById('check-som');
@@ -961,6 +811,7 @@ function alternarSom() {
   somAtivo = check ? check.checked : !somAtivo;
   localStorage.setItem('garcom_som_ativo', somAtivo);
   atualizarIconeSom();
+  
   if (somAtivo) {
     audioDesbloqueado = true;
     const somTipo = localStorage.getItem('garcom_som_global') || 'campainha_classica';
@@ -971,10 +822,14 @@ function alternarSom() {
       aud.play().catch(e => console.warn(e));
     }
   }
+  
+  // Notificação visual (balão/toast)
   mostrarToast(somAtivo ? "🔊 Som Ativado" : "🔇 Som Desativado");
 }
 
 function tocarCampainha(suave = false) {
+  // Se o app estiver minimizado (segundo plano), não toca o som JS,
+  // pois o próprio Android já vai tocar o som da notificação FCM nativa.
   if (document.hidden) return;
 
   const somTipo = localStorage.getItem('garcom_som_global') || 'campainha_classica';
@@ -1002,7 +857,7 @@ function tocarCampainha(suave = false) {
       });
     }
   }
-} 
+}
 
 function getSoundPath(somTipo) {
   if (somTipo === 'original') {
@@ -1031,6 +886,21 @@ async function carregarSomGlobalGarcom() {
     console.error('Erro ao carregar som global:', err);
   }
 }
+
+// Verifica se a mesa pertence a outro garçom ativo (para filtrar notificações com app aberto)
+function isMesaDeOutroGarcom(mesaIdOuNumero) {
+  if (!garcomLogado || !mesaIdOuNumero) return false;
+  
+  // Acha a mesa na lista local de mesas
+  const mesaObj = mesas.find(m => m.id == mesaIdOuNumero || m.numero == mesaIdOuNumero);
+  
+  // Se a mesa tem um garçom responsável e este garçom é DIFERENTE do garçom logado
+  if (mesaObj && mesaObj.garcom_id && String(mesaObj.garcom_id).trim().toLowerCase() !== String(garcomLogado.usuario).trim().toLowerCase()) {
+    return true; // Sim, pertence a outro garçom
+  }
+  return false; // Pertence a mim ou está livre
+}
+
 async function configurarPusher() {
   try {
     const configRes = await fetch('/api/pusher-config');
@@ -1044,6 +914,10 @@ async function configurarPusher() {
     pusher.connection.bind('connected', () => {
       console.log('✅ Conectado ao Pusher com sucesso!');
       atualizarIconeSom();
+    });
+
+    pusher.connection.bind('error', function(err) {
+      console.warn('❌ Erro de conexão no Pusher:', err);
     });
 
     const channel = pusher.subscribe('garconnexpress');
@@ -1063,10 +937,9 @@ async function configurarPusher() {
     });
 
     channel.bind('teste-toast', (data) => {
-      console.log('📢 Teste de Toast recebido:', data);
+      console.log('📢 Evento recebido: teste-toast', data);
       if (deveTocarSom(data.evento || 'teste-toast')) tocarCampainha(false);
-      const tipo = data.tipo === 'erro' ? 'error' : (data.tipo === 'sucesso' ? 'success' : 'info');
-      mostrarToast(data.mensagem || '', tipo);
+      mostrarToast(data.mensagem, data.tipo || 'info', data.titulo || 'Teste');
     });
 
     channel.bind('comunicado-geral', (data) => {
@@ -1096,18 +969,26 @@ async function configurarPusher() {
     });
 
     channel.bind('pedido-pronto', (data) => {
-      if (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
+      if (!data || !data.garcom_id && !(data.pedido && data.pedido.garcom_id) || data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
         clearTimeout(timeoutPusher);
         timeoutPusher = setTimeout(() => carregarMesas(), 50);
         return;
       }
       console.log('📢 Evento recebido: pedido-pronto', data);
+      
+      const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || data.mesa_numero;
+      if (isMesaDeOutroGarcom(mesaId)) {
+        console.log("Ignorando som/toast de pedido pronto para mesa de outro garçom.");
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
+
       // Garçom sempre toca para pedidos prontos
       if (deveTocarSom('pedido-pronto')) tocarCampainha();
 
       // Mostra Toast e Notificação Nativa
       dispararToastSistema('pedido-pronto', { mesa: data.mesa_numero }, data.mensagem, 'success');
-
 
       // Mostra apenas alerta informativo
       mostrarAlerta(data.mensagem, "🍳 COZINHA: PEDIDO PRONTO!", "🍳");
@@ -1124,14 +1005,33 @@ async function configurarPusher() {
         timeoutPusher = setTimeout(() => carregarMesas(), 50);
         return;
       }
-      if (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
+      if (!data || !data.garcom_id && !(data.pedido && data.pedido.garcom_id) || data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
         clearTimeout(timeoutPusher);
         timeoutPusher = setTimeout(() => carregarMesas(), 50);
         return;
       }
       console.log('📢 Evento recebido: novo-pedido', data);
 
+      const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || data.mesa_numero;
+      if (isMesaDeOutroGarcom(mesaId)) {
+        console.log("Ignorando som/toast de novo pedido para mesa de outro garçom.");
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
+
       const isAddition = !!data.is_addition;
+      const isPropriaEdicaoGarcom = (ultimoPedidoEditadoPeloGarcom !== null) && (
+        (data.pedido && String(data.pedido.id) === String(ultimoPedidoEditadoPeloGarcom)) ||
+        String(data.pedido_id) === String(ultimoPedidoEditadoPeloGarcom)
+      );
+
+      if (isAddition && isPropriaEdicaoGarcom) {
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return; // Ignora o alerta para o próprio autor da edição
+      }
+
       const evKey = isAddition ? 'item-adicionado' : 'novo-pedido';
 
       // Garçom toca som suave para novos pedidos / adições
@@ -1153,18 +1053,39 @@ async function configurarPusher() {
         dispararToastSistema('novo-pedido', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `Novo pedido recebido da ${mesaStr}`, 'info');
       }
 
-
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => carregarMesas(), 50);
     });
 
     channel.bind('status-atualizado', (data) => {
-      if (data && (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN'))) {
+      // 1. Apenas se o garçom já estiver com o modal daquela mesa ABERTO na tela, atualiza silenciosamente
+      const modalResumo = document.getElementById('modal-resumo-mesa');
+      const isModalAberto = modalResumo && modalResumo.style.display !== 'none' && modalResumo.style.display !== '';
+      if (isModalAberto && mesaAtual && data && data.mesa_id && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_id)) {
+        verItensDaMesa(true);
+      }
+
+      if (data && data.cobrar_taxa !== undefined) {
+        const nMesa = data.mesa_numero || data.mesa_id || 'X';
+        let strMesa = nMesa.toString();
+        if (!strMesa.toLowerCase().startsWith('mesa') && strMesa.toLowerCase() !== 'balcão') strMesa = `Mesa ${strMesa}`;
+        dispararToastSistema('taxa-atualizada', { mesa: strMesa }, `ℹ️ ${strMesa}: Taxa de 10% ${data.cobrar_taxa ? 'ativada' : 'desativada'} pelo Admin`, 'info');
+      }
+
+      if (!data || (!data.cobrar_taxa && !data.garcom_id && !(data.pedido && data.pedido.garcom_id)) || data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
         clearTimeout(timeoutPusher);
         timeoutPusher = setTimeout(() => carregarMesas(), 50);
         return;
       }
-      console.log('📢 Status atualizado no garçom:', data);
+      console.log('📢 Status updated in waiter:', data);
+
+      const mesaId = data ? (data.mesa_id || data.mesa_numero) : null;
+      if (isMesaDeOutroGarcom(mesaId)) {
+        console.log("Ignorando som/toast de status atualizado para mesa de outro garçom.");
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
       
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => {
@@ -1172,7 +1093,6 @@ async function configurarPusher() {
         carregarMesas();
         if (data) {
           const nMesa = data.mesa_numero || data.mesa_id || 'X';
-          
           let strMesa = nMesa.toString();
           if (!strMesa.toLowerCase().startsWith('mesa') && strMesa.toLowerCase() !== 'balcão') {
              strMesa = `Mesa ${strMesa}`;
@@ -1185,11 +1105,15 @@ async function configurarPusher() {
             if (deveTocarSom('pedido-servido')) tocarCampainha(true);
             dispararToastSistema('pedido-servido', { mesa: strMesa, pedido_id: data.pedido_id || '' }, `🍽️ Pedido da ${strMesa} entregue!`, 'success');
           } else if (data.status === 'itens_atualizados') {
-            if (deveTocarSom('item-adicionado')) tocarCampainha(true);
-            dispararToastSistema('item-adicionado', { mesa: strMesa }, `📝 Pedido da ${strMesa} atualizado pelo Admin`, 'info');
+            const isPropriaEdicaoGarcom = (ultimoPedidoEditadoPeloGarcom !== null) && (
+              String(data.pedido_id) === String(ultimoPedidoEditadoPeloGarcom)
+            );
+            if (!isPropriaEdicaoGarcom) {
+              if (deveTocarSom('item-adicionado')) tocarCampainha(true);
+              const det = data.detalhes_edicao ? `: ${data.detalhes_edicao}` : '';
+              dispararToastSistema('item-adicionado', { mesa: strMesa }, `📝 Pedido da ${strMesa} atualizado pelo Admin${det}`, 'info');
+            }
           }
-          
-          // Removido o 'cancelado' daqui para evitar duplicidade com o evento 'pedido-cancelado'
 
           if (data.status === 'liberada') {
              if (mesaAtual && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_numero)) {
@@ -1203,12 +1127,27 @@ async function configurarPusher() {
     });
 
     channel.bind('pedido-cancelado', (data) => {
-      if (data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
+      if (!data || !data.garcom_id && !(data.pedido && data.pedido.garcom_id) || data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
         clearTimeout(timeoutPusher);
         timeoutPusher = setTimeout(() => carregarMesas(), 50);
         return;
       }
       console.log('📢 Evento recebido: pedido-cancelado', data);
+
+      const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || data.mesa_numero;
+      if (isMesaDeOutroGarcom(mesaId)) {
+        console.log("Ignorando som/toast de pedido cancelado para mesa de outro garçom.");
+        // Reset de estado se for a mesa atual
+        if (mesaAtual && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_numero)) {
+            document.getElementById('modal-resumo-mesa').style.display = 'none';
+            document.getElementById('modal-opcoes').style.display = 'none';
+            voltarParaMesas();
+        }
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
+
       const msg = data.mensagem || `🚨 Pedido #${data.pedido_id} foi REMOVIDO pelo Admin.`;
 
       // Extrai número da mesa se disponível
@@ -1216,7 +1155,6 @@ async function configurarPusher() {
 
       if (deveTocarSom('pedido-cancelado')) tocarCampainha(); // Som normal (mais forte) para cancelamento
       dispararToastSistema('pedido-cancelado', { mesa: mesaStr }, msg, 'error');
-
 
       // Reset de estado se for a mesa atual
       if (mesaAtual && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_numero)) {
@@ -1230,7 +1168,7 @@ async function configurarPusher() {
     });
 
     channel.bind('status-caixa-atualizado', (data) => {
-      console.log('📢 Evento recebido: status-caixa-atualizado', data);
+      console.log('🔗 Evento recebido: status-caixa-atualizado', data);
       atualizarStatusCaixa();
       
       if (data.status === 'fechado') {
@@ -1242,6 +1180,8 @@ async function configurarPusher() {
         dispararToastSistema('status-caixa-atualizado', { status: 'ABERTO' }, "O caixa foi aberto! Bom trabalho.", "success");
       }
     });
+    
+    // Deslogar garçom removido para manter a tela de bloqueio visível
 
     channel.bind('garcom-status-alterado', (data) => {
       console.log('📢 Status do garçom alterado remotamente:', data);
@@ -1257,6 +1197,13 @@ async function configurarPusher() {
 
     channel.bind('chamado-garcom', (data) => {
       console.log('📢 Evento recebido: chamado-garcom', data);
+      
+      const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || data.mesa_numero;
+      if (isMesaDeOutroGarcom(mesaId)) {
+        console.log("Ignorando chamado de garçom para mesa de outro garçom.");
+        return;
+      }
+
       if (deveTocarSom('chamado-garcom')) tocarCampainha();
       mostrarAlerta(data.mensagem, "🛎️ CHAMADO DE CLIENTE", "🛎️");
     });
@@ -1269,6 +1216,13 @@ async function configurarPusher() {
 
     channel.bind('rascunho-recebido', (data) => {
       console.log('📢 Evento recebido: rascunho-recebido', data);
+      
+      const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || data.mesa_numero;
+      if (isMesaDeOutroGarcom(mesaId)) {
+        console.log("Ignorando rascunho recebido para mesa de outro garçom.");
+        return;
+      }
+
       const config = typeof _toastTemplates !== 'undefined' ? _toastTemplates.find(x => x.evento === 'rascunho-recebido') : null;
       const ativo = config ? config.ativo : true;
       if (!ativo) {
@@ -1283,7 +1237,7 @@ async function configurarPusher() {
       const modalCarrinhoAberto = document.getElementById('modal-carrinho') && document.getElementById('modal-carrinho').style.display === 'flex';
 
       if (cardapioAberto || carrinhoComItens || modalOpcoesAberto || modalCarrinhoAberto) {
-        const mesaNumStr = data.mesa_numero || data.mesa_id;
+        const mesaNumStr = data.mesa_numero || mesaId;
         mostrarToast(`📝 Novo rascunho recebido da Mesa ${mesaNumStr}. Acesse a mesa para ver.`, "info", "Rascunho Recebido", 8000);
         carregarMesas();
       } else {
@@ -1307,6 +1261,15 @@ async function configurarPusher() {
 
     channel.bind('solicitacao-fechamento-cliente', (data) => {
       console.log('📢 Evento recebido: solicitacao-fechamento-cliente', data);
+
+      const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || data.mesa_numero;
+      if (isMesaDeOutroGarcom(mesaId)) {
+        console.log("Ignorando fechamento para mesa de outro garçom.");
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
+
       if (deveTocarSom('solicitacao-fechamento-cliente')) tocarCampainha();
       mostrarAlerta(data.mensagem, "🙋‍♂️ SOLICITAÇÃO DE FECHAMENTO", "💰");
       
@@ -1595,23 +1558,57 @@ async function carregarMenu() {
   }
 }
 
+let isFetchingMesas = false;
+let carregarMesasTimeout = null;
+
 async function carregarMesas() {
-  const res = await fetch('/api/mesas');
-  // Se der erro 401 ou outro, não tenta converter para JSON nem exibir, para evitar o "map is not a function"
-  if (!res.ok) return; 
-  mesas = await res.json();
-  if (Array.isArray(mesas)) exibirMesas();
+  if (isFetchingMesas) return;
+  isFetchingMesas = true;
+  try {
+    const res = await fetch('/api/mesas');
+    if (!res.ok) return; 
+    mesas = await res.json();
+    if (Array.isArray(mesas)) exibirMesas();
+  } catch (e) {
+    console.warn('⚠️ Falha temporária de conexão ao carregar mesas:', e.message || e);
+  } finally {
+    isFetchingMesas = false;
+  }
+}
+
+let serverClockOffset = 0;
+
+async function calcularClockOffset() {
+  try {
+    const start = Date.now();
+    const res = await fetch('/api/time');
+    if (res.ok) {
+      const data = await res.json();
+      const end = Date.now();
+      const serverTime = new Date(data.timestamp).getTime();
+      const rtt = (end - start) / 2;
+      const estimatedServerTime = serverTime + rtt;
+      serverClockOffset = estimatedServerTime - end;
+      console.log(`⏱️ Sincronização de tempo: Offset calculado em ${serverClockOffset}ms.`);
+    }
+  } catch (e) {
+    console.warn('⚠️ Não foi possível sincronizar o relógio com o servidor:', e);
+  }
 }
 
 function calcularMinutos(dataIso) {
   if (!dataIso) return 0;
   try {
-    const data = new Date(dataIso);
-    const agora = new Date();
+    let d = dataIso;
+    // Se for string no formato YYYY-MM-DD HH:MM:SS (padrão do backend)
+    // Adicionamos 'Z' para que o navegador trate como UTC e converta para o fuso local
+    if (typeof d === 'string' && d.includes('-') && d.includes(':') && !d.includes('Z') && !d.includes('+')) {
+      d = d.replace(' ', 'T') + 'Z';
+    }
+    const data = new Date(d);
+    const agora = new Date(Date.now() + serverClockOffset);
     const diffMs = agora - data;
-    // Se a diferença for negativa (relógio do cliente atrasado em relação ao servidor), retorna 0
-    const minutos = Math.floor(diffMs / 60000);
-    return minutos > 0 ? minutos : 0;
+    return Math.max(0, Math.floor(diffMs / 60000));
   } catch (e) {
     return 0;
   }
@@ -1991,127 +1988,266 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
   }
 }
 
-async function verItensDaMesa() {
+let itensEmEdicaoGarcom = [];
+let itensOriginaisGarcom = [];
+let ultimoPedidoEditadoPeloGarcom = null;
+let timerIgnoreEditGarcom = null;
+
+async function verItensDaMesa(isSilencioso = false) {
   if (!mesaAtual) return;
-  showLoading(true, 'Carregando itens...');
+  if (!isSilencioso) showLoading(true, 'Carregando itens...');
   try {
     const resPedido = await fetch(`/api/pedidos/mesa/${mesaAtual.id}`);
     pedidoAbertoNaMesa = await resPedido.json();
     if (!pedidoAbertoNaMesa) {
-      showLoading(false);
+      if (!isSilencioso) showLoading(false);
       return await mostrarAlerta("Nenhum pedido ativo.", "Aviso", "⚠️");
     }
     const resItens = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/itens`);
     const itens = await resItens.json();
-    showLoading(false);
+    if (!isSilencioso) showLoading(false);
     
-    // Agora consideramos 'pendente' e 'pronto' como pendentes de entrega
-    const pendentes = itens.filter(i => i.status === 'pendente' || i.status === 'pronto');
-    const entregues = itens.filter(i => i.status === 'entregue');
-
-    let html = '';
-    if (pendentes.length > 0) {
-      html += `<h4 style="color:#e74c3c; margin-bottom:10px; border-bottom:2px solid #e74c3c;">⏳ PARA ENTREGAR AGORA</h4>`;
-      html += pendentes.map(item => {
-        const isPronto = item.status === 'pronto';
-        const emPreparo = item.status === 'pendente' && isItemParaCozinha(item);
-        
-        let bgColor = '#fff5f5';
-        let statusLabel = '';
-        
-        if (isPronto) {
-          bgColor = '#e8f8f5'; // Verde claro para pronto
-          statusLabel = '<span style="background:#2ecc71; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-left:5px; white-space:nowrap; display:inline-block; vertical-align:middle;">PRONTO</span>';
-        } else if (emPreparo) {
-          bgColor = '#fff9f0'; // Laranja muito claro para preparo
-          statusLabel = '<span style="background:#f39c12; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-left:5px; white-space:nowrap; display:inline-block; vertical-align:middle;">EM PREPARO</span>';
-        }
-
-        return `
-          <div style="border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; background:${bgColor};">
-            <div style="width: 40px; height: 40px; flex-shrink: 0; margin-right: 10px; border-radius: 4px; overflow: hidden; background: #eee;">
-              <img src="${item.imagem}" style="width: 100%; height: 100%; object-fit: cover;">
-            </div>
-            <div style="flex-grow: 1; text-align: left;">
-              <p><strong>${item.quantidade}x ${item.nome}</strong> ${statusLabel}</p>
-              ${item.observacao ? `<small style="color:#e67e22;" id="obs-${item.id}"></small>` : ''}
-            </div>
-            <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
-              <p style="white-space: nowrap; font-weight: bold;">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
-              <button onclick="removerItemDoPedido(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; width: auto !important; margin: 0 !important;">🗑️</button>
-            </div>
-          </div>
-        `;
-      }).join('');
-      html += `<button class="btn-opcoes" onclick="marcarComoServido(${pedidoAbertoNaMesa.id})" style="background-color: #27ae60; margin: 1rem 0;">🚚 ENTREGUEI ESTES ITENS</button>`;
+    // Inicialização do estado de edição local se não for silêncio
+    if (!isSilencioso) {
+      itensOriginaisGarcom = JSON.parse(JSON.stringify(itens));
+      itensEmEdicaoGarcom = JSON.parse(JSON.stringify(itens));
+    } else {
+      // Se for silêncio, só sincroniza os dados se o garçom não tiver alterações locais pendentes
+      if (!verificarSeHaAlteracoesGarcom()) {
+        itensOriginaisGarcom = JSON.parse(JSON.stringify(itens));
+        itensEmEdicaoGarcom = JSON.parse(JSON.stringify(itens));
+      } else {
+        return; // Preserva a edição em andamento do garçom
+      }
     }
 
-    if (entregues.length > 0) {
-      html += `<h4 style="color:#27ae60; margin: 20px 0 10px 0; border-bottom:2px solid #27ae60;">✅ JÁ ESTÃO NA MESA</h4>`;
-      html += entregues.map(item => `
-        <div style="border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; opacity:0.7;">
-          <div style="width: 40px; height: 40px; flex-shrink: 0; margin-right: 10px; border-radius: 4px; overflow: hidden; background: #eee;">
-            <img src="${item.imagem}" style="width: 100%; height: 100%; object-fit: cover;">
-          </div>
-          <div style="flex-grow: 1; text-align: left;">
-            <p>${item.quantidade}x ${item.nome}</p>
-          </div>
-          <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
-            <p style="white-space: nowrap;">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
-            <button onclick="removerItemDoPedido(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; width: auto !important; margin: 0 !important;">🗑️</button>
-          </div>
-        </div>
-      `).join('');
-    }
-
-    const lista = document.getElementById('lista-itens-mesa');
-    lista.innerHTML = html || '<p>Nenhum item no pedido.</p>';
-  
-    // Sanitizar observações
-    if (itens) {
-      itens.forEach(item => {
-        if (item.observacao) {
-          const obsElement = document.getElementById(`obs-${item.id}`);
-          if (obsElement) {
-            obsElement.textContent = `Obs: ${item.observacao}`;
-          }
-        }
-      });
-    }
-
-    const totalEntregue = entregues.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
-    const totalPendente = pendentes.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
-    const totalConsumido = totalEntregue + totalPendente;
-    const taxaServico = totalConsumido * 0.10;
-    const totalGeral = totalConsumido + taxaServico;
-
-    document.getElementById('total-resumo-mesa').innerHTML = `
-      <div style="text-align: right; border-top: 2px solid #eee; padding-top: 10px;">
-        <p style="color: #7f8c8d; font-size: 0.9rem; white-space: nowrap;">Subtotal Consumido: <strong>R$ ${totalConsumido.toFixed(2)}</strong></p>
-        <p style="color: #3498db; font-size: 0.9rem; white-space: nowrap;">Taxa de Serviço (10%): <strong>R$ ${taxaServico.toFixed(2)}</strong></p>
-        <p style="font-size: 1.2rem; margin-top: 8px; color: #2c3e50; border-top: 1px dashed #ddd; padding-top: 5px; white-space: nowrap;">Total Final: <strong>R$ ${totalGeral.toFixed(2)}</strong></p>
-      </div>
-    `;
+    renderizarItensMesaGarcom();
     
     document.getElementById('resumo-mesa-titulo').textContent = `Resumo - Mesa ${mesaAtual.numero}`;
-    
     fecharOpcoes();
     document.getElementById('modal-resumo-mesa').style.display = 'block';
     atualizarBloqueioScroll();
   } catch (error) { showLoading(false); await mostrarAlerta("Erro ao carregar dados.", "Erro", "❌"); }
 }
 
-async function removerItemDoPedido(itemId) {
-  if (!await mostrarConfirmacao("Remover este item do pedido?", "Remover Item", "Confirmar", "Cancelar", "🗑️")) return;
-  showLoading(true, 'Removendo item...');
+function renderizarItensMesaGarcom() {
+  const pendentes = itensEmEdicaoGarcom.filter(i => { const s = (i.status || '').toLowerCase(); return s === 'pendente' || s === 'pronto'; });
+  const entregues = itensEmEdicaoGarcom.filter(i => (i.status || '').toLowerCase() === 'entregue');
+  
+  let html = '';
+  
+  const renderLinhaItem = (item) => {
+    const isPronto = item.status === 'pronto';
+    const emPreparo = item.status === 'pendente' && isItemParaCozinha(item);
+    
+    let bgColor = '#ffffff';
+    let statusLabel = '';
+    
+    if (item.status === 'entregue') {
+      bgColor = '#f8f9fa';
+      statusLabel = '<span style="background:#27ae60; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-left:5px; white-space:nowrap; display:inline-block; vertical-align:middle;">JÁ NA MESA</span>';
+    } else if (isPronto) {
+      bgColor = '#e8f8f5';
+      statusLabel = '<span style="background:#2ecc71; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-left:5px; white-space:nowrap; display:inline-block; vertical-align:middle;">PRONTO</span>';
+    } else if (emPreparo) {
+      bgColor = '#fff9f0';
+      statusLabel = '<span style="background:#f39c12; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-left:5px; white-space:nowrap; display:inline-block; vertical-align:middle;">EM PREPARO</span>';
+    } else {
+      statusLabel = '<span style="background:#7f8c8d; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-left:5px; white-space:nowrap; display:inline-block; vertical-align:middle;">AGUARDANDO</span>';
+    }
+
+    return `
+      <div style="border-bottom: 1px solid #eee; padding: 10px; display: flex; justify-content: space-between; align-items: center; background:${bgColor}; border-radius: 8px; margin-bottom: 8px;">
+        <div style="width: 40px; height: 40px; flex-shrink: 0; margin-right: 10px; border-radius: 4px; overflow: hidden; background: #eee;">
+          <img src="${item.imagem}" style="width: 100%; height: 100%; object-fit: cover;">
+        </div>
+        <div style="flex-grow: 1; text-align: left;">
+          <p style="margin: 0; font-weight: bold; color: #2c3e50;">${item.nome} ${statusLabel}</p>
+          ${item.observacao ? `<small style="color:#e67e22; display:block; margin-top:2px;">Obs: ${item.observacao}</small>` : ''}
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+            <button onclick="ajustarQtdItemGarcom(${item.id}, -1)" style="width: 26px !important; height: 26px !important; padding: 0 !important; background: #e74c3c; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin: 0 !important;">-</button>
+            <span style="font-weight: 800; font-size: 0.95rem; width: 22px; text-align: center; color: #2c3e50;">${item.quantidade}</span>
+            <button onclick="ajustarQtdItemGarcom(${item.id}, 1)" style="width: 26px !important; height: 26px !important; padding: 0 !important; background: #2ecc71; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin: 0 !important;">+</button>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+          <p style="white-space: nowrap; font-weight: bold; margin: 0; color: #2c3e50; font-size: 0.95rem;">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
+          <button onclick="substituirItemGarcom(${item.id})" style="background: #3498db; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;" title="Substituir Item">🔄</button>
+          <button onclick="removerItemLocalGarcom(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;" title="Remover Item">🗑️</button>
+        </div>
+      </div>
+    `;
+  };
+
+  if (pendentes.length > 0) {
+    html += `<h4 style="color:#e74c3c; margin-bottom:10px; border-bottom:2px solid #e74c3c; padding-bottom: 4px; font-weight: 800; font-size: 0.9rem;">⏳ PARA ENTREGAR AGORA</h4>`;
+    html += pendentes.map(renderLinhaItem).join('');
+    html += `<button class="btn-opcoes" onclick="marcarComoServido(${pedidoAbertoNaMesa.id})" style="background-color: #27ae60; margin: 1rem 0; width: 100%;">🚚 ENTREGUEI ESTES ITENS</button>`;
+  }
+
+  if (entregues.length > 0) {
+    html += `<h4 style="color:#27ae60; margin: 20px 0 10px 0; border-bottom:2px solid #27ae60; padding-bottom: 4px; font-weight: 800; font-size: 0.9rem;">✅ JÁ ESTÃO NA MESA</h4>`;
+    html += entregues.map(renderLinhaItem).join('');
+  }
+
+  const lista = document.getElementById('lista-itens-mesa');
+  lista.innerHTML = html || '<p style="text-align: center; color: #7f8c8d; padding: 10px;">Nenhum item ativo no pedido.</p>';
+  
+  // Atualiza subtotal e total no modal
+  const cobrarTaxa = (pedidoAbertoNaMesa.cobrar_taxa === undefined || pedidoAbertoNaMesa.cobrar_taxa === null)
+    ? true
+    : (pedidoAbertoNaMesa.cobrar_taxa == 1 || pedidoAbertoNaMesa.cobrar_taxa === true);
+
+  const subtotal = itensEmEdicaoGarcom.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
+  const taxaServico = cobrarTaxa ? subtotal * 0.10 : 0;
+  const totalGeral = subtotal + taxaServico;
+
+  document.getElementById('total-resumo-mesa').innerHTML = `
+    <div style="text-align: right; border-top: 2px solid #eee; padding-top: 10px; margin-top: 10px;">
+      <p style="color: #7f8c8d; font-size: 0.9rem; margin: 2px 0;">Subtotal: <strong>R$ ${subtotal.toFixed(2)}</strong></p>
+      <p style="color: ${cobrarTaxa ? '#3498db' : '#95a5a6'}; font-size: 0.9rem; margin: 2px 0;">Taxa de Serviço (10%): <strong>${cobrarTaxa ? `R$ ${taxaServico.toFixed(2)}` : 'R$ 0,00 (ISENTO)'}</strong></p>
+      <p style="font-size: 1.15rem; margin-top: 6px; color: #2c3e50; border-top: 1px dashed #ddd; padding-top: 5px; font-weight: bold; margin: 4px 0 0 0;">Total Final: <strong>R$ ${totalGeral.toFixed(2)}</strong></p>
+    </div>
+  `;
+
+  // Exibe ou remove os botões de Salvar Alterações
+  const temAlteracoes = verificarSeHaAlteracoesGarcom();
+  const containerBotaoSalvar = document.getElementById('container-salvar-alteracoes-garcom');
+  if (temAlteracoes) {
+    if (!containerBotaoSalvar) {
+      const btnHtml = `
+        <div id="container-salvar-alteracoes-garcom" style="margin-top: 15px; display: flex; gap: 10px;">
+          <button class="btn-opcoes" onclick="salvarAlteracoesGarcom()" style="background-color: #27ae60; color: white; font-weight: bold; flex: 1.5; margin: 0 !important;">💾 Salvar Alterações</button>
+          <button class="btn-opcoes" onclick="descartarAlteracoesGarcom()" style="background-color: #7f8c8d; color: white; flex: 1; margin: 0 !important;">Descartar</button>
+        </div>
+      `;
+      document.getElementById('modal-resumo-mesa').insertAdjacentHTML('beforeend', btnHtml);
+    }
+  } else {
+    if (containerBotaoSalvar) containerBotaoSalvar.remove();
+  }
+}
+
+function ajustarQtdItemGarcom(itemId, valor) {
+  const item = itensEmEdicaoGarcom.find(i => String(i.id) === String(itemId));
+  if (item) {
+    const novaQtd = item.quantidade + valor;
+    if (novaQtd > 0) {
+      item.quantidade = novaQtd;
+      renderizarItensMesaGarcom();
+    } else {
+      removerItemLocalGarcom(itemId);
+    }
+  }
+}
+
+function removerItemLocalGarcom(itemId) {
+  const itemIdx = itensEmEdicaoGarcom.findIndex(i => String(i.id) === String(itemId));
+  if (itemIdx !== -1) {
+    const item = itensEmEdicaoGarcom[itemIdx];
+    mostrarConfirmacao(`Deseja remover o item '${item.nome}' localmente? (A exclusão só será salva ao clicar em Salvar Alterações)`, "Remover Item").then(confirmed => {
+      if (confirmed) {
+        itensEmEdicaoGarcom.splice(itemIdx, 1);
+        renderizarItensMesaGarcom();
+      }
+    });
+  }
+}
+
+let itemIdSendoSubstituido = null;
+
+function substituirItemGarcom(itemId) {
+  const itemAtual = itensEmEdicaoGarcom.find(i => String(i.id) === String(itemId));
+  if (!itemAtual) return;
+
+  itemIdSendoSubstituido = itemId;
+  
+  // Fecha o resumo da mesa
+  document.getElementById('modal-resumo-mesa').style.display = 'none';
+  atualizarBloqueioScroll();
+  
+  // Abre o cardápio
+  abrirCardapio();
+  
+  // Dispara toast orientando
+  dispararToastSistema('item-adicionado', { mesa: '' }, `🔄 Selecione o novo produto no cardápio para substituir '${itemAtual.nome}'`, 'info');
+}
+
+function verificarSeHaAlteracoesGarcom() {
+  if (itensEmEdicaoGarcom.length !== itensOriginaisGarcom.length) return true;
+  for (const item of itensEmEdicaoGarcom) {
+    const orig = itensOriginaisGarcom.find(o => String(o.id) === String(item.id));
+    if (!orig || orig.menu_id !== item.menu_id || orig.quantidade !== item.quantidade) return true;
+  }
+  return false;
+}
+
+function descartarAlteracoesGarcom() {
+  itensEmEdicaoGarcom = JSON.parse(JSON.stringify(itensOriginaisGarcom));
+  renderizarItensMesaGarcom();
+}
+
+async function salvarAlteracoesGarcom() {
+  if (!pedidoAbertoNaMesa) return;
+  showLoading(true, 'Salvando alterações...');
   try {
-    const res = await fetch(`/api/pedidos/itens/${itemId}`, { method: 'DELETE' });
+    const idPedido = pedidoAbertoNaMesa.id;
+    ultimoPedidoEditadoPeloGarcom = idPedido;
+    if (timerIgnoreEditGarcom) clearTimeout(timerIgnoreEditGarcom);
+    timerIgnoreEditGarcom = setTimeout(() => { ultimoPedidoEditadoPeloGarcom = null; }, 5000);
+
+    const res = await fetch(`/api/pedidos/${idPedido}/atualizar-itens`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        itens: itensEmEdicaoGarcom.map(i => ({
+          menu_id: i.menu_id,
+          quantidade: i.quantidade,
+          status: i.status,
+          observacao: i.observacao || ''
+        }))
+      })
+    });
     showLoading(false);
     if (res.ok) {
-      // Recarrega o resumo da mesa para mostrar os dados atualizados
-      verItensDaMesa();
+      const data = await res.json();
+      const det = data.detalhes_edicao ? `\n(${data.detalhes_edicao})` : '';
+      
+      const containerBotaoSalvar = document.getElementById('container-salvar-alteracoes-garcom');
+      if (containerBotaoSalvar) containerBotaoSalvar.remove();
+
+      await mostrarAlerta(`Pedido atualizado com sucesso!${det}`, "Sucesso", "✅");
+      verItensDaMesa(true);
+    } else {
+      const err = await res.json();
+      await mostrarAlerta(err.error || "Erro ao salvar alterações.", "Erro", "❌");
     }
-  } catch (error) { showLoading(false); await mostrarAlerta("Erro ao excluir item.", "Erro", "❌"); }
+  } catch (error) {
+    showLoading(false);
+    await mostrarAlerta("Erro de rede ao salvar alterações.", "Erro", "❌");
+  }
+}
+
+function fecharResumoMesa() {
+  // Se houver alterações locais não salvas, pede confirmação
+  if (verificarSeHaAlteracoesGarcom()) {
+    mostrarConfirmacao("Você possui alterações não salvas. Deseja descartá-las e fechar?", "Descartar Alterações").then(confirmed => {
+      if (confirmed) {
+        itensEmEdicaoGarcom = [];
+        itensOriginaisGarcom = [];
+        const containerBotaoSalvar = document.getElementById('container-salvar-alteracoes-garcom');
+        if (containerBotaoSalvar) containerBotaoSalvar.remove();
+        
+        document.getElementById('modal-resumo-mesa').style.display = 'none';
+        atualizarBloqueioScroll();
+      }
+    });
+  } else {
+    itensEmEdicaoGarcom = [];
+    itensOriginaisGarcom = [];
+    document.getElementById('modal-resumo-mesa').style.display = 'none';
+    atualizarBloqueioScroll();
+  }
 }
 
 async function marcarComoServido(idPedido) {
@@ -2151,7 +2287,7 @@ async function marcarComoServido(idPedido) {
         showLoading(false);
 
         if (res.ok) {
-          await mostrarAlerta("Itens prontos marcados as entregues! Os demais continuam em preparo.", "Entrega Realizada", "🚚");
+          await mostrarAlerta("Itens prontos marcados como entregues! Os demais continuam em preparo.", "Entrega Realizada", "🚚");
           verItensDaMesa();
           carregarMesas();
         }
@@ -2204,24 +2340,11 @@ function fecharOpcoes() {
 }
 
 function abrirCardapioAdicionar() {
-  // 1. fecha o modal imediatamente
-  document.getElementById('modal-opcoes').style.display = 'none';
-  atualizarBloqueioScroll();
-
-  // 2. mostra o overlay AGORA, antes de qualquer coisa pesada
-  var ov = document.getElementById('loading-cardapio');
-  if (ov) ov.classList.remove('hidden');
-
-  // 3. libera o event loop por 300ms para o browser pintar o overlay
-  setTimeout(function() {
-    abrirCardapio();
-  }, 300);
+  fecharOpcoes();
+  abrirCardapio();
 }
 
 function abrirCardapio() {
-  var ov = document.getElementById('loading-cardapio');
-  if (ov) ov.classList.remove('hidden');
-
   const mesaTxt = document.getElementById('mesa-atual');
   
   // SEGURANÇA: Se mesaAtual for null, tenta recuperar pelo título do modal antes de crashar
@@ -2261,11 +2384,6 @@ function abrirCardapio() {
   if (elInput) elInput.value = '';
   exibirResumoPedido();
   exibirMenu('todas');
-
-  // Esconde o overlay depois que tudo carregou
-  setTimeout(function() {
-    if (ov) ov.classList.add('hidden');
-  }, 800);
 }
 
 function toggleCarrinho() {
@@ -2287,6 +2405,7 @@ function toggleCarrinho() {
 }
 
 function voltarParaMesas() {
+  itemIdSendoSubstituido = null; // Reseta o estado de substituição se desistirem
   if (pedidoAtual.length > 0) {
     mostrarConfirmacao("Você tem itens no carrinho. Deseja realmente voltar e descartar este pedido?", "Aviso", "Sim, descartar", "Não, manter").then(confirm => {
       if (confirm) {
@@ -2650,6 +2769,30 @@ async function exibirMenu(categoria, queryTexto = '') {
     itemEl.addEventListener('click', async () => {
       const menuItem = menu.find(m => m.id == itemEl.dataset.id);
       
+      if (itemIdSendoSubstituido !== null) {
+        const itemAtual = itensEmEdicaoGarcom.find(i => String(i.id) === String(itemIdSendoSubstituido));
+        if (itemAtual) {
+          itemAtual.menu_id = menuItem.id;
+          itemAtual.nome = menuItem.nome;
+          itemAtual.preco = menuItem.preco;
+          itemAtual.imagem = menuItem.imagem || '';
+        }
+        itemIdSendoSubstituido = null;
+        
+        // Volta para a visualização de mesas (escondendo o cardápio)
+        document.getElementById('pedido').classList.add('hidden');
+        document.getElementById('mesas').classList.remove('hidden');
+        document.getElementById('btn-header-mesas').style.display = 'none';
+
+        // Abre de novo o modal de resumo da mesa com os dados atualizados!
+        renderizarItensMesaGarcom();
+        document.getElementById('modal-resumo-mesa').style.display = 'block';
+        atualizarBloqueioScroll();
+        
+        dispararToastSistema('item-adicionado', { mesa: `Mesa ${mesaAtual ? mesaAtual.numero : ''}` }, `🔄 Item substituído por ${menuItem.nome}! Lembre-se de salvar.`, 'success');
+        return;
+      }
+      
       const itemNoPedido = pedidoAtual.find(p => p.menu_id === menuItem.id);
       const qtdNoCarrinho = itemNoPedido ? itemNoPedido.quantidade : 0;
       const estoqueDisponivel = (menuItem.estoque !== -1) ? (menuItem.estoque - qtdNoCarrinho) : 999;
@@ -2857,7 +3000,12 @@ async function enviarPedido() {
     } else {
       showLoading(false);
       const errorData = await res.json();
-      await mostrarAlerta(errorData.error || 'Erro ao enviar pedido', "Erro", "❌");
+      const msg = errorData.error || 'Erro ao enviar pedido';
+      if (msg.includes("⚠️")) {
+        await mostrarAlerta(msg, "Aviso", "⚠️");
+      } else {
+        await mostrarAlerta(msg, "Erro", "❌");
+      }
     }
   } catch (error) { 
     showLoading(false);
@@ -2975,10 +3123,8 @@ function verQRCodeMesa() {
   mostrarAlerta(html, "QR CODE DA MESA", "📱");
 }
 
-if (window.Capacitor && window.Capacitor.Plugins.SplashScreen) { window.Capacitor.Plugins.SplashScreen.hide(); }
 
-
-// --- SINO DE NOTIFICAÇÕES ---
+// --- SINO DE NOTIFICA��ES ---
 let historicoNotificacoes = [];
 
 function adicionarNotificacaoPainel(mensagem, titulo, tipo) {
@@ -3062,6 +3208,7 @@ document.addEventListener('click', function(event) {
     }
 });
 
+// ─── CONFIGURAÇÃO DE TOASTS DINÂMICOS ───────────────────────────────────────
 let _toastTemplates = [];
 
 async function carregarConfiguracoesToasts() {
@@ -3110,7 +3257,4 @@ function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTip
   const tipo = config ? (config.tipo === 'erro' ? 'error' : (config.tipo === 'sucesso' ? 'success' : 'info')) : fallbackTipo;
   mostrarToast(msgFinal, tipo);
 }
-
-
-
 
