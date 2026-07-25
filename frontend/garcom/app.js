@@ -2154,66 +2154,23 @@ function removerItemLocalGarcom(itemId) {
   }
 }
 
-async function substituirItemGarcom(itemId) {
-  if (!menu || menu.length === 0) {
-    showLoading(true, 'Carregando cardápio...');
-    await carregarMenu();
-    showLoading(false);
-  }
-  
-  if (!menu || menu.length === 0) {
-    return await mostrarAlerta("Erro ao carregar o cardápio.", "Erro", "❌");
-  }
+let itemIdSendoSubstituido = null;
 
+function substituirItemGarcom(itemId) {
   const itemAtual = itensEmEdicaoGarcom.find(i => String(i.id) === String(itemId));
   if (!itemAtual) return;
 
-  const categorias = [...new Set(menu.map(m => m.categoria))];
-  let selectHtml = `<select id="swal-substituir-item" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ddd; font-size: 1rem; margin-top: 10px;">`;
+  itemIdSendoSubstituido = itemId;
   
-  categorias.forEach(cat => {
-    selectHtml += `<optgroup label="${cat.toUpperCase()}">`;
-    const produtosDaCat = menu.filter(m => m.categoria === cat && m.visivel);
-    produtosDaCat.forEach(prod => {
-      const selected = prod.id === itemAtual.menu_id ? 'selected' : '';
-      selectHtml += `<option value="${prod.id}" ${selected}>${prod.nome} - R$ ${prod.preco.toFixed(2)}</option>`;
-    });
-    selectHtml += `</optgroup>`;
-  });
-  selectHtml += `</select>`;
-
-  Swal.fire({
-    title: '🔄 Substituir Item',
-    html: `
-      <div style="text-align: left; font-size: 0.95rem; color: #2c3e50;">
-        <p>Substituir <strong>${itemAtual.nome}</strong> por qual item do cardápio?</p>
-        ${selectHtml}
-      </div>
-    `,
-    showCancelButton: true,
-    confirmButtonText: 'Substituir',
-    cancelButtonText: 'Cancelar',
-    confirmButtonColor: '#27ae60',
-    cancelButtonColor: '#7f8c8d',
-    preConfirm: () => {
-      const selectedId = document.getElementById('swal-substituir-item').value;
-      return selectedId;
-    }
-  }).then(result => {
-    if (result.isConfirmed && result.value) {
-      const novoMenuId = parseInt(result.value);
-      if (novoMenuId === itemAtual.menu_id) return;
-
-      const novoProduto = menu.find(m => m.id === novoMenuId);
-      if (novoProduto) {
-        itemAtual.menu_id = novoProduto.id;
-        itemAtual.nome = novoProduto.nome;
-        itemAtual.preco = novoProduto.preco;
-        itemAtual.imagem = novoProduto.imagem || '';
-        renderizarItensMesaGarcom();
-      }
-    }
-  });
+  // Fecha o resumo da mesa
+  document.getElementById('modal-resumo-mesa').style.display = 'none';
+  atualizarBloqueioScroll();
+  
+  // Abre o cardápio
+  abrirCardapio();
+  
+  // Dispara toast orientando
+  dispararToastSistema('item-adicionado', { mesa: '' }, `🔄 Selecione o novo produto no cardápio para substituir '${itemAtual.nome}'`, 'info');
 }
 
 function verificarSeHaAlteracoesGarcom() {
@@ -2448,6 +2405,7 @@ function toggleCarrinho() {
 }
 
 function voltarParaMesas() {
+  itemIdSendoSubstituido = null; // Reseta o estado de substituição se desistirem
   if (pedidoAtual.length > 0) {
     mostrarConfirmacao("Você tem itens no carrinho. Deseja realmente voltar e descartar este pedido?", "Aviso", "Sim, descartar", "Não, manter").then(confirm => {
       if (confirm) {
@@ -2810,6 +2768,30 @@ async function exibirMenu(categoria, queryTexto = '') {
   document.querySelectorAll('.item-menu').forEach(itemEl => {
     itemEl.addEventListener('click', async () => {
       const menuItem = menu.find(m => m.id == itemEl.dataset.id);
+      
+      if (itemIdSendoSubstituido !== null) {
+        const itemAtual = itensEmEdicaoGarcom.find(i => String(i.id) === String(itemIdSendoSubstituido));
+        if (itemAtual) {
+          itemAtual.menu_id = menuItem.id;
+          itemAtual.nome = menuItem.nome;
+          itemAtual.preco = menuItem.preco;
+          itemAtual.imagem = menuItem.imagem || '';
+        }
+        itemIdSendoSubstituido = null;
+        
+        // Volta para a visualização de mesas (escondendo o cardápio)
+        document.getElementById('pedido').classList.add('hidden');
+        document.getElementById('mesas').classList.remove('hidden');
+        document.getElementById('btn-header-mesas').style.display = 'none';
+
+        // Abre de novo o modal de resumo da mesa com os dados atualizados!
+        renderizarItensMesaGarcom();
+        document.getElementById('modal-resumo-mesa').style.display = 'block';
+        atualizarBloqueioScroll();
+        
+        dispararToastSistema('item-adicionado', { mesa: `Mesa ${mesaAtual ? mesaAtual.numero : ''}` }, `🔄 Item substituído por ${menuItem.nome}! Lembre-se de salvar.`, 'success');
+        return;
+      }
       
       const itemNoPedido = pedidoAtual.find(p => p.menu_id === menuItem.id);
       const qtdNoCarrinho = itemNoPedido ? itemNoPedido.quantidade : 0;
