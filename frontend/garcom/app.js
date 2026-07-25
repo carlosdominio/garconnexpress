@@ -1013,6 +1013,16 @@ async function configurarPusher() {
       console.log('📢 Evento recebido: novo-pedido', data);
 
       const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || data.mesa_numero;
+      const respGarcom = data.garcom_id || (data.pedido && data.pedido.garcom_id);
+      
+      if (respGarcom && respGarcom !== 'ADMIN' && respGarcom !== 'DELIVERY' && 
+          String(respGarcom).trim().toLowerCase() !== String(garcomLogado.usuario).trim().toLowerCase()) {
+        console.log("Ignorando novo-pedido porque pertence a outro garçom:", respGarcom);
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
+
       if (isMesaDeOutroGarcom(mesaId)) {
         console.log("Ignorando som/toast de novo pedido para mesa de outro garçom.");
         clearTimeout(timeoutPusher);
@@ -1080,6 +1090,16 @@ async function configurarPusher() {
       console.log('📢 Status updated in waiter:', data);
 
       const mesaId = data ? (data.mesa_id || data.mesa_numero) : null;
+      const respGarcom = data ? (data.garcom_id || (data.pedido && data.pedido.garcom_id)) : null;
+      
+      if (respGarcom && respGarcom !== 'ADMIN' && respGarcom !== 'DELIVERY' && 
+          String(respGarcom).trim().toLowerCase() !== String(garcomLogado.usuario).trim().toLowerCase()) {
+        console.log("Ignorando status-atualizado porque pertence a outro garçom:", respGarcom);
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
+
       if (isMesaDeOutroGarcom(mesaId)) {
         console.log("Ignorando som/toast de status atualizado para mesa de outro garçom.");
         clearTimeout(timeoutPusher);
@@ -2120,12 +2140,17 @@ function renderizarItensMesaGarcom() {
   if (temAlteracoes) {
     if (!containerBotaoSalvar) {
       const btnHtml = `
-        <div id="container-salvar-alteracoes-garcom" style="margin-top: 15px; display: flex; gap: 10px;">
+        <div id="container-salvar-alteracoes-garcom" style="margin-top: 15px; margin-bottom: 15px; display: flex; gap: 10px;">
           <button class="btn-opcoes" onclick="salvarAlteracoesGarcom()" style="background-color: #27ae60; color: white; font-weight: bold; flex: 1.5; margin: 0 !important;">💾 Salvar Alterações</button>
           <button class="btn-opcoes" onclick="descartarAlteracoesGarcom()" style="background-color: #7f8c8d; color: white; flex: 1; margin: 0 !important;">Descartar</button>
         </div>
       `;
-      document.getElementById('modal-resumo-mesa').insertAdjacentHTML('beforeend', btnHtml);
+      const btnFechar = document.getElementById('btn-fechar-resumo-mesa');
+      if (btnFechar) {
+        btnFechar.insertAdjacentHTML('beforebegin', btnHtml);
+      } else {
+        document.getElementById('modal-resumo-mesa').insertAdjacentHTML('beforeend', btnHtml);
+      }
     }
   } else {
     if (containerBotaoSalvar) containerBotaoSalvar.remove();
