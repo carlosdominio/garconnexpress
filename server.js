@@ -3902,15 +3902,20 @@ app.put('/api/pedidos/:id/solicitar-fechamento', isAuthenticated, async (req, re
     
     if (mesa_id) await query("UPDATE mesas SET status = 'fechando' WHERE id = ?", [mesa_id]);
     
-    if (prevStatus !== 'aguardando_fechamento') {
-      await notifyStatus(id, mesa_id, 'aguardando_fechamento');
-    }
-
-    // Notifica o cliente que o cupom de conferência foi liberado
-    await safePusherTrigger('garconnexpress', `fechamento-liberado-mesa-${mesa_id}`, {
+    // Notifica o garçom e admin em tempo real sobre a atualização do pedido/mesa
+    safePusherTrigger('garconnexpress', 'status-atualizado', {
         pedido_id: id,
-        mensagem: "Seu cupom de conferência está disponível!"
-    });
+        mesa_id: mesa_id,
+        status: 'aguardando_fechamento'
+    }).catch(console.error);
+
+    // Notifica o cliente no cardápio digital em tempo real
+    if (mesa_id) {
+        safePusherTrigger('garconnexpress', `fechamento-liberado-mesa-${mesa_id}`, {
+            pedido_id: id,
+            mensagem: "Seu cupom de conferência está disponível!"
+        }).catch(console.error);
+    }
 
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
