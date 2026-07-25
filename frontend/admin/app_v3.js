@@ -4531,62 +4531,32 @@ async function atualizarPessoasPedido(id, numPessoas) {
 }
 
 async function alternarTaxaPedido(id, checkboxEl) {
-  const estadoAnterior = !!pedidosStatusTaxa[id];
-  const novoEstado = !estadoAnterior;
+  const novoEstado = checkboxEl ? checkboxEl.checked : !pedidosStatusTaxa[id];
+  const estadoAnterior = !novoEstado;
   if (checkboxEl) checkboxEl.disabled = true;
   
   try {
     const res = await fetch(`/api/pedidos/${id}/taxa`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cobrar_taxa: novoEstado })
+      body: JSON.stringify({ cobrar_taxa: novoEstado }),
+      showLoading: false
     });
     
     if (res.ok) {
       pedidosStatusTaxa[id] = novoEstado;
       const pedidoRef = pedidos.find(p => p.id === id);
       if (pedidoRef) pedidoRef.cobrar_taxa = novoEstado;
-      const pedido = pedidos.find(p => p.id === id);
-      if (!pedido || pedido.status === 'aguardando_fechamento') {
-        await carregarPedidos();
-        return;
+
+      await carregarPedidos();
+
+      // Se o modal de opções do pedido estiver aberto, atualiza em tempo real
+      const modalOpcoes = document.getElementById('modal-opcoes');
+      if (modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.dataset.pedidoId == id) {
+        if (typeof abrirModalOpcoes === 'function') {
+          abrirModalOpcoes(id);
+        }
       }
-
-      const card = document.querySelector(`.pedido-card[data-pedido-id="${id}"]`);
-      if (!card) {
-        await carregarPedidos();
-        return;
-      }
-
-      const resItens = await fetch(`/api/pedidos/${id}/itens`);
-      if (!resItens.ok) {
-        await carregarPedidos();
-        return;
-      }
-      const itens = await resItens.json();
-
-      const totalEnt = itens.filter(i => i.status === 'entregue').reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
-      const subtotal = totalEnt; // Apenas itens entregues somam no subtotal
-      const taxaServico = novoEstado ? (subtotal * 0.10) : 0;
-      const totalExibicao = subtotal + taxaServico;
-
-      const elTotal = card.querySelector('[data-role="pedido-total"]');
-      if (elTotal) elTotal.textContent = `Total: R$ ${totalExibicao.toFixed(2)}`;
-
-      const elSub = card.querySelector('[data-role="pedido-subtotais"]');
-      if (elSub) elSub.textContent = `Sub: R$ ${subtotal.toFixed(2)} + 10%: R$ ${taxaServico.toFixed(2)}`;
-
-      // Atualiza o botão de impressão rápida
-      const elBtnTotal = card.querySelector('[data-role="btn-total"]');
-      if (elBtnTotal) elBtnTotal.textContent = `🖨️ R$ ${totalExibicao.toFixed(2)}`;
-
-      // Atualiza os valores individuais dos itens no card
-      const itemValores = card.querySelectorAll('.item-valor');
-      itemValores.forEach(el => {
-        const base = parseFloat(el.dataset.baseValor);
-        const novoValor = novoEstado ? base * 1.1 : base;
-        el.textContent = `(R$ ${novoValor.toFixed(2)})`;
-      });
     } else {
       pedidosStatusTaxa[id] = estadoAnterior;
       if (checkboxEl) checkboxEl.checked = estadoAnterior;
@@ -7365,6 +7335,8 @@ async function abrirModalOpcoes(pedidoId) {
   const mesaId = pedido.mesa_id;
   
   // 1. DADOS BÁSICOS E CORES
+  const modalOpcoes = document.getElementById('modal-opcoes');
+  if (modalOpcoes) modalOpcoes.dataset.pedidoId = pedidoId;
   const headerBg = document.getElementById('modal-opcoes-header-bg');
   const itens = (pedido.itens && pedido.itens.length > 0) ? pedido.itens : await fetch(`/api/pedidos/${pedidoId}/itens`).then(res => res.json()).catch(() => []);
   const hasPend = itens.some(i => i.status === 'pendente' || i.status === 'pronto');
@@ -7388,9 +7360,9 @@ async function abrirModalOpcoes(pedidoId) {
   else headerBg.style.background = '#e67e22'; // Laranja Em Consumo
 
   // 2. TOTAIS E TAXA
-  const cobrarTaxaNoPedido = (pedidosStatusTaxa[pedidoId] !== undefined) ? pedidosStatusTaxa[pedidoId] : (pedido.cobrar_taxa || true);
-  const itensEntreguesModal = itens.filter(i => i.status === 'entregue');
-  const subtotal = itensEntreguesModal.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+  const cobrarTaxaNoPedido = (pedidosStatusTaxa[pedidoId] !== undefined) ? pedidosStatusTaxa[pedidoId] : (pedido.cobrar_taxa === undefined || pedido.cobrar_taxa === null ? true : (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true));
+  const itensEntreguesModal = itens.filter(i => (i.status || '').toLowerCase() === 'entregue');
+  const subtotal = itensEntreguesModal.reduce((sum, i) => sum + ((i.preco || 0) * (i.quantidade || 1)), 0);
   const taxaServico = cobrarTaxaNoPedido ? (isDelivery ? 3.00 : (subtotal * 0.10)) : 0;
   const pagoParcial = pedido.pago_parcial || 0;
   const isAguardandoReal = isAguardando && !isDelivery;

@@ -1972,8 +1972,8 @@ async function verItensDaMesa() {
     showLoading(false);
     
     // Agora consideramos 'pendente' e 'pronto' como pendentes de entrega
-    const pendentes = itens.filter(i => i.status === 'pendente' || i.status === 'pronto');
-    const entregues = itens.filter(i => i.status === 'entregue');
+    const pendentes = itens.filter(i => { const s = (i.status || '').toLowerCase(); return s === 'pendente' || s === 'pronto'; });
+    const entregues = itens.filter(i => (i.status || '').toLowerCase() === 'entregue');
 
     let html = '';
     if (pendentes.length > 0) {
