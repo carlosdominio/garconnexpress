@@ -2065,15 +2065,15 @@ function renderizarItensMesaGarcom() {
           <p style="margin: 0; font-weight: bold; color: #2c3e50;">${item.nome} ${statusLabel}</p>
           ${item.observacao ? `<small style="color:#e67e22; display:block; margin-top:2px;">Obs: ${item.observacao}</small>` : ''}
           <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
-            <button onclick="ajustarQtdItemGarcom(${item.menu_id}, '${item.status}', -1)" style="width: 26px !important; height: 26px !important; padding: 0 !important; background: #e74c3c; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin: 0 !important;">-</button>
+            <button onclick="ajustarQtdItemGarcom(${item.id}, -1)" style="width: 26px !important; height: 26px !important; padding: 0 !important; background: #e74c3c; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin: 0 !important;">-</button>
             <span style="font-weight: 800; font-size: 0.95rem; width: 22px; text-align: center; color: #2c3e50;">${item.quantidade}</span>
-            <button onclick="ajustarQtdItemGarcom(${item.menu_id}, '${item.status}', 1)" style="width: 26px !important; height: 26px !important; padding: 0 !important; background: #2ecc71; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin: 0 !important;">+</button>
+            <button onclick="ajustarQtdItemGarcom(${item.id}, 1)" style="width: 26px !important; height: 26px !important; padding: 0 !important; background: #2ecc71; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin: 0 !important;">+</button>
           </div>
         </div>
         <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
           <p style="white-space: nowrap; font-weight: bold; margin: 0; color: #2c3e50; font-size: 0.95rem;">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
-          <button onclick="substituirItemGarcom(${item.menu_id}, '${item.status}')" style="background: #3498db; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;" title="Substituir Item">🔄</button>
-          <button onclick="removerItemLocalGarcom(${item.menu_id}, '${item.status}')" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;" title="Remover Item">🗑️</button>
+          <button onclick="substituirItemGarcom(${item.id})" style="background: #3498db; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;" title="Substituir Item">🔄</button>
+          <button onclick="removerItemLocalGarcom(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;" title="Remover Item">🗑️</button>
         </div>
       </div>
     `;
@@ -2128,21 +2128,21 @@ function renderizarItensMesaGarcom() {
   }
 }
 
-function ajustarQtdItemGarcom(menuId, status, valor) {
-  const item = itensEmEdicaoGarcom.find(i => i.menu_id === menuId && i.status === status);
+function ajustarQtdItemGarcom(itemId, valor) {
+  const item = itensEmEdicaoGarcom.find(i => String(i.id) === String(itemId));
   if (item) {
     const novaQtd = item.quantidade + valor;
     if (novaQtd > 0) {
       item.quantidade = novaQtd;
       renderizarItensMesaGarcom();
     } else {
-      removerItemLocalGarcom(menuId, status);
+      removerItemLocalGarcom(itemId);
     }
   }
 }
 
-function removerItemLocalGarcom(menuId, status) {
-  const itemIdx = itensEmEdicaoGarcom.findIndex(i => i.menu_id === menuId && i.status === status);
+function removerItemLocalGarcom(itemId) {
+  const itemIdx = itensEmEdicaoGarcom.findIndex(i => String(i.id) === String(itemId));
   if (itemIdx !== -1) {
     const item = itensEmEdicaoGarcom[itemIdx];
     mostrarConfirmacao(`Deseja remover o item '${item.nome}' localmente? (A exclusão só será salva ao clicar em Salvar Alterações)`, "Remover Item").then(confirmed => {
@@ -2154,7 +2154,7 @@ function removerItemLocalGarcom(menuId, status) {
   }
 }
 
-async function substituirItemGarcom(menuId, status) {
+async function substituirItemGarcom(itemId) {
   if (!menu || menu.length === 0) {
     showLoading(true, 'Carregando cardápio...');
     await carregarMenu();
@@ -2165,7 +2165,7 @@ async function substituirItemGarcom(menuId, status) {
     return await mostrarAlerta("Erro ao carregar o cardápio.", "Erro", "❌");
   }
 
-  const itemAtual = itensEmEdicaoGarcom.find(i => i.menu_id === menuId && i.status === status);
+  const itemAtual = itensEmEdicaoGarcom.find(i => String(i.id) === String(itemId));
   if (!itemAtual) return;
 
   const categorias = [...new Set(menu.map(m => m.categoria))];
@@ -2175,7 +2175,7 @@ async function substituirItemGarcom(menuId, status) {
     selectHtml += `<optgroup label="${cat.toUpperCase()}">`;
     const produtosDaCat = menu.filter(m => m.categoria === cat && m.visivel);
     produtosDaCat.forEach(prod => {
-      const selected = prod.id === menuId ? 'selected' : '';
+      const selected = prod.id === itemAtual.menu_id ? 'selected' : '';
       selectHtml += `<option value="${prod.id}" ${selected}>${prod.nome} - R$ ${prod.preco.toFixed(2)}</option>`;
     });
     selectHtml += `</optgroup>`;
@@ -2202,7 +2202,7 @@ async function substituirItemGarcom(menuId, status) {
   }).then(result => {
     if (result.isConfirmed && result.value) {
       const novoMenuId = parseInt(result.value);
-      if (novoMenuId === menuId) return;
+      if (novoMenuId === itemAtual.menu_id) return;
 
       const novoProduto = menu.find(m => m.id === novoMenuId);
       if (novoProduto) {
@@ -2219,8 +2219,8 @@ async function substituirItemGarcom(menuId, status) {
 function verificarSeHaAlteracoesGarcom() {
   if (itensEmEdicaoGarcom.length !== itensOriginaisGarcom.length) return true;
   for (const item of itensEmEdicaoGarcom) {
-    const orig = itensOriginaisGarcom.find(o => o.menu_id === item.menu_id && o.status === item.status);
-    if (!orig || orig.quantidade !== item.quantidade) return true;
+    const orig = itensOriginaisGarcom.find(o => String(o.id) === String(item.id));
+    if (!orig || orig.menu_id !== item.menu_id || orig.quantidade !== item.quantidade) return true;
   }
   return false;
 }
