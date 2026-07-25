@@ -819,14 +819,29 @@
 
             // Totais
             const subtotal = data.itens.reduce((s, i) => s + (i.quantidade * (i.preco || i.menu_preco)), 0);
-            const taxa = subtotal * 0.10;
-            const total = subtotal + taxa;
+            const desc = (data.pedido && data.pedido.desconto) ? Number(data.pedido.desconto) : 0;
+            const acresc = (data.pedido && data.pedido.acrescimo) ? Number(data.pedido.acrescimo) : 0;
+            const cobrarTaxa = (data.pedido && data.pedido.cobrar_taxa !== undefined) ? (data.pedido.cobrar_taxa == 1 || data.pedido.cobrar_taxa === true) : true;
+            const taxa = cobrarTaxa ? subtotal * 0.10 : 0;
+            const total = Math.max(0, subtotal + taxa + acresc - desc);
 
             doc.setFont("helvetica", "bold");
             doc.text(`SUBTOTAL: R$ ${subtotal.toFixed(2)}`, 75, y, { align: "right" });
             y += 4;
-            doc.text(`TAXA (10%): R$ ${taxa.toFixed(2)}`, 75, y, { align: "right" });
-            y += 5;
+            
+            if (taxa > 0) {
+                doc.text(`TAXA (10%): R$ ${taxa.toFixed(2)}`, 75, y, { align: "right" });
+                y += 4;
+            }
+            if (acresc > 0) {
+                doc.text(`ACRÉSCIMO: R$ ${acresc.toFixed(2)}`, 75, y, { align: "right" });
+                y += 4;
+            }
+            if (desc > 0) {
+                doc.text(`DESCONTO: R$ -${desc.toFixed(2)}`, 75, y, { align: "right" });
+                y += 4;
+            }
+            y += 1;
             doc.setFontSize(10);
             doc.text(`TOTAL GERAL: R$ ${total.toFixed(2)}`, 75, y, { align: "right" });
 
