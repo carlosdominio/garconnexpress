@@ -2202,6 +2202,8 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
       }
     } else if (status === 'cancelado') {
       adminMsg = `❌ *PEDIDO CANCELADO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n🗑️ O pedido foi cancelado no sistema.`;
+    } else if (status === 'itens_atualizados') {
+      adminMsg = `📝 *PEDIDO ATUALIZADO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n🛠️ Alterações: ${detalhesEdicao || 'Itens ou observações atualizados'}`;
     } else if (status === 'entregue') {
       if (mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY')) {
         adminMsg = `✅ *DELIVERY CONCLUÍDO (PAGO)*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O pagamento foi registrado e o delivery finalizado.`;
