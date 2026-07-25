@@ -1021,6 +1021,17 @@ async function configurarPusher() {
       }
 
       const isAddition = !!data.is_addition;
+      const isPropriaEdicaoGarcom = (ultimoPedidoEditadoPeloGarcom !== null) && (
+        (data.pedido && String(data.pedido.id) === String(ultimoPedidoEditadoPeloGarcom)) ||
+        String(data.pedido_id) === String(ultimoPedidoEditadoPeloGarcom)
+      );
+
+      if (isAddition && isPropriaEdicaoGarcom) {
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return; // Ignora o alerta para o próprio autor da edição
+      }
+
       const evKey = isAddition ? 'item-adicionado' : 'novo-pedido';
 
       // Garçom toca som suave para novos pedidos / adições
@@ -1094,9 +1105,14 @@ async function configurarPusher() {
             if (deveTocarSom('pedido-servido')) tocarCampainha(true);
             dispararToastSistema('pedido-servido', { mesa: strMesa, pedido_id: data.pedido_id || '' }, `🍽️ Pedido da ${strMesa} entregue!`, 'success');
           } else if (data.status === 'itens_atualizados') {
-            if (deveTocarSom('item-adicionado')) tocarCampainha(true);
-            const det = data.detalhes_edicao ? `: ${data.detalhes_edicao}` : '';
-            dispararToastSistema('item-adicionado', { mesa: strMesa }, `📝 Pedido da ${strMesa} atualizado pelo Admin${det}`, 'info');
+            const isPropriaEdicaoGarcom = (ultimoPedidoEditadoPeloGarcom !== null) && (
+              String(data.pedido_id) === String(ultimoPedidoEditadoPeloGarcom)
+            );
+            if (!isPropriaEdicaoGarcom) {
+              if (deveTocarSom('item-adicionado')) tocarCampainha(true);
+              const det = data.detalhes_edicao ? `: ${data.detalhes_edicao}` : '';
+              dispararToastSistema('item-adicionado', { mesa: strMesa }, `📝 Pedido da ${strMesa} atualizado pelo Admin${det}`, 'info');
+            }
           }
 
           if (data.status === 'liberada') {
@@ -1972,6 +1988,11 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
   }
 }
 
+let itensEmEdicaoGarcom = [];
+let itensOriginaisGarcom = [];
+let ultimoPedidoEditadoPeloGarcom = null;
+let timerIgnoreEditGarcom = null;
+
 async function verItensDaMesa(isSilencioso = false) {
   if (!mesaAtual) return;
   if (!isSilencioso) showLoading(true, 'Carregando itens...');
@@ -1986,117 +2007,227 @@ async function verItensDaMesa(isSilencioso = false) {
     const itens = await resItens.json();
     if (!isSilencioso) showLoading(false);
     
-    // Agora consideramos 'pendente' e 'pronto' como pendentes de entrega
-    const pendentes = itens.filter(i => { const s = (i.status || '').toLowerCase(); return s === 'pendente' || s === 'pronto'; });
-    const entregues = itens.filter(i => (i.status || '').toLowerCase() === 'entregue');
-
-    let html = '';
-    if (pendentes.length > 0) {
-      html += `<h4 style="color:#e74c3c; margin-bottom:10px; border-bottom:2px solid #e74c3c;">⏳ PARA ENTREGAR AGORA</h4>`;
-      html += pendentes.map(item => {
-        const isPronto = item.status === 'pronto';
-        const emPreparo = item.status === 'pendente' && isItemParaCozinha(item);
-        
-        let bgColor = '#fff5f5';
-        let statusLabel = '';
-        
-        if (isPronto) {
-          bgColor = '#e8f8f5'; // Verde claro para pronto
-          statusLabel = '<span style="background:#2ecc71; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-left:5px; white-space:nowrap; display:inline-block; vertical-align:middle;">PRONTO</span>';
-        } else if (emPreparo) {
-          bgColor = '#fff9f0'; // Laranja muito claro para preparo
-          statusLabel = '<span style="background:#f39c12; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-left:5px; white-space:nowrap; display:inline-block; vertical-align:middle;">EM PREPARO</span>';
-        }
-
-        return `
-          <div style="border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; background:${bgColor};">
-            <div style="width: 40px; height: 40px; flex-shrink: 0; margin-right: 10px; border-radius: 4px; overflow: hidden; background: #eee;">
-              <img src="${item.imagem}" style="width: 100%; height: 100%; object-fit: cover;">
-            </div>
-            <div style="flex-grow: 1; text-align: left;">
-              <p><strong>${item.quantidade}x ${item.nome}</strong> ${statusLabel}</p>
-              ${item.observacao ? `<small style="color:#e67e22;" id="obs-${item.id}"></small>` : ''}
-            </div>
-            <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
-              <p style="white-space: nowrap; font-weight: bold;">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
-              <button onclick="removerItemDoPedido(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; width: auto !important; margin: 0 !important;">🗑️</button>
-            </div>
-          </div>
-        `;
-      }).join('');
-      html += `<button class="btn-opcoes" onclick="marcarComoServido(${pedidoAbertoNaMesa.id})" style="background-color: #27ae60; margin: 1rem 0;">🚚 ENTREGUEI ESTES ITENS</button>`;
+    // Inicialização do estado de edição local se não for silêncio
+    if (!isSilencioso) {
+      itensOriginaisGarcom = JSON.parse(JSON.stringify(itens));
+      itensEmEdicaoGarcom = JSON.parse(JSON.stringify(itens));
+    } else {
+      // Se for silêncio, só sincroniza os dados se o garçom não tiver alterações locais pendentes
+      if (!verificarSeHaAlteracoesGarcom()) {
+        itensOriginaisGarcom = JSON.parse(JSON.stringify(itens));
+        itensEmEdicaoGarcom = JSON.parse(JSON.stringify(itens));
+      } else {
+        return; // Preserva a edição em andamento do garçom
+      }
     }
 
-    if (entregues.length > 0) {
-      html += `<h4 style="color:#27ae60; margin: 20px 0 10px 0; border-bottom:2px solid #27ae60;">✅ JÁ ESTÃO NA MESA</h4>`;
-      html += entregues.map(item => `
-        <div style="border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; opacity:0.7;">
-          <div style="width: 40px; height: 40px; flex-shrink: 0; margin-right: 10px; border-radius: 4px; overflow: hidden; background: #eee;">
-            <img src="${item.imagem}" style="width: 100%; height: 100%; object-fit: cover;">
-          </div>
-          <div style="flex-grow: 1; text-align: left;">
-            <p>${item.quantidade}x ${item.nome}</p>
-          </div>
-          <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
-            <p style="white-space: nowrap;">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
-            <button onclick="removerItemDoPedido(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; width: auto !important; margin: 0 !important;">🗑️</button>
-          </div>
-        </div>
-      `).join('');
-    }
-
-    const lista = document.getElementById('lista-itens-mesa');
-    lista.innerHTML = html || '<p>Nenhum item no pedido.</p>';
-  
-    // Sanitizar observações
-    if (itens) {
-      itens.forEach(item => {
-        if (item.observacao) {
-          const obsElement = document.getElementById(`obs-${item.id}`);
-          if (obsElement) {
-            obsElement.textContent = `Obs: ${item.observacao}`;
-          }
-        }
-      });
-    }
-
-    const cobrarTaxa = (pedidoAbertoNaMesa.cobrar_taxa === undefined || pedidoAbertoNaMesa.cobrar_taxa === null)
-      ? true
-      : (pedidoAbertoNaMesa.cobrar_taxa == 1 || pedidoAbertoNaMesa.cobrar_taxa === true);
-
-    const totalEntregue = entregues.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
-    const totalPendente = pendentes.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
-    const totalConsumido = totalEntregue + totalPendente; // Somamos todos os itens do pedido
-    const taxaServico = cobrarTaxa ? totalConsumido * 0.10 : 0;
-    const totalGeral = totalConsumido + taxaServico;
-
-    document.getElementById('total-resumo-mesa').innerHTML = `
-      <div style="text-align: right; border-top: 2px solid #eee; padding-top: 10px;">
-        <p style="color: #7f8c8d; font-size: 0.9rem; white-space: nowrap;">Subtotal Consumido: <strong>R$ ${totalConsumido.toFixed(2)}</strong></p>
-        <p style="color: ${cobrarTaxa ? '#3498db' : '#95a5a6'}; font-size: 0.9rem; white-space: nowrap;">Taxa de Serviço (10%): <strong>${cobrarTaxa ? `R$ ${taxaServico.toFixed(2)}` : 'R$ 0,00 (ISENTO)'}</strong></p>
-        <p style="font-size: 1.2rem; margin-top: 8px; color: #2c3e50; border-top: 1px dashed #ddd; padding-top: 5px; white-space: nowrap;">Total Final: <strong>R$ ${totalGeral.toFixed(2)}</strong></p>
-      </div>
-    `;
+    renderizarItensMesaGarcom();
     
     document.getElementById('resumo-mesa-titulo').textContent = `Resumo - Mesa ${mesaAtual.numero}`;
-    
     fecharOpcoes();
     document.getElementById('modal-resumo-mesa').style.display = 'block';
     atualizarBloqueioScroll();
   } catch (error) { showLoading(false); await mostrarAlerta("Erro ao carregar dados.", "Erro", "❌"); }
 }
 
-async function removerItemDoPedido(itemId) {
-  if (!await mostrarConfirmacao("Remover este item do pedido?", "Remover Item", "Confirmar", "Cancelar", "🗑️")) return;
-  showLoading(true, 'Removendo item...');
+function renderizarItensMesaGarcom() {
+  const pendentes = itensEmEdicaoGarcom.filter(i => { const s = (i.status || '').toLowerCase(); return s === 'pendente' || s === 'pronto'; });
+  const entregues = itensEmEdicaoGarcom.filter(i => (i.status || '').toLowerCase() === 'entregue');
+  
+  let html = '';
+  
+  const renderLinhaItem = (item) => {
+    const isPronto = item.status === 'pronto';
+    const emPreparo = item.status === 'pendente' && isItemParaCozinha(item);
+    
+    let bgColor = '#ffffff';
+    let statusLabel = '';
+    
+    if (item.status === 'entregue') {
+      bgColor = '#f8f9fa';
+      statusLabel = '<span style="background:#27ae60; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-left:5px; white-space:nowrap; display:inline-block; vertical-align:middle;">JÁ NA MESA</span>';
+    } else if (isPronto) {
+      bgColor = '#e8f8f5';
+      statusLabel = '<span style="background:#2ecc71; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-left:5px; white-space:nowrap; display:inline-block; vertical-align:middle;">PRONTO</span>';
+    } else if (emPreparo) {
+      bgColor = '#fff9f0';
+      statusLabel = '<span style="background:#f39c12; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-left:5px; white-space:nowrap; display:inline-block; vertical-align:middle;">EM PREPARO</span>';
+    } else {
+      statusLabel = '<span style="background:#7f8c8d; color:white; padding:2px 6px; border-radius:4px; font-size:10px; margin-left:5px; white-space:nowrap; display:inline-block; vertical-align:middle;">AGUARDANDO</span>';
+    }
+
+    return `
+      <div style="border-bottom: 1px solid #eee; padding: 10px; display: flex; justify-content: space-between; align-items: center; background:${bgColor}; border-radius: 8px; margin-bottom: 8px;">
+        <div style="width: 40px; height: 40px; flex-shrink: 0; margin-right: 10px; border-radius: 4px; overflow: hidden; background: #eee;">
+          <img src="${item.imagem}" style="width: 100%; height: 100%; object-fit: cover;">
+        </div>
+        <div style="flex-grow: 1; text-align: left;">
+          <p style="margin: 0; font-weight: bold; color: #2c3e50;">${item.nome} ${statusLabel}</p>
+          ${item.observacao ? `<small style="color:#e67e22; display:block; margin-top:2px;">Obs: ${item.observacao}</small>` : ''}
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+            <button onclick="ajustarQtdItemGarcom(${item.menu_id}, '${item.status}', -1)" style="width: 26px !important; height: 26px !important; padding: 0 !important; background: #e74c3c; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin: 0 !important;">-</button>
+            <span style="font-weight: 800; font-size: 0.95rem; width: 22px; text-align: center; color: #2c3e50;">${item.quantidade}</span>
+            <button onclick="ajustarQtdItemGarcom(${item.menu_id}, '${item.status}', 1)" style="width: 26px !important; height: 26px !important; padding: 0 !important; background: #2ecc71; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin: 0 !important;">+</button>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+          <p style="white-space: nowrap; font-weight: bold; margin: 0; color: #2c3e50; font-size: 0.95rem;">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
+          <button onclick="removerItemLocalGarcom(${item.menu_id}, '${item.status}')" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;">🗑️</button>
+        </div>
+      </div>
+    `;
+  };
+
+  if (pendentes.length > 0) {
+    html += `<h4 style="color:#e74c3c; margin-bottom:10px; border-bottom:2px solid #e74c3c; padding-bottom: 4px; font-weight: 800; font-size: 0.9rem;">⏳ PARA ENTREGAR AGORA</h4>`;
+    html += pendentes.map(renderLinhaItem).join('');
+    html += `<button class="btn-opcoes" onclick="marcarComoServido(${pedidoAbertoNaMesa.id})" style="background-color: #27ae60; margin: 1rem 0; width: 100%;">🚚 ENTREGUEI ESTES ITENS</button>`;
+  }
+
+  if (entregues.length > 0) {
+    html += `<h4 style="color:#27ae60; margin: 20px 0 10px 0; border-bottom:2px solid #27ae60; padding-bottom: 4px; font-weight: 800; font-size: 0.9rem;">✅ JÁ ESTÃO NA MESA</h4>`;
+    html += entregues.map(renderLinhaItem).join('');
+  }
+
+  const lista = document.getElementById('lista-itens-mesa');
+  lista.innerHTML = html || '<p style="text-align: center; color: #7f8c8d; padding: 10px;">Nenhum item ativo no pedido.</p>';
+  
+  // Atualiza subtotal e total no modal
+  const cobrarTaxa = (pedidoAbertoNaMesa.cobrar_taxa === undefined || pedidoAbertoNaMesa.cobrar_taxa === null)
+    ? true
+    : (pedidoAbertoNaMesa.cobrar_taxa == 1 || pedidoAbertoNaMesa.cobrar_taxa === true);
+
+  const subtotal = itensEmEdicaoGarcom.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
+  const taxaServico = cobrarTaxa ? subtotal * 0.10 : 0;
+  const totalGeral = subtotal + taxaServico;
+
+  document.getElementById('total-resumo-mesa').innerHTML = `
+    <div style="text-align: right; border-top: 2px solid #eee; padding-top: 10px; margin-top: 10px;">
+      <p style="color: #7f8c8d; font-size: 0.9rem; margin: 2px 0;">Subtotal: <strong>R$ ${subtotal.toFixed(2)}</strong></p>
+      <p style="color: ${cobrarTaxa ? '#3498db' : '#95a5a6'}; font-size: 0.9rem; margin: 2px 0;">Taxa de Serviço (10%): <strong>${cobrarTaxa ? `R$ ${taxaServico.toFixed(2)}` : 'R$ 0,00 (ISENTO)'}</strong></p>
+      <p style="font-size: 1.15rem; margin-top: 6px; color: #2c3e50; border-top: 1px dashed #ddd; padding-top: 5px; font-weight: bold; margin: 4px 0 0 0;">Total Final: <strong>R$ ${totalGeral.toFixed(2)}</strong></p>
+    </div>
+  `;
+
+  // Exibe ou remove os botões de Salvar Alterações
+  const temAlteracoes = verificarSeHaAlteracoesGarcom();
+  const containerBotaoSalvar = document.getElementById('container-salvar-alteracoes-garcom');
+  if (temAlteracoes) {
+    if (!containerBotaoSalvar) {
+      const btnHtml = `
+        <div id="container-salvar-alteracoes-garcom" style="margin-top: 15px; display: flex; gap: 10px;">
+          <button class="btn-opcoes" onclick="salvarAlteracoesGarcom()" style="background-color: #27ae60; color: white; font-weight: bold; flex: 1.5; margin: 0 !important;">💾 Salvar Alterações</button>
+          <button class="btn-opcoes" onclick="descartarAlteracoesGarcom()" style="background-color: #7f8c8d; color: white; flex: 1; margin: 0 !important;">Descartar</button>
+        </div>
+      `;
+      document.getElementById('modal-resumo-mesa').insertAdjacentHTML('beforeend', btnHtml);
+    }
+  } else {
+    if (containerBotaoSalvar) containerBotaoSalvar.remove();
+  }
+}
+
+function ajustarQtdItemGarcom(menuId, status, valor) {
+  const item = itensEmEdicaoGarcom.find(i => i.menu_id === menuId && i.status === status);
+  if (item) {
+    const novaQtd = item.quantidade + valor;
+    if (novaQtd > 0) {
+      item.quantidade = novaQtd;
+      renderizarItensMesaGarcom();
+    } else {
+      removerItemLocalGarcom(menuId, status);
+    }
+  }
+}
+
+function removerItemLocalGarcom(menuId, status) {
+  const itemIdx = itensEmEdicaoGarcom.findIndex(i => i.menu_id === menuId && i.status === status);
+  if (itemIdx !== -1) {
+    const item = itensEmEdicaoGarcom[itemIdx];
+    mostrarConfirmacao(`Deseja remover o item '${item.nome}' localmente? (A exclusão só será salva ao clicar em Salvar Alterações)`, "Remover Item").then(confirmed => {
+      if (confirmed) {
+        itensEmEdicaoGarcom.splice(itemIdx, 1);
+        renderizarItensMesaGarcom();
+      }
+    });
+  }
+}
+
+function verificarSeHaAlteracoesGarcom() {
+  if (itensEmEdicaoGarcom.length !== itensOriginaisGarcom.length) return true;
+  for (const item of itensEmEdicaoGarcom) {
+    const orig = itensOriginaisGarcom.find(o => o.menu_id === item.menu_id && o.status === item.status);
+    if (!orig || orig.quantidade !== item.quantidade) return true;
+  }
+  return false;
+}
+
+function descartarAlteracoesGarcom() {
+  itensEmEdicaoGarcom = JSON.parse(JSON.stringify(itensOriginaisGarcom));
+  renderizarItensMesaGarcom();
+}
+
+async function salvarAlteracoesGarcom() {
+  if (!pedidoAbertoNaMesa) return;
+  showLoading(true, 'Salvando alterações...');
   try {
-    const res = await fetch(`/api/pedidos/itens/${itemId}`, { method: 'DELETE' });
+    const idPedido = pedidoAbertoNaMesa.id;
+    ultimoPedidoEditadoPeloGarcom = idPedido;
+    if (timerIgnoreEditGarcom) clearTimeout(timerIgnoreEditGarcom);
+    timerIgnoreEditGarcom = setTimeout(() => { ultimoPedidoEditadoPeloGarcom = null; }, 5000);
+
+    const res = await fetch(`/api/pedidos/${idPedido}/atualizar-itens`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        itens: itensEmEdicaoGarcom.map(i => ({
+          menu_id: i.menu_id,
+          quantidade: i.quantidade,
+          status: i.status,
+          observacao: i.observacao || ''
+        }))
+      })
+    });
     showLoading(false);
     if (res.ok) {
-      // Recarrega o resumo da mesa para mostrar os dados atualizados
-      verItensDaMesa();
+      const data = await res.json();
+      const det = data.detalhes_edicao ? `\n(${data.detalhes_edicao})` : '';
+      
+      const containerBotaoSalvar = document.getElementById('container-salvar-alteracoes-garcom');
+      if (containerBotaoSalvar) containerBotaoSalvar.remove();
+
+      await mostrarAlerta(`Pedido atualizado com sucesso!${det}`, "Sucesso", "✅");
+      verItensDaMesa(true);
+    } else {
+      const err = await res.json();
+      await mostrarAlerta(err.error || "Erro ao salvar alterações.", "Erro", "❌");
     }
-  } catch (error) { showLoading(false); await mostrarAlerta("Erro ao excluir item.", "Erro", "❌"); }
+  } catch (error) {
+    showLoading(false);
+    await mostrarAlerta("Erro de rede ao salvar alterações.", "Erro", "❌");
+  }
+}
+
+function fecharResumoMesa() {
+  // Se houver alterações locais não salvas, pede confirmação
+  if (verificarSeHaAlteracoesGarcom()) {
+    mostrarConfirmacao("Você possui alterações não salvas. Deseja descartá-las e fechar?", "Descartar Alterações").then(confirmed => {
+      if (confirmed) {
+        itensEmEdicaoGarcom = [];
+        itensOriginaisGarcom = [];
+        const containerBotaoSalvar = document.getElementById('container-salvar-alteracoes-garcom');
+        if (containerBotaoSalvar) containerBotaoSalvar.remove();
+        
+        document.getElementById('modal-resumo-mesa').style.display = 'none';
+        atualizarBloqueioScroll();
+      }
+    });
+  } else {
+    itensEmEdicaoGarcom = [];
+    itensOriginaisGarcom = [];
+    document.getElementById('modal-resumo-mesa').style.display = 'none';
+    atualizarBloqueioScroll();
+  }
 }
 
 async function marcarComoServido(idPedido) {
