@@ -379,10 +379,7 @@
                         <span id="pedidos-total" style="font-weight: bold; color: #2c3e50;">R$ 0,00</span>
                     </div>
                 </div>
-                <div id="container-cancelar-rascunho" style="display: none; margin-bottom: 12px; flex-direction: column; gap: 8px;">
-                    <button class="btn-send" style="background: #3498db; color: white; width: 100%; font-size: 0.85rem; border-radius: 8px; box-shadow: none !important; -webkit-box-shadow: none !important; -webkit-appearance: none !important; border: none; outline: none; -webkit-tap-highlight-color: transparent !important;" onclick="editarRascunhoPendente()" aria-label="Editar pedido rascunho pendente">
-                        <i class="fas fa-edit"></i> EDITAR PEDIDO PENDENTE
-                    </button>
+                <div id="container-cancelar-rascunho" style="display: none; margin-bottom: 12px;">
                     <button class="btn-send" style="background: #ff4757; color: white; width: 100%; font-size: 0.85rem; border-radius: 8px; box-shadow: none !important; -webkit-box-shadow: none !important; -webkit-appearance: none !important; border: none; outline: none; -webkit-tap-highlight-color: transparent !important;" onclick="cancelarRascunhoPendente()" aria-label="Cancelar pedido rascunho pendente">
                         <i class="fas fa-trash-alt"></i> CANCELAR PEDIDO
                     </button>
@@ -1109,7 +1106,7 @@
                     
                     // Exibe ou oculta o botão de cancelar rascunho
                     const rascunhoAtivo = d.pedido && d.pedido.status === 'rascunho';
-                    document.getElementById('container-cancelar-rascunho').style.display = rascunhoAtivo ? 'flex' : 'none';
+                    document.getElementById('container-cancelar-rascunho').style.display = rascunhoAtivo ? 'block' : 'none';
                 } else if (container) {
                     container.innerHTML = '<div style="text-align:center; padding:20px; color:#95a5a6;"><i class="fas fa-receipt" style="font-size:2rem; display:block; margin-bottom:10px;"></i>Nenhum pedido realizado ainda.</div>';
                     document.getElementById('pedidos-subtotal').innerText = 'R$ 0,00';
@@ -1366,82 +1363,6 @@
                         Swal.fire('Erro', d.error || 'Falha ao cancelar rascunho.', 'error');
                     }
                 } catch (e) {
-                    Swal.fire('Erro', 'Falha na conexão com o servidor.', 'error');
-                } finally {
-                    showLoading(false);
-                }
-            }
-        }
-        async function editarRascunhoPendente() {
-            if (!lastOrderData || !lastOrderData.pedido || lastOrderData.pedido.status !== 'rascunho') {
-                return Swal.fire('Aviso', 'Não há rascunho pendente para editar ou ele já foi aceito pelo garçom.', 'warning');
-            }
-
-            if (await Swal.fire({
-                title: 'Editar Pedido Pendente?',
-                text: 'Para editar, o pedido atual será recolocado no seu carrinho de compras e removido da tela do garçom. Deseja continuar?',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#3498db',
-                confirmButtonText: 'Sim, editar',
-                cancelButtonText: 'Não'
-            }).then(r => r.isConfirmed)) {
-                showLoading(true);
-                try {
-                    const res = await fetch('/api/cliente/cancelar-rascunho', {
-                        method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${sessionMesa.token}`
-                        },
-                        body: JSON.stringify({ token: sessionMesa.token, mesa_id: sessionMesa.mesa_id })
-                    });
-                    const d = await res.json();
-                    
-                    if (res.ok) {
-                        cart = [];
-                        const itensParaCarrinho = lastOrderData.itens || [];
-                        itensParaCarrinho.forEach(item => {
-                            const menuOrig = fullMenu.find(m => m.id === item.menu_id);
-                            if (menuOrig) {
-                                cart.push({
-                                    ...menuOrig,
-                                    qty: item.quantidade
-                                });
-                            } else {
-                                cart.push({
-                                    id: item.menu_id,
-                                    nome: item.menu_nome || item.nome,
-                                    qty: item.quantidade,
-                                    preco: item.preco || item.menu_preco || 0,
-                                    imagem: item.menu_imagem || item.imagem || '',
-                                    descricao: ''
-                                });
-                            }
-                        });
-                        
-                        lastRascunhoCache = null;
-                        
-                        updateCartBar();
-                        renderMenu();
-                        carregarMeusPedidos();
-                        toggleCartModal(true);
-                        
-                        Swal.fire({
-                            title: 'Carrinho Pronto!',
-                            text: 'Seus itens voltaram para o carrinho de compras. Você pode adicionar ou remover produtos e enviá-los novamente!',
-                            icon: 'success',
-                            timer: 3000,
-                            showConfirmButton: false
-                        });
-                    } else if (res.status === 403 || d.error === 'PEDIDO_JA_ACEITO') {
-                        Swal.fire('Pedido Aceito', d.mensagem || d.error || 'O garçom já aceitou o seu pedido! Não é mais possível editá-lo.', 'warning');
-                        carregarMeusPedidos();
-                    } else {
-                        Swal.fire('Erro', d.error || 'Falha ao iniciar edição do rascunho.', 'error');
-                    }
-                } catch (e) {
-                    console.error(e);
                     Swal.fire('Erro', 'Falha na conexão com o servidor.', 'error');
                 } finally {
                     showLoading(false);
