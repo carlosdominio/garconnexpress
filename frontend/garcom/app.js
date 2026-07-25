@@ -2070,9 +2070,10 @@ function renderizarItensMesaGarcom() {
             <button onclick="ajustarQtdItemGarcom(${item.menu_id}, '${item.status}', 1)" style="width: 26px !important; height: 26px !important; padding: 0 !important; background: #2ecc71; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin: 0 !important;">+</button>
           </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+        <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
           <p style="white-space: nowrap; font-weight: bold; margin: 0; color: #2c3e50; font-size: 0.95rem;">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
-          <button onclick="removerItemLocalGarcom(${item.menu_id}, '${item.status}')" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;">🗑️</button>
+          <button onclick="substituirItemGarcom(${item.menu_id}, '${item.status}')" style="background: #3498db; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;" title="Substituir Item">🔄</button>
+          <button onclick="removerItemLocalGarcom(${item.menu_id}, '${item.status}')" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;" title="Remover Item">🗑️</button>
         </div>
       </div>
     `;
@@ -2151,6 +2152,68 @@ function removerItemLocalGarcom(menuId, status) {
       }
     });
   }
+}
+
+async function substituirItemGarcom(menuId, status) {
+  if (!menu || menu.length === 0) {
+    showLoading(true, 'Carregando cardápio...');
+    await carregarMenu();
+    showLoading(false);
+  }
+  
+  if (!menu || menu.length === 0) {
+    return await mostrarAlerta("Erro ao carregar o cardápio.", "Erro", "❌");
+  }
+
+  const itemAtual = itensEmEdicaoGarcom.find(i => i.menu_id === menuId && i.status === status);
+  if (!itemAtual) return;
+
+  const categorias = [...new Set(menu.map(m => m.categoria))];
+  let selectHtml = `<select id="swal-substituir-item" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ddd; font-size: 1rem; margin-top: 10px;">`;
+  
+  categorias.forEach(cat => {
+    selectHtml += `<optgroup label="${cat.toUpperCase()}">`;
+    const produtosDaCat = menu.filter(m => m.categoria === cat && m.visivel);
+    produtosDaCat.forEach(prod => {
+      const selected = prod.id === menuId ? 'selected' : '';
+      selectHtml += `<option value="${prod.id}" ${selected}>${prod.nome} - R$ ${prod.preco.toFixed(2)}</option>`;
+    });
+    selectHtml += `</optgroup>`;
+  });
+  selectHtml += `</select>`;
+
+  Swal.fire({
+    title: '🔄 Substituir Item',
+    html: `
+      <div style="text-align: left; font-size: 0.95rem; color: #2c3e50;">
+        <p>Substituir <strong>${itemAtual.nome}</strong> por qual item do cardápio?</p>
+        ${selectHtml}
+      </div>
+    `,
+    showCancelButton: true,
+    confirmButtonText: 'Substituir',
+    cancelButtonText: 'Cancelar',
+    confirmButtonColor: '#27ae60',
+    cancelButtonColor: '#7f8c8d',
+    preConfirm: () => {
+      const selectedId = document.getElementById('swal-substituir-item').value;
+      return selectedId;
+    }
+  }).then(result => {
+    if (result.isConfirmed && result.value) {
+      const novoMenuId = parseInt(result.value);
+      if (novoMenuId === menuId) return;
+
+      const novoProduto = menu.find(m => m.id === novoMenuId);
+      if (novoProduto) {
+        itemAtual.menu_id = novoProduto.id;
+        itemAtual.nome = novoProduto.nome;
+        itemAtual.preco = novoProduto.preco;
+        itemAtual.imagem = novoProduto.imagem || '';
+        renderizarItensMesaGarcom();
+      }
+    }
+  });
 }
 
 function verificarSeHaAlteracoesGarcom() {
