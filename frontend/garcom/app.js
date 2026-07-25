@@ -2035,6 +2035,7 @@ async function verItensDaMesa(isSilencioso = false) {
     if (!isSilencioso) {
       itensOriginaisGarcom = JSON.parse(JSON.stringify(itens));
       itensEmEdicaoGarcom = JSON.parse(JSON.stringify(itens));
+      window.secaoEntreguesMinimizada = true;
     } else {
       // Se for silêncio, só sincroniza os dados se o garçom não tiver alterações locais pendentes
       if (!verificarSeHaAlteracoesGarcom()) {
@@ -2110,8 +2111,16 @@ function renderizarItensMesaGarcom() {
   }
 
   if (entregues.length > 0) {
-    html += `<h4 style="color:#27ae60; margin: 20px 0 10px 0; border-bottom:2px solid #27ae60; padding-bottom: 4px; font-weight: 800; font-size: 0.9rem;">✅ JÁ ESTÃO NA MESA</h4>`;
-    html += entregues.map(renderLinhaItem).join('');
+    const isMin = (window.secaoEntreguesMinimizada === undefined) ? true : window.secaoEntreguesMinimizada;
+    html += `
+      <div style="margin: 20px 0 10px 0; border-bottom: 2px solid #27ae60; padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="toggleSecaoEntreguesGarcom()">
+        <h4 style="color:#27ae60; margin: 0; font-weight: 800; font-size: 0.9rem;">✅ JÁ ESTÃO NA MESA (${entregues.length})</h4>
+        <span style="color:#27ae60; font-size: 0.85rem; font-weight: bold;">${isMin ? 'Mostrar ➕' : 'Recolher ➖'}</span>
+      </div>
+      <div id="secao-entregues-container" style="display: ${isMin ? 'none' : 'block'};">
+        ${entregues.map(renderLinhaItem).join('')}
+      </div>
+    `;
   }
 
   const lista = document.getElementById('lista-itens-mesa');
@@ -2155,6 +2164,11 @@ function renderizarItensMesaGarcom() {
   } else {
     if (containerBotaoSalvar) containerBotaoSalvar.remove();
   }
+}
+
+function toggleSecaoEntreguesGarcom() {
+  window.secaoEntreguesMinimizada = !window.secaoEntreguesMinimizada;
+  renderizarItensMesaGarcom();
 }
 
 function ajustarQtdItemGarcom(itemId, valor) {
