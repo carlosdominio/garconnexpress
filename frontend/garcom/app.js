@@ -1072,7 +1072,7 @@ async function configurarPusher() {
       const modalResumo = document.getElementById('modal-resumo-mesa');
       const isModalAberto = modalResumo && modalResumo.style.display !== 'none' && modalResumo.style.display !== '';
       if (isModalAberto && mesaAtual && data && data.mesa_id && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_id)) {
-        verItensDaMesa(true);
+        verItensDaMesa(false);
       }
 
       if (data && data.cobrar_taxa !== undefined) {
