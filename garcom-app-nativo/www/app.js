@@ -4,6 +4,7 @@ let menu = [];
 let mesas = [];
 let timeoutPusher = null;
 let configCozinhaCategorias = []; // Estado global das categorias da cozinha
+let configChurrascoCategorias = []; // Estado global das categorias do churrasco
 
 // --- INTEGRAÇÃO CAPACITOR NATIVA ---
 let isNativeApp = (window.Capacitor && window.Capacitor.isNativePlatform()) || 
@@ -299,6 +300,7 @@ async function subscribeToPush() {
 }
 
 let configCozinhaLoaded = false; // Flag para saber se já carregou do servidor
+let configChurrascoLoaded = false; // Flag para saber se já carregou do servidor do churrasco
 
 // Helper para travar/destravar o scroll do fundo de forma robusta
 function atualizarBloqueioScroll() {
@@ -326,6 +328,11 @@ function isItemParaCozinha(item) {
     const envCozinha = item.enviar_cozinha;
     const cat = (item.categoria || '').trim().toUpperCase();
 
+    // Se pertencer ao churrasco, nunca vai para a cozinha
+    if (configChurrascoLoaded && configChurrascoCategorias.includes(cat)) {
+        return false;
+    }
+
     // 1. Override Manual: Se for explicitamente 0/false ou 1/true, esse valor manda.
     if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') return false;
     if (envCozinha === 1 || envCozinha === true || envCozinha === '1' || envCozinha === 'true') return true;
@@ -337,6 +344,15 @@ function isItemParaCozinha(item) {
 
     // 3. Fallback: Se não há categorias configuradas e é NULL, por padrão vai para a cozinha.
     return true;
+}
+
+function isItemParaChurrasco(item) {
+    if (!item) return false;
+    const cat = (item.categoria || '').trim().toUpperCase();
+    if (configChurrascoLoaded) {
+        return configChurrascoCategorias.includes(cat);
+    }
+    return false;
 }
 
 // --- SUPRESSÃO DE ERROS DE WEBSOCKET (Pusher/Socket.io) ---
@@ -710,14 +726,20 @@ async function logout() {
 }
 
 async function iniciarApp() {
+  // Primeiro carrega as configurações de categorias
   await Promise.all([
+    carregarConfigCozinha(),
+    carregarConfigChurrasco(),
     carregarSomGlobalGarcom(),
     carregarConfiguracoesToasts(),
-    carregarConfigCozinha(),
-    carregarMenu(),
-    carregarMesas(),
     atualizarStatusCaixa(),
     calcularClockOffset()
+  ]);
+  
+  // Agora que as configurações de categorias estão 100% carregadas, podemos carregar o menu e as mesas
+  await Promise.all([
+    carregarMenu(),
+    carregarMesas()
   ]);
   atualizarIconeSom();
   configurarEventos();
@@ -744,6 +766,18 @@ async function carregarConfigCozinha() {
             console.log("🍳 Configurações de cozinha carregadas:", configCozinhaCategorias);
         }
     } catch (e) { console.error("Erro ao carregar configs cozinha:", e); }
+}
+
+async function carregarConfigChurrasco() {
+    try {
+        const res = await fetch('/api/config/categorias-churrasco');
+        if (res.ok) {
+            const cats = await res.json();
+            configChurrascoCategorias = cats.map(c => c.trim().toUpperCase());
+            configChurrascoLoaded = true;
+            console.log("🍢 Configurações de churrasco carregadas:", configChurrascoCategorias);
+        }
+    } catch (e) { console.error("Erro ao carregar configs churrasco:", e); }
 }
 
 async function atualizarStatusCaixa() {
@@ -991,7 +1025,11 @@ async function configurarPusher() {
       dispararToastSistema('pedido-pronto', { mesa: data.mesa_numero }, data.mensagem, 'success');
 
       // Mostra apenas alerta informativo
-      mostrarAlerta(data.mensagem, "🍳 COZINHA: PEDIDO PRONTO!", "🍳");
+      const msgCompleta = data.mensagem || '';
+      const isChurrasco = msgCompleta.includes('Churrasqueiro') || msgCompleta.includes('🍢') || msgCompleta.includes('churrasco');
+      const emoji = isChurrasco ? '🍢' : '🍳';
+      const local = isChurrasco ? 'CHURRASQUEIRO' : 'COZINHA';
+      mostrarAlerta(data.mensagem, `${emoji} ${local}: PEDIDO PRONTO!`, emoji);
 
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => carregarMesas(), 50);
@@ -2035,7 +2073,8 @@ async function verItensDaMesa(isSilencioso = false) {
     if (!isSilencioso) {
       itensOriginaisGarcom = JSON.parse(JSON.stringify(itens));
       itensEmEdicaoGarcom = JSON.parse(JSON.stringify(itens));
-      window.secaoEntreguesMinimizada = true;
+      const temPendentes = itens.some(i => { const s = (i.status || '').toLowerCase(); return s === 'pendente' || s === 'pronto'; });
+      window.secaoEntreguesMinimizada = temPendentes;
     } else {
       // Se for silêncio, só sincroniza os dados se o garçom não tiver alterações locais pendentes
       if (!verificarSeHaAlteracoesGarcom()) {
@@ -2795,8 +2834,9 @@ async function exibirMenu(categoria, queryTexto = '') {
             <!-- PROMOÇÃO -->
             ${emPromocao ? '<div class="promo-badge">PROMOÇÃO</div>' : ''}
             
-            <!-- COZINHA -->
-            ${item.enviar_cozinha ? '<div style="background: #3498db; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.75rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin-top: 2px;">🍳 COZINHA</div>' : ''}
+            <!-- COZINHA / CHURRASCO -->
+            ${isItemParaCozinha(item) ? '<div style="background: #3498db; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.75rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin-top: 2px;">🍳 COZINHA</div>' : ''}
+            ${isItemParaChurrasco(item) ? '<div style="background: #e67e22; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.75rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin-top: 2px;">🍢 CHURRASCO</div>' : ''}
           </div>
 
           <img src="${item.imagem}" alt="${item.nome}" onerror="this.onerror=null;this.src='https://placehold.co/150x120?text=${item.nome[0]}'">

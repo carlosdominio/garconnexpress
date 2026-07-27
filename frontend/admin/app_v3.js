@@ -137,7 +137,10 @@ window.onerror = function(msg, url, line) {
       }
       return response;
     } catch (error) {
-      console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
+      const isBotUrl = args[0] && typeof args[0] === 'string' && (args[0].includes(':3002') || (window.whatsappBotUrl && args[0].includes(window.whatsappBotUrl)));
+      if (!isBotUrl) {
+        console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
+      }
       throw error;
     } finally {
       if (shouldShowLoading) {
@@ -164,48 +167,68 @@ let ultimoAlertaValidadeMostrado = 0; // Debounce para o alerta de produtos venc
 let subAbaAtiva = 'garcom';
 let adminLogado = null;
 let configCozinhaCategorias = []; // Estado global das categorias da cozinha
-let configCozinhaLoaded = false; // Flag para saber se já carregou do servidor
+let configCozinhaLoaded = false;
+let configChurrascoCategorias = []; // Estado global das categorias do churrasqueiro
+let configChurrascoLoaded = false;
 let mensagensNaoLidasWhatsapp = 0; // Controle local do badge do WhatsApp
 
-// Helper para verificar se um item deve ir para a cozinha (Sincronizado com Backend)
 function isItemParaCozinha(item) {
     if (!item) return false;
     const envCozinha = item.enviar_cozinha;
     const cat = (item.categoria || '').trim().toUpperCase();
     
-    // 1. Override Manual: Se for explicitamente 0/false, NÃO VAI.
-    if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') {
+    // Se pertencer ao churrasco, nunca vai para a cozinha
+    if (configChurrascoLoaded && configChurrascoCategorias.includes(cat)) {
         return false;
     }
     
-    // 2. Override Manual: Se for explicitamente 1/true, VAI.
+    if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') {
+        return false;
+    }
     if (envCozinha === 1 || envCozinha === true || envCozinha === '1' || envCozinha === 'true') {
         return true;
     }
-    
-    // 3. Se for NULL (Default), segue a regra das categorias
-    // Se a config já foi carregada, seguimos a lista rigorosamente.
     if (configCozinhaLoaded) {
         return configCozinhaCategorias.includes(cat);
     }
-    
-    // 4. Fallback de segurança antes de carregar a config: Assume Sim
     return true;
 }
 
-// Busca as categorias configuradas para a cozinha e salva no estado global
+function isItemParaChurrasco(item) {
+    if (!item) return false;
+    const cat = (item.categoria || '').trim().toUpperCase();
+    if (configChurrascoLoaded) {
+        return configChurrascoCategorias.includes(cat);
+    }
+    return false;
+}
+
 async function carregarConfigCategoriasCozinha() {
   try {
     const resConfig = await fetch('/api/config/categorias-cozinha');
     if (resConfig.ok) {
       const configuradas = await resConfig.json();
       configCozinhaCategorias = (configuradas || []).map(c => String(c).trim().toUpperCase());
-      configCozinhaLoaded = true; // SINALIZA QUE A CONFIG FOI CARREGADA
+      configCozinhaLoaded = true;
     }
   } catch (e) {
     console.error('Erro ao buscar config de cozinha:', e);
   }
 }
+
+async function carregarConfigCategoriasChurrasco() {
+  try {
+    const resConfig = await fetch('/api/config/categorias-churrasco');
+    if (resConfig.ok) {
+      const configuradas = await resConfig.json();
+      configChurrascoCategorias = (configuradas || []).map(c => String(c).trim().toUpperCase());
+      configChurrascoLoaded = true;
+    }
+  } catch (e) {
+    console.error('Erro ao buscar config de churrasco:', e);
+  }
+}
+
 let tipoDescontoAdmin = 'porcentagem'; // Ativado por padrão como porcentagem
 let veioDoFechamento = false; 
 
@@ -481,6 +504,7 @@ async function iniciarPainelAdmin() {
   switchSubTab('garcom');
 
   await carregarConfigCategoriasCozinha(); 
+  await carregarConfigCategoriasChurrasco(); 
   carregarPedidos();
   carregarCardapio();
   carregarStatusCaixa();
@@ -856,6 +880,12 @@ function switchConfigSubTab(subTab) {
   if (section) section.classList.add('active');
 
   if (subTab === 'fcm') carregarNotificacoesFCM();
+  else if (subTab === 'cozinha') {
+    exibirConfigCategoriasCozinha();
+  }
+  else if (subTab === 'churrasqueiro') {
+    exibirConfigCategoriasChurrasco();
+  }
   else if (subTab === 'som-apps') {
     carregarSonsApps();
   }
@@ -1438,9 +1468,10 @@ function exibirMenuLancar(categoria, queryTexto = '') {
           ${temEstoqueDefinido ? `<span>📦</span> ${disponivelReal}` : '<span>♾️</span> Ilimitado'}
         </div>
         
-        <!-- Promoção e Cozinha -->
-        ${item.em_promocao ? `<div style="background: #f1c40f; color: #2c3e50; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.75rem; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">🔥 Promo ${item.preco_original ? `<span style="text-decoration: line-through; opacity: 0.75; font-weight: 600; margin-left: 2px;">R$ ${Number(item.preco_original).toFixed(2)}</span>` : ''}</div>` : ''}
+        <!-- Promoção, Cozinha e Churrasco -->
+        ${item.em_promocao ? `<div style="background: #f1c40f; color: #2c3e50; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.75rem; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); white-space: nowrap; width: max-content;">🔥 Promo ${item.preco_original ? `<span style="text-decoration: line-through; opacity: 0.75; font-weight: 600; margin-left: 2px;">R$ ${Number(item.preco_original).toFixed(2)}</span>` : ''}</div>` : ''}
         ${isItemParaCozinha(item) ? `<div style="background: #e74c3c; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.75rem; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">🍳 Cozinha</div>` : ''}
+        ${isItemParaChurrasco(item) ? `<div style="background: #e67e22; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.75rem; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">🍢 Churrasco</div>` : ''}
       </div>
 
       <img src="${item.imagem}" alt="${item.nome}" style="filter: ${disponivelReal === 0 ? 'grayscale(1)' : 'none'}; height: 110px !important; width: 100%; object-fit: cover; display: block; border-bottom: 1px solid #f0f0f0;">
@@ -1964,7 +1995,7 @@ async function confirmarFechamentoCaixa() {
 }
 
 async function carregarDadosConfig() {
-  await Promise.all([exibirMesasConfig(), exibirGarconsConfig(), exibirMenuConfig(), exibirConfigCategoriasCozinha(), exibirConfigOrdemCategorias()]);
+  await Promise.all([exibirMesasConfig(), exibirGarconsConfig(), exibirMenuConfig(), exibirConfigCategoriasCozinha(), exibirConfigCategoriasChurrasco(), exibirConfigOrdemCategorias()]);
 }
 
 // ORDEM DAS CATEGORIAS
@@ -2094,6 +2125,59 @@ async function salvarConfigCategoriasCozinha() {
       configCozinhaCategorias = categorias; // Atualiza localmente
       await carregarCardapio(); // RECARREGA O CARDÁPIO PARA SINCRONIZAR OS ITENS
       await mostrarAlerta("✅ Configuração de cozinha salva com sucesso! Todos os itens do cardápio foram sincronizados automaticamente.", "Sucesso", "✅");
+    } else {
+      throw new Error('Falha ao salvar');
+    }
+  } catch (e) {
+    console.error(e);
+    await mostrarAlerta("❌ Erro ao salvar configuração.", "Erro", "❌");
+  }
+}
+
+async function exibirConfigCategoriasChurrasco() {
+  const container = document.getElementById('lista-categorias-churrasco-config');
+  if (!container) return;
+
+  try {
+    const resMenu = await fetch('/api/menu');
+    const menu = await resMenu.json();
+    const categorias = [...new Set(menu.map(item => item.categoria.trim().toUpperCase()))].sort();
+
+    await carregarConfigCategoriasChurrasco();
+    const configuradas = configChurrascoCategorias;
+
+    if (categorias.length === 0) {
+      container.innerHTML = '<p style="text-align:center; opacity:0.5; padding:10px;">Nenhuma categoria encontrada no cardápio.</p>';
+      return;
+    }
+
+    container.innerHTML = categorias.map(cat => `
+      <div style="display: flex; align-items: center; gap: 10px; background: white; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;">
+        <input type="checkbox" id="check-cat-churrasco-${cat}" class="check-cat-churrasco" value="${cat}" ${configuradas.includes(cat) ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer;">
+        <label for="check-cat-churrasco-${cat}" style="margin: 0; font-weight: bold; color: #2c3e50; cursor: pointer; flex: 1;">${cat}</label>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.error('Erro ao carregar config de churrasqueiro:', e);
+    container.innerHTML = '<p style="color:red; padding:10px;">Erro ao carregar configurações.</p>';
+  }
+}
+
+async function salvarConfigCategoriasChurrasco() {
+  const checks = document.querySelectorAll('.check-cat-churrasco:checked');
+  const categorias = Array.from(checks).map(c => c.value.trim().toUpperCase());
+
+  try {
+    const res = await fetch('/api/config/categorias-churrasco', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categorias })
+    });
+
+    if (res.ok) {
+      configChurrascoCategorias = categorias;
+      await carregarCardapio();
+      await mostrarAlerta("✅ Configuração do churrasqueiro salva com sucesso!", "Sucesso", "✅");
     } else {
       throw new Error('Falha ao salvar');
     }
@@ -3025,11 +3109,12 @@ async function exibirMenuConfig() {
                 }
               }
 
-              const hasStatus = m.em_promocao || isItemParaCozinha(m) || (m.visivel === false || m.visivel === 0);
+              const hasStatus = m.em_promocao || isItemParaCozinha(m) || isItemParaChurrasco(m) || (m.visivel === false || m.visivel === 0);
               const statusHeader = hasStatus ? `
                 <div style="display: flex; width: 100%; height: 22px;">
                   ${m.em_promocao ? '<div style="flex: 1; background: #f1c40f; color: #2c3e50; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🔥 PROMOÇÃO</div>' : ''}
                   ${isItemParaCozinha(m) ? '<div style="flex: 1; background: #3498db; color: white; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🍳 COZINHA</div>' : ''}
+                  ${isItemParaChurrasco(m) ? '<div style="flex: 1; background: #e67e22; color: white; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🍢 CHURRASCO</div>' : ''}
                   ${(m.visivel === false || m.visivel === 0) ? '<div style="flex: 1; background: #e74c3c; color: white; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🚫 OCULTO</div>' : ''}
                 </div>` : '';
 
@@ -4683,10 +4768,10 @@ async function marcarPedidoEntregue(id) {
     const resItens = await fetch(`/api/pedidos/${id}/itens`);
     const itens = await resItens.json();
 
-    // Itens que ainda estão em produção (Pendente + Cozinha)
-    const emPreparo = itens.filter(i => i.status === 'pendente' && isItemParaCozinha(i));
-    // Itens que podem ser entregues agora (Prontos ou Bebidas pendentes)
-    const prontosOuForaCozinha = itens.filter(i => i.status === 'pronto' || (i.status === 'pendente' && !isItemParaCozinha(i)));
+    // Itens que ainda estão em produção (Pendente + Cozinha/Churrasco)
+    const emPreparo = itens.filter(i => i.status === 'pendente' && (isItemParaCozinha(i) || isItemParaChurrasco(i)));
+    // Itens que podem ser entregues agora (Prontos ou Bebidas/outros pendentes)
+    const prontosOuForaCozinha = itens.filter(i => i.status === 'pronto' || (i.status === 'pendente' && !isItemParaCozinha(i) && !isItemParaChurrasco(i)));
 
     // CASO 1: Existem itens na cozinha sendo feitos
     if (emPreparo.length > 0) {
@@ -4990,9 +5075,10 @@ async function renderizarMenuEdicao(categoria = 'todas') {
           ${temEstoqueDefinido ? `<span>📦</span> ${estoqueDisponivel}` : '<span>♾️</span> Ilimitado'}
         </div>
 
-        <!-- Promoção e Cozinha -->
-        ${item.em_promocao ? `<div style="background: #f1c40f; color: #2c3e50; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.75rem; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">🔥 Promo ${item.preco_original ? `<span style="text-decoration: line-through; opacity: 0.75; font-weight: 600; margin-left: 2px;">R$ ${Number(item.preco_original).toFixed(2)}</span>` : ''}</div>` : ''}
+        <!-- Promoção, Cozinha e Churrasco -->
+        ${item.em_promocao ? `<div style="background: #f1c40f; color: #2c3e50; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.75rem; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); white-space: nowrap; width: max-content;">🔥 Promo ${item.preco_original ? `<span style="text-decoration: line-through; opacity: 0.75; font-weight: 600; margin-left: 2px;">R$ ${Number(item.preco_original).toFixed(2)}</span>` : ''}</div>` : ''}
         ${isItemParaCozinha(item) ? `<div style="background: #e74c3c; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.75rem; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">🍳 Cozinha</div>` : ''}
+        ${isItemParaChurrasco(item) ? `<div style="background: #e67e22; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.75rem; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">🍢 Churrasco</div>` : ''}
       </div>
 
       <img src="${item.imagem}" alt="${item.nome}" style="filter: ${estoqueDisponivel === 0 ? 'grayscale(1)' : 'none'}; height: 110px !important; width: 100%; object-fit: cover; display: block; border-bottom: 1px solid #f0f0f0;">
@@ -5152,12 +5238,12 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   });
 
   // --- TRAVA DE COZINHA INTELIGENTE ---
-  // Filtra itens pendentes (EM PREPARO) que SÃO da cozinha
-  const itensCozinhaEmPreparo = itensFechamentoAdmin.filter(i => i.status === 'pendente' && isItemParaCozinha(i));
+  // Filtra itens pendentes (EM PREPARO) que SÃO da cozinha ou churrasqueira
+  const itensCozinhaEmPreparo = itensFechamentoAdmin.filter(i => i.status === 'pendente' && (isItemParaCozinha(i) || isItemParaChurrasco(i)));
   // Filtra itens PRONTOS que ainda não foram marcados como entregues
   const itensProntosNaoEntregues = itensFechamentoAdmin.filter(i => i.status === 'pronto');
-  // Filtra itens pendentes que NÃO são da cozinha (bebidas, etc)
-  const itensForaCozinhaPend = itensFechamentoAdmin.filter(i => i.status === 'pendente' && !isItemParaCozinha(i));
+  // Filtra itens pendentes que NÃO são da cozinha nem churrasco (bebidas, etc)
+  const itensForaCozinhaPend = itensFechamentoAdmin.filter(i => i.status === 'pendente' && !isItemParaCozinha(i) && !isItemParaChurrasco(i));
 
   if (itensCozinhaEmPreparo.length > 0) {
     // MODAL ESPECÍFICO PARA COZINHA (BLOQUEIO VISUAL MELHORADO)
@@ -6141,6 +6227,7 @@ async function carregarCardapio() {
   if (abaAtiva === 'configuracoes') {
       exibirMenuConfig();
       exibirConfigCategoriasCozinha();
+      exibirConfigCategoriasChurrasco();
   }
   if (abaAtiva === 'lancar') {
       const catAtiva = document.querySelector('#lancar-menu-categorias .cat-mini.ativa');
@@ -6354,7 +6441,7 @@ async function configurarPusher() {
       }, 100);
     });
 
-    // EVENTO: PEDIDO PRONTO (COZINHA)
+    // EVENTO: PEDIDO PRONTO (COZINHA / CHURRASQUEIRO)
     channel.bind('pedido-pronto', (data) => {
       console.log('📢 Admin: Pedido pronto!', data);
       tocarNotificacao(); 
@@ -6366,14 +6453,22 @@ async function configurarPusher() {
         labelMesa = mesa;
       } else if (mesa === 'BALCÃO' || mesa === 'Balcão') {
         labelMesa = `Balcão (#${data.pedido_id})`;
+      } else if (mesa.startsWith('Mesa')) {
+        labelMesa = `${mesa} (#${data.pedido_id})`;
       } else {
         labelMesa = `Mesa ${mesa} (#${data.pedido_id})`;
       }
       const msgSimples = `${labelMesa} está pronto!`;
+      
+      // Diferencia se veio do Churrasqueiro ou Cozinha
+      const msgCompleta = data.mensagem || '';
+      const isChurrasco = msgCompleta.includes('Churrasqueiro') || msgCompleta.includes('🍢') || msgCompleta.includes('churrasco');
+      const emoji = isChurrasco ? '🍢' : '🍳';
+      const local = isChurrasco ? 'Churrasqueiro' : 'Cozinha';
 
-      exibirNotificacaoNativa('🍳 PEDIDO PRONTO', msgSimples, `mesa-${data.mesa_id}`);
-      mostrarToast(`🍳 PRONTO: ${labelMesa}`);
-      mostrarAlerta(msgSimples, "🍳 Cozinha", "🍳");
+      exibirNotificacaoNativa(`${emoji} PEDIDO PRONTO`, msgSimples, `mesa-${data.mesa_id}`);
+      mostrarToast(`${emoji} PRONTO: ${labelMesa}`);
+      mostrarAlerta(msgSimples, `${emoji} ${local}`, emoji);
 
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => {
@@ -7463,6 +7558,7 @@ async function abrirModalOpcoes(pedidoId) {
     itensPendentes.forEach(i => {
       const isPronto = i.status === 'pronto';
       const isCozinha = isItemParaCozinha(i);
+      const isChurrasco = isItemParaChurrasco(i);
       htmlItens += `
         <div style="border-left:4px solid ${isPronto ? '#2ecc71' : '#e74c3c'}; background:white; border-radius:8px; padding:8px 12px; margin-bottom:6px; border:1px solid ${isPronto ? '#d4edda' : '#fee2e2'}; display:flex; align-items:center; gap: 10px;">
           <img src="${i.imagem || 'https://placehold.co/50'}" style="width: 45px; height: 45px; border-radius: 8px; object-fit: cover; flex-shrink: 0; border: 1px solid #eee;">
@@ -7474,6 +7570,7 @@ async function abrirModalOpcoes(pedidoId) {
             <div style="display: flex; gap: 5px; align-items: center; margin-top: 2px;">
               ${isPronto ? '<small style="background: #dcfce7; color: #166534; padding: 1px 6px; border-radius: 4px; font-weight: 900; font-size: 0.65rem;">🔥 PRONTO</small>' : ''}
               ${isCozinha ? '<small style="background: #fee2e2; color: #e74c3c; padding: 1px 6px; border-radius: 4px; font-weight: 900; font-size: 0.65rem;">🍳 COZINHA</small>' : ''}
+              ${isChurrasco ? '<small style="background: #fff3e0; color: #e67e22; padding: 1px 6px; border-radius: 4px; font-weight: 900; font-size: 0.65rem;">🍢 CHURRASCO</small>' : ''}
             </div>
             ${i.observacao ? `<small style="color:#d35400; font-weight:bold; font-size:0.75rem; display:block; margin-top: 2px;">📝 ${i.observacao}</small>` : ''}
           </div>
@@ -9412,15 +9509,16 @@ async function inicializarWhatsAppWidget() {
             waWidgetSocket = io(waWidgetBotBaseUrl, { 
                 transports: ['websocket'],
                 auth: { token: waWidgetBotToken },
-                query: { token: waWidgetBotToken }
+                query: { token: waWidgetBotToken },
+                reconnectionAttempts: 3,
+                reconnectionDelay: 10000
             });
 
             waWidgetSocket.on('connect_error', (err) => {
-                console.warn('⚠️ Erro de autenticação/conexão socket no widget:', err.message);
                 const dot = document.getElementById('wa-widget-status-dot');
                 const txt = document.getElementById('wa-widget-status-text');
                 if (dot) dot.style.background = '#ef4444';
-                if (txt) txt.innerText = 'Desconectado (Erro de Autenticação)';
+                if (txt) txt.innerText = 'Desconectado (Offline)';
             });
 
             waWidgetSocket.on('connect', () => {
@@ -9565,8 +9663,8 @@ async function carregarWidgetChats(isBackground = false) {
         renderizarListaChats();
         atualizarBadgeUnreadGlobal();
     } catch (e) {
-        console.error('Erro ao carregar lista de chats do robô:', e.message);
         if (!isBackground) {
+            console.warn('Erro ao carregar lista de chats do robô:', e.message);
             const container = document.getElementById('wa-widget-chats-container');
             if (container) {
                 container.innerHTML = `

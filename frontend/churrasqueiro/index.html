@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GarçomExpress - Churrasqueiro</title>
+    <script>
+      window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
+    </script>
+    <script defer src="/_vercel/speed-insights/script.js"></script>
+    <script>
+      window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    </script>
+    <script defer src="/_vercel/insights/script.js"></script>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="style.css?v=1.0.0">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Tela de Login -->
+    <div id="tela-login" class="tela-login" style="display: none;">
+        <div class="login-box">
+            <div class="login-logo">
+                <span class="logo-emoji">🍢</span>
+                <h2>GarçomExpress</h2>
+                <p>Painel do Churrasqueiro</p>
+            </div>
+            <div class="login-form">
+                <div class="input-group">
+                    <label for="login-usuario">Usuário</label>
+                    <input type="text" id="login-usuario" placeholder="Digite seu usuário">
+                </div>
+                <div class="input-group">
+                    <label for="login-senha">Senha</label>
+                    <div style="position: relative; display: flex; align-items: center; width: 100%;">
+                        <input type="password" id="login-senha" placeholder="Digite sua senha" style="padding-right: 40px; width: 100%;">
+                        <button type="button" onclick="toggleMostrarSenha('login-senha', this)" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; color: #7f8c8d; padding: 0; font-size: 1rem; width: auto; height: auto; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-eye"></i></button>
+                    </div>
+                </div>
+
+                <script>
+                    function toggleMostrarSenha(inputId, button) {
+                        const input = document.getElementById(inputId);
+                        if (!input) return;
+                        if (input.type === 'password') {
+                            input.type = 'text';
+                            button.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
+                        } else {
+                            input.type = 'password';
+                            button.innerHTML = '<i class="fa-solid fa-eye"></i>';
+                        }
+                    }
+                </script>
+                <div id="login-error" class="login-error" style="display: none;"></div>
+                <button id="btn-login" onclick="realizarLogin()">
+                    <span id="btn-login-text">Entrar</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <header id="main-header">
+        <div class="header-content">
+            <h1>🍢 Painel do Churrasqueiro</h1>
+            <div class="header-controls">
+                <!-- Sino de Notificações -->
+                <div style="position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer; background: rgba(255,255,255,0.1); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0;" onclick="togglePainelNotificacoes()">
+                    <span style="font-size: 1.1rem; user-select: none;">🔔</span>
+                    <span id="badge-notificacoes" style="display: none; position: absolute; top: -5px; right: -5px; background: #e67e22; color: white; font-size: 0.65rem; font-weight: bold; border-radius: 50%; width: 18px; height: 18px; align-items: center; justify-content: center; line-height: 1;">0</span>
+                </div>
+
+                <div class="toggle-container" style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2);">
+                    <span id="label-som" style="color: white; font-size: 0.9rem; font-weight: bold;">MUDO</span>
+                    <label class="switch">
+                        <input type="checkbox" id="check-som" onchange="alternarSom()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div id="status-conexao" class="status-badge">Conectando...</div>
+                <button class="btn-logout" onclick="logout()">Sair</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Painel de Notificações -->
+    <div id="painel-notificacoes" style="display: none; position: fixed; top: 70px; right: 10px; width: 320px; max-height: 400px; background: white; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); z-index: 10000; flex-direction: column; overflow: hidden; border: 1px solid #eee;">
+        <div style="padding: 15px; background: #2c3e50; color: white; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-size: 1rem; font-weight: bold;">🔔 Notificações</h3>
+            <button onclick="limparNotificacoes()" style="background: transparent; border: none; color: #ff9f43; font-size: 0.85rem; font-weight: bold; cursor: pointer; padding: 5px;">Limpar Tudo</button>
+        </div>
+        <div id="lista-notificacoes" style="padding: 10px; overflow-y: auto; flex-grow: 1; max-height: 340px; background: #f8f9fa; display: flex; flex-direction: column; gap: 8px;">
+            <div id="notificacao-vazia" style="text-align: center; color: #7f8c8d; padding: 20px 0; font-size: 0.9rem;">Nenhuma nova notificação.</div>
+        </div>
+    </div>
+
+
+    <!-- Tela de Caixa Fechado (Full Screen) -->
+    <div id="closed-screen" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f1f2f6; z-index: 9999; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px;">
+        <div style="background: white; padding: 50px 30px; border-radius: 30px; box-shadow: 0 15px 45px rgba(0,0,0,0.15); max-width: 500px; width: 100%;">
+            <div style="font-size: 6rem; margin-bottom: 25px;">😴</div>
+            <h1 style="color: #2c3e50; margin-bottom: 15px; font-size: 2rem; font-weight: 800;">Churrasqueira em Pausa</h1>
+            <p style="font-size: 1.2rem; color: #7f8c8d; line-height: 1.6; margin-bottom: 30px;">O caixa está fechado no momento. A churrasqueira não processará novos pedidos até que o sistema seja aberto.</p>
+            <div style="display: inline-block; padding: 10px 25px; background: #e67e22; color: white; border-radius: 50px; font-weight: bold; font-size: 0.9rem; letter-spacing: 1px;">MODO STANDBY ATIVO</div>
+        </div>
+    </div>
+
+    <main id="pedidos-container">
+        <!-- Os pedidos serão inseridos aqui dinamicamente -->
+        <div class="loading">Carregando pedidos...</div>
+    </main>
+
+    <!-- Modal de Alerta de Cancelamento -->
+    <div id="modal-cancelamento" class="modal">
+        <div class="modal-content">
+            <div class="modal-header" style="border-top: 10px solid #e67e22;">
+                <span class="modal-icon">🚨</span>
+                <h2>PEDIDO CANCELADO!</h2>
+            </div>
+            <div id="modal-mensagem" class="modal-body">
+                O pedido #X da Mesa Y foi cancelado pelo administrador.
+            </div>
+            <div class="modal-footer">
+                <button onclick="fecharModalCancelamento()" class="btn-fechar-modal">ENTENDIDO</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação de Pedido Pronto -->
+    <div id="modal-confirmacao-pronto" class="modal">
+        <div class="modal-content" style="border-top: 10px solid #2ecc71;">
+            <div class="modal-header">
+                <span class="modal-icon">✅</span>
+                <h2>CONCLUIR PEDIDO?</h2>
+            </div>
+            <div class="modal-body" style="text-align: center; padding: 20px;">
+                <p id="confirmacao-pronto-msg" style="font-size: 1.2rem; color: #2c3e50; font-weight: 500;">
+                    Deseja marcar o pedido da <strong>Mesa X</strong> como pronto?
+                </p>
+                <p style="color: #666; font-size: 0.9rem; margin-top: 10px;">
+                    Isso enviará um alerta imediato para o <strong>ADM</strong> e para o <strong>GARÇOM</strong>.
+                </p>
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 15px; justify-content: center;">
+                <button onclick="fecharModalPronto()" class="btn-fechar-modal" style="background: #95a5a6; border: none; padding: 10px 20px; border-radius: 8px; color: white; cursor: pointer; font-weight: bold;">VOLTAR</button>
+                <button id="btn-confirmar-pronto" class="btn-fechar-modal" style="background: #2ecc71; border: none; padding: 10px 20px; border-radius: 8px; color: white; cursor: pointer; font-weight: bold;">SIM, ENVIAR AVISO!</button>
+            </div>
+        </div>
+    </div>
+
+  <!-- Modal de Carregamento Rápido (Lightweight) -->
+  <div id="loading-rapido" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); z-index: 99999; align-items: center; justify-content: center;">
+    <div style="background: white; padding: 20px 30px; border-radius: 16px; display: flex; align-items: center; gap: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+      <style>
+        @keyframes spinLoadingRapido {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      </style>
+      <div style="width: 30px; height: 30px; border: 3px solid #e2e8f0; border-top: 3px solid #e67e22; border-radius: 50%; animation: spinLoadingRapido 0.8s linear infinite;"></div>
+      <span id="loading-rapido-texto" style="font-weight: bold; color: #2c3e50; font-size: 1rem; font-family: inherit;">Processando...</span>
+    </div>
+  </div>
+
+    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="app.js?v=1.0.0"></script>
+</body>
+</html>

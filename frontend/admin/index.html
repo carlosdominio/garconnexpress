@@ -235,6 +235,9 @@
             <a href="/cozinha" target="_blank" class="dropdown-item-header cozinha">
               <i class="fa-solid fa-utensils"></i> Painel Cozinha
             </a>
+            <a href="/churrasqueiro" target="_blank" class="dropdown-item-header churrasqueiro" style="border-left: 4px solid #e67e22 !important;">
+              <i class="fa-solid fa-fire"></i> Painel Churrasqueiro
+            </a>
             <a href="/motoboy" target="_blank" class="dropdown-item-header motoboy">
               <i class="fa-solid fa-motorcycle"></i> Painel Motoboy
             </a>
@@ -733,6 +736,9 @@
           <button class="config-nav-btn" onclick="switchConfigSubTab('cozinha')">
             <i class="fa-solid fa-utensils"></i> Cozinha
           </button>
+          <button class="config-nav-btn" onclick="switchConfigSubTab('churrasqueiro')">
+            <i class="fa-solid fa-fire"></i> Churrasqueiro
+          </button>
           <button class="config-nav-btn" onclick="switchConfigSubTab('whatsapp')">
             <i class="fa-brands fa-whatsapp"></i> Robô Zap
           </button>
@@ -897,6 +903,19 @@
                 <p style="text-align:center; opacity:0.5;">Carregando categorias...</p>
               </div>
               <button onclick="salvarConfigCategoriasCozinha()" style="width: 100%; margin-top: 15px; background: #2c3e50;">SALVAR CONFIGURAÇÃO</button>
+            </div>
+          </div>
+
+          <!-- Sub-seção: Churrasqueiro -->
+          <div id="config-sub-churrasqueiro" class="config-sub-section">
+            <div class="config-card">
+              <h3>🔥 Configurações do Painel do Churrasqueiro</h3>
+              <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">Marque as categorias que devem ser enviadas automaticamente para o churrasqueiro:</p>
+              <div id="lista-categorias-churrasco-config" style="display: flex; flex-direction: column; gap: 10px; background: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; max-height: 400px; overflow-y: auto;">
+                <!-- Injetado via JS -->
+                <p style="text-align:center; opacity:0.5;">Carregando categorias...</p>
+              </div>
+              <button onclick="salvarConfigCategoriasChurrasco()" style="width: 100%; margin-top: 15px; background: #e67e22; font-weight: bold;">SALVAR CONFIGURAÇÃO</button>
             </div>
           </div>
 

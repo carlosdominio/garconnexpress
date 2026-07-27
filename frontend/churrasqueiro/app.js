@@ -19,7 +19,7 @@ if (isNativeApp && 'serviceWorker' in navigator) {
 const originalFetch = window.fetch;
 window.fetch = async (...args) => {
     let url = args[0];
-    const token = localStorage.getItem('cozinha_token');
+    const token = localStorage.getItem('churrasqueiro_token');
     
     // Se for app nativo e a URL for interna, coloca a API_BASE_URL na frente
     if (isNativeApp && typeof url === 'string' && url.startsWith('/api/')) {
@@ -39,8 +39,8 @@ window.fetch = async (...args) => {
         // Se sessão expirar (401/403)
         if ((response.status === 401 || response.status === 403) && !args[0].includes('/api/login') && !args[0].includes('/api/admin/login')) {
             console.warn("⚠️ Sessão expirada ou acesso negado (401/403).");
-            localStorage.removeItem('cozinha_logado');
-            localStorage.removeItem('cozinha_token');
+            localStorage.removeItem('churrasqueiro_logado');
+            localStorage.removeItem('churrasqueiro_token');
             window.location.reload();
         }
         return response;
@@ -64,7 +64,7 @@ function inicializarAudios() {
 inicializarAudios();
 const statusConexao = document.getElementById('status-conexao');
 
-let somAtivo = localStorage.getItem('cozinha_som_ativo') !== 'false';
+let somAtivo = localStorage.getItem('churrasqueiro_som_ativo') !== 'false';
 let audioDesbloqueado = false;
 
 function atualizarIconeSom() {
@@ -83,7 +83,7 @@ function atualizarIconeSom() {
 function alternarSom() {
     const check = document.getElementById('check-som');
     somAtivo = check ? check.checked : !somAtivo;
-    localStorage.setItem('cozinha_som_ativo', somAtivo);
+    localStorage.setItem('churrasqueiro_som_ativo', somAtivo);
     atualizarIconeSom();
     
     // Notificação visual (balão/toast)
@@ -98,7 +98,7 @@ function alternarSom() {
 function tocarCampainha() {
     if (document.hidden) return; // Android FCM toca o som pesado quando oculto
 
-    const somTipo = localStorage.getItem('cozinha_som_global') || 'sino_moderno';
+    const somTipo = localStorage.getItem('churrasqueiro_som_global') || 'sino_moderno';
     if (somTipo === 'mudo') return;
 
     if (somAtivo) {
@@ -134,19 +134,22 @@ function getSoundPath(somTipo) {
   return `/sons/${file}`;
 }
 
-async function carregarSomGlobalCozinha() {
+async function carregarSomGlobalChurrasco() {
   try {
     const res = await fetch('/api/config/som-global');
     const data = await res.json();
     if (data.success) {
-      localStorage.setItem('cozinha_som_global', data.somCozinha || 'sino_moderno');
+      localStorage.setItem('churrasqueiro_som_global', data.somChurrasco || 'sino_moderno');
     }
   } catch (err) {
-    console.error('Erro ao carregar som global cozinha:', err);
+    console.error('Erro ao carregar som global churrasqueiro:', err);
   }
 }
 
 let pedidosAtrasadosNotificados = new Set();
+
+// Elemento auxiliar global para evitar erro com o bind do clique
+const audioNotificacao = new Audio('/notificacao.mp3');
 
 function solicitarPermissaoNotificacao() {
     if ("Notification" in window) Notification.requestPermission();
@@ -166,18 +169,9 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
 }
 
 function tocarSomNotificacao(tipo = 'campainha') {
-    // Para simplificar e evitar erros de rede/cache com links externos, 
-    // usamos o mesmo som para tudo na cozinha por enquanto
     tocarCampainha();
 }
 
-/**
- * Exibe uma notificação elegante no canto da tela (Toast)
- * @param {string} msg - Mensagem da notificação
- * @param {string} tipo - 'success', 'error', 'warning', 'info'
- * @param {string} titulo - Título opcional
- * @param {number} duracao - Tempo em ms (padrão 5s)
- */
 function mostrarToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
     if (typeof adicionarNotificacaoPainel === 'function') adicionarNotificacaoPainel(msg, titulo, tipo);
     let container = document.getElementById('toast-container');
@@ -188,7 +182,6 @@ function mostrarToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
     }
 
     const t = document.createElement('div');
-    // Mapeamento de tipos antigos para os novos
     let classeTipo = tipo;
     if (tipo === 'sucesso') classeTipo = 'success';
     if (tipo === 'erro' || tipo === 'cancelado') classeTipo = 'error';
@@ -214,18 +207,14 @@ function mostrarToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
     t.innerHTML = html;
     container.appendChild(t);
 
-    // NOVO: Espelha para notificação nativa do Windows automaticamente
     if (typeof exibirNotificacaoNativa === 'function') {
         exibirNotificacaoNativa(titulo || (classeTipo.toUpperCase() + ": " + (icones[classeTipo] || "")), msg, 'toast-' + Date.now());
     }
 
-    // Trigger animação
     setTimeout(() => t.classList.add('show'), 10);
 
-    // Auto-close
     const autoClose = setTimeout(() => fecharToast(t), duracao);
 
-    // Botão fechar
     t.querySelector('.toast-close').onclick = () => {
         clearTimeout(autoClose);
         fecharToast(t);
@@ -241,7 +230,7 @@ async function carregarPedidos() {
     try {
         const [caixaRes, pedidosRes] = await Promise.all([
             fetch('/api/caixa/status'),
-            fetch('/api/pedidos/cozinha')
+            fetch('/api/pedidos/churrasco')
         ]);
         
         if (!caixaRes.ok || !pedidosRes.ok) throw new Error('Erro na resposta das APIs');
@@ -298,30 +287,25 @@ async function verificarCaixa() {
 }
 
 function renderizarPedidos(itens) {
-    // FILTRO DE SEGURANÇA REFORÇADO
     const itensValidos = itens.filter(item => {
         const pStatus = (item.pedido_status || '').toLowerCase();
         const iStatus = (item.item_status || '').toLowerCase();
 
-        // Se for cancelado em qualquer nível, remove
         if (pStatus === 'cancelado' || iStatus === 'cancelado') return false;
-
-        // Se o pedido não estiver em um status ativo para cozinha, remove
         if (pStatus && !['recebido', 'aguardando_fechamento'].includes(pStatus)) return false;
 
         return true;
     });
 
     if (!itensValidos || itensValidos.length === 0) {
-        container.innerHTML = '<div class="sem-pedidos"><h2>🍳 Nenhum pedido pendente</h2></div>';
+        container.innerHTML = '<div class="sem-pedidos"><h2>🍢 Nenhum pedido pendente</h2></div>';
         return;
     }
 
-    // Agrupar itens por pedido_id
     const pedidosMap = {};
     itensValidos.forEach(item => {
         if (!pedidosMap[item.pedido_id]) {
-            console.log(`📦 [Render] Agrupando Pedido #${item.pedido_id}`);
+            console.log(`📦 [Churrasqueiro] Agrupando Pedido #${item.pedido_id}`);
             
             const isDelivery = item.garcom_id === 'DELIVERY';
             const mesaNome = isDelivery ? `DELIVERY #${item.pedido_id}` : (item.mesa_numero ? `Mesa ${item.mesa_numero}` : 'BALCÃO');
@@ -397,14 +381,14 @@ function atualizarCronometros() {
             const diffMin = Math.floor((new Date() - new Date(createdAt)) / 60000);
 
             if (diffMin >= 15) {
-                span.style.color = '#e74c3c'; // Vermelho
+                span.style.color = '#e67e22'; // Destaque Laranja-escuro/Vermelho
                 span.style.fontWeight = 'bold';
                 if (card) card.classList.add('card-atrasado');
 
                 // NOTIFICAÇÃO DE ATRASO CRÍTICO (15 MIN)
                 if (pedidoId && !pedidosAtrasadosNotificados.has(pedidoId)) {
                     tocarSomNotificacao();
-                    exibirNotificacaoNativa(`⚠️ ATRASO NA COZINHA`, `Mesa ${mesa} está esperando há ${diffMin} min!`, `atraso-cozinha-${pedidoId}`);
+                    exibirNotificacaoNativa(`⚠️ ATRASO NA CHURRASQUEIRA`, `Mesa ${mesa} está esperando há ${diffMin} min!`, `atraso-churrasco-${pedidoId}`);
                     pedidosAtrasadosNotificados.add(pedidoId);
                 }
             } else if (diffMin >= 10) {
@@ -463,7 +447,7 @@ async function confirmarConclusaoPedido() {
 
     try {
         showLoading(true, "Concluindo pedido...");
-        const res = await fetch(`/api/pedidos/${pedidoId}/cozinha-pronto`, { method: 'PUT' });
+        const res = await fetch(`/api/pedidos/${pedidoId}/churrasco-pronto`, { method: 'PUT' });
         const result = await res.json();
         
         if (result.success) {
@@ -542,7 +526,7 @@ async function configurarPusher() {
 
         canal.bind('som-global-atualizado', (data) => {
             console.log('🔄 Som global atualizado:', data);
-            localStorage.setItem('cozinha_som_global', data.somCozinha || 'sino_moderno');
+            localStorage.setItem('churrasqueiro_som_global', data.somChurrasco || 'sino_moderno');
             const isNativeApp = (window.Capacitor && window.Capacitor.isNativePlatform());
             if (isNativeApp && typeof registerNativePush === 'function') {
                 registerNativePush();
@@ -557,33 +541,27 @@ async function configurarPusher() {
 
         canal.bind('comunicado-geral', (data) => {
             console.log('📢 Evento recebido: comunicado-geral', data);
-            if (data.destinatario === 'todos' || data.destinatario === 'cozinha') {
+            if (data.destinatario === 'todos' || data.destinatario === 'churrasco' || data.destinatario === 'churrasqueiro') {
                 if (deveTocarSom('comunicado-geral')) tocarSomNotificacao('campainha');
                 mostrarToast(data.mensagem || '', 'info', '📢 COMUNICADO GERAL');
             }
         });
 
-        canal.bind('pedido-atrasado-cozinha', (data) => {
-            console.log('📢 Evento: pedido-atrasado-cozinha', data);
-            if (deveTocarSom('pedido-atrasado-cozinha')) tocarSomNotificacao('campainha');
-            dispararToastSistema('pedido-atrasado-cozinha', { mesa: data.mesa_numero || 'Mesa', pedido_id: data.pedido_id }, data.mensagem, 'error');
-        });
-
         canal.bind('novo-pedido', (data) => {
             console.log('Novo pedido recebido!', data);
             
-            if (data && data.para_cozinha === true) {
+            if (data && data.para_churrasco === true) {
                 const mesa = (data.pedido && data.pedido.mesa_numero) || data.mesa_numero || 'BALCÃO';
                 const labelMesa = (mesa.includes('DELIVERY') || mesa.startsWith('Mesa')) ? mesa : `Mesa ${mesa}`;
                 const isAddition = !!data.is_addition;
                 const evKey = isAddition ? 'item-adicionado' : 'novo-pedido';
 
                 if (isAddition) {
-                    dispararToastSistema('item-adicionado', { mesa: labelMesa, pedido_id: data.pedido ? data.pedido.id : '' }, `🍳 ITEM ADICIONADO: ${labelMesa}`, 'success');
-                    exibirNotificacaoNativa(`🍳 ITEM ADICIONADO: ${labelMesa}`, "Novos itens foram adicionados para a cozinha!", `pedido-${data.pedido_id || 'novo'}`);
+                    dispararToastSistema('item-adicionado', { mesa: labelMesa, pedido_id: data.pedido ? data.pedido.id : '' }, `🍢 ITEM ADICIONADO: ${labelMesa}`, 'success');
+                    exibirNotificacaoNativa(`🍢 ITEM ADICIONADO: ${labelMesa}`, "Novos itens foram adicionados para o churrasco!", `pedido-${data.pedido_id || 'novo'}`);
                 } else {
-                    dispararToastSistema('novo-pedido', { mesa: labelMesa, pedido_id: data.pedido ? data.pedido.id : '' }, `🍳 NOVO PEDIDO: ${labelMesa}`, 'success');
-                    exibirNotificacaoNativa(`🍳 NOVO PEDIDO: ${labelMesa}`, "Um novo pedido chegou para a cozinha!", `pedido-${data.pedido_id || 'novo'}`);
+                    dispararToastSistema('novo-pedido', { mesa: labelMesa, pedido_id: data.pedido ? data.pedido.id : '' }, `🍢 NOVO PEDIDO: ${labelMesa}`, 'success');
+                    exibirNotificacaoNativa(`🍢 NOVO PEDIDO: ${labelMesa}`, "Um novo pedido chegou para o churrasco!", `pedido-${data.pedido_id || 'novo'}`);
                 }
 
                 if (deveTocarSom(evKey)) tocarSomNotificacao('campainha');
@@ -675,16 +653,16 @@ async function registerNativePush() {
     if (!PushNotifications) return;
 
     if (window.Capacitor.getPlatform() === 'android') {
-      const somTipo = localStorage.getItem('cozinha_som_global') || 'sino_moderno';
+      const somTipo = localStorage.getItem('churrasqueiro_som_global') || 'sino_moderno';
       const somRec = somTipo === 'original' ? 'notificacao' : somTipo;
-      const canalId = 'cozinha_canal_' + somTipo;
+      const canalId = 'churrasqueiro_canal_' + somTipo;
 
       try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}
 
-      // Cria o canal padrão com alta importância para evitar fallback (Miscellaneous)
+      // Cria o canal padrão com alta importância
       await PushNotifications.createChannel({
         id: 'pedidos',
-        name: 'Pedidos Cozinha (Padrão)',
+        name: 'Pedidos Churrasqueiro (Padrão)',
         description: 'Canal padrão para notificações urgentes',
         sound: 'notificacao',
         importance: 5,
@@ -695,7 +673,7 @@ async function registerNativePush() {
       // Cria o canal com o som personalizado
       await PushNotifications.createChannel({
         id: canalId,
-        name: 'Pedidos Cozinha (' + somTipo + ')',
+        name: 'Pedidos Churrasqueiro (' + somTipo + ')',
         description: 'Notificações de novos pedidos e chamados',
         sound: somRec,
         importance: 5,
@@ -717,7 +695,7 @@ async function registerNativePush() {
     await PushNotifications.register();
 
     PushNotifications.addListener('registration', async (token) => {
-      console.log('🔥 Token FCM recebido (Cozinha):', token.value);
+      console.log('🔥 Token FCM recebido (Churrasqueiro):', token.value);
       await fetch('/api/subscribe', {
         method: 'POST',
         headers: {
@@ -726,13 +704,13 @@ async function registerNativePush() {
         body: JSON.stringify({
           endpoint: token.value,
           keys: { p256dh: '', auth: '' },
-          app_type: 'cozinha'
+          app_type: 'churrasqueiro'
         })
       });
     });
 
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
-      console.log('📩 Notificação recebida (Cozinha):', notification);
+      console.log('📩 Notificação recebida (Churrasqueiro):', notification);
       
       if (deveTocarSom('status-atualizado')) tocarCampainha();
       if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
@@ -755,7 +733,7 @@ async function registerNativePush() {
 }
 
 function inicializar() {
-    console.log('App Cozinha iniciado.');
+    console.log('App Churrasqueiro iniciado.');
 }
 
 // --- SINO DE NOTIFICAÇÕES ---
@@ -796,7 +774,7 @@ function renderizarListaNotificacoes() {
   lista.innerHTML = historicoNotificacoes.map(notif => {
     let corBorda = '#3498db';
     if (notif.tipo === 'success' || notif.tipo === 'sucesso') corBorda = '#2ecc71';
-    if (notif.tipo === 'error' || notif.tipo === 'erro') corBorda = '#e74c3c';
+    if (notif.tipo === 'error' || notif.tipo === 'erro') corBorda = '#e67e22';
     if (notif.tipo === 'warning') corBorda = '#f1c40f';
     
     return `<div style="background: white; border-left: 4px solid ${corBorda}; padding: 10px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 4px;">
@@ -830,7 +808,7 @@ function limparNotificacoes() {
 async function iniciarApp() {
     solicitarPermissaoNotificacao();
     await Promise.all([
-        carregarSomGlobalCozinha(),
+        carregarSomGlobalChurrasco(),
         carregarConfiguracoesToasts(),
         carregarPedidos(),
         configurarPusher()
@@ -861,7 +839,6 @@ async function realizarLogin() {
     if (btnText) btnText.innerText = "Entrando...";
     
     try {
-        // Tenta fazer login como Admin primeiro
         let res = await fetch('/api/admin/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -871,14 +848,13 @@ async function realizarLogin() {
         let data;
         if (res.ok) {
             data = await res.json();
-            localStorage.setItem('cozinha_logado', 'true');
-            localStorage.setItem('cozinha_token', data.token);
+            localStorage.setItem('churrasqueiro_logado', 'true');
+            localStorage.setItem('churrasqueiro_token', data.token);
             mostrarToast("Login realizado com sucesso!", "success");
             location.reload();
             return;
         }
         
-        // Se falhar como admin, tenta como garçom
         res = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -887,8 +863,8 @@ async function realizarLogin() {
         
         if (res.ok) {
             data = await res.json();
-            localStorage.setItem('cozinha_logado', 'true');
-            localStorage.setItem('cozinha_token', data.token);
+            localStorage.setItem('churrasqueiro_logado', 'true');
+            localStorage.setItem('churrasqueiro_token', data.token);
             mostrarToast("Login realizado com sucesso!", "success");
             location.reload();
         } else if (res.status === 429) {
@@ -919,18 +895,17 @@ function exibirErroLogin(mensagem) {
         title: 'Acesso Negado',
         text: mensagem,
         icon: 'error',
-        confirmButtonColor: '#e74c3c',
+        confirmButtonColor: '#e67e22',
         confirmButtonText: 'Tentar Novamente'
     });
 }
 
 function logout() {
-    localStorage.removeItem('cozinha_logado');
-    localStorage.removeItem('cozinha_token');
+    localStorage.removeItem('churrasqueiro_logado');
+    localStorage.removeItem('churrasqueiro_token');
     location.reload();
 }
 
-// Bateria (executa solto no boot nativo)
 (async () => {
     if (isNativeApp) {
         try {
@@ -961,8 +936,8 @@ function logout() {
 })();
 
 function verificarSessao() {
-    const logado = localStorage.getItem('cozinha_logado');
-    const token = localStorage.getItem('cozinha_token');
+    const logado = localStorage.getItem('churrasqueiro_logado');
+    const token = localStorage.getItem('churrasqueiro_token');
     const telaLogin = document.getElementById('tela-login');
     const header = document.getElementById('main-header');
     const container = document.getElementById('pedidos-container');
@@ -985,13 +960,9 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// Atualizar tempos a cada segundo para o efeito de cronômetro
 setInterval(atualizarCronometros, 1000);
-
-// Recarregar lista completa a cada minuto para garantir sincronia
 setInterval(carregarPedidos, 60000);
 
-// Desbloqueia áudio no primeiro clique do usuário
 document.addEventListener('click', () => {
     if (audioDesbloqueado) return;
     audioDesbloqueado = true;
@@ -1000,7 +971,6 @@ document.addEventListener('click', () => {
     audioNotificacao.play().then(() => {
         audioNotificacao.pause();
         audioNotificacao.currentTime = 0;
-        // Só desmuda se o som estiver ativo
         if (somAtivo) {
             audioNotificacao.muted = false;
         }
@@ -1008,8 +978,6 @@ document.addEventListener('click', () => {
     }).catch(e => console.log('Erro ao preparar áudio:', e));
 }, { once: true });
 
-
-// --- FECHAR PAINEL AO CLICAR FORA ---
 document.addEventListener('click', function(event) {
     const painel = document.getElementById('painel-notificacoes');
     if (!painel || painel.style.display === 'none') return;
@@ -1022,7 +990,6 @@ document.addEventListener('click', function(event) {
     }
 });
 
-// ─── CONFIGURAÇÃO DE TOASTS DINÂMICOS ───────────────────────────────────────
 let _toastTemplates = [];
 
 async function carregarConfiguracoesToasts() {

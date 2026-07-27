@@ -2647,6 +2647,9 @@ async function checkTemItemCozinha(itensIds) {
   const configK = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
   const catsCozinha = configK.rows[0]?.valor ? JSON.parse(configK.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
   
+  const configC = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
+  const catsChurrasco = configC.rows[0]?.valor ? JSON.parse(configC.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
+
   const uniqueIds = [...new Set(itensIds)];
   const menuItemsRes = await query(`SELECT enviar_cozinha, categoria FROM menu WHERE id IN (${uniqueIds.map(() => '?').join(',')})`, uniqueIds);
   
@@ -2654,9 +2657,9 @@ async function checkTemItemCozinha(itensIds) {
     const envCozinha = m.enviar_cozinha;
     const categoria = (m.categoria || '').trim().toUpperCase();
     
-    // Lógica consistente com getFilterCozinha (Prioridade):
-    // 1. Override manual (0 ou 1) ganha sempre.
-    // 2. Se nulo ou não definido, segue a categoria.
+    // Se pertencer ao churrasco, não vai para a cozinha
+    if (catsChurrasco.includes(categoria)) continue;
+
     let vaiCozinha = false;
     if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') {
       vaiCozinha = false;
@@ -2668,6 +2671,22 @@ async function checkTemItemCozinha(itensIds) {
       vaiCozinha = true; // Default
     }
     if (vaiCozinha) return true;
+  }
+  return false;
+}
+
+async function checkTemItemChurrasco(itensIds) {
+  if (!itensIds || itensIds.length === 0) return false;
+  const configC = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
+  const catsChurrasco = configC.rows[0]?.valor ? JSON.parse(configC.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
+  if (catsChurrasco.length === 0) return false;
+
+  const uniqueIds = [...new Set(itensIds)];
+  const menuItemsRes = await query(`SELECT categoria FROM menu WHERE id IN (${uniqueIds.map(() => '?').join(',')})`, uniqueIds);
+  
+  for (const m of menuItemsRes.rows) {
+    const categoria = (m.categoria || '').trim().toUpperCase();
+    if (catsChurrasco.includes(categoria)) return true;
   }
   return false;
 }
@@ -2694,8 +2713,16 @@ async function notifyDeliveryStatusToBot(number, status, pedidoId, tempo = null,
 app.put('/api/pedidos/:id/cozinha-pronto', statusLimiter, isAuthenticated, async (req, res) => {
   const { id } = req.params;
   try {
-    // Marca todos os itens pendentes como 'pronto'
-    await query("UPDATE pedido_itens SET status = 'pronto' WHERE pedido_id = ? AND status = 'pendente'", [id]);
+    const filterCozinha = await getFilterCozinha();
+    
+    // Marca apenas os itens pendentes da cozinha como 'pronto'
+    await query(`
+      UPDATE pedido_itens SET status = 'pronto' 
+      WHERE pedido_id = ? AND status = 'pendente' 
+      AND menu_id IN (
+        SELECT id FROM menu m WHERE ${filterCozinha}
+      )
+    `, [id]);
     
     // Verifica se todos os itens estão pelo menos como 'pronto' ou 'entregue'
     const itens = (await query("SELECT status FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
@@ -2717,7 +2744,50 @@ app.put('/api/pedidos/:id/cozinha-pronto', statusLimiter, isAuthenticated, async
       pedido_id: id, 
       mesa_numero: mesaExibicao,
       garcom_id: pedido ? pedido.garcom_id : null,
-      mensagem: `🍳 Pedido ${mesaExibicao} está pronto!` 
+      mensagem: `🍳 Pedido ${mesaExibicao} está pronto na Cozinha!` 
+    });
+
+    await notifyStatus(id, null, 'pronto');
+    await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.put('/api/pedidos/:id/churrasco-pronto', statusLimiter, isAuthenticated, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const filterChurrasco = await getFilterChurrasco();
+    
+    // Marca apenas os itens pendentes do churrasco como 'pronto'
+    await query(`
+      UPDATE pedido_itens SET status = 'pronto' 
+      WHERE pedido_id = ? AND status = 'pendente' 
+      AND menu_id IN (
+        SELECT id FROM menu m WHERE ${filterChurrasco}
+      )
+    `, [id]);
+    
+    // Verifica se todos os itens estão pelo menos como 'pronto' ou 'entregue'
+    const itens = (await query("SELECT status FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
+    const todosProntos = itens.every(i => i.status === 'pronto' || i.status === 'entregue');
+    
+    if (todosProntos) {
+      await query("UPDATE pedidos SET status = 'pronto' WHERE id = ?", [id]);
+    }
+
+    // Notifica admin e garçom
+    const pedido = (await query("SELECT p.garcom_id, p.cliente_telefone, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
+    let mesaExibicao = 'BALCÃO';
+    if (pedido) {
+      if (pedido.garcom_id === 'DELIVERY') mesaExibicao = `DELIVERY #${id}`;
+      else mesaExibicao = pedido.mesa_numero ? `Mesa ${pedido.mesa_numero}` : 'BALCÃO';
+    }
+    
+    await safePusherTrigger('garconnexpress', 'pedido-pronto', { 
+      pedido_id: id, 
+      mesa_numero: mesaExibicao,
+      garcom_id: pedido ? pedido.garcom_id : null,
+      mensagem: `🍢 Pedido ${mesaExibicao} está pronto no Churrasqueiro!` 
     });
 
     await notifyStatus(id, null, 'pronto');
@@ -2731,16 +2801,16 @@ async function getFilterCozinha() {
   const config = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
   const categoriasCozinha = config.rows[0]?.valor ? JSON.parse(config.rows[0].valor) : [];
   
+  const configChurr = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
+  const categoriasChurrasco = configChurr.rows[0]?.valor ? JSON.parse(configChurr.rows[0].valor) : [];
+  
   const sqlTrue = isPostgres ? 'TRUE' : '1';
   const sqlFalse = isPostgres ? 'FALSE' : '0';
 
-  // Lógica de Prioridade (Três Estados):
-  // 1. Override manual (0 ou 1) ganha sempre.
-  // 2. Se nulo (NULL), segue a categoria.
-  
+  let baseFilter = '';
   if (categoriasCozinha.length > 0) {
     const catList = categoriasCozinha.map(c => `'${c.trim().toUpperCase().replace(/'/g, "''")}'`).join(',');
-    return `(
+    baseFilter = `(
       CASE 
         WHEN m.enviar_cozinha = ${sqlFalse} THEN 0
         WHEN m.enviar_cozinha = ${sqlTrue} THEN 1
@@ -2749,10 +2819,26 @@ async function getFilterCozinha() {
       END = 1
     )`;
   } else {
-    // Se NENHUMA categoria estiver selecionada, apenas o que for explicitamente 1 vai para a cozinha.
-    // O que for NULL não vai (pois não tem categoria habilitada).
-    return `m.enviar_cozinha = ${sqlTrue}`;
+    baseFilter = `m.enviar_cozinha = ${sqlTrue}`;
   }
+
+  if (categoriasChurrasco.length > 0) {
+    const churrCatList = categoriasChurrasco.map(c => `'${c.trim().toUpperCase().replace(/'/g, "''")}'`).join(',');
+    return `(${baseFilter}) AND UPPER(TRIM(m.categoria)) NOT IN (${churrCatList})`;
+  }
+
+  return baseFilter;
+}
+
+async function getFilterChurrasco() {
+  const config = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
+  const categoriasChurrasco = config.rows[0]?.valor ? JSON.parse(config.rows[0].valor) : [];
+  
+  if (categoriasChurrasco.length > 0) {
+    const catList = categoriasChurrasco.map(c => `'${c.trim().toUpperCase().replace(/'/g, "''")}'`).join(',');
+    return `UPPER(TRIM(m.categoria)) IN (${catList})`;
+  }
+  return '0 = 1';
 }
 
 const marcarEntregueLocks = new Set();
@@ -3159,6 +3245,43 @@ app.get('/api/pedidos/cozinha', ensureDbInitialized, isAuthenticated, async (req
     
     if (result.rows.length > 0) {
       console.log(`👨‍🍳 [Cozinha] Enviando ${result.rows.length} itens. IDs de pedidos:`, [...new Set(result.rows.map(r => r.pedido_id))]);
+    }
+    
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/pedidos/churrasco', ensureDbInitialized, isAuthenticated, async (req, res) => {
+  try {
+    const filterChurrasco = await getFilterChurrasco();
+    let whereClause = `LOWER(pi.status) = 'pendente' AND LOWER(p.status) IN ('recebido', 'aguardando_fechamento', 'pronto')`;
+
+    const result = await query(`
+      SELECT 
+        pi.id as item_id, 
+        pi.quantidade, 
+        pi.observacao, 
+        pi.status as item_status,
+        m.nome as item_nome, 
+        m.categoria, 
+        p.id as pedido_id, 
+        p.status as pedido_status,
+        p.created_at,
+        p.observacao as pedido_observacao,
+        p.garcom_id,
+        mes.numero as mesa_numero
+        FROM pedido_itens pi
+      JOIN menu m ON pi.menu_id = m.id 
+      JOIN pedidos p ON pi.pedido_id = p.id 
+      LEFT JOIN mesas mes ON p.mesa_id = mes.id 
+      WHERE (${whereClause}) AND ${filterChurrasco}
+      ORDER BY p.created_at ASC
+    `);
+    
+    if (result.rows.length > 0) {
+      console.log(`🍢 [Churrasqueiro] Enviando ${result.rows.length} itens. IDs de pedidos:`, [...new Set(result.rows.map(r => r.pedido_id))]);
     }
     
     res.json(result.rows);
@@ -3604,30 +3727,35 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
       return `${item.quantidade}x ${p ? p.nome : 'Item'}`;
     });
     const msgWpp = `🚀 *NOVO PEDIDO #${pedidoId}*\n📍 Mesa: ${mesaNum}\n📝 Itens:\n${itensNomes.join('\n')}\n💰 Total: R$ ${total.toFixed(2)}`;
-
-    // 2. Verifica se o pedido tem itens para a cozinha
+    // 2. Verifica se o pedido tem itens para a cozinha ou churrasqueiro
     const configK = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
     const catsCozinha = configK.rows[0]?.valor ? JSON.parse(configK.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
     
+    const configC = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
+    const catsChurrasco = configC.rows[0]?.valor ? JSON.parse(configC.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
+
     let temItemCozinha = false;
+    let temItemChurrasco = false;
     for (const item of itens) {
       const m = menuMap[item.menu_id];
       if (m) {
         const envCozinha = m.enviar_cozinha;
         const categoria = (m.categoria || '').trim().toUpperCase();
         
-        let vaiCozinha = false;
-        if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') {
-          vaiCozinha = false; 
-        } else if (catsCozinha.length > 0) {
-          vaiCozinha = catsCozinha.includes(categoria); 
+        if (catsChurrasco.includes(categoria)) {
+          temItemChurrasco = true;
         } else {
-          vaiCozinha = (envCozinha === 1 || envCozinha === true || envCozinha === '1' || envCozinha === 'true');
-        }
-
-        if (vaiCozinha) {
-          temItemCozinha = true;
-          break;
+          let vaiCozinha = false;
+          if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') {
+            vaiCozinha = false; 
+          } else if (catsCozinha.length > 0) {
+            vaiCozinha = catsCozinha.includes(categoria); 
+          } else {
+            vaiCozinha = (envCozinha === 1 || envCozinha === true || envCozinha === '1' || envCozinha === 'true');
+          }
+          if (vaiCozinha) {
+            temItemCozinha = true;
+          }
         }
       }
     }
@@ -3636,17 +3764,16 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
     await Promise.all([
       notifyStatus(pedidoId, mesa_id, 'recebido', mesaNum),
       safePusherTrigger('garconnexpress', 'menu-atualizado', {}),
-      // Notifica o cliente especificamente que o botão pode ser liberado
       safePusherTrigger('garconnexpress', `rascunho-processado-mesa-${mesa_id}`, {
         success: true,
         mensagem: "Seu rascunho foi processado pelo garçom!"
       }),
       safePusherTrigger('garconnexpress', 'novo-pedido', {
         para_cozinha: temItemCozinha,
+        para_churrasco: temItemChurrasco,
         pedido: { id: pedidoId, mesa_id, mesa_numero: mesaNum, status: 'recebido', garcom_id: garcom_id }
       })
     ]);
-
     // WhatsApp (não-bloqueante: remove await para responder instantaneamente ao cliente)
     sendWhatsAppMessage(msgWpp).catch(e => console.error('Erro WhatsApp:', e.message));
 
@@ -3774,8 +3901,8 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
       // Busca garcom_id para notificação
       const pMesa = (await query("SELECT garcom_id FROM pedidos WHERE id = ?", [id])).rows[0];
 
-      // Verifica se há itens para a cozinha
       const temItemCozinha = await checkTemItemCozinha(itens.map(i => i.menu_id));
+      const temItemChurrasco = await checkTemItemChurrasco(itens.map(i => i.menu_id));
       
       // Notifica em paralelo
       await Promise.all([
@@ -3783,6 +3910,7 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
         safePusherTrigger('garconnexpress', 'menu-atualizado', {}),
         safePusherTrigger('garconnexpress', 'novo-pedido', { 
           para_cozinha: temItemCozinha,
+          para_churrasco: temItemChurrasco,
           is_addition: true,
           pedido: { id: id, mesa_numero: mesaNum, status: 'recebido', garcom_id: pMesa ? pMesa.garcom_id : null } 
         })
@@ -3879,8 +4007,9 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
     // Notifica a cozinha que há novos itens para preparar (com som)
     const mesaNum = pMesa ? pMesa.numero || 'BALCÃO' : 'BALCÃO';
     
-    // Verifica se os NOVOS itens vão para a cozinha
+    // Verifica se os NOVOS itens vão para a cozinha ou churrasqueiro
     const temItemCozinha = await checkTemItemCozinha(itens.map(i => i.menu_id));
+    const temItemChurrasco = await checkTemItemChurrasco(itens.map(i => i.menu_id));
 
     const alteracoes = [];
     for (const item of itens) {
@@ -3896,6 +4025,7 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
       safePusherTrigger('garconnexpress', 'menu-atualizado', {}),
       safePusherTrigger('garconnexpress', 'novo-pedido', { 
         para_cozinha: temItemCozinha,
+        para_churrasco: temItemChurrasco,
         is_addition: true,
         // garcom_id real do pedido: null = sem garçom atribuído (lançado pelo admin), ADMIN = admin direto
         garcom_id: pMesa ? (pMesa.garcom_id || 'ADMIN') : 'ADMIN',
@@ -4647,6 +4777,30 @@ app.put('/api/menu/categoria/:categoria', isAdmin, async (req, res) => {
           await query("UPDATE sistema_config SET valor = ? WHERE chave = 'categorias_cozinha'", [novoValorConfig]);
         } else {
           await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('categorias_cozinha', ?)", [novoValorConfig]);
+        }
+      }
+    }
+
+    // 3. Sincroniza a configuração de categorias da churrasqueira (se existir)
+    const configResChurr = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
+    if (configResChurr.rows.length > 0 && configResChurr.rows[0].valor) {
+      let categoriasChurrasco = JSON.parse(configResChurr.rows[0].valor);
+      let alterouConfigChurr = false;
+      
+      categoriasChurrasco = categoriasChurrasco.map(cat => {
+        if (cat.toUpperCase() === categoria.toUpperCase()) {
+          alterouConfigChurr = true;
+          return nomeLimpo;
+        }
+        return cat;
+      });
+
+      if (alterouConfigChurr) {
+        const novoValorConfig = JSON.stringify(categoriasChurrasco);
+        if (isPostgres) {
+          await query("UPDATE sistema_config SET valor = ? WHERE chave = 'categorias_churrasco'", [novoValorConfig]);
+        } else {
+          await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('categorias_churrasco', ?)", [novoValorConfig]);
         }
       }
     }
@@ -5493,6 +5647,28 @@ app.post('/api/config/categorias-cozinha', isAdmin, async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+app.get('/api/config/categorias-churrasco', async (req, res) => {
+  try {
+    const config = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
+    res.json(config.rows[0]?.valor ? JSON.parse(config.rows[0].valor) : []);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/config/categorias-churrasco', isAdmin, async (req, res) => {
+  const { categorias } = req.body;
+  try {
+    const valor = JSON.stringify(categorias);
+    if (isPostgres) {
+      await query("INSERT INTO sistema_config (chave, valor) VALUES ('categorias_churrasco', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [valor]);
+    } else {
+      await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('categorias_churrasco', ?)", [valor]);
+    }
+
+    await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
 app.get('/api/config/versao-app', ensureDbInitialized, async (req, res) => {
   try {
     const configRows = (await query("SELECT chave, valor FROM sistema_config WHERE chave IN (" +
@@ -5596,7 +5772,7 @@ app.post('/api/config/upload-apk', express.raw({ type: 'application/octet-stream
 
 app.get('/api/config/som-global', ensureDbInitialized, async (req, res) => {
   try {
-    const configRows = (await query("SELECT chave, valor FROM sistema_config WHERE chave IN ('config_som_garcom', 'config_som_cozinha', 'config_som_admin', 'config_som_motoboy')")).rows;
+    const configRows = (await query("SELECT chave, valor FROM sistema_config WHERE chave IN ('config_som_garcom', 'config_som_cozinha', 'config_som_admin', 'config_som_motoboy', 'config_som_churrasco')")).rows;
     const configMap = {};
     for (const r of configRows) {
       configMap[r.chave] = r.valor;
@@ -5606,19 +5782,21 @@ app.get('/api/config/som-global', ensureDbInitialized, async (req, res) => {
       somGarcom: configMap['config_som_garcom'] || 'campainha_classica',
       somCozinha: configMap['config_som_cozinha'] || 'sino_moderno',
       somAdmin: configMap['config_som_admin'] || 'alerta_digital',
-      somMotoboy: configMap['config_som_motoboy'] || 'campainha_classica'
+      somMotoboy: configMap['config_som_motoboy'] || 'campainha_classica',
+      somChurrasco: configMap['config_som_churrasco'] || 'sino_moderno'
     });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 app.post('/api/config/som-global', ensureDbInitialized, isAdmin, async (req, res) => {
-  const { somGarcom, somCozinha, somAdmin, somMotoboy } = req.body;
+  const { somGarcom, somCozinha, somAdmin, somMotoboy, somChurrasco } = req.body;
   try {
     const configs = [
       { chave: 'config_som_garcom', valor: somGarcom || 'campainha_classica' },
       { chave: 'config_som_cozinha', valor: somCozinha || 'sino_moderno' },
       { chave: 'config_som_admin', valor: somAdmin || 'alerta_digital' },
-      { chave: 'config_som_motoboy', valor: somMotoboy || 'campainha_classica' }
+      { chave: 'config_som_motoboy', valor: somMotoboy || 'campainha_classica' },
+      { chave: 'config_som_churrasco', valor: somChurrasco || 'sino_moderno' }
     ];
     for (const cfg of configs) {
       if (isPostgres) {
@@ -5632,7 +5810,8 @@ app.post('/api/config/som-global', ensureDbInitialized, isAdmin, async (req, res
         somGarcom: somGarcom || 'campainha_classica',
         somCozinha: somCozinha || 'sino_moderno',
         somAdmin: somAdmin || 'alerta_digital',
-        somMotoboy: somMotoboy || 'campainha_classica'
+        somMotoboy: somMotoboy || 'campainha_classica',
+        somChurrasco: somChurrasco || 'sino_moderno'
       });
     }
     res.json({ success: true });
