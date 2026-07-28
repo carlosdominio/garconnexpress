@@ -142,17 +142,21 @@ app.use((req, res, next) => {
     'https://garconnexpress.vercel.app',
     'http://localhost:3000',
     'http://localhost',
+    'https://localhost',
     'capacitor://localhost',
     'http://10.0.2.2'
   ];
   const origin = req.headers.origin;
   
-  if (allowedOrigins.includes(origin)) {
+  if (allowedOrigins.includes(origin) || (origin && (origin.startsWith('http://localhost') || origin.startsWith('https://localhost') || origin.startsWith('capacitor://')))) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Credentials', 'true');
   } else if (!origin) {
     // Para requisições server-to-server ou app nativo antigo
     res.header('Access-Control-Allow-Origin', '*');
+  } else {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
   }
 
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
