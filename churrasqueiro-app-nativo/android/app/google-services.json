@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "512897157814",
+    "project_id": "aplicativo-churasquiro",
+    "storage_bucket": "aplicativo-churasquiro.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:512897157814:android:18447dcf6b1a83a2f5b417",
+        "android_client_info": {
+          "package_name": "com.appchurasqueiro.appnme"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBQPjqDHGuVHAX87HqjDDym-8urmax0I8s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:512897157814:android:78ab67346ad22c0af5b417",
+        "android_client_info": {
+          "package_name": "com.garconnexpress.churrasqueiro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBQPjqDHGuVHAX87HqjDDym-8urmax0I8s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

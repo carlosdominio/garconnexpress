@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ChurrasqueiroExpress</string>
+    <string name="title_activity_main">ChurrasqueiroExpress</string>
+    <string name="package_name">com.garconnexpress.churrasqueiro</string>
+    <string name="custom_url_scheme">com.garconnexpress.churrasqueiro</string>
+</resources>
