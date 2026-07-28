@@ -8438,7 +8438,7 @@ function renderizarEventosSistema(eventos) {
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <div style="font-size: 0.75rem; color: #94a3b8;">Variáveis: ${varsHtml || '<span style="opacity:0.5">nenhuma</span>'}</div>
           <div style="display: flex; gap: 8px;">
-            <button onclick="testarFCMSistema('${ev.evento}')" style="padding: 5px 12px; background: #10b981; border: none; border-radius: 6px; color: white; font-size: 0.75rem; font-weight: 600; cursor: pointer;">🚀 Testar</button>
+            <button onclick="testarFCMSistema('${ev.evento}', '${ev.destinatario || 'todos'}')" style="padding: 5px 12px; background: #10b981; border: none; border-radius: 6px; color: white; font-size: 0.75rem; font-weight: 600; cursor: pointer;">🚀 Testar</button>
             <button onclick="restaurarPadraoFCM('${ev.evento}')" style="padding: 5px 12px; background: #e2e8f0; border: none; border-radius: 6px; color: #64748b; font-size: 0.75rem; font-weight: 600; cursor: pointer;">↺ Padrão</button>
           </div>
         </div>
@@ -8659,16 +8659,21 @@ async function restaurarPadraoFCM(evento) {
   } catch (err) { await mostrarConfirmacaoFCM('Erro', 'Erro: ' + err.message, 'perigo', true); }
 }
 
-async function testarFCMSistema(evento) {
+async function testarFCMSistema(evento, targetDest) {
   const titulo = document.getElementById(`fcm-sys-title-${evento}`).value || document.getElementById(`fcm-sys-title-${evento}`).placeholder;
   let corpo = document.getElementById(`fcm-sys-body-${evento}`).value || document.getElementById(`fcm-sys-body-${evento}`).placeholder;
   corpo = corpo.replace('{mesa}', 'Mesa Teste').replace('{item}', 'Pizza').replace('{qtd}', '1').replace('{status}', 'Aberto').replace('{itens}', 'Pizza, Suco');
   
-  const eventoDiv = document.getElementById(`fcm-sys-title-${evento}`).closest('div').parentElement.parentElement;
-  let destinatario = 'garcom';
-  if (eventoDiv.innerHTML.includes('Cozinha')) destinatario = 'cozinha';
-  else if (eventoDiv.innerHTML.includes('Motoboy')) destinatario = 'motoboy';
-  else if (eventoDiv.innerHTML.includes('Todos')) destinatario = 'todos';
+  let destinatario = targetDest || 'todos';
+  if (!targetDest) {
+    const eventoDiv = document.getElementById(`fcm-sys-title-${evento}`)?.closest('div')?.parentElement?.parentElement;
+    if (eventoDiv) {
+      if (eventoDiv.innerHTML.includes('Cozinha')) destinatario = 'cozinha';
+      else if (eventoDiv.innerHTML.includes('Motoboy')) destinatario = 'motoboy';
+      else if (eventoDiv.innerHTML.includes('Churrasqueiro')) destinatario = 'churrasqueiro';
+      else if (eventoDiv.innerHTML.includes('Todos')) destinatario = 'todos';
+    }
+  }
 
   enviarTesteFCM(titulo, corpo, destinatario);
 }

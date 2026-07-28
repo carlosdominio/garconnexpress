@@ -6162,7 +6162,22 @@ app.post('/api/fcm-config/testar', ensureDbInitialized, isAdmin, async (req, res
       configMap[row.chave] = row.valor;
     });
 
-    const subs = (await query("SELECT * FROM push_subscriptions WHERE app_type = ?", [destinatario])).rows;
+    let subs = [];
+    const destClean = (destinatario || 'todos').trim();
+    if (destClean === 'todos') {
+      subs = (await query("SELECT * FROM push_subscriptions")).rows;
+    } else if (destClean.includes(',')) {
+      const targets = destClean.split(',').map(t => t.trim()).filter(Boolean);
+      if (isPostgres) {
+        subs = (await query("SELECT * FROM push_subscriptions WHERE app_type = ANY($1)", [targets])).rows;
+      } else {
+        const placeholders = targets.map(() => '?').join(',');
+        subs = (await query(`SELECT * FROM push_subscriptions WHERE app_type IN (${placeholders})`, targets)).rows;
+      }
+    } else {
+      subs = (await query("SELECT * FROM push_subscriptions WHERE app_type = ?", [destClean])).rows;
+    }
+
     let enviados = 0;
     const sentEndpoints = new Set();
     
@@ -6175,19 +6190,22 @@ app.post('/api/fcm-config/testar', ensureDbInitialized, isAdmin, async (req, res
 
       const isNativeSub = sub.is_native === 1 || sub.is_native === true || (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
       if (isNativeSub && admin.apps.length > 0) {
+        const appType = sub.app_type || destClean;
         let activeSound = 'notificacao';
         let channelName = 'pedidos';
-        if (destinatario === 'garcom') {
+        if (appType === 'garcom') {
           activeSound = configMap['config_som_garcom'] || 'campainha_classica';
           channelName = 'garcom_canal_' + activeSound + '_v2';
-        } else if (destinatario === 'cozinha') {
+        } else if (appType === 'cozinha') {
           activeSound = configMap['config_som_cozinha'] || 'sino_moderno';
           channelName = 'cozinha_canal_' + activeSound + '_v2';
-        } else if (destinatario === 'motoboy') {
+        } else if (appType === 'motoboy') {
           activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
           channelName = 'motoboy_canal_' + activeSound + '_v2';
+        } else if (appType === 'churrasqueiro') {
+          activeSound = configMap['config_som_churrasco'] || 'sino_moderno';
+          channelName = 'churrasqueiro_canal_' + activeSound + '_v2';
         }
-
 
         let fcmSoundFile = activeSound;
         if (fcmSoundFile === 'original') fcmSoundFile = 'notificacao';
@@ -6219,8 +6237,8 @@ app.post('/api/fcm-config/testar', ensureDbInitialized, isAdmin, async (req, res
           token: sub.endpoint 
         };
         let firebaseApp = admin;
-        if (destinatario === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) firebaseApp = admin.app('motoboy');
-        else if (destinatario === 'cozinha' && admin.apps.find(a => a.name === 'cozinha')) firebaseApp = admin.app('cozinha');
+        if (appType === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) firebaseApp = admin.app('motoboy');
+        else if (appType === 'cozinha' && admin.apps.find(a => a.name === 'cozinha')) firebaseApp = admin.app('cozinha');
         
         await firebaseApp.messaging().send(message)
           .then(() => { enviados++; })
