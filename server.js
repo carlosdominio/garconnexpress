@@ -5865,11 +5865,12 @@ app.post('/api/config/som-global', ensureDbInitialized, isAdmin, async (req, res
 // ─── ROTAS FCM (BLINDADAS PARA VERCEL) ───────────────────────────────────────
 
 const FCM_DEFAULTS = [
-  { evento: 'novo-pedido', tituloPadrao: 'GarçomExpress', corpoPadrao: '🍕 Novo pedido #{pedido_id} recebido da {mesa}! 📋', destinatario: 'garcom', variaveis: ['mesa', 'itens', 'pedido_id'] },
-  { evento: 'item-adicionado', tituloPadrao: 'GarçomExpress', corpoPadrao: '➕ Novos itens adicionados no pedido #{pedido_id} ({mesa})!', destinatario: 'garcom', variaveis: ['mesa', 'item', 'qtd', 'pedido_id'] },
-  { evento: 'pedido-cancelado', tituloPadrao: 'CozinhaExpress', corpoPadrao: '❌ Atenção: O pedido #{pedido_id} ({mesa}) foi cancelado!', destinatario: 'cozinha', variaveis: ['mesa', 'item', 'pedido_id'] },
+  { evento: 'novo-pedido', tituloPadrao: 'GarçomExpress', corpoPadrao: '🍕 Novo pedido #{pedido_id} recebido da {mesa}! 📋', destinatario: 'garcom, cozinha, churrasqueiro', variaveis: ['mesa', 'itens', 'pedido_id'] },
+  { evento: 'item-adicionado', tituloPadrao: 'GarçomExpress', corpoPadrao: '➕ Novos itens adicionados no pedido #{pedido_id} ({mesa})!', destinatario: 'garcom, cozinha, churrasqueiro', variaveis: ['mesa', 'item', 'qtd', 'pedido_id'] },
+  { evento: 'pedido-cancelado', tituloPadrao: 'CozinhaExpress', corpoPadrao: '❌ Atenção: O pedido #{pedido_id} ({mesa}) foi cancelado!', destinatario: 'cozinha, churrasqueiro', variaveis: ['mesa', 'item', 'pedido_id'] },
   { evento: 'chamado-garcom', tituloPadrao: 'GarçomExpress', corpoPadrao: '🛎️ Chamado de atendimento na {mesa}! Atenda o cliente.', destinatario: 'garcom', variaveis: ['mesa'] },
   { evento: 'pedido-pronto', tituloPadrao: 'GarçomExpress', corpoPadrao: '🍳 O pedido #{pedido_id} ({mesa}) está pronto para servir!', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
+  { evento: 'pedido-churrasco-pronto', tituloPadrao: 'GarçomExpress', corpoPadrao: '🍢 O churrasco do pedido #{pedido_id} ({mesa}) está pronto!', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'solicitacao-fechamento-cliente', tituloPadrao: 'GarçomExpress', corpoPadrao: '💰 A {mesa} solicitou o fechamento da conta do pedido #{pedido_id}.', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'status-caixa-atualizado', tituloPadrao: '💰 CAIXA', corpoPadrao: '{status}', destinatario: 'todos', variaveis: ['status'] },
   { evento: 'rascunho-recebido', tituloPadrao: 'GarçomExpress', corpoPadrao: '📝 Novo rascunho de pedido #{pedido_id} pendente na {mesa}.', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
@@ -5880,10 +5881,11 @@ const FCM_DEFAULTS = [
   { evento: 'fechamento-atrasado', tituloPadrao: '⚠️ CAIXA: FECHAMENTO ATRASADO!', corpoPadrao: 'O fechamento da {mesa} foi solicitado pelo cliente há mais de 5 minutos e ainda não foi concluído!', destinatario: 'garcom', variaveis: ['mesa'] },
   { evento: 'aguardando-cliente-atrasado', tituloPadrao: '⚠️ CAIXA: AGUARDANDO CLIENTE!', corpoPadrao: 'A {mesa} está aguardando o pagamento do cliente há mais de 5 minutos e ainda não foi concluída!', destinatario: 'garcom', variaveis: ['mesa'] },
   { evento: 'aguardando-cliente-registro-atrasado', tituloPadrao: '🛎️ MESA AGUARDANDO CLIENTE', corpoPadrao: 'A {mesa} está com o código de acesso ativo há mais de 5 minutos e nenhum pedido foi enviado ainda.', destinatario: 'garcom', variaveis: ['mesa'] },
-  { evento: 'pedido-atrasado-motoboy', tituloPadrao: '🔥 MOTOBOY: ENTREGA ATRASADA!', corpoPadrao: 'O pedido de entrega #{pedido_id} está parado há mais de 10 minutos!', destinatario: 'motoboy', variaveis: ['pedido_id'] },
   { evento: 'pedido-atrasado-garcom', tituloPadrao: '🔥 GARÇOM: PEDIDO ATRASADO!', corpoPadrao: 'O pedido da {mesa} (#{pedido_id}) está parado há mais de 10 minutos!', destinatario: 'garcom', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'pedido-atrasado-cozinha', tituloPadrao: '🔥 COZINHA: PEDIDO ATRASADO!', corpoPadrao: 'O pedido #{pedido_id} ({mesa}) está aguardando há mais de 10 minutos!', destinatario: 'cozinha', variaveis: ['mesa', 'pedido_id'] },
-  { evento: 'estoque-baixo', tituloPadrao: '⚠️ ESTOQUE BAIXO', corpoPadrao: 'Alerta de estoque baixo para {item}: restam apenas {qtd} un.!', destinatario: 'garcom', variaveis: ['item', 'qtd'] }
+  { evento: 'pedido-atrasado-churrasco', tituloPadrao: '🔥 CHURRASCO: PEDIDO ATRASADO!', corpoPadrao: 'O pedido #{pedido_id} ({mesa}) do churrasco está aguardando há mais de 10 minutos!', destinatario: 'churrasqueiro', variaveis: ['mesa', 'pedido_id'] },
+  { evento: 'pedido-atrasado-motoboy', tituloPadrao: '🔥 MOTOBOY: ENTREGA ATRASADA!', corpoPadrao: 'O pedido de entrega #{pedido_id} está parado há mais de 10 minutos!', destinatario: 'motoboy', variaveis: ['pedido_id'] },
+  { evento: 'estoque-baixo', tituloPadrao: '⚠️ ESTOQUE BAIXO', corpoPadrao: 'Alerta de estoque baixo para {item}: restam apenas {qtd} un.!', destinatario: 'garcom, cozinha, churrasqueiro', variaveis: ['item', 'qtd'] }
 ];
 
 app.get('/api/debug-fcm', isAdmin, async (req, res) => {

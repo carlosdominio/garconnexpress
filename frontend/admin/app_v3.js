@@ -8387,6 +8387,109 @@ function abrirModalMesaAguardando(mesaId) {
   document.getElementById('modal-mesa-aguardando').style.display = 'flex';
 }
 
+function renderDestinationsBadges(destInput) {
+  if (!destInput) destInput = 'todos';
+  let list = [];
+  if (Array.isArray(destInput)) {
+    list = destInput;
+  } else if (typeof destInput === 'string') {
+    list = destInput.split(',').map(s => s.trim());
+  }
+  
+  return list.map(d => {
+    const badge = FCM_DEST_BADGES[d] || FCM_DEST_BADGES.todos;
+    return `<span style="font-size: 0.75rem; background: ${badge.color}22; color: ${badge.color}; padding: 2px 8px; border-radius: 20px; font-weight: 600; white-space: nowrap;">${badge.emoji} ${badge.label}</span>`;
+  }).join(' ');
+}
+
+function renderizarEventosSistema(eventos) {
+  const container = document.getElementById('fcm-eventos-sistema');
+  if (!container || !Array.isArray(eventos) || !eventos.length) return;
+  
+  container.innerHTML = eventos.map(ev => {
+    const destBadgesHtml = renderDestinationsBadges(ev.destinatario);
+    const varsHtml = (ev.variaveis || []).map(v => `<code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:0.75rem;color:#6366f1;">{${v}}</code>`).join(' ');
+    const tituloVal = (ev.titulo || ev.tituloPadrao || '').replace(/"/g, '&quot;');
+    const corpoVal = (ev.corpo || ev.corpoPadrao || '').replace(/"/g, '&quot;');
+    return `
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 15px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-weight: 700; color: #1e293b; font-size: 0.9rem;">${ev.tituloPadrao.split(' ')[0]} ${ev.evento.replace(/-/g, ' ').toUpperCase()}</span>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap;">${destBadgesHtml}</div>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <label style="display: flex; align-items: center; gap: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer; color: ${ev.som !== false ? '#f59e0b' : '#94a3b8'};">
+              <input type="checkbox" id="fcm-sys-sound-${ev.evento}" ${ev.som !== false ? 'checked' : ''} onchange="this.parentElement.style.color = this.checked ? '#f59e0b' : '#94a3b8'; this.nextElementSibling.innerText = this.checked ? '🔊 Som' : '🔇 Mudo';" style="accent-color: #f59e0b; cursor: pointer; width: 14px; height: 14px; margin: 0;">
+              <span>${ev.som !== false ? '🔊 Som' : '🔇 Mudo'}</span>
+            </label>
+          </div>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px;">
+          <div style="flex: 1; min-width: 180px;">
+            <label style="font-size: 0.75rem; font-weight: 600; color: #64748b; display: block; margin-bottom: 3px;">Título</label>
+            <input type="text" id="fcm-sys-title-${ev.evento}" value="${tituloVal}" placeholder="${ev.tituloPadrao}" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+          </div>
+          <div style="flex: 2; min-width: 220px;">
+            <label style="font-size: 0.75rem; font-weight: 600; color: #64748b; display: block; margin-bottom: 3px;">Mensagem</label>
+            <input type="text" id="fcm-sys-body-${ev.evento}" value="${corpoVal}" placeholder="${ev.corpoPadrao}" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
+          </div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 0.75rem; color: #94a3b8;">Variáveis: ${varsHtml || '<span style="opacity:0.5">nenhuma</span>'}</div>
+          <div style="display: flex; gap: 8px;">
+            <button onclick="testarFCMSistema('${ev.evento}')" style="padding: 5px 12px; background: #10b981; border: none; border-radius: 6px; color: white; font-size: 0.75rem; font-weight: 600; cursor: pointer;">🚀 Testar</button>
+            <button onclick="restaurarPadraoFCM('${ev.evento}')" style="padding: 5px 12px; background: #e2e8f0; border: none; border-radius: 6px; color: #64748b; font-size: 0.75rem; font-weight: 600; cursor: pointer;">↺ Padrão</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderizarTemplatesToasts() {
+  const container = document.getElementById('toast-templates-lista');
+  if (!container) return;
+  
+  container.innerHTML = _toastTemplates.map(t => {
+    const varsHtml = (t.variaveis || []).map(v => `<code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:0.75rem;color:#10b981;font-weight:bold;">{${v}}</code>`).join(' ');
+    const destBadgesHtml = renderDestinationsBadges(t.destinatario);
+    
+    const somAtivo = t.som !== false;
+    return `
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 15px; transition: all 0.2s;" onmouseover="this.style.borderColor='#10b981';this.style.boxShadow='0 2px 8px rgba(16,185,129,0.15)'" onmouseout="this.style.borderColor='#e2e8f0';this.style.boxShadow=''">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-weight: 700; color: #1e293b; font-size: 0.9rem;">${t.label}</span>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap;">${destBadgesHtml}</div>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <label style="display: flex; align-items: center; gap: 5px; font-size: 0.78rem; font-weight: 600; cursor: pointer; color: ${somAtivo ? '#f59e0b' : '#94a3b8'};" title="Tocar som ao exibir este alerta">
+              <input type="checkbox" id="toast-sound-${t.evento}" ${somAtivo ? 'checked' : ''} onchange="atualizarSomCardToast('${t.evento}', this.checked)" style="accent-color: #f59e0b; cursor: pointer; width: 14px; height: 14px;">
+              <span id="toast-sound-label-${t.evento}">${somAtivo ? '🔊 Som' : '🔇 Mudo'}</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px; font-size: 0.78rem; font-weight: 600; cursor: pointer; color: ${t.ativo ? '#10b981' : '#64748b'};">
+              <input type="checkbox" id="toast-active-${t.evento}" ${t.ativo ? 'checked' : ''} onchange="atualizarStatusCardToast('${t.evento}', this.checked)" style="accent-color: #10b981; cursor: pointer; width: 14px; height: 14px;">
+              <span>${t.ativo ? '🟢 Ativo' : '🔴 Inativo'}</span>
+            </label>
+          </div>
+        </div>
+        <div style="margin-bottom: 8px;">
+          <label style="font-size: 0.75rem; font-weight: 600; color: #64748b; display: block; margin-bottom: 3px;">Mensagem do Balão</label>
+          <input type="text" id="toast-text-${t.evento}" value="${(t.texto || t.textoPadrao || '').replace(/"/g, '&quot;')}" placeholder="${t.textoPadrao}" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: white;">
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 0.72rem; color: #94a3b8;">Variáveis: ${varsHtml || '<span style="opacity:0.5">nenhuma</span>'}</div>
+          <div style="display: flex; gap: 8px;">
+            <button onclick="testarLocalToast('${t.evento}')" style="padding: 5px 12px; background: #10b981; border: none; border-radius: 6px; color: white; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform=''">💬 Testar</button>
+            <button onclick="restaurarPadraoToast('${t.evento}')" style="padding: 5px 12px; background: #e2e8f0; border: none; border-radius: 6px; color: #64748b; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#cbd5e1'" onmouseout="this.style.background='#e2e8f0'">↺ Padrão</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 function fecharModalMesaAguardando() {
   document.getElementById('modal-mesa-aguardando').style.display = 'none';
   _mesaAguardandoAtual = null;
@@ -8455,22 +8558,6 @@ async function carregarNotificacoesFCM() {
   }
 }
 
-function renderizarEventosSistema(eventos) {
-  const container = document.getElementById('fcm-eventos-sistema');
-  if (!container || !Array.isArray(eventos) || !eventos.length) return;
-  
-  container.innerHTML = eventos.map(ev => {
-    const dest = FCM_DEST_BADGES[ev.destinatario] || FCM_DEST_BADGES.todos;
-    const varsHtml = (ev.variaveis || []).map(v => `<code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:0.75rem;color:#6366f1;">{${v}}</code>`).join(' ');
-    const tituloVal = (ev.titulo || ev.tituloPadrao || '').replace(/"/g, '&quot;');
-    const corpoVal = (ev.corpo || ev.corpoPadrao || '').replace(/"/g, '&quot;');
-    return `
-      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 15px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-          <span style="font-weight: 700; color: #1e293b; font-size: 0.9rem;">${ev.tituloPadrao.split(' ')[0]} ${ev.evento.replace(/-/g, ' ').toUpperCase()}</span>
-          <div style="display: flex; gap: 10px; align-items: center;">
-            <label style="display: flex; align-items: center; gap: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer; color: ${ev.som !== false ? '#f59e0b' : '#94a3b8'};">
-              <input type="checkbox" id="fcm-sys-sound-${ev.evento}" ${ev.som !== false ? 'checked' : ''} onchange="this.parentElement.style.color = this.checked ? '#f59e0b' : '#94a3b8'; this.nextElementSibling.innerText = this.checked ? '🔊 Som' : '🔇 Mudo';" style="accent-color: #f59e0b; cursor: pointer; width: 14px; height: 14px; margin: 0;">
               <span>${ev.som !== false ? '🔊 Som' : '🔇 Mudo'}</span>
             </label>
             <span style="font-size: 0.75rem; background: ${dest.color}22; color: ${dest.color}; padding: 2px 10px; border-radius: 20px; font-weight: 600;">${dest.emoji} ${dest.label}</span>
