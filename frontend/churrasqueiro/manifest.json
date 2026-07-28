@@ -1,0 +1,23 @@
+{
+  "name": "GarçomExpress - Churrasqueiro",
+  "short_name": "Churrasqueiro",
+  "description": "Painel do Churrasqueiro - GarçomExpress",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#1a0a00",
+  "theme_color": "#e67e22",
+  "icons": [
+    {
+      "src": "../icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}
