@@ -54,7 +54,7 @@ let pusher;
 let canal;
 let timeoutPusher;
 const container = document.getElementById('pedidos-container');
-const somTiposDisponiveis = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave'];
+const somTiposDisponiveis = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave', 'sino_cristal', 'alerta_moderno'];
 const audiosNotificacao = {};
 function inicializarAudios() {
   for (const som of somTiposDisponiveis) {
@@ -76,8 +76,10 @@ function atualizarIconeSom() {
         label.style.color = somAtivo ? '#2ecc71' : '#bdc3c7';
     }
     for (const som in audiosNotificacao) {
-    audiosNotificacao[som].muted = !somAtivo;
-  }
+      if (audiosNotificacao[som]) {
+        audiosNotificacao[som].muted = !somAtivo;
+      }
+    }
 }
 
 function alternarSom() {
@@ -102,36 +104,30 @@ function tocarCampainha() {
     if (somTipo === 'mudo') return;
 
     if (somAtivo) {
-        const audioObj = audiosNotificacao[somTipo] || audiosNotificacao['sino_moderno'];
-        if (audioObj) {
-            audioObj.muted = false;
-            audioObj.currentTime = 0;
-            audioObj.play().then(() => {
-                audioDesbloqueado = true;
-            }).catch(err => {
-                console.log('Áudio bloqueado:', err);
-                const fallbackAudio = new Audio(getSoundPath(somTipo));
-                fallbackAudio.muted = false;
-                fallbackAudio.play().catch(e => console.error(e));
-            });
+        let audioObj = audiosNotificacao[somTipo];
+        if (!audioObj) {
+            audioObj = new Audio(getSoundPath(somTipo));
+            audiosNotificacao[somTipo] = audioObj;
         }
+        audioObj.muted = false;
+        audioObj.currentTime = 0;
+        audioObj.play().then(() => {
+            audioDesbloqueado = true;
+        }).catch(err => {
+            console.log('Áudio bloqueado:', err);
+            const fallbackAudio = new Audio(getSoundPath(somTipo));
+            fallbackAudio.muted = false;
+            fallbackAudio.play().catch(e => console.error(e));
+        });
     }
 }
 
 function getSoundPath(somTipo) {
   if (somTipo === 'original') {
-    const isCordova = window.cordova || window.Capacitor || window.location.protocol === 'file:';
-    if (isCordova) {
-      return 'notificacao.mp3';
-    }
-    return '/notificacao.mp3';
+    return 'notificacao.mp3';
   }
   const file = somTipo ? `${somTipo}.wav` : 'sino_moderno.wav';
-  const isCordova = window.cordova || window.Capacitor || window.location.protocol === 'file:';
-  if (isCordova) {
-    return `sons/${file}`;
-  }
-  return `/sons/${file}`;
+  return `sons/${file}`;
 }
 
 async function carregarSomGlobalChurrasco() {
