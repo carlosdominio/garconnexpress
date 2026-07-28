@@ -9007,11 +9007,13 @@ async function carregarSonsApps() {
       const selectCozinha = document.getElementById('config-som-cozinha');
       const selectMotoboy = document.getElementById('config-som-motoboy');
       const selectAdmin = document.getElementById('config-som-admin');
+      const selectChurrasqueiro = document.getElementById('config-som-churrasqueiro');
       
       if (selectGarcom) selectGarcom.value = data.somGarcom;
       if (selectCozinha) selectCozinha.value = data.somCozinha;
       if (selectMotoboy) selectMotoboy.value = data.somMotoboy;
       if (selectAdmin) selectAdmin.value = data.somAdmin;
+      if (selectChurrasqueiro) selectChurrasqueiro.value = data.somChurrasco || 'sino_moderno';
       
       localStorage.setItem('admin_som_global', data.somAdmin || 'alerta_digital');
     }
@@ -9025,12 +9027,13 @@ async function salvarSonsApps() {
   const somCozinha = document.getElementById('config-som-cozinha')?.value || 'sino_moderno';
   const somMotoboy = document.getElementById('config-som-motoboy')?.value || 'campainha_classica';
   const somAdmin = document.getElementById('config-som-admin')?.value || 'alerta_digital';
+  const somChurrasco = document.getElementById('config-som-churrasqueiro')?.value || 'sino_moderno';
   
   try {
     const res = await fetch('/api/config/som-global', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
-      body: JSON.stringify({ somGarcom, somCozinha, somAdmin, somMotoboy })
+      body: JSON.stringify({ somGarcom, somCozinha, somAdmin, somMotoboy, somChurrasco })
     });
     const data = await res.json();
     if (data.success) {

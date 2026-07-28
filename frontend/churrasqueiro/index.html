@@ -85,11 +85,6 @@
                     <span id="badge-notificacoes" style="display: none; position: absolute; top: -5px; right: -5px; background: #e67e22; color: white; font-size: 0.65rem; font-weight: bold; border-radius: 50%; width: 18px; height: 18px; align-items: center; justify-content: center; line-height: 1;">0</span>
                 </div>
 
-                <!-- Botão de Configuração de Toque -->
-                <div title="Configurar Toque de Alerta" onclick="abrirModalSom()" style="display: flex; align-items: center; justify-content: center; cursor: pointer; background: rgba(255,255,255,0.1); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0;">
-                    <span style="font-size: 1.1rem; user-select: none;">🎵</span>
-                </div>
-
                 <div class="toggle-container" style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2);">
                     <span id="label-som" style="color: white; font-size: 0.9rem; font-weight: bold;">MUDO</span>
                     <label class="switch">
@@ -192,24 +187,6 @@
           .catch(err => console.error('Erro no SW:', err));
       }
     </script>
-
-    <!-- Modal de Seleção de Toque -->
-    <div id="modal-som-churrasqueiro" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:99999; align-items:center; justify-content:center;">
-      <div style="background:#fff; border-radius:20px; padding:30px; max-width:400px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.3); max-height:90vh; overflow-y:auto;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-          <h2 style="margin:0; color:#2c3e50; font-size:1.3rem;">🎵 Toque de Alerta</h2>
-          <button onclick="fecharModalSom()" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#7f8c8d; line-height:1;">✕</button>
-        </div>
-        <p style="color:#7f8c8d; font-size:0.85rem; margin-bottom:20px;">Escolha o som de alerta para novos pedidos do churrasqueiro.</p>
-        <div id="lista-sons-churrasqueiro" style="display:flex; flex-direction:column; gap:10px;">
-          <!-- Preenchido por JS -->
-        </div>
-        <div style="margin-top:24px; display:flex; gap:10px;">
-          <button onclick="fecharModalSom()" style="flex:1; padding:12px; border-radius:10px; border:1.5px solid #ddd; background:#f5f5f5; color:#555; font-weight:bold; cursor:pointer; font-size:0.95rem;">Cancelar</button>
-          <button onclick="salvarSomChurrasqueiro()" style="flex:1; padding:12px; border-radius:10px; border:none; background:#e67e22; color:#fff; font-weight:bold; cursor:pointer; font-size:0.95rem;">✅ Salvar</button>
-        </div>
-      </div>
-    </div>
 
 </body>
 </html>
