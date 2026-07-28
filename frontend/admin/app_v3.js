@@ -8558,33 +8558,6 @@ async function carregarNotificacoesFCM() {
   }
 }
 
-              <span>${ev.som !== false ? '🔊 Som' : '🔇 Mudo'}</span>
-            </label>
-            <span style="font-size: 0.75rem; background: ${dest.color}22; color: ${dest.color}; padding: 2px 10px; border-radius: 20px; font-weight: 600;">${dest.emoji} ${dest.label}</span>
-          </div>
-        </div>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px;">
-          <div style="flex: 1; min-width: 180px;">
-            <label style="font-size: 0.75rem; font-weight: 600; color: #64748b; display: block; margin-bottom: 3px;">Título</label>
-            <input type="text" id="fcm-sys-title-${ev.evento}" value="${tituloVal}" placeholder="${ev.tituloPadrao}" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
-          </div>
-          <div style="flex: 2; min-width: 220px;">
-            <label style="font-size: 0.75rem; font-weight: 600; color: #64748b; display: block; margin-bottom: 3px;">Mensagem</label>
-            <input type="text" id="fcm-sys-body-${ev.evento}" value="${corpoVal}" placeholder="${ev.corpoPadrao}" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;">
-          </div>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div style="font-size: 0.75rem; color: #94a3b8;">Variáveis: ${varsHtml || '<span style="opacity:0.5">nenhuma</span>'}</div>
-          <div style="display: flex; gap: 8px;">
-            <button onclick="testarFCMSistema('${ev.evento}')" style="padding: 5px 12px; background: #10b981; border: none; border-radius: 6px; color: white; font-size: 0.75rem; font-weight: 600; cursor: pointer;">🚀 Testar</button>
-            <button onclick="restaurarPadraoFCM('${ev.evento}')" style="padding: 5px 12px; background: #e2e8f0; border: none; border-radius: 6px; color: #64748b; font-size: 0.75rem; font-weight: 600; cursor: pointer;">↺ Padrão</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
 // Helper para Caixa de Confirmação Customizada (FCM)
 function mostrarConfirmacaoFCM(titulo, mensagem, tipo = 'pergunta', somenteConfirmar = false) {
   return new Promise((resolve) => {
