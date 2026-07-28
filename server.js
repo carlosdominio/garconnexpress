@@ -2835,14 +2835,18 @@ async function getFilterCozinha() {
 }
 
 async function getFilterChurrasco() {
-  const config = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
-  const categoriasChurrasco = config.rows[0]?.valor ? JSON.parse(config.rows[0].valor) : [];
-  
-  if (categoriasChurrasco.length > 0) {
-    const catList = categoriasChurrasco.map(c => `'${c.trim().toUpperCase().replace(/'/g, "''")}'`).join(',');
-    return `UPPER(TRIM(m.categoria)) IN (${catList})`;
+  try {
+    const config = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
+    const categoriasChurrasco = config.rows[0]?.valor ? JSON.parse(config.rows[0].valor) : [];
+    
+    if (Array.isArray(categoriasChurrasco) && categoriasChurrasco.length > 0) {
+      const catList = categoriasChurrasco.map(c => `'${c.trim().toUpperCase().replace(/'/g, "''")}'`).join(',');
+      return `UPPER(TRIM(m.categoria)) IN (${catList})`;
+    }
+  } catch (err) {
+    console.error('⚠️ Erro ao obter categorias do churrasco:', err.message);
   }
-  return '0 = 1';
+  return "(UPPER(TRIM(m.categoria)) LIKE '%CHURRASCO%' OR UPPER(TRIM(m.categoria)) LIKE '%ESPET%')";
 }
 
 const marcarEntregueLocks = new Set();

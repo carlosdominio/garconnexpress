@@ -233,29 +233,38 @@ async function carregarPedidos() {
             fetch('/api/pedidos/churrasco')
         ]);
         
-        if (!caixaRes.ok || !pedidosRes.ok) throw new Error('Erro na resposta das APIs');
-        
-        const caixa = await caixaRes.json();
         const container = document.getElementById('pedidos-container');
         const closedScreen = document.getElementById('closed-screen');
         const header = document.getElementById('main-header');
-        
-        if (!caixa) {
-            if (container) container.style.display = 'none';
-            if (closedScreen) closedScreen.style.display = 'flex';
-            if (header) header.style.opacity = '0.3';
-            if (typeof limparNotificacoes === 'function') limparNotificacoes();
-            return;
+
+        if (caixaRes.ok) {
+            const caixa = await caixaRes.json();
+            if (!caixa) {
+                if (container) container.style.display = 'none';
+                if (closedScreen) closedScreen.style.display = 'flex';
+                if (header) header.style.opacity = '0.3';
+                if (typeof limparNotificacoes === 'function') limparNotificacoes();
+                return;
+            }
         }
-        
+
         if (container) container.style.display = 'grid';
         if (closedScreen) closedScreen.style.display = 'none';
         if (header) header.style.opacity = '1';
         
-        const itens = await pedidosRes.json();
-        renderizarPedidos(itens);
+        if (pedidosRes.ok) {
+            const itens = await pedidosRes.json();
+            renderizarPedidos(Array.isArray(itens) ? itens : []);
+        } else {
+            console.warn('⚠️ Resposta da API de pedidos não OK:', pedidosRes.status);
+            renderizarPedidos([]);
+        }
     } catch (e) {
-        console.error('❌ Erro ao carregar pedidos:', e);        
+        console.error('❌ Erro ao carregar pedidos:', e);
+        const container = document.getElementById('pedidos-container');
+        if (container && container.innerHTML.includes('Carregando pedidos...')) {
+            renderizarPedidos([]);
+        }
         setTimeout(carregarPedidos, 5000);
     }
 }
