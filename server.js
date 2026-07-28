@@ -115,6 +115,30 @@ try {
       console.log('✅ Firebase Admin (Cozinha) pronto.');
     }
   }
+
+  // Inicializa App Quartenário (Churrasqueiro) se houver configuração
+  const hasChurrasqueiroApp = admin.apps.find(app => app.name === 'churrasqueiro');
+  if (!hasChurrasqueiroApp) {
+    let serviceAccountChurrasqueiro;
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_CHURRASQUEIRO) {
+      serviceAccountChurrasqueiro = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_CHURRASQUEIRO);
+      console.log('✅ Firebase Admin (Churrasqueiro) inicializado via Variável de Ambiente.');
+    } else {
+      try {
+        serviceAccountChurrasqueiro = require('./firebase-adminsdk-churrasqueiro.json');
+        console.log('✅ Firebase Admin (Churrasqueiro) inicializado via Arquivo Local.');
+      } catch (e) {
+        console.log('⚠️ Arquivo firebase-adminsdk-churrasqueiro.json não encontrado.');
+      }
+    }
+
+    if (serviceAccountChurrasqueiro) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccountChurrasqueiro)
+      }, 'churrasqueiro');
+      console.log('✅ Firebase Admin (Churrasqueiro) pronto.');
+    }
+  }
 } catch (error) {
   console.log('⚠️ Erro ao configurar Firebase Admin SDK:', error.message);
 }
@@ -6381,7 +6405,7 @@ app.post('/api/config/broadcast', ensureDbInitialized, isAdmin, async (req, res)
     }
 
     // 2. Dispara via FCM para dispositivos em background/nativos
-    const targets = (destinatario === 'todos' || !destinatario) ? ['garcom', 'cozinha', 'motoboy'] : [destinatario];
+    const targets = (destinatario === 'todos' || !destinatario) ? ['garcom', 'cozinha', 'motoboy', 'churrasqueiro'] : [destinatario];
     const subs = (await query("SELECT * FROM push_subscriptions")).rows;
     let enviados = 0;
     const sentEndpoints = new Set();
@@ -6420,6 +6444,7 @@ app.post('/api/config/broadcast', ensureDbInitialized, isAdmin, async (req, res)
         let firebaseApp = admin;
         if (sub.app_type === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) firebaseApp = admin.app('motoboy');
         else if (sub.app_type === 'cozinha' && admin.apps.find(a => a.name === 'cozinha')) firebaseApp = admin.app('cozinha');
+        else if (sub.app_type === 'churrasqueiro' && admin.apps.find(a => a.name === 'churrasqueiro')) firebaseApp = admin.app('churrasqueiro');
         
         await firebaseApp.messaging().send(message)
           .then(() => { enviados++; })
