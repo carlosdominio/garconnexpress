@@ -6263,6 +6263,7 @@ app.post('/api/fcm-config/testar', ensureDbInitialized, isAdmin, async (req, res
         let firebaseApp = admin;
         if (appType === 'motoboy' && admin.apps.find(a => a.name === 'motoboy')) firebaseApp = admin.app('motoboy');
         else if (appType === 'cozinha' && admin.apps.find(a => a.name === 'cozinha')) firebaseApp = admin.app('cozinha');
+        else if (appType === 'churrasqueiro' && admin.apps.find(a => a.name === 'churrasqueiro')) firebaseApp = admin.app('churrasqueiro');
         
         await firebaseApp.messaging().send(message)
           .then(() => { enviados++; })
