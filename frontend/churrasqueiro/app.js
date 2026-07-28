@@ -1047,3 +1047,110 @@ function showLoading(show = true, text = "Processando...") {
     el.style.display = show ? 'flex' : 'none';
   }
 }
+
+// =============================================
+// 🎵 MODAL DE SELEÇÃO DE TOQUE - CHURRASQUEIRO
+// =============================================
+const SONS_CHURRASQUEIRO = [
+  { id: 'original',           label: '🔥 Original',          file: 'notificacao.mp3' },
+  { id: 'sino_moderno',       label: '🔔 Sino Moderno',       file: 'sons/sino_moderno.wav' },
+  { id: 'campainha_classica', label: '🎶 Campainha Clássica', file: 'sons/campainha_classica.wav' },
+  { id: 'alerta_digital',     label: '📳 Alerta Digital',     file: 'sons/alerta_digital.wav' },
+  { id: 'alerta_urgente',     label: '🚨 Alerta Urgente',     file: 'sons/alerta_urgente.wav' },
+  { id: 'sino_cristal',       label: '🎵 Sino de Cristal',    file: 'sons/sino_cristal.wav' },
+  { id: 'suave',              label: '🌿 Suave',              file: 'sons/suave.wav' },
+  { id: 'mudo',               label: '🔕 Mudo',               file: null },
+];
+
+let _somPreviewAudio = null;
+let _somSelecionadoTemp = null;
+
+function abrirModalSom() {
+  const modal = document.getElementById('modal-som-churrasqueiro');
+  if (!modal) return;
+
+  const somAtual = localStorage.getItem('churrasqueiro_som_global') || 'sino_moderno';
+  _somSelecionadoTemp = somAtual;
+
+  const lista = document.getElementById('lista-sons-churrasqueiro');
+  lista.innerHTML = '';
+
+  SONS_CHURRASQUEIRO.forEach(som => {
+    const selecionado = som.id === somAtual;
+    const item = document.createElement('div');
+    item.id = `som-item-${som.id}`;
+    item.style.cssText = `
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; border-radius: 12px; cursor: pointer;
+      border: 2px solid ${selecionado ? '#e67e22' : '#eee'};
+      background: ${selecionado ? '#fff5eb' : '#fafafa'};
+      transition: all 0.2s;
+    `;
+    item.innerHTML = `
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="width:18px; height:18px; border-radius:50%; border:2px solid #e67e22;
+          background:${selecionado ? '#e67e22' : 'transparent'}; flex-shrink:0;"></div>
+        <span style="font-size:0.95rem; font-weight:${selecionado ? '700' : '500'}; color:#2c3e50;">${som.label}</span>
+      </div>
+      ${som.file ? `<button onclick="event.stopPropagation(); previewSomChurrasqueiro('${som.file}', this)" 
+        style="background:#e67e22; border:none; border-radius:8px; padding:5px 10px; color:white; font-size:0.8rem; cursor:pointer; flex-shrink:0;">
+        ▶ Ouvir
+      </button>` : ''}
+    `;
+    item.addEventListener('click', () => selecionarSomChurrasqueiro(som.id));
+    lista.appendChild(item);
+  });
+
+  modal.style.display = 'flex';
+}
+
+function fecharModalSom() {
+  const modal = document.getElementById('modal-som-churrasqueiro');
+  if (modal) modal.style.display = 'none';
+  if (_somPreviewAudio) { _somPreviewAudio.pause(); _somPreviewAudio = null; }
+}
+
+function selecionarSomChurrasqueiro(somId) {
+  _somSelecionadoTemp = somId;
+  SONS_CHURRASQUEIRO.forEach(som => {
+    const item = document.getElementById(`som-item-${som.id}`);
+    if (!item) return;
+    const selecionado = som.id === somId;
+    item.style.borderColor = selecionado ? '#e67e22' : '#eee';
+    item.style.background = selecionado ? '#fff5eb' : '#fafafa';
+    const circulo = item.querySelector('div > div');
+    const label = item.querySelector('div > span');
+    if (circulo) circulo.style.background = selecionado ? '#e67e22' : 'transparent';
+    if (label) label.style.fontWeight = selecionado ? '700' : '500';
+  });
+}
+
+function previewSomChurrasqueiro(file, btn) {
+  if (_somPreviewAudio) { _somPreviewAudio.pause(); _somPreviewAudio = null; }
+  const basePath = isNativeApp ? '' : '/app-churrasqueiro/';
+  _somPreviewAudio = new Audio(basePath + file);
+  _somPreviewAudio.play().catch(e => console.warn('Preview bloqueado:', e));
+  if (btn) { btn.textContent = '⏹ Stop'; btn.onclick = (ev) => { ev.stopPropagation(); if (_somPreviewAudio) { _somPreviewAudio.pause(); _somPreviewAudio = null; } btn.textContent = '▶ Ouvir'; btn.onclick = (e2) => { e2.stopPropagation(); previewSomChurrasqueiro(file, btn); }; }; }
+}
+
+async function salvarSomChurrasqueiro() {
+  if (!_somSelecionadoTemp) return;
+  try {
+    localStorage.setItem('churrasqueiro_som_global', _somSelecionadoTemp);
+    const res = await fetch('/api/config/som-global', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ somChurrasco: _somSelecionadoTemp })
+    });
+    const data = await res.json();
+    if (data.success) {
+      mostrarToast('🎵 Toque salvo com sucesso!', 'success');
+    } else {
+      mostrarToast('⚠️ Salvo localmente (sem sync).', 'warning');
+    }
+  } catch (e) {
+    localStorage.setItem('churrasqueiro_som_global', _somSelecionadoTemp);
+    mostrarToast('🎵 Toque salvo localmente!', 'success');
+  }
+  fecharModalSom();
+}
