@@ -8410,6 +8410,7 @@ const FCM_DEST_BADGES = {
   garcom: { label: 'Garçom', color: '#10b981', emoji: '🤵' },
   cozinha: { label: 'Cozinha', color: '#f59e0b', emoji: '👨‍🍳' },
   motoboy: { label: 'Motoboy', color: '#3b82f6', emoji: '🛵' },
+  churrasqueiro: { label: 'Churrasqueiro', color: '#e67e22', emoji: '🔥' },
   todos: { label: 'Todos', color: '#8b5cf6', emoji: '📢' }
 };
 

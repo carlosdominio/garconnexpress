@@ -791,13 +791,31 @@ async function safePusherTrigger(channel, event, data) {
           }
         }
         if (enviaCozinha === undefined) enviaCozinha = true;
+
+        let enviaChurrasco = data.para_churrasco;
+        if (enviaChurrasco === undefined) {
+          const pId = data.pedido_id || data.id || (data.pedido ? (data.pedido.id || data.pedido.pedido_id) : '');
+          if (pId) {
+            try {
+              const itensRes = await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [pId]);
+              if (itensRes.rows && itensRes.rows.length > 0) {
+                const menuIds = itensRes.rows.map(i => i.menu_id);
+                enviaChurrasco = await checkTemItemChurrasco(menuIds);
+              }
+            } catch (err) {
+              console.error("Erro ao verificar itens do churrasco para push:", err);
+            }
+          }
+        }
+        if (enviaChurrasco === undefined) enviaChurrasco = true;
+
         const mesaRaw = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : 'BALCÃO');
         let mesaFormatada = mesaRaw;
         if (mesaRaw !== 'BALCÃO' && !String(mesaRaw).toUpperCase().includes('DELIVERY') && !String(mesaRaw).toUpperCase().includes('MESA')) {
             mesaFormatada = `Mesa ${mesaRaw}`;
         }
  
-        const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_title_%' OR chave LIKE 'fcm_body_%' OR chave IN ('config_som_garcom', 'config_som_cozinha', 'config_som_motoboy')")).rows;
+        const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_title_%' OR chave LIKE 'fcm_body_%' OR chave IN ('config_som_garcom', 'config_som_cozinha', 'config_som_motoboy', 'config_som_churrasco')")).rows;
         const configMap = {};
         for (const r of configData) configMap[r.chave] = r.valor;
  
@@ -826,6 +844,7 @@ async function safePusherTrigger(channel, event, data) {
         // Compila o título/mensagem padrão de acordo com o template
         let msgGarcom = { title: 'GarçomExpress', body: '' };
         let msgCozinha = { title: 'CozinhaExpress', body: '' };
+        let msgChurrasco = { title: 'ChurrasqueiroExpress', body: '' };
         let msgMotoboy = { title: 'Delivery Express', body: '' };
 
         if (event === 'novo-pedido') {
@@ -834,10 +853,12 @@ async function safePusherTrigger(channel, event, data) {
           const defB = data.is_addition ? '{mesa} pediu mais itens!' : '{mesa}';
           msgGarcom = resolveTemplate(evKey, defT, defB);
           msgCozinha = resolveTemplate(evKey, defT, defB);
+          msgChurrasco = resolveTemplate(evKey, defT, defB);
           msgMotoboy = resolveTemplate(evKey, data.is_addition ? '➕ ITEM ADICIONADO' : '🚀 NOVO DELIVERY', data.is_addition ? '{mesa} pediu mais itens!' : 'Novo pedido #{pedido_id} recebido!');
         } else if (event === 'pedido-cancelado') {
           msgGarcom = resolveTemplate('pedido-cancelado', '❌ PEDIDO CANCELADO', '{mesa}');
           msgCozinha = resolveTemplate('pedido-cancelado', '❌ PEDIDO CANCELADO', '{mesa}');
+          msgChurrasco = resolveTemplate('pedido-cancelado', '❌ PEDIDO CANCELADO', '{mesa}');
           msgMotoboy = resolveTemplate('pedido-cancelado', '❌ PEDIDO CANCELADO', 'O pedido #{pedido_id} foi cancelado.');
         } else if (event === 'chamado-garcom') {
           msgGarcom = resolveTemplate('chamado-garcom', '🛎️ CHAMADO', '{mesa} está chamando!');
@@ -853,12 +874,14 @@ async function safePusherTrigger(channel, event, data) {
           const defB = data.status === 'fechado' ? '🔴 O caixa foi FECHADO. Atendimento encerrado.' : '🟢 O caixa foi ABERTO. Bom trabalho!';
           msgGarcom = resolveTemplate('status-caixa-atualizado', defT, defB);
           msgCozinha = resolveTemplate('status-caixa-atualizado', defT, defB);
+          msgChurrasco = resolveTemplate('status-caixa-atualizado', defT, defB);
           msgMotoboy = resolveTemplate('status-caixa-atualizado', defT, defB);
         } else if (event === 'estoque-baixo') {
           const defT = '⚠️ ESTOQUE BAIXO';
           const defB = 'Alerta de estoque baixo para {item}: restam apenas {qtd} un.!';
           msgGarcom = resolveTemplate('estoque-baixo', defT, defB);
           msgCozinha = resolveTemplate('estoque-baixo', defT, defB);
+          msgChurrasco = resolveTemplate('estoque-baixo', defT, defB);
           msgMotoboy = resolveTemplate('estoque-baixo', defT, defB);
         } else if (event === 'status-atualizado') {
           if (data.status === 'cancelado') {
@@ -894,6 +917,7 @@ async function safePusherTrigger(channel, event, data) {
         if (event === 'status-caixa-atualizado') {
           targets.push({ app: 'garcom',  title: msgGarcom.title, msg: msgGarcom.body });
           targets.push({ app: 'cozinha', title: msgCozinha.title, msg: msgCozinha.body });
+          targets.push({ app: 'churrasqueiro', title: msgChurrasco.title, msg: msgChurrasco.body });
           targets.push({ app: 'motoboy', title: msgMotoboy.title, msg: msgMotoboy.body });
         } else if (event === 'estoque-baixo') {
           targets.push({ app: 'garcom',  title: msgGarcom.title, msg: msgGarcom.body });
@@ -926,6 +950,9 @@ async function safePusherTrigger(channel, event, data) {
         if (event === 'novo-pedido' || event === 'pedido-cancelado') {
           if (enviaCozinha && msgCozinha.body) {
             targets.push({ app: 'cozinha', title: msgCozinha.title, msg: msgCozinha.body });
+          }
+          if (enviaChurrasco && msgChurrasco.body) {
+            targets.push({ app: 'churrasqueiro', title: msgChurrasco.title, msg: msgChurrasco.body });
           }
         }
 
@@ -1031,6 +1058,9 @@ async function safePusherTrigger(channel, event, data) {
                   } else if (targetApp === 'motoboy') {
                     activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
                     channelName = 'motoboy_canal_' + activeSound + '_v2';
+                  } else if (targetApp === 'churrasqueiro') {
+                    activeSound = configMap['config_som_churrasco'] || 'sino_moderno';
+                    channelName = 'churrasqueiro_canal_' + activeSound + '_v2';
                   }
 
 
@@ -1596,6 +1626,9 @@ async function checkAndNotifyDelayedOrders() {
               } else if (targetApp === 'motoboy') {
                 activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
                 channelName = 'motoboy_canal_' + activeSound + '_v2';
+              } else if (targetApp === 'churrasqueiro') {
+                activeSound = configMap['config_som_churrasco'] || 'sino_moderno';
+                channelName = 'churrasqueiro_canal_' + activeSound + '_v2';
               }
 
               let fcmSoundFile = activeSound;
@@ -1713,7 +1746,7 @@ async function checkAndSendScheduledFCM() {
         if (dataAgenda <= now) {
           console.log(`⏰ [Agendador FCM] Disparando evento agendado (Recorrente: ${!!ev.recorrente}): ${ev.nome}`);
           
-          const targets = ev.destinatario === 'todos' ? ['garcom', 'cozinha', 'motoboy'] : [ev.destinatario];
+          const targets = ev.destinatario === 'todos' ? ['garcom', 'cozinha', 'motoboy', 'churrasqueiro'] : [ev.destinatario];
           let totalEnviados = 0;
           
           const promises = [];
@@ -1733,6 +1766,9 @@ async function checkAndSendScheduledFCM() {
                 } else if (dest === 'motoboy') {
                   activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
                   channelName = 'motoboy_canal_' + activeSound + '_v2';
+                } else if (dest === 'churrasqueiro') {
+                  activeSound = configMap['config_som_churrasco'] || 'sino_moderno';
+                  channelName = 'churrasqueiro_canal_' + activeSound + '_v2';
                 }
 
 
