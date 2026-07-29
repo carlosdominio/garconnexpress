@@ -252,11 +252,29 @@
     </div>
   </div>
 
-  <!-- Modal de Carregamento Rápido (Lightweight) -->
-  <div id="loading-rapido" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); z-index: 99999; align-items: center; justify-content: center;">
-    <div style="background: white; padding: 20px 30px; border-radius: 16px; display: flex; align-items: center; gap: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
-      <div style="width: 30px; height: 30px; border: 3px solid #e2e8f0; border-top: 3px solid #e74c3c; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
-      <span id="loading-rapido-texto" style="font-weight: bold; color: #2c3e50; font-size: 1rem; font-family: inherit;">Processando...</span>
+  <!-- Tela de Carregamento (estilo Motoboy - tela branca cheia) -->
+  <style>
+    .loading-overlay-garcom {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+      z-index: 2147483647; display: flex; align-items: center; justify-content: center;
+    }
+    .loading-overlay-garcom.hidden { display: none !important; }
+    .spinner-garcom {
+      width: 60px; height: 60px;
+      border: 6px solid #fde8e8; border-top-color: #e74c3c; border-radius: 50%;
+      animation: spinGarcom 1s linear infinite; margin-bottom: 15px;
+    }
+    @keyframes spinGarcom {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+  <div id="loading-rapido" class="loading-overlay-garcom hidden">
+    <div style="text-align: center; display: flex; flex-direction: column; align-items: center;">
+      <div class="spinner-garcom"></div>
+      <h3 id="loading-rapido-texto" style="color: #2c3e50; font-size: 1.2rem; font-weight: 800; margin: 0;">Processando...</h3>
     </div>
   </div>
 
