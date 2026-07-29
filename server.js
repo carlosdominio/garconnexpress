@@ -1111,7 +1111,11 @@ async function safePusherTrigger(channel, event, data) {
                   let androidNotification = { 
                     channelId: channelName, 
                     defaultSound: activeSound === 'original',
-                    notificationPriority: 'PRIORITY_MAX'
+                    notificationPriority: 'PRIORITY_MAX',
+                    icon: 'ic_stat_notification',
+                    color: '#e67e22',
+                    defaultVibrateTimings: true,
+                    defaultLightSettings: true
                   };
                   if (activeSound !== 'mudo') {
                     androidNotification.sound = fcmSoundFile;
