@@ -2788,7 +2788,7 @@ async function checkTemItemChurrasco(itensIds) {
   
   for (const m of menuItemsRes.rows) {
     const categoria = (m.categoria || '').trim().toUpperCase();
-    if (catsChurrasco.includes(categoria)) return true;
+    if (catsChurrasco.some(cat => cat === categoria || categoria.includes(cat) || cat.includes(categoria))) return true;
   }
   return false;
 }
