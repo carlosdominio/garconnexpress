@@ -71,6 +71,42 @@ document.addEventListener('DOMContentLoaded', async () => {
   setInterval(verificarVersaoSistema, 5 * 60 * 1000);
 });
 
+function exibirTelaCarregamentoSistema(titulo = 'Carregando...', mensagem = 'Aguarde um instante enquanto preparamos o aplicativo.') {
+  let modal = document.getElementById('screen-loading-overlay');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'screen-loading-overlay';
+    modal.style.cssText = `
+      position: fixed; inset: 0; width: 100vw; height: 100vh;
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      z-index: 9999999; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 24px;
+      box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif;
+    `;
+    document.body.appendChild(modal);
+  }
+
+  modal.innerHTML = `
+    <div style="background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(255,255,255,0.12); border-radius: 24px; padding: 36px 28px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6); backdrop-filter: blur(16px); box-sizing: border-box;">
+      <div style="position: relative; width: 70px; height: 70px; margin: 0 auto 20px auto; display: flex; align-items: center; justify-content: center;">
+        <div style="position: absolute; inset: 0; border: 4px solid rgba(230,126,34,0.2); border-top: 4px solid #e67e22; border-radius: 50%; animation: spinOverlay 0.8s linear infinite;"></div>
+        <span style="font-size: 2rem; user-select: none;">⚡</span>
+      </div>
+      <style>
+        @keyframes spinOverlay { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      </style>
+      <h2 style="margin: 0 0 8px 0; font-size: 1.35rem; font-weight: 800; color: #f8fafc; text-transform: uppercase; letter-spacing: 0.5px;">${titulo}</h2>
+      <p style="margin: 0; font-size: 0.9rem; color: #94a3b8; line-height: 1.5;">${mensagem}</p>
+    </div>
+  `;
+  modal.style.display = 'flex';
+}
+
+function ocultarTelaCarregamentoSistema() {
+  const modal = document.getElementById('screen-loading-overlay');
+  if (modal) modal.style.display = 'none';
+}
+
 const CLIENT_VERSION = '1.3.1';
 async function verificarVersaoSistema() {
   try {
@@ -404,6 +440,12 @@ console.error = function(...args) {
       args[1].headers['Authorization'] = `Bearer ${token}`;
     }
 
+    const method = (args[1] && args[1].method) ? args[1].method.toUpperCase() : 'GET';
+    const isMutatingCall = (method === 'POST' || method === 'PUT' || method === 'DELETE') && typeof url === 'string' && url.includes('/api/');
+    if (isMutatingCall && typeof showLoading === 'function') {
+      showLoading(true, 'Processando...');
+    }
+
     try {
       // console.log(`🌐 FETCH INICIADO: ${args[0]}`, args[1] || {});
       const response = await originalFetch(...args);
@@ -422,13 +464,11 @@ console.error = function(...args) {
         }
       }
 
-      if ((response.status === 401 || response.status === 403) && !args[0].includes('/api/login')) {
-        console.warn("⚠️ Sessão expirada ou acesso negado (401/403).");
-        
+      // Se a sessão expirar (401/403)
+      if ((response.status === 401 || response.status === 403) && !args[0].includes('/api/login') && !args[0].includes('/api/admin/login')) {
+        console.warn("⚠️ Sessão expirada ou acesso negado (401/403). Redirecionando para login...");
         localStorage.removeItem('garcom_logado');
         localStorage.removeItem('garcom_token');
-        
-        // Em vez de reload direto, avisa o usuário (isso pausa a execução e permite ver o console)
         window.location.reload();
       }
       return response;
@@ -444,6 +484,10 @@ console.error = function(...args) {
       document.querySelectorAll('.loading, .loader, .spinner').forEach(l => l.style.display = 'none');
 
       throw error;
+    } finally {
+      if (isMutatingCall && typeof showLoading === 'function') {
+        showLoading(false);
+      }
     }
   };
 
@@ -1339,6 +1383,12 @@ async function configurarPusher() {
       timeoutPusher = setTimeout(() => carregarMesas(), 50);
     });
 
+    channel.bind('versao-app-atualizada', (data) => {
+      console.log('🔄 Versão do código atualizada pelo Admin!', data);
+      exibirTelaCarregamentoSistema('⚡ Atualizando GarçomExpress', 'O administrador aplicou novas configurações. Atualizando sistema...');
+      setTimeout(() => location.reload(true), 1500);
+    });
+
     // Desbloqueia áudio no primeiro clique do usuário
     document.addEventListener('click', () => {
       if (audioDesbloqueado) return;
@@ -1626,6 +1676,11 @@ let carregarMesasTimeout = null;
 async function carregarMesas() {
   if (isFetchingMesas) return;
   isFetchingMesas = true;
+  const container = document.getElementById('mesas-grid');
+  const isPrimeiroCarregamento = container && container.children.length === 0;
+  if (isPrimeiroCarregamento && typeof showLoading === 'function') {
+    showLoading(true, 'Conectando ao servidor...');
+  }
   try {
     const res = await fetch('/api/mesas');
     if (!res.ok) return; 
@@ -1635,6 +1690,9 @@ async function carregarMesas() {
     console.warn('⚠️ Falha temporária de conexão ao carregar mesas:', e.message || e);
   } finally {
     isFetchingMesas = false;
+    if (isPrimeiroCarregamento && typeof showLoading === 'function') {
+      showLoading(false);
+    }
   }
 }
 
