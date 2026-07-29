@@ -1648,7 +1648,8 @@ async function checkAndNotifyDelayedOrders() {
         const pushMsg = target.msg;
         
         if (typeof safePusherTrigger !== 'undefined') {
-          await safePusherTrigger('garconnexpress', `pedido-atrasado-${targetApp}`, {
+          const eventName = targetApp === 'churrasqueiro' ? 'pedido-atrasado-churrasco' : `pedido-atrasado-${targetApp}`;
+          await safePusherTrigger('garconnexpress', eventName, {
             pedido_id: p.id,
             mesa_numero: p.mesa_numero,
             mensagem: pushMsg
