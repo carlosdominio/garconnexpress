@@ -69,6 +69,12 @@ window.fetch = async (...args) => {
         args[1].headers['Authorization'] = `Bearer ${token}`;
     }
 
+    const method = (args[1] && args[1].method) ? args[1].method.toUpperCase() : 'GET';
+    const isMutatingCall = (method === 'POST' || method === 'PUT' || method === 'DELETE') && typeof url === 'string' && url.includes('/api/');
+    if (isMutatingCall && typeof showLoading === 'function') {
+        showLoading(true, 'Processando...');
+    }
+
     try {
         const response = await originalFetch(...args);
 
@@ -83,6 +89,10 @@ window.fetch = async (...args) => {
     } catch (error) {
         console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
         throw error;
+    } finally {
+        if (isMutatingCall && typeof showLoading === 'function') {
+            showLoading(false);
+        }
     }
 };
 

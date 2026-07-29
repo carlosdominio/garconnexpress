@@ -440,6 +440,12 @@ console.error = function(...args) {
       args[1].headers['Authorization'] = `Bearer ${token}`;
     }
 
+    const method = (args[1] && args[1].method) ? args[1].method.toUpperCase() : 'GET';
+    const isMutatingCall = (method === 'POST' || method === 'PUT' || method === 'DELETE') && typeof url === 'string' && url.includes('/api/');
+    if (isMutatingCall && typeof showLoading === 'function') {
+      showLoading(true, 'Processando...');
+    }
+
     try {
       // console.log(`🌐 FETCH INICIADO: ${args[0]}`, args[1] || {});
       const response = await originalFetch(...args);
@@ -458,13 +464,11 @@ console.error = function(...args) {
         }
       }
 
-      if ((response.status === 401 || response.status === 403) && !args[0].includes('/api/login')) {
-        console.warn("⚠️ Sessão expirada ou acesso negado (401/403).");
-        
+      // Se a sessão expirar (401/403)
+      if ((response.status === 401 || response.status === 403) && !args[0].includes('/api/login') && !args[0].includes('/api/admin/login')) {
+        console.warn("⚠️ Sessão expirada ou acesso negado (401/403). Redirecionando para login...");
         localStorage.removeItem('garcom_logado');
         localStorage.removeItem('garcom_token');
-        
-        // Em vez de reload direto, avisa o usuário (isso pausa a execução e permite ver o console)
         window.location.reload();
       }
       return response;
@@ -480,6 +484,10 @@ console.error = function(...args) {
       document.querySelectorAll('.loading, .loader, .spinner').forEach(l => l.style.display = 'none');
 
       throw error;
+    } finally {
+      if (isMutatingCall && typeof showLoading === 'function') {
+        showLoading(false);
+      }
     }
   };
 
