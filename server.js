@@ -970,12 +970,19 @@ async function safePusherTrigger(channel, event, data) {
           }
         }
 
-        // Adiciona a cozinha como alvo se houver itens para cozinha ou se o pedido foi cancelado
+        // Adiciona a cozinha e churrasqueiro como alvo para eventos gerais e específicos
         if (event === 'novo-pedido' || event === 'pedido-cancelado') {
           if (enviaCozinha && msgCozinha.body) {
             targets.push({ app: 'cozinha', title: msgCozinha.title, msg: msgCozinha.body });
           }
           if (enviaChurrasco && msgChurrasco.body) {
+            targets.push({ app: 'churrasqueiro', title: msgChurrasco.title, msg: msgChurrasco.body });
+          }
+        } else {
+          if (msgCozinha.body) {
+            targets.push({ app: 'cozinha', title: msgCozinha.title, msg: msgCozinha.body });
+          }
+          if (msgChurrasco.body) {
             targets.push({ app: 'churrasqueiro', title: msgChurrasco.title, msg: msgChurrasco.body });
           }
         }
@@ -1139,6 +1146,12 @@ async function safePusherTrigger(channel, event, data) {
                       firebaseAppToUse = admin.app('cozinha');
                     } else {
                       console.warn('⚠️ Firebase Admin (Cozinha) não está inicializado. Ignorando envio para evitar remoção de token.');
+                    }
+                  } else if (targetApp === 'churrasqueiro') {
+                    if (admin.apps.find(a => a.name === 'churrasqueiro')) {
+                      firebaseAppToUse = admin.app('churrasqueiro');
+                    } else {
+                      console.warn('⚠️ Firebase Admin (Churrasqueiro) não está inicializado. Ignorando envio para evitar remoção de token.');
                     }
                   } else {
                     if (admin.apps.length > 0) {
