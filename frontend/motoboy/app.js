@@ -3,6 +3,42 @@
  * Versão 2.0.3 - Estabilidade Máxima
  */
 
+function exibirTelaCarregamentoSistema(titulo = 'Carregando...', mensagem = 'Aguarde um instante enquanto preparamos o aplicativo.') {
+  let modal = document.getElementById('screen-loading-overlay');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'screen-loading-overlay';
+    modal.style.cssText = `
+      position: fixed; inset: 0; width: 100vw; height: 100vh;
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      z-index: 9999999; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 24px;
+      box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif;
+    `;
+    document.body.appendChild(modal);
+  }
+
+  modal.innerHTML = `
+    <div style="background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(255,255,255,0.12); border-radius: 24px; padding: 36px 28px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6); backdrop-filter: blur(16px); box-sizing: border-box;">
+      <div style="position: relative; width: 70px; height: 70px; margin: 0 auto 20px auto; display: flex; align-items: center; justify-content: center;">
+        <div style="position: absolute; inset: 0; border: 4px solid rgba(16,185,129,0.2); border-top: 4px solid #10b981; border-radius: 50%; animation: spinOverlay 0.8s linear infinite;"></div>
+        <span style="font-size: 2rem; user-select: none;">⚡</span>
+      </div>
+      <style>
+        @keyframes spinOverlay { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      </style>
+      <h2 style="margin: 0 0 8px 0; font-size: 1.35rem; font-weight: 800; color: #f8fafc; text-transform: uppercase; letter-spacing: 0.5px;">${titulo}</h2>
+      <p style="margin: 0; font-size: 0.9rem; color: #94a3b8; line-height: 1.5;">${mensagem}</p>
+    </div>
+  `;
+  modal.style.display = 'flex';
+}
+
+function ocultarTelaCarregamentoSistema() {
+  const modal = document.getElementById('screen-loading-overlay');
+  if (modal) modal.style.display = 'none';
+}
+
 const API_BASE_URL = '';
 const NOTIFICATION_CHANNEL_ID = 'pedidos';
 
@@ -531,6 +567,12 @@ const App = {
                     App.notifications.showLocal(data.titulo || 'TESTE DE ALERTA', data.mensagem || '', 'teste-toast');
                     const tipo = data.tipo === 'erro' ? 'error' : (data.tipo === 'sucesso' ? 'success' : 'info');
                     App.ui.showToast(data.mensagem || '', tipo);
+                });
+
+                this.channel.bind('versao-app-atualizada', (data) => {
+                    console.log('🔄 Versão do código atualizada pelo Admin!', data);
+                    exibirTelaCarregamentoSistema('⚡ Atualizando Entregas', 'O administrador aplicou novas configurações. Atualizando sistema...');
+                    setTimeout(() => location.reload(true), 1500);
                 });
 
                 this.channel.bind('som-global-atualizado', (data) => {
