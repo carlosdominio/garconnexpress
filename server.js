@@ -2779,7 +2779,9 @@ async function checkTemItemChurrasco(itensIds) {
   if (!itensIds || itensIds.length === 0) return false;
   const configC = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
   const catsChurrasco = configC.rows[0]?.valor ? JSON.parse(configC.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
-  if (catsChurrasco.length === 0) return false;
+  
+  // Se não houver categorias de churrasco configuradas no painel, envia por padrão
+  if (catsChurrasco.length === 0) return true;
 
   const uniqueIds = [...new Set(itensIds)];
   const menuItemsRes = await query(`SELECT categoria FROM menu WHERE id IN (${uniqueIds.map(() => '?').join(',')})`, uniqueIds);
