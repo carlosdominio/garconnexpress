@@ -1092,16 +1092,16 @@ async function safePusherTrigger(channel, event, data) {
                   let channelName = 'pedidos';
                   if (targetApp === 'garcom') {
                     activeSound = configMap['config_som_garcom'] || 'campainha_classica';
-                    channelName = 'garcom_canal_' + activeSound + '_v2';
+                    channelName = 'garcom_canal_' + activeSound + '';
                   } else if (targetApp === 'cozinha') {
                     activeSound = configMap['config_som_cozinha'] || 'sino_moderno';
-                    channelName = 'cozinha_canal_' + activeSound + '_v2';
+                    channelName = 'cozinha_canal_' + activeSound + '';
                   } else if (targetApp === 'motoboy') {
                     activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
-                    channelName = 'motoboy_canal_' + activeSound + '_v2';
+                    channelName = 'motoboy_canal_' + activeSound + '';
                   } else if (targetApp === 'churrasqueiro') {
                     activeSound = configMap['config_som_churrasco'] || 'sino_moderno';
-                    channelName = 'churrasqueiro_canal_' + activeSound + '_v2';
+                    channelName = 'churrasqueiro_canal_' + activeSound + '';
                   }
 
 
@@ -1416,7 +1416,7 @@ async function checkAndNotifyDelayedOrders() {
         } else {
           if (admin.apps.length > 0) {
             const activeSound = configMap['config_som_garcom'] || 'campainha_classica';
-            const channelName = 'garcom_canal_' + activeSound + '_v2';
+            const channelName = 'garcom_canal_' + activeSound + '';
             let fcmSoundFile = activeSound;
             if (fcmSoundFile === 'original') fcmSoundFile = 'notificacao';
 
@@ -1528,7 +1528,7 @@ async function checkAndNotifyDelayedOrders() {
         } else {
           if (admin.apps.length > 0) {
             const activeSound = configMap['config_som_garcom'] || 'campainha_classica';
-            const channelName = 'garcom_canal_' + activeSound + '_v2';
+            const channelName = 'garcom_canal_' + activeSound + '';
             let fcmSoundFile = activeSound;
             if (fcmSoundFile === 'original') fcmSoundFile = 'notificacao';
 
@@ -1670,16 +1670,16 @@ async function checkAndNotifyDelayedOrders() {
               let channelName = 'pedidos';
               if (targetApp === 'garcom') {
                 activeSound = configMap['config_som_garcom'] || 'campainha_classica';
-                channelName = 'garcom_canal_' + activeSound + '_v2';
+                channelName = 'garcom_canal_' + activeSound + '';
               } else if (targetApp === 'cozinha') {
                 activeSound = configMap['config_som_cozinha'] || 'sino_moderno';
-                channelName = 'cozinha_canal_' + activeSound + '_v2';
+                channelName = 'cozinha_canal_' + activeSound + '';
               } else if (targetApp === 'motoboy') {
                 activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
-                channelName = 'motoboy_canal_' + activeSound + '_v2';
+                channelName = 'motoboy_canal_' + activeSound + '';
               } else if (targetApp === 'churrasqueiro') {
                 activeSound = configMap['config_som_churrasco'] || 'sino_moderno';
-                channelName = 'churrasqueiro_canal_' + activeSound + '_v2';
+                channelName = 'churrasqueiro_canal_' + activeSound + '';
               }
 
               let fcmSoundFile = activeSound;
@@ -1810,16 +1810,16 @@ async function checkAndSendScheduledFCM() {
                 let channelName = 'pedidos';
                 if (dest === 'garcom') {
                   activeSound = configMap['config_som_garcom'] || 'campainha_classica';
-                  channelName = 'garcom_canal_' + activeSound + '_v2';
+                  channelName = 'garcom_canal_' + activeSound + '';
                 } else if (dest === 'cozinha') {
                   activeSound = configMap['config_som_cozinha'] || 'sino_moderno';
-                  channelName = 'cozinha_canal_' + activeSound + '_v2';
+                  channelName = 'cozinha_canal_' + activeSound + '';
                 } else if (dest === 'motoboy') {
                   activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
-                  channelName = 'motoboy_canal_' + activeSound + '_v2';
+                  channelName = 'motoboy_canal_' + activeSound + '';
                 } else if (dest === 'churrasqueiro') {
                   activeSound = configMap['config_som_churrasco'] || 'sino_moderno';
-                  channelName = 'churrasqueiro_canal_' + activeSound + '_v2';
+                  channelName = 'churrasqueiro_canal_' + activeSound + '';
                 }
 
 
@@ -2148,7 +2148,7 @@ async function sendPushToGarcons(title, body, event = 'geral', dataExtra = {}, t
         );
       } else {
         if (admin.apps.length > 0) {
-          const channelName = 'garcom_canal_' + fcmSoundFile + '_v2';
+          const channelName = 'garcom_canal_' + fcmSoundFile + '';
           const androidNotification = {
             channelId: channelName,
             defaultSound: activeSound === 'original',
@@ -6031,7 +6031,7 @@ app.get('/api/fcm/teste-motoboy-som', async (req, res) => {
     });
 
     const activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
-    const channelName = 'motoboy_canal_' + activeSound + '_v2';
+    const channelName = 'motoboy_canal_' + activeSound + '';
 
     let fcmSoundFile = activeSound;
     if (fcmSoundFile === 'original') fcmSoundFile = 'notificacao';
@@ -6252,16 +6252,16 @@ app.post('/api/fcm-config/testar', ensureDbInitialized, isAdmin, async (req, res
         let channelName = 'pedidos';
         if (appType === 'garcom') {
           activeSound = configMap['config_som_garcom'] || 'campainha_classica';
-          channelName = 'garcom_canal_' + activeSound + '_v2';
+          channelName = 'garcom_canal_' + activeSound + '';
         } else if (appType === 'cozinha') {
           activeSound = configMap['config_som_cozinha'] || 'sino_moderno';
-          channelName = 'cozinha_canal_' + activeSound + '_v2';
+          channelName = 'cozinha_canal_' + activeSound + '';
         } else if (appType === 'motoboy') {
           activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
-          channelName = 'motoboy_canal_' + activeSound + '_v2';
+          channelName = 'motoboy_canal_' + activeSound + '';
         } else if (appType === 'churrasqueiro') {
           activeSound = configMap['config_som_churrasco'] || 'sino_moderno';
-          channelName = 'churrasqueiro_canal_' + activeSound + '_v2';
+          channelName = 'churrasqueiro_canal_' + activeSound + '';
         }
 
         let fcmSoundFile = activeSound;
