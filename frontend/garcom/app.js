@@ -756,10 +756,16 @@ async function realizarLogin() {
 }
 
 async function logout() {
-  await fetch('/api/logout', { method: 'POST' });
-  localStorage.removeItem('garcom_logado');
-  localStorage.removeItem('garcom_token');
-  location.reload();
+  exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
+  try {
+    await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+  } finally {
+    localStorage.removeItem('garcom_logado');
+    localStorage.removeItem('garcom_token');
+    setTimeout(() => {
+      location.reload();
+    }, 800);
+  }
 }
 
 async function iniciarApp() {
@@ -2513,7 +2519,7 @@ function abrirCardapioAdicionar() {
 }
 
 function abrirCardapio() {
-  exibirTelaCarregamentoSistema('Cardápio Digital', 'Abrindo categorias e carregando itens...');
+  showLoading(true, "Carregando Cardápio Digital...");
   try {
     const mesaTxt = document.getElementById('mesa-atual');
     
@@ -2555,7 +2561,7 @@ function abrirCardapio() {
     exibirResumoPedido();
     exibirMenu('todas');
   } finally {
-    setTimeout(() => ocultarTelaCarregamentoSistema(), 500);
+    setTimeout(() => showLoading(false), 200);
   }
 }
 
