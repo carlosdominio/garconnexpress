@@ -3,7 +3,43 @@
  * Versão 2.0.3 - Estabilidade Máxima
  */
 
-const API_BASE_URL = 'https://garconnexpress.vercel.app';
+function exibirTelaCarregamentoSistema(titulo = 'Carregando...', mensagem = 'Aguarde um instante enquanto preparamos o aplicativo.') {
+  let modal = document.getElementById('screen-loading-overlay');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'screen-loading-overlay';
+    modal.style.cssText = `
+      position: fixed; inset: 0; width: 100vw; height: 100vh;
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      z-index: 9999999; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 24px;
+      box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif;
+    `;
+    document.body.appendChild(modal);
+  }
+
+  modal.innerHTML = `
+    <div style="background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(255,255,255,0.12); border-radius: 24px; padding: 36px 28px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6); backdrop-filter: blur(16px); box-sizing: border-box;">
+      <div style="position: relative; width: 70px; height: 70px; margin: 0 auto 20px auto; display: flex; align-items: center; justify-content: center;">
+        <div style="position: absolute; inset: 0; border: 4px solid rgba(16,185,129,0.2); border-top: 4px solid #10b981; border-radius: 50%; animation: spinOverlay 0.8s linear infinite;"></div>
+        <span style="font-size: 2rem; user-select: none;">⚡</span>
+      </div>
+      <style>
+        @keyframes spinOverlay { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      </style>
+      <h2 style="margin: 0 0 8px 0; font-size: 1.35rem; font-weight: 800; color: #f8fafc; text-transform: uppercase; letter-spacing: 0.5px;">${titulo}</h2>
+      <p style="margin: 0; font-size: 0.9rem; color: #94a3b8; line-height: 1.5;">${mensagem}</p>
+    </div>
+  `;
+  modal.style.display = 'flex';
+}
+
+function ocultarTelaCarregamentoSistema() {
+  const modal = document.getElementById('screen-loading-overlay');
+  if (modal) modal.style.display = 'none';
+}
+
+const API_BASE_URL = '';
 const NOTIFICATION_CHANNEL_ID = 'pedidos';
 
 const isNativeApp = (window.Capacitor && window.Capacitor.isNativePlatform()) || 
@@ -38,38 +74,13 @@ function getSoundPath(somTipo) {
 
 async function carregarSomGlobalMotoboy() {
   try {
-    // Tenta o endpoint principal do servidor
     const res = await fetch(`${API_BASE_URL}/api/config/som-global`);
-    if (res.ok) {
-      const data = await res.json();
-      // Aceita tanto {success, somMotoboy} quanto {somMotoboy} direto
-      const somMotoboy = data.somMotoboy || data.som_motoboy;
-      if (somMotoboy) {
-        localStorage.setItem('motoboy_som_global', somMotoboy);
-        console.log('🔔 Som global carregado:', somMotoboy);
-        return;
-      }
+    const data = await res.json();
+    if (data.success) {
+      localStorage.setItem('motoboy_som_global', data.somMotoboy || 'campainha_classica');
     }
   } catch (err) {
-    console.warn('Aviso: endpoint som-global indisponível, tentando fallback...');
-  }
-  // Fallback: tenta /api/config/som (endpoint de controle ativo/inativo)
-  try {
-    const res2 = await fetch(`${API_BASE_URL}/api/config/som`);
-    if (res2.ok) {
-      const data2 = await res2.json();
-      // Se mp3_ativo = false, usa 'mudo'. Senão mantém o último salvo ou usa padrão
-      if (data2.mp3_ativo === false) {
-        localStorage.setItem('motoboy_som_global', 'mudo');
-      } else {
-        // Mantém o som já salvo ou usa campainha_classica como padrão
-        if (!localStorage.getItem('motoboy_som_global') || localStorage.getItem('motoboy_som_global') === 'mudo') {
-          localStorage.setItem('motoboy_som_global', 'campainha_classica');
-        }
-      }
-    }
-  } catch (err2) {
-    console.error('Erro ao carregar som global motoboy:', err2);
+    console.error('Erro ao carregar som global motoboy:', err);
   }
 }
 
@@ -91,11 +102,6 @@ const App = {
     },
 
     async init() {
-        // Verifica atualizações de versão antes de prosseguir se for app nativo
-        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-            await App.updater.check();
-        }
-
         App.notifications.inicializarAudios();
         console.log('🚀 Inicializando Motoboy App v2.0.3...');
         
@@ -136,19 +142,13 @@ const App = {
         
         await carregarSomGlobalMotoboy();
         
-        try {
-            await this.notifications.init();
-        } catch (e) {
-            console.error('Erro ao inicializar notificações no boot:', e);
-        }
-        
         if (!this.checkAuth()) return;
 
         try {
-            await carregarConfiguracoesToasts();
+            await this.notifications.init();
             await this.pusher.init();
         } catch (e) {
-            console.error('Erro na inicialização de módulos pós-login:', e);
+            console.error('Erro na inicialização de módulos:', e);
         }
         
         this.checkCaixaStatus();
@@ -159,12 +159,31 @@ const App = {
         this.ui.updateSoundIcon();
         localStorage.setItem('audio_unlocked', 'true');
 
+        this.verificarVersaoSistema();
+        setInterval(() => this.verificarVersaoSistema(), 60 * 1000);
+
         setTimeout(() => {
             if (ov) ov.classList.add('hidden');
             if (window.Capacitor && window.Capacitor.Plugins.SplashScreen) {
                 window.Capacitor.Plugins.SplashScreen.hide();
             }
         }, 600);
+    },
+
+    async verificarVersaoSistema() {
+        const CLIENT_VERSION = '1.3.1';
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/versao?_t=${new Date().getTime()}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data && data.versao && data.versao !== CLIENT_VERSION) {
+                console.log(`🔄 Nova versão do sistema encontrada (${data.versao}). Recarregando...`);
+                exibirTelaCarregamentoSistema('⚡ Atualizando Entregas', 'Nova versão do sistema detectada. Aplicando atualizações...');
+                setTimeout(() => window.location.reload(true), 1500);
+            }
+        } catch (e) {
+            console.error('Erro ao verificar versão do sistema:', e);
+        }
     },
 
     checkAuth() {
@@ -306,6 +325,7 @@ const App = {
             if (wasOpen === isOpenNow) return; // Se não mudou, não faz nada
             
             App.state.caixaAberto = isOpenNow;
+            
             const screen = document.getElementById('closed-screen');
             if (screen) {
                 screen.style.display = isOpenNow ? 'none' : 'flex';
@@ -313,9 +333,9 @@ const App = {
                 
                 if (wasOpen !== null) { // Não notifica na primeira carga
                     if (!isOpenNow) {
-                        dispararToastSistema('status-caixa-atualizado', { status: 'FECHADO' }, "O caixa foi fechado! Bom descanso.", "error");
+                        App.ui.showToast("O caixa foi fechado! Bom descanso.", "error", "🔒 CAIXA FECHADO");
                     } else {
-                        dispararToastSistema('status-caixa-atualizado', { status: 'ABERTO' }, "O caixa foi aberto! Bom trabalho.", "success");
+                        App.ui.showToast("O caixa foi aberto! Bom trabalho.", "success", "✅ CAIXA ABERTO");
                     }
                 }
             }
@@ -355,27 +375,12 @@ const App = {
 
     // --- GERENCIADOR DE NOTIFICAÇÕES ---
     notifications: {
-        somTiposDisponiveis: ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave', 'sino_cristal', 'alerta_moderno'],
+        somTiposDisponiveis: ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave'],
         audiosNotificacao: {},
         inicializarAudios() {
             for (const som of this.somTiposDisponiveis) {
                 this.audiosNotificacao[som] = new Audio(getSoundPath(som));
             }
-            // Desbloqueia o áudio no primeiro clique na tela (Autoplay Policy Bypass)
-            const self = this;
-            document.body.addEventListener('click', function unlockAudio() {
-                for (const som of self.somTiposDisponiveis) {
-                    const aud = self.audiosNotificacao[som];
-                    if (aud) {
-                        aud.play().then(() => {
-                            aud.pause();
-                            aud.currentTime = 0;
-                        }).catch(() => {});
-                    }
-                }
-                console.log('🔊 Áudios desbloqueados por interação do usuário!');
-                document.body.removeEventListener('click', unlockAudio);
-            }, { once: true });
         },
 
         async clearNotifications() {
@@ -411,69 +416,21 @@ const App = {
                 }
             });
 
-            // =====================================================================
-            // CRIA TODOS OS CANAIS DE SOM ANTES DE PEDIR PERMISSÃO
-            // (igual ao app do Garçom - garante que os canais existam sempre)
-            // =====================================================================
-            if (window.Capacitor.getPlatform() === 'android') {
-                const sons = {
-                    'original': { rec: 'notificacao', name: '📢 Alerta: Som Padrão (Original)', desc: 'Toque padrão original do aplicativo' },
-                    'campainha_classica': { rec: 'campainha_classica', name: '🔔 Alerta: Campainha Clássica', desc: 'Toque estilo campainha mecânica' },
-                    'sino_moderno': { rec: 'sino_moderno', name: '🎵 Alerta: Sino Moderno', desc: 'Toque musical suave e moderno' },
-                    'alerta_digital': { rec: 'alerta_digital', name: '📟 Alerta: Digital', desc: 'Toque eletrônico curto' },
-                    'alerta_urgente': { rec: 'alerta_urgente', name: '🚨 Alerta: Urgente', desc: 'Toque com sirene de atenção rápida' },
-                    'suave': { rec: 'suave', name: '🍃 Alerta: Suave', desc: 'Toque discreto de baixo volume' },
-                    'sino_cristal': { rec: 'sino_cristal', name: '✨ Alerta: Sino de Cristal', desc: 'Toque de sino cristalino e limpo' },
-                    'alerta_moderno': { rec: 'alerta_moderno', name: '⚡ Alerta: Moderno', desc: 'Toque de aviso curto e moderno' }
-                };
-
-                // Apaga canais antigos
-                try { await PushNotifications.deleteChannel({ id: 'pedidos' }); } catch(e) {}
-                try { await PushNotifications.deleteChannel({ id: 'motoboy_v1' }); } catch(e) {}
-
-                // Cria TODOS os canais personalizados
-                for (const [somTipo, info] of Object.entries(sons)) {
-                    const canalId = 'motoboy_canal_' + somTipo + '_v2';
-
-                    try {
-                        await PushNotifications.createChannel({
-                            id: canalId,
-                            name: info.name,
-                            description: info.desc,
-                            sound: info.rec,
-                            importance: 5,
-                            visibility: 1,
-                            vibration: true
-                        });
-                        console.log('✅ Canal criado: ' + canalId);
-                    } catch (e) {
-                        console.error('Erro ao criar canal ' + canalId + ':', e);
-                    }
-                }
-            }
-
-            // Agora verifica/solicita permissão
             let perm = await PushNotifications.checkPermissions();
             if (perm.receive !== 'granted') {
                 perm = await PushNotifications.requestPermissions();
             }
 
             if (perm.receive === 'granted') {
-                await PushNotifications.register();
-                try {
-                    await PushNotifications.removeAllListeners();
-                } catch (e) {
-                    console.warn('Erro ao remover listeners:', e);
-                }
-            } else {
-                console.warn('❌ Permissão de notificação negada (Motoboy).');
-                Swal.fire({
-                    title: 'Notificações Desativadas 🔔',
-                    text: 'Para receber os alertas de novos pedidos para entrega, por favor ative as notificações para este aplicativo nas configurações do seu celular.',
-                    icon: 'warning',
-                    confirmButtonText: 'ENTENDIDO',
-                    confirmButtonColor: '#e67e22'
+                await PushNotifications.createChannel({
+                    id: NOTIFICATION_CHANNEL_ID,
+                    name: 'Pedidos e Alertas',
+                    sound: 'notificacao.mp3',
+                    importance: 5,
+                    visibility: 1,
+                    vibration: true
                 });
+                await PushNotifications.register();
             }
 
             PushNotifications.addListener('registration', (token) => {
@@ -508,9 +465,8 @@ const App = {
                     App.state.notifiedEvents.add(eventKey);
                     setTimeout(() => App.state.notifiedEvents.delete(eventKey), 15000);
                     
-                    // Toca o som quando o app recebe a notificação FCM em foreground
-                    App.notifications.playAlert();
-                    App.ui.showToast(notification.body || 'Novo alerta!', 'info', notification.title);
+                    // this.playAlert(); // Removido para evitar duplicidade com o Pusher (quando o app tá aberto)
+                    // App.ui.showToast(notification.body || 'Novo alerta!', 'info', notification.title);
                 }
             });
 
@@ -551,7 +507,7 @@ const App = {
         },
 
         playAlert(somTipo) {
-            if (document.hidden) return; // Evita tocar áudio no WebView se o app estiver em segundo plano (onde o push nativo já toca)
+            if (document.hidden) return;
             if (!App.state.soundEnabled) return;
             const resolvedSom = somTipo || localStorage.getItem('motoboy_som_global') || 'campainha_classica';
             if (resolvedSom === 'mudo') return;
@@ -562,13 +518,8 @@ const App = {
                 audioObj.currentTime = 0;
                 audioObj.play().catch(err => {
                     console.warn('Erro ao tocar áudio pré-carregado:', err);
-                    // Fallback: nova instância
                     const fallbackAudio = new Audio(getSoundPath(resolvedSom));
-                    fallbackAudio.play().catch(e => {
-                        // Segundo fallback: som original
-                        const emergency = new Audio(getSoundPath('original'));
-                        emergency.play().catch(e2 => console.error('Falha crítica de áudio:', e2));
-                    });
+                    fallbackAudio.play().catch(e => console.error(e));
                 });
             }
         },
@@ -585,121 +536,6 @@ const App = {
         }
     },
 
-    // --- GERENCIADOR DE ATUALIZAÇÕES (OTA / APK) ---
-    updater: {
-        web_version: '1.0.0', // Versão local do código web (baseline)
-        apk_version: '2.0.0', // Versão padrão do APK local (se não puder ler pelo User Agent)
-
-        getLocalApkVersion() {
-            const ua = navigator.userAgent;
-            const match = ua.match(/GarconnExpressMotoboy\/([0-9.]+)/);
-            return match ? match[1] : this.apk_version;
-        },
-
-        async check() {
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/config/versao-app?_t=${Date.now()}`);
-                if (!res.ok) return;
-                const data = await res.json();
-                if (!data.success) return;
-
-                const localApk = this.getLocalApkVersion();
-                const serverApk = data.motoboy_apk_version;
-
-                // 1. Verifica se exige atualização do APK nativo
-                if (this.compareVersions(localApk, serverApk) < 0) {
-                    this.showApkUpdateScreen(data.motoboy_apk_url, serverApk);
-                    return;
-                }
-
-                // 2. Verifica se exige atualização do código Web (OTA)
-                const localWeb = localStorage.getItem('motoboy_web_version') || this.web_version;
-                const serverWeb = data.web_version;
-
-                if (this.compareVersions(localWeb, serverWeb) < 0) {
-                    await this.runWebUpdate(serverWeb);
-                }
-            } catch (e) {
-                console.error("Erro ao verificar atualizações:", e);
-            }
-        },
-
-        compareVersions(v1, v2) {
-            const parts1 = v1.split('.').map(Number);
-            const parts2 = v2.split('.').map(Number);
-            for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-                const num1 = parts1[i] || 0;
-                const num2 = parts2[i] || 0;
-                if (num1 < num2) return -1;
-                if (num1 > num2) return 1;
-            }
-            return 0;
-        },
-
-        showApkUpdateScreen(apkUrl, targetVersion) {
-            const overlay = document.getElementById('update-app');
-            const title = document.getElementById('update-title');
-            const subtitle = document.getElementById('update-subtitle');
-            const icon = document.getElementById('update-icon');
-            const progressBar = document.getElementById('update-progress-bar');
-            const percentage = document.getElementById('update-percentage');
-            const btn = document.getElementById('update-btn');
-
-            if (!overlay) return;
-
-            icon.textContent = '🤖';
-            title.textContent = 'Atualização Necessária';
-            subtitle.innerHTML = `Instale a nova versão do aplicativo (<strong>v${targetVersion}</strong>) para continuar utilizando o sistema.`;
-            progressBar.style.width = '0%';
-            percentage.textContent = 'Pendente';
-            btn.classList.remove('hidden');
-            overlay.classList.remove('hidden');
-
-            btn.onclick = async () => {
-                const url = `${API_BASE_URL}${apkUrl}`;
-                if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
-                    try {
-                        await window.Capacitor.Plugins.Browser.open({ url });
-                    } catch (e) {
-                        console.error("Erro ao abrir navegador com plugin:", e);
-                        window.open(url, '_system');
-                    }
-                } else {
-                    window.open(url, '_system');
-                }
-            };
-        },
-
-        async runWebUpdate(targetVersion) {
-            const overlay = document.getElementById('update-app');
-            const title = document.getElementById('update-title');
-            const subtitle = document.getElementById('update-subtitle');
-            const icon = document.getElementById('update-icon');
-            const progressBar = document.getElementById('update-progress-bar');
-            const percentage = document.getElementById('update-percentage');
-            const btn = document.getElementById('update-btn');
-
-            if (!overlay) return;
-
-            icon.textContent = '⚡';
-            title.textContent = 'Atualizando Sistema';
-            subtitle.textContent = 'Carregando melhorias e novos arquivos de áudio...';
-            btn.classList.add('hidden');
-            overlay.classList.remove('hidden');
-
-            // Simula uma barra de progresso suave para o reload limpo
-            for (let i = 0; i <= 100; i += 10) {
-                progressBar.style.width = `${i}%`;
-                percentage.textContent = `${i}%`;
-                await new Promise(r => setTimeout(r, 150));
-            }
-
-            localStorage.setItem('motoboy_web_version', targetVersion);
-            // Faz o reload completo limpando cache
-            window.location.reload(true);
-        }
-    },
-
     // --- REAL-TIME (PUSHER) ---
     pusher: {
         instance: null,
@@ -713,19 +549,21 @@ const App = {
                 this.channel = this.instance.subscribe('garconnexpress');
                 
                 this.channel.bind('teste-toast', (data) => {
-                    console.log('📢 Teste de Toast recebido no Motoboy:', data);
+                    console.log('📢 Evento recebido: teste-toast', data);
                     if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell(data.som_tipo);
+                    App.notifications.showLocal(data.titulo || 'TESTE DE ALERTA', data.mensagem || '', 'teste-toast');
                     const tipo = data.tipo === 'erro' ? 'error' : (data.tipo === 'sucesso' ? 'success' : 'info');
                     App.ui.showToast(data.mensagem || '', tipo);
                 });
 
-                this.channel.bind('versao-app-atualizada', () => {
-                    console.log('📢 Versão do aplicativo atualizada no servidor. Verificando...');
-                    App.updater.check();
+                this.channel.bind('versao-app-atualizada', (data) => {
+                    console.log('🔄 Versão do código atualizada pelo Admin!', data);
+                    exibirTelaCarregamentoSistema('⚡ Atualizando Entregas', 'O administrador aplicou novas configurações. Atualizando sistema...');
+                    setTimeout(() => location.reload(true), 1500);
                 });
 
                 this.channel.bind('som-global-atualizado', (data) => {
-                    console.log('🔄 Som global updated:', data);
+                    console.log('🔄 Som global atualizado:', data);
                     localStorage.setItem('motoboy_som_global', data.somMotoboy || 'campainha_classica');
                 });
 
@@ -745,34 +583,17 @@ const App = {
                     App.ui.showToast(data.mensagem || '', 'error');
                 });
 
-                this.channel.bind('status-caixa-atualizado', (data) => {
-                    if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell();
-                    App.checkCaixaStatus();
-                });
+                this.channel.bind('status-caixa-atualizado', () => App.checkCaixaStatus());
 
                 this.channel.bind('status-atualizado', (data) => {
                     if (data.garcom_id !== 'DELIVERY') return;
                     App.loadPedidos();
                     const pId = String(data.pedido_id || '');
-                    if (['pronto', 'servido', 'saiu_entrega', 'entregue'].includes(data.status) && pId) {
-                        if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell();
+                    if (['pronto', 'servido', 'saiu_entrega'].includes(data.status) && pId) {
                         let title = 'Motoboy Pro';
-                        let body = `Pedido #${pId} updated!`;
-                        if (data.status === 'pronto') {
-                            title = '🍳 PEDIDO PRONTO';
-                            body = `Pedido #${pId} pronto na cozinha.`;
-                            dispararToastSistema('pedido-pronto', { mesa: 'Delivery', pedido_id: pId }, body, 'success');
-                        }
-                        if (data.status === 'servido' || data.status === 'saiu_entrega') {
-                            title = '🛵 A CAMINHO';
-                            body = `Pedido #${pId} saiu para entrega!`;
-                            dispararToastSistema('saiu-entrega', { mesa: 'Delivery', pedido_id: pId }, body, 'info');
-                        }
-                        if (data.status === 'entregue') {
-                            title = '✅ ENTREGUE';
-                            body = `Pedido #${pId} finalizado!`;
-                            dispararToastSistema('pedido-entregue', { mesa: 'Delivery', pedido_id: pId }, body, 'success');
-                        }
+                        let body = `Pedido #${pId} atualizado!`;
+                        if (data.status === 'pronto') { title = '🍳 PEDIDO PRONTO'; body = `Pedido #${pId} pronto na cozinha.`; }
+                        if (data.status === 'servido' || data.status === 'saiu_entrega') { title = '🛵 A CAMINHO'; body = `Pedido #${pId} saiu para entrega!`; }
                         
                         App.notifications.showLocal(title, body, `${data.status}_${pId}`);
                     }
@@ -784,9 +605,12 @@ const App = {
                     App.loadPedidos();
                     const pId = String(p.id || p.pedido_id || '');
                     if (pId) {
-                        if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell();
-                        dispararToastSistema('novo-pedido', { mesa: 'Delivery', pedido_id: pId }, `Novo pedido recebido #${pId}`, 'info');
-                        App.notifications.showLocal(`🆕 NOVO DELIVERY`, `Pedido #${pId} recebido!`, `novo_${pId}`);
+                        const isAddition = !!data.is_addition;
+                        if (isAddition) {
+                            App.notifications.showLocal(`➕ ITEM ADICIONADO`, `Novos itens adicionados no pedido #${pId}!`, `novo_${pId}`);
+                        } else {
+                            App.notifications.showLocal(`🆕 NOVO DELIVERY`, `Pedido #${pId} recebido!`, `novo_${pId}`);
+                        }
                     }
                 });
 
@@ -796,8 +620,6 @@ const App = {
                     if (data.para_cozinha === true) return; // Cozinha já vai lidar com o cancelamento
                     App.loadPedidos();
                     if (pId) {
-                        const mesaStr = data.mesa_numero || 'Delivery';
-                        dispararToastSistema('pedido-cancelado', { mesa: mesaStr, pedido_id: pId }, `O pedido #${pId} foi cancelado.`, 'error');
                         App.notifications.showLocal(`❌ PEDIDO REMOVIDO`, `O pedido #${pId} foi cancelado.`, `cancelado_${pId}`);
                         const modal = document.getElementById('modal-cancelamento');
                         const modalMsg = document.getElementById('modal-mensagem');
@@ -962,13 +784,13 @@ const App = {
 
             if (p.observacao) {
                 const lines = p.observacao.split('\n');
-                const lNome = lines.find(l => l.includes('👤 Cliente:'));
-                const lEnd = lines.find(l => l.includes('🏠 End:'));
-                const lTel = lines.find(l => l.includes('📞 Tel:') || l.includes('📱 WhatsApp:'));
+                const lNome = lines.find(l => /👤\s*Cliente:/i.test(l));
+                const lEnd = lines.find(l => /🏠\s*End:/i.test(l));
+                const lTel = lines.find(l => /(📞\s*Tel:|📱\s*WhatsApp:)/i.test(l));
 
-                if (lNome) cliente = lNome.replace('👤 Cliente:', '').trim();
-                if (lEnd) endereco = lEnd.replace('🏠 End:', '').trim();
-                if (lTel) contato = lTel.replace(/📞 Tel:|📱 WhatsApp:/, '').trim();
+                if (lNome) cliente = lNome.replace(/👤\s*Cliente:/i, '').trim();
+                if (lEnd) endereco = lEnd.replace(/🏠\s*End:/i, '').trim();
+                if (lTel) contato = lTel.replace(/(📞\s*Tel:|📱\s*WhatsApp:)/i, '').trim();
             }
 
             let displayStatus = cat.replace('-', ' ').toUpperCase();
@@ -1094,55 +916,6 @@ document.addEventListener('click', function(event) {
         }
     }
 });
-
-let _toastTemplates = [];
-
-async function carregarConfiguracoesToasts() {
-  try {
-    const res = await fetch('/api/toast-config/listar');
-    const data = await res.json();
-    if (data.success) {
-      _toastTemplates = data.templates;
-    }
-  } catch (err) {
-    console.error('Erro ao carregar configurações de Toasts:', err);
-  }
-}
-
-function deveTocarSom(evento) {
-  const c = typeof _toastTemplates !== 'undefined' ? _toastTemplates.find(x => x.evento === evento) : null;
-  return c ? c.som !== false : true;
-}
-
-function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTipo = 'success') {
-  const config = _toastTemplates.find(x => x.evento === evento);
-  const ativo = config ? config.ativo : true;
-  if (!ativo) {
-    console.log(`💬 [Toast Alertas] Evento [${evento}] está desativado pelo administrador.`);
-    return;
-  }
-  
-  const template = config ? config.texto : fallbackText;
-  if (!template) return;
-  
-  const mesaVal = dados.mesa_numero || dados.mesaNum || dados.mesa_id || dados.nMesa || dados.mesa || '';
-  const clienteVal = dados.cliente || dados.nomeExibicao || '';
-  const itensVal = dados.itens || '';
-  const statusVal = dados.status || '';
-  const msgVal = dados.mensagem || '';
-  const pedidoIdVal = dados.pedido_id || dados.id || dados.pedidoId || '';
-  
-  let msgFinal = template
-    .replace(/{mesa}/g, mesaVal)
-    .replace(/{cliente}/g, clienteVal)
-    .replace(/{itens}/g, itensVal)
-    .replace(/{status}/g, statusVal)
-    .replace(/{pedido_id}/g, pedidoIdVal)
-    .replace(/{mensagem}/g, msgVal);
-    
-  const tipo = config ? (config.tipo === 'erro' ? 'error' : (config.tipo === 'sucesso' ? 'success' : 'info')) : fallbackTipo;
-  App.ui.showToast(msgFinal, tipo);
-}
 
 function showLoading(show = true, text = "Processando...") {
   const el = document.getElementById('loading-rapido');

@@ -1,5 +1,41 @@
 const API_BASE_URL = 'https://garconnexpress.vercel.app';
 
+function exibirTelaCarregamentoSistema(titulo = 'Carregando...', mensagem = 'Aguarde um instante enquanto preparamos o aplicativo.') {
+  let modal = document.getElementById('screen-loading-overlay');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'screen-loading-overlay';
+    modal.style.cssText = `
+      position: fixed; inset: 0; width: 100vw; height: 100vh;
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      z-index: 9999999; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 24px;
+      box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif;
+    `;
+    document.body.appendChild(modal);
+  }
+
+  modal.innerHTML = `
+    <div style="background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(255,255,255,0.12); border-radius: 24px; padding: 36px 28px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6); backdrop-filter: blur(16px); box-sizing: border-box;">
+      <div style="position: relative; width: 70px; height: 70px; margin: 0 auto 20px auto; display: flex; align-items: center; justify-content: center;">
+        <div style="position: absolute; inset: 0; border: 4px solid rgba(230,126,34,0.2); border-top: 4px solid #e67e22; border-radius: 50%; animation: spinOverlay 0.8s linear infinite;"></div>
+        <span style="font-size: 2rem; user-select: none;">⚡</span>
+      </div>
+      <style>
+        @keyframes spinOverlay { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      </style>
+      <h2 style="margin: 0 0 8px 0; font-size: 1.35rem; font-weight: 800; color: #f8fafc; text-transform: uppercase; letter-spacing: 0.5px;">${titulo}</h2>
+      <p style="margin: 0; font-size: 0.9rem; color: #94a3b8; line-height: 1.5;">${mensagem}</p>
+    </div>
+  `;
+  modal.style.display = 'flex';
+}
+
+function ocultarTelaCarregamentoSistema() {
+  const modal = document.getElementById('screen-loading-overlay');
+  if (modal) modal.style.display = 'none';
+}
+
 let isNativeApp = (window.Capacitor && window.Capacitor.isNativePlatform()) || 
                   navigator.userAgent.includes('Capacitor') || 
                   window.location.protocol === 'capacitor:' || 
@@ -54,7 +90,7 @@ let pusher;
 let canal;
 let timeoutPusher;
 const container = document.getElementById('pedidos-container');
-const somTiposDisponiveis = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave', 'sino_cristal', 'alerta_moderno'];
+const somTiposDisponiveis = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave'];
 const audiosNotificacao = {};
 function inicializarAudios() {
   for (const som of somTiposDisponiveis) {
@@ -240,7 +276,7 @@ function fecharToast(el) {
 async function carregarPedidos() {
     try {
         const [caixaRes, pedidosRes] = await Promise.all([
-            fetch(`/api/caixa/status?_t=${new Date().getTime()}`),
+            fetch('/api/caixa/status'),
             fetch('/api/pedidos/cozinha')
         ]);
         
@@ -273,7 +309,7 @@ async function carregarPedidos() {
 
 async function verificarCaixa() {
     try {
-        const res = await fetch(`/api/caixa/status?_t=${new Date().getTime()}`);
+        const res = await fetch('/api/caixa/status');
         const caixa = await res.json();
         
         const container = document.getElementById('pedidos-container');
@@ -284,7 +320,6 @@ async function verificarCaixa() {
             if (container) container.style.display = 'none';
             if (closedScreen) closedScreen.style.display = 'flex';
             if (header) header.style.opacity = '0.3';
-            if (typeof limparNotificacoes === 'function') limparNotificacoes();
             return false;
         }
         
@@ -435,7 +470,7 @@ function marcarComoPronto(pedidoId, btn) {
     const msg = document.getElementById('confirmacao-pronto-msg');
     
     if (modal && msg) {
-        const labelMesa = mesa.includes('DELIVERY') ? mesa : `Mesa ${mesa}`;
+        const labelMesa = (mesa.includes('DELIVERY') || mesa.startsWith('Mesa')) ? mesa : `Mesa ${mesa}`;
         msg.innerHTML = `Deseja marcar o pedido do <strong>${labelMesa}</strong> como pronto?`;
         modal.classList.add('active');
         
@@ -486,34 +521,37 @@ async function confirmarConclusaoPedido() {
     }
 }
 
-function mostrarNotificacaoCancelamento(mensagem, pedidoId, mesaNumero, isDelivery) {
-    console.log(`🗑️ Verificando cancelamento do pedido ${pedidoId}... isDelivery=${isDelivery}`);
+function mostrarNotificacaoCancelamento(mensagem, pedidoId) {
+    console.log(`🗑️ Verificando cancelamento do pedido ${pedidoId}...`);
     
+    let estavaNaTela = false;
+
     if (pedidoId) {
         const card = document.getElementById(`pedido-card-${pedidoId}`);
         if (card) {
             card.remove();
+            estavaNaTela = true;
         }
         
         const todosCards = document.querySelectorAll('.card-pedido');
         todosCards.forEach(c => {
             if (c.innerText.includes(`#${pedidoId}`)) {
                 c.remove();
+                estavaNaTela = true;
             }
         });
     }
 
-    const strMesa = mesaNumero ? `Mesa ${mesaNumero}` : 'BALCÃO';
-
-    // A validação agora é feita pelo backend (data.para_cozinha), logo se o evento chegou aqui, a cozinha DEVE ser avisada
-    mostrarToast(`❌ PEDIDO CANCELADO: ${strMesa}`, 'erro');
-    const modal = document.getElementById('modal-cancelamento');
-    const modalMsg = document.getElementById('modal-mensagem');
-    
-    if (modal && modalMsg) {
-        modalMsg.innerHTML = `O Pedido <strong>#${pedidoId} (${strMesa})</strong> foi cancelado!<br><br><span style="font-size: 1rem; color: #7f8c8d;">Detalhe: ${mensagem}</span>`;
-        modal.classList.add('active');
-        tocarSomNotificacao('campainha');
+    if (estavaNaTela) {
+        mostrarToast(`❌ PEDIDO CANCELADO: Mesa ${mensagem.split('Mesa ')[1] || pedidoId}`, 'erro');
+        const modal = document.getElementById('modal-cancelamento');
+        const modalMsg = document.getElementById('modal-mensagem');
+        
+        if (modal && modalMsg) {
+            modalMsg.innerText = mensagem;
+            modal.classList.add('active');
+            tocarSomNotificacao('campainha');
+        }
     }
 }
 
@@ -538,6 +576,12 @@ async function configurarPusher() {
             if (typeof carregarConfiguracoesToasts === 'function') carregarConfiguracoesToasts();
         });
 
+        canal.bind('versao-app-atualizada', (data) => {
+            console.log('🔄 Versão do código atualizada pelo Admin!', data);
+            exibirTelaCarregamentoSistema('⚡ Atualizando Cozinha', 'O administrador aplicou novas configurações. Atualizando sistema...');
+            setTimeout(() => location.reload(true), 1500);
+        });
+
         canal.bind('som-global-atualizado', (data) => {
             console.log('🔄 Som global atualizado:', data);
             localStorage.setItem('cozinha_som_global', data.somCozinha || 'sino_moderno');
@@ -547,16 +591,10 @@ async function configurarPusher() {
             }
         });
 
-        canal.bind('versao-app-atualizada', () => {
-            console.log('📢 Versão do aplicativo atualizada no servidor. Verificando...');
-            AppUpdater.check();
-        });
-
         canal.bind('teste-toast', (data) => {
-            console.log('📢 Teste de Toast recebido na Cozinha:', data);
+            console.log('🔔 Evento recebido: teste-toast', data);
             if (deveTocarSom(data.evento || 'teste-toast')) tocarSomNotificacao('campainha');
-            const tipo = data.tipo === 'erro' ? 'error' : (data.tipo === 'sucesso' ? 'success' : 'info');
-            mostrarToast(data.mensagem || '', tipo);
+            mostrarToast(data.mensagem, data.tipo === 'erro' ? 'erro' : (data.tipo === 'sucesso' ? 'success' : 'info'));
         });
 
         canal.bind('comunicado-geral', (data) => {
@@ -578,11 +616,19 @@ async function configurarPusher() {
             
             if (data && data.para_cozinha === true) {
                 const mesa = (data.pedido && data.pedido.mesa_numero) || data.mesa_numero || 'BALCÃO';
-                const labelMesa = mesa.includes('DELIVERY') ? mesa : `Mesa ${mesa}`;
-                const evKey = data.is_addition ? 'item-adicionado' : 'novo-pedido';
-                dispararToastSistema(evKey, { mesa: labelMesa }, `🍳 NOVO PEDIDO: ${labelMesa}`, 'info');
-                exibirNotificacaoNativa(`🍳 NOVO PEDIDO: ${labelMesa}`, "Um novo pedido chegou para a cozinha!", `pedido-${data.pedido_id || 'novo'}`);
-                if (deveTocarSom('novo-pedido')) tocarSomNotificacao('campainha');
+                const labelMesa = (mesa.includes('DELIVERY') || mesa.startsWith('Mesa')) ? mesa : `Mesa ${mesa}`;
+                const isAddition = !!data.is_addition;
+                const evKey = isAddition ? 'item-adicionado' : 'novo-pedido';
+
+                if (isAddition) {
+                    dispararToastSistema('item-adicionado', { mesa: labelMesa, pedido_id: data.pedido ? data.pedido.id : '' }, `🍳 ITEM ADICIONADO: ${labelMesa}`, 'success');
+                    exibirNotificacaoNativa(`🍳 ITEM ADICIONADO: ${labelMesa}`, "Novos itens foram adicionados para a cozinha!", `pedido-${data.pedido_id || 'novo'}`);
+                } else {
+                    dispararToastSistema('novo-pedido', { mesa: labelMesa, pedido_id: data.pedido ? data.pedido.id : '' }, `🍳 NOVO PEDIDO: ${labelMesa}`, 'success');
+                    exibirNotificacaoNativa(`🍳 NOVO PEDIDO: ${labelMesa}`, "Um novo pedido chegou para a cozinha!", `pedido-${data.pedido_id || 'novo'}`);
+                }
+
+                if (deveTocarSom(evKey)) tocarSomNotificacao('campainha');
                 tocarSomNotificacao('windows');
             }
             
@@ -592,18 +638,9 @@ async function configurarPusher() {
 
         canal.bind('pedido-cancelado', (data) => {
             console.log('📢 Pedido cancelado recebido:', data);
-            
-            // O backend injeta isso para nos dizer se a cozinha tem itens afetados
-            if (data.para_cozinha === false) return;
-
             const idParaCancelar = data.id || data.pedido_id;
-            const isDelivery = data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY');
-            
-            const mesaStr = data.mesa_numero ? `Mesa ${data.mesa_numero}` : 'Mesa';
-            dispararToastSistema('pedido-cancelado', { mesa: mesaStr }, `❌ PEDIDO CANCELADO: ${mesaStr}`, 'error');
-            
             if (idParaCancelar) {
-                mostrarNotificacaoCancelamento(data.mensagem || `Cancelado pelo Admin`, idParaCancelar, data.mesa_numero, isDelivery);
+                mostrarNotificacaoCancelamento(data.mensagem || `Pedido #${idParaCancelar} cancelado`, idParaCancelar);
             }
             
             clearTimeout(timeoutPusher);
@@ -620,11 +657,10 @@ async function configurarPusher() {
             verificarCaixa();
             if (data.status === 'fechado') {
                 if (deveTocarSom('status-caixa-atualizado')) tocarCampainha();
-                if (typeof exibirNotificacaoNativa === 'function') exibirNotificacaoNativa("🔒 CAIXA FECHADO", "O caixa foi fechado! Bom descanso.");
-                dispararToastSistema('status-caixa-atualizado', { status: 'FECHADO' }, "O caixa foi fechado! Bom descanso.", "error");
+                dispararToastSistema('status-caixa-atualizado', { status: 'FECHADO' }, "O caixa foi fechado! Bom descanso.", 'error');
             } else if (data.status === 'aberto') {
                 tocarCampainha();
-                dispararToastSistema('status-caixa-atualizado', { status: 'ABERTO' }, "O caixa foi aberto! Bom trabalho.", "success");
+                dispararToastSistema('status-caixa-atualizado', { status: 'ABERTO' }, "O caixa foi aberto! Bom trabalho.", 'success');
                 carregarPedidos();
             }
         });
@@ -635,7 +671,7 @@ async function configurarPusher() {
                 const card = document.getElementById(`pedido-card-${data.pedido_id || data.id}`);
                 if (card) {
                     const mesa = data.mesa_numero || 'X';
-                    dispararToastSistema('item-adicionado', { mesa: mesa }, `📝 Mesa ${mesa}: Itens atualizados`, 'info');
+                    dispararToastSistema('item-adicionado', { mesa }, `📝 Mesa ${mesa}: Itens atualizados`, 'info');
                     if (deveTocarSom('status-atualizado')) tocarSomNotificacao('campainha');
                 }
             }
@@ -683,8 +719,7 @@ async function registerNativePush() {
     if (window.Capacitor.getPlatform() === 'android') {
       const somTipo = localStorage.getItem('cozinha_som_global') || 'sino_moderno';
       const somRec = somTipo === 'original' ? 'notificacao' : somTipo;
-      const canalId = 'cozinha_canal_' + somTipo + '_v2';
-
+      const canalId = 'cozinha_canal_' + somTipo;
 
       try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}
 
@@ -712,62 +747,36 @@ async function registerNativePush() {
     }
 
     let permStatus = await PushNotifications.checkPermissions();
-    if (permStatus.receive !== 'granted') {
+    if (permStatus.receive === 'prompt') {
       permStatus = await PushNotifications.requestPermissions();
     }
 
     if (permStatus.receive !== 'granted') {
       console.warn('❌ Permissão de notificação negada.');
-      alert('⚠️ Notificações Desativadas:\nPara receber alertas de novos pedidos na cozinha em tempo real, por favor ative as notificações nas configurações do seu celular.');
       return;
     }
 
     await PushNotifications.register();
-    try {
-      await PushNotifications.removeAllListeners();
-    } catch (e) {
-      console.warn('Erro ao remover listeners:', e);
-    }
 
     PushNotifications.addListener('registration', async (token) => {
-      console.log('🔔 Token FCM recebido (Cozinha):', token.value);
-      try {
-        await fetch('/api/subscribe-cozinha', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            endpoint: token.value
-          })
-        });
-      } catch (e) {
-        console.error('Erro ao sincronizar token Cozinha:', e);
-      }
+      console.log('🔥 Token FCM recebido (Cozinha):', token.value);
+      await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          endpoint: token.value,
+          keys: { p256dh: '', auth: '' },
+          app_type: 'cozinha'
+        })
+      });
     });
 
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 Notificação recebida (Cozinha):', notification);
-
-      // Verifica se é um evento de fechamento de caixa
-      if (notification.data && notification.data.event === 'status-caixa-atualizado') {
-        console.log('📲 [FCM Background] Caixa atualizado (Cozinha):', notification.data);
-        if (typeof verificarCaixa === 'function') verificarCaixa();
-        return;
-      }
-
-      // Verifica se é um evento de pedido atrasado
-      if (notification.data && notification.data.event === 'pedido-atrasado') {
-        console.log('📲 [FCM Background] Pedido atrasado (Cozinha):', notification.data);
-        if (typeof exibirNotificacaoNativa === 'function') {
-          exibirNotificacaoNativa('⚠️ ATRASO NA COZINHA', notification.body || 'Um pedido está atrasado!', `atraso-cozinha-fcm`);
-        }
-        // if (typeof tocarSomNotificacao === 'function') tocarSomNotificacao(); // Removido para evitar duplicidade
-        if (typeof carregarPedidos === 'function') carregarPedidos();
-        return;
-      }
-
-      // if (deveTocarSom('status-atualizado')) tocarCampainha(); // Removido para evitar som duplo com o websocket
+      
+      if (deveTocarSom('status-atualizado')) tocarCampainha();
       if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
         try {
           await window.Capacitor.Plugins.Haptics.vibrate();
@@ -778,24 +787,17 @@ async function registerNativePush() {
     });
 
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-      console.log('🖱️ Clique na notificação detectado (Cozinha):', notification);
-      // Se clicou em notificação de caixa, sincroniza
-      if (notification.notification && notification.notification.data && notification.notification.data.event === 'status-caixa-atualizado') {
-        if (typeof verificarCaixa === 'function') verificarCaixa();
-        return;
-      }
-      
-      // Se clicou na notificação de atraso, carrega os pedidos
-      if (notification.notification && notification.notification.data && notification.notification.data.event === 'pedido-atrasado') {
-        if (typeof carregarPedidos === 'function') carregarPedidos();
-        return;
-      }
+      console.log('🖱️ Clique na notificação detectado:', notification);
       if (typeof carregarPedidos === 'function') carregarPedidos();
     });
 
   } catch (error) {
     console.error('❌ Erro Push Nativo:', error);
   }
+}
+
+function inicializar() {
+    console.log('App Cozinha iniciado.');
 }
 
 // --- SINO DE NOTIFICAÇÕES ---
@@ -878,28 +880,9 @@ async function iniciarApp() {
     atualizarIconeSom();
     
     if (isNativeApp) {
-        await AppUpdater.check();
         limparNotificacoesNativas();
         registerNativePush();
-
-        // Sincroniza o status do caixa sempre que o app voltar ao primeiro plano
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') {
-            console.log('👀 [Cozinha] Voltou ao foco. Verificando caixa e pedidos...');
-            if (typeof verificarCaixa === 'function') verificarCaixa();
-            if (typeof carregarPedidos === 'function') carregarPedidos();
-          }
-        });
     }
-
-    // Verifica versão do sistema contra descompasso de deploy
-    verificarVersaoSistema();
-    setInterval(verificarVersaoSistema, 5 * 60 * 1000);
-
-    const ov = document.getElementById('loading-app');
-    setTimeout(() => {
-        if (ov) ov.classList.add('hidden');
-    }, 600);
 }
 
 async function realizarLogin() {
@@ -919,15 +902,7 @@ async function realizarLogin() {
     if (btn) btn.disabled = true;
     if (btnText) btnText.innerText = "Entrando...";
     
-    const ov = document.getElementById('loading-app');
-    const ovMsg = document.getElementById('loading-text');
-    if (ov && ovMsg) {
-        ov.classList.remove('hidden');
-        ovMsg.textContent = 'Entrando...';
-    }
-
-    setTimeout(async () => {
-        try {
+    try {
         // Tenta fazer login como Admin primeiro
         let res = await fetch('/api/admin/login', {
             method: 'POST',
@@ -941,8 +916,7 @@ async function realizarLogin() {
             localStorage.setItem('cozinha_logado', 'true');
             localStorage.setItem('cozinha_token', data.token);
             mostrarToast("Login realizado com sucesso!", "success");
-            if (ovMsg) ovMsg.textContent = 'Carregando pedidos...';
-            setTimeout(() => location.reload(), 400);
+            location.reload();
             return;
         }
         
@@ -958,10 +932,8 @@ async function realizarLogin() {
             localStorage.setItem('cozinha_logado', 'true');
             localStorage.setItem('cozinha_token', data.token);
             mostrarToast("Login realizado com sucesso!", "success");
-            if (ovMsg) ovMsg.textContent = 'Carregando pedidos...';
-            setTimeout(() => location.reload(), 400);
+            location.reload();
         } else if (res.status === 429) {
-            if (ov) ov.classList.add('hidden');
             Swal.fire({
                 title: 'Sistema de Segurança',
                 text: 'Muitas tentativas incorretas. Conta bloqueada por 15 minutos.',
@@ -972,19 +944,16 @@ async function realizarLogin() {
             if (btn) btn.disabled = false;
             if (btnText) btnText.innerText = "Entrar";
         } else {
-            if (ov) ov.classList.add('hidden');
             exibirErroLogin("Usuário ou senha incorretos.\n\nPor favor, verifique os dados digitados e tente novamente. Caso o erro persista, confirme suas credenciais com a gerência.");
             if (btn) btn.disabled = false;
             if (btnText) btnText.innerText = "Entrar";
         }
     } catch (e) {
-        if (ov) ov.classList.add('hidden');
         console.error(e);
         exibirErroLogin("Erro de conexão ao realizar login.");
         if (btn) btn.disabled = false;
         if (btnText) btnText.innerText = "Entrar";
     }
-    }, 600); // Fim do setTimeout do login
 }
 
 function exibirErroLogin(mensagem) {
@@ -997,31 +966,10 @@ function exibirErroLogin(mensagem) {
     });
 }
 
-async function logout() {
-    const confirm = await Swal.fire({
-        title: 'Sair do Painel?',
-        text: 'Você precisará fazer login novamente para acessar a cozinha.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#e74c3c',
-        cancelButtonColor: '#95a5a6',
-        confirmButtonText: 'Sim, sair',
-        cancelButtonText: 'Cancelar'
-    });
-
-    if (confirm.isConfirmed) {
-        const ov = document.getElementById('loading-app');
-        const ovMsg = document.getElementById('loading-text');
-        if (ov && ovMsg) {
-            ov.classList.remove('hidden');
-            ovMsg.textContent = 'Saindo do painel...';
-        }
-        setTimeout(() => {
-            localStorage.removeItem('cozinha_logado');
-            localStorage.removeItem('cozinha_token');
-            location.reload();
-        }, 500);
-    }
+function logout() {
+    localStorage.removeItem('cozinha_logado');
+    localStorage.removeItem('cozinha_token');
+    location.reload();
 }
 
 // Bateria (executa solto no boot nativo)
@@ -1060,13 +1008,6 @@ function verificarSessao() {
     const telaLogin = document.getElementById('tela-login');
     const header = document.getElementById('main-header');
     const container = document.getElementById('pedidos-container');
-    const ov = document.getElementById('loading-app');
-    const ovMsg = document.getElementById('loading-text');
-
-    if (ov && ovMsg) {
-        ov.classList.remove('hidden');
-        ovMsg.textContent = 'Sincronizando painel da cozinha...';
-    }
     
     if (logado && token) {
         if (telaLogin) telaLogin.style.display = 'none';
@@ -1077,7 +1018,6 @@ function verificarSessao() {
         if (telaLogin) telaLogin.style.display = 'flex';
         if (header) header.style.display = 'none';
         if (container) container.style.display = 'none';
-        if (ov) ov.classList.add('hidden'); // Esconde o loading caso precise exibir o login
     }
 }
 
@@ -1092,6 +1032,24 @@ setInterval(atualizarCronometros, 1000);
 
 // Recarregar lista completa a cada minuto para garantir sincronia
 setInterval(carregarPedidos, 60000);
+
+const CLIENT_VERSION = '1.3.1';
+async function verificarVersaoSistema() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/versao?_t=${Date.now()}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.versao && data.versao !== CLIENT_VERSION) {
+            console.log(`🔄 Nova versão do sistema encontrada (${data.versao}). Recarregando...`);
+            exibirTelaCarregamentoSistema('⚡ Atualizando Cozinha', 'Nova versão do sistema detectada. Aplicando atualizações...');
+            setTimeout(() => window.location.reload(true), 1500);
+        }
+    } catch (e) {
+        console.error('Erro ao verificar versão do sistema:', e);
+    }
+}
+verificarVersaoSistema();
+setInterval(verificarVersaoSistema, 60 * 1000);
 
 // Desbloqueia áudio no primeiro clique do usuário
 document.addEventListener('click', () => {
@@ -1110,8 +1068,6 @@ document.addEventListener('click', () => {
     }).catch(e => console.log('Erro ao preparar áudio:', e));
 }, { once: true });
 
-if (window.Capacitor && window.Capacitor.Plugins.SplashScreen) { window.Capacitor.Plugins.SplashScreen.hide(); }
-
 
 // --- FECHAR PAINEL AO CLICAR FORA ---
 document.addEventListener('click', function(event) {
@@ -1126,6 +1082,7 @@ document.addEventListener('click', function(event) {
     }
 });
 
+// ─── CONFIGURAÇÃO DE TOASTS DINÂMICOS ───────────────────────────────────────
 let _toastTemplates = [];
 
 async function carregarConfiguracoesToasts() {
@@ -1173,148 +1130,6 @@ function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTip
     
   const tipo = config ? (config.tipo === 'erro' ? 'error' : (config.tipo === 'sucesso' ? 'success' : 'info')) : fallbackTipo;
   mostrarToast(msgFinal, tipo);
-}
-
-const AppUpdater = {
-    web_version: '1.0.0', // Versão local do código web (baseline)
-    apk_version: '2.0.0', // Versão padrão do APK local (se não puder ler pelo User Agent)
-
-    getLocalApkVersion() {
-        const ua = navigator.userAgent;
-        const match = ua.match(/GarconnExpressCozinha\/([0-9.]+)/);
-        return match ? match[1] : this.apk_version;
-    },
-
-    async check() {
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/config/versao-app?_t=${Date.now()}`);
-            if (!res.ok) return;
-            const data = await res.json();
-            if (!data.success) return;
-
-            const localApk = this.getLocalApkVersion();
-            const serverApk = data.cozinha_apk_version;
-
-            // 1. Verifica se exige atualização do APK nativo
-            if (this.compareVersions(localApk, serverApk) < 0) {
-                this.showApkUpdateScreen(data.cozinha_apk_url, serverApk);
-                return;
-            }
-
-            // 2. Verifica se exige atualização do código Web (OTA)
-            const localWeb = localStorage.getItem('cozinha_web_version') || this.web_version;
-            const serverWeb = data.web_version;
-
-            if (this.compareVersions(localWeb, serverWeb) < 0) {
-                await this.runWebUpdate(serverWeb);
-            }
-        } catch (e) {
-            console.error("Erro ao verificar atualizações nativas:", e);
-        }
-    },
-
-    compareVersions(v1, v2) {
-        const parts1 = v1.split('.').map(Number);
-        const parts2 = v2.split('.').map(Number);
-        for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-            const num1 = parts1[i] || 0;
-            const num2 = parts2[i] || 0;
-            if (num1 < num2) return -1;
-            if (num1 > num2) return 1;
-        }
-        return 0;
-    },
-
-    showApkUpdateScreen(apkUrl, targetVersion) {
-        const overlay = document.getElementById('update-app');
-        const title = document.getElementById('update-title');
-        const subtitle = document.getElementById('update-subtitle');
-        const icon = document.getElementById('update-icon');
-        const progressBar = document.getElementById('update-progress-bar');
-        const percentage = document.getElementById('update-percentage');
-        const btn = document.getElementById('update-btn');
-
-        if (!overlay) return;
-
-        icon.textContent = '🤖';
-        title.textContent = 'Atualização Necessária';
-        subtitle.innerHTML = `Instale a nova versão do aplicativo (<strong>v${targetVersion}</strong>) para continuar utilizando o sistema.`;
-        progressBar.style.width = '0%';
-        percentage.textContent = 'Pendente';
-        btn.classList.remove('hidden');
-        overlay.classList.remove('hidden');
-
-        btn.onclick = async () => {
-            const url = `${API_BASE_URL}${apkUrl}`;
-            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
-                try {
-                    await window.Capacitor.Plugins.Browser.open({ url });
-                } catch (e) {
-                    console.error("Erro ao abrir navegador com plugin:", e);
-                    window.open(url, '_system');
-                }
-            } else {
-                window.open(url, '_system');
-            }
-        };
-    },
-
-    async runWebUpdate(targetVersion) {
-        const overlay = document.getElementById('update-app');
-        const title = document.getElementById('update-title');
-        const subtitle = document.getElementById('update-subtitle');
-        const icon = document.getElementById('update-icon');
-        const progressBar = document.getElementById('update-progress-bar');
-        const percentage = document.getElementById('update-percentage');
-        const btn = document.getElementById('update-btn');
-
-        if (!overlay) return;
-
-        icon.textContent = '⚡';
-        title.textContent = 'Atualizando Sistema';
-        subtitle.textContent = 'Carregando melhorias e novos arquivos de áudio...';
-        btn.classList.add('hidden');
-        overlay.classList.remove('hidden');
-
-        // Simula uma barra de progresso suave para o reload limpo
-        for (let i = 0; i <= 100; i += 10) {
-            progressBar.style.width = `${i}%`;
-            percentage.textContent = `${i}%`;
-            await new Promise(r => setTimeout(r, 150));
-        }
-
-        localStorage.setItem('cozinha_web_version', targetVersion);
-        window.location.reload(true);
-    }
-};
-
-const CLIENT_VERSION = '1.3.1';
-async function verificarVersaoSistema() {
-  try {
-    const res = await fetch('/api/versao?_t=' + Date.now());
-    if (!res.ok) return;
-    const data = await res.json();
-    if (data && data.versao && data.versao !== CLIENT_VERSION) {
-      console.log(`🔄 Nova versão do sistema encontrada (${data.versao}). Recarregando...`);
-      if (typeof Swal !== 'undefined') {
-        Swal.fire({
-          title: 'Sistema Atualizado! 🚀',
-          text: 'Estamos aplicando melhorias e atualizando o aplicativo da cozinha...',
-          icon: 'info',
-          showConfirmButton: false,
-          allowOutsideClick: false,
-          timer: 2500
-        }).then(() => {
-          window.location.reload(true);
-        });
-      } else {
-        alert('O estabelecimento foi atualizado. O aplicativo da cozinha será recarregado.');
-        window.location.reload(true);
-      }
-    }
-  } catch (e) {
-    console.error('Erro ao verificar versão do sistema:', e);
-  }
 }
 
 function showLoading(show = true, text = "Processando...") {

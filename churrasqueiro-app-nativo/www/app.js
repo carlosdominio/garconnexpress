@@ -1058,6 +1058,24 @@ document.addEventListener('visibilitychange', () => {
 setInterval(atualizarCronometros, 1000);
 setInterval(carregarPedidos, 60000);
 
+const CLIENT_VERSION = '1.3.1';
+async function verificarVersaoSistema() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/versao?_t=${Date.now()}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.versao && data.versao !== CLIENT_VERSION) {
+            console.log(`🔄 Nova versão do sistema encontrada (${data.versao}). Recarregando...`);
+            exibirTelaCarregamentoSistema('⚡ Atualizando Churrasqueiro', 'Nova versão do sistema detectada. Aplicando atualizações...');
+            setTimeout(() => window.location.reload(true), 1500);
+        }
+    } catch (e) {
+        console.error('Erro ao verificar versão do sistema:', e);
+    }
+}
+verificarVersaoSistema();
+setInterval(verificarVersaoSistema, 60 * 1000);
+
 document.addEventListener('click', () => {
     if (audioDesbloqueado) return;
     audioDesbloqueado = true;
@@ -1139,11 +1157,7 @@ function showLoading(show = true, text = "Processando...") {
   const txt = document.getElementById('loading-rapido-texto');
   if (el) {
     if (txt) txt.innerText = text;
-    if (show) {
-      el.classList.remove('hidden');
-    } else {
-      el.classList.add('hidden');
-    }
+    el.style.display = show ? 'flex' : 'none';
   }
 }
 

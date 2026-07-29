@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Verifica versão do sistema contra descompasso de deploy
   verificarVersaoSistema();
-  setInterval(verificarVersaoSistema, 5 * 60 * 1000);
+  setInterval(verificarVersaoSistema, 60 * 1000);
 });
 
 function exibirTelaCarregamentoSistema(titulo = 'Carregando...', mensagem = 'Aguarde um instante enquanto preparamos o aplicativo.') {
@@ -119,21 +119,8 @@ async function verificarVersaoSistema() {
         return;
       }
       console.log(`🔄 Nova versão do sistema encontrada (${data.versao}). Recarregando...`);
-      if (typeof Swal !== 'undefined') {
-        Swal.fire({
-          title: 'Sistema Atualizado! 🚀',
-          text: 'Estamos aplicando melhorias e atualizando o aplicativo...',
-          icon: 'info',
-          showConfirmButton: false,
-          allowOutsideClick: false,
-          timer: 2500
-        }).then(() => {
-          window.location.reload(true);
-        });
-      } else {
-        alert('O estabelecimento foi atualizado. O aplicativo será recarregado.');
-        window.location.reload(true);
-      }
+      exibirTelaCarregamentoSistema('⚡ Atualizando Garçom', 'Nova versão do sistema detectada. Aplicando atualizações...');
+      setTimeout(() => window.location.reload(true), 1500);
     }
   } catch (e) {
     console.error('Erro ao verificar versão do sistema:', e);
@@ -703,11 +690,7 @@ function showLoading(show = true, text = "Processando...") {
   const txt = document.getElementById('loading-rapido-texto');
   if (el) {
     if (txt) txt.innerText = text;
-    if (show) {
-      el.classList.remove('hidden');
-    } else {
-      el.classList.add('hidden');
-    }
+    el.style.display = show ? 'flex' : 'none';
   }
 }
 
@@ -742,7 +725,13 @@ async function realizarLogin() {
       localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
       if (data.token) localStorage.setItem('garcom_token', data.token); // Salva token
       if (typeof mostrarToast === 'function') mostrarToast("Login realizado com sucesso!", "success");
-      setTimeout(() => location.reload(), 1000);
+      
+      const telaLogin = document.getElementById('tela-login');
+      if (telaLogin) telaLogin.style.display = 'none';
+      const nomeExib = document.getElementById('garcom-nome-exibicao');
+      if (nomeExib) nomeExib.textContent = `Garçom: ${garcomLogado.nome}`;
+      
+      await iniciarApp();
     } else if (res.status === 429) {
       await mostrarAlerta("Muitas tentativas incorretas. Conta bloqueada por 15 minutos.", "Atenção (Segurança)", "🔒");
       // Resetar Loading em caso de erro
@@ -767,13 +756,20 @@ async function realizarLogin() {
 }
 
 async function logout() {
-  await fetch('/api/logout', { method: 'POST' });
-  localStorage.removeItem('garcom_logado');
-  localStorage.removeItem('garcom_token');
-  location.reload();
+  exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
+  try {
+    await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+  } finally {
+    localStorage.removeItem('garcom_logado');
+    localStorage.removeItem('garcom_token');
+    setTimeout(() => {
+      location.reload();
+    }, 800);
+  }
 }
 
 async function iniciarApp() {
+  exibirTelaCarregamentoSistema('Conectando...', 'Autenticando e carregando configurações...');
   // Primeiro carrega as configurações de categorias
   await Promise.all([
     carregarConfigCozinha(),
@@ -784,6 +780,7 @@ async function iniciarApp() {
     calcularClockOffset()
   ]);
   
+  exibirTelaCarregamentoSistema('Carregando...', 'Buscando cardápio digital e mesas atualizadas...');
   // Agora que as configurações de categorias estão 100% carregadas, podemos carregar o menu e as mesas
   await Promise.all([
     carregarMenu(),
@@ -802,6 +799,8 @@ async function iniciarApp() {
   setInterval(() => {
     carregarMesas();
   }, 60000);
+
+  ocultarTelaCarregamentoSistema();
 }
 
 async function carregarConfigCozinha() {
@@ -1600,7 +1599,38 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
  * @param {string} titulo - Título opcional
  * @param {number} duracao - Tempo em ms (padrão 5s)
  */
+function normalizarTextoToast(txt) {
+  if (!txt) return '';
+  return txt
+    .toLowerCase()
+    .replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '') // remove emojis
+    .replace(/[^a-z0-9]/g, '') // remove non-alphanumeric
+    .trim();
+}
+
+let _ultimosToastsExibidos = new Map();
 function mostrarToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
+  const msgNormalizada = normalizarTextoToast(msg);
+  const agora = Date.now();
+  
+  for (const [key, value] of _ultimosToastsExibidos.entries()) {
+    // Se o registro é mais antigo que 4 segundos, limpa do Map
+    if (agora - value > 4000) {
+      _ultimosToastsExibidos.delete(key);
+      continue;
+    }
+    
+    // Compara se as mensagens são equivalentes ou se uma contém a outra
+    const keyNormalizada = normalizarTextoToast(key);
+    if (msgNormalizada === keyNormalizada || 
+        (msgNormalizada.length >= 10 && keyNormalizada.includes(msgNormalizada)) ||
+        (keyNormalizada.length >= 10 && msgNormalizada.includes(keyNormalizada))) {
+      console.log('🚫 Ignorando toast duplicado (comparação inteligente):', msg);
+      return;
+    }
+  }
+  _ultimosToastsExibidos.set(msg, agora);
+
   if (typeof adicionarNotificacaoPainel === 'function') adicionarNotificacaoPainel(msg, titulo, tipo);
   if (typeof exibirNotificacaoNativa === 'function') {
       exibirNotificacaoNativa(titulo || (tipo === 'success' ? 'SUCESSO' : tipo.toUpperCase()), msg, 'toast-' + Date.now());
@@ -2489,45 +2519,50 @@ function abrirCardapioAdicionar() {
 }
 
 function abrirCardapio() {
-  const mesaTxt = document.getElementById('mesa-atual');
-  
-  // SEGURANÇA: Se mesaAtual for null, tenta recuperar pelo título do modal antes de crashar
-  if (!mesaAtual) {
-    const modalTitulo = document.getElementById('modal-mesa-titulo');
-    if (modalTitulo && modalTitulo.innerText.includes('Mesa')) {
-        const num = modalTitulo.innerText.replace('Mesa ', '');
-        mesaAtual = mesas.find(m => m.numero == num);
+  showLoading(true, "Carregando Cardápio Digital...");
+  try {
+    const mesaTxt = document.getElementById('mesa-atual');
+    
+    // SEGURANÇA: Se mesaAtual for null, tenta recuperar pelo título do modal antes de crashar
+    if (!mesaAtual) {
+      const modalTitulo = document.getElementById('modal-mesa-titulo');
+      if (modalTitulo && modalTitulo.innerText.includes('Mesa')) {
+          const num = modalTitulo.innerText.replace('Mesa ', '');
+          mesaAtual = mesas.find(m => m.numero == num);
+      }
     }
+
+    if (mesaTxt && mesaAtual) {
+      mesaTxt.textContent = pedidoAbertoNaMesa ? `${mesaAtual.numero} (+ itens)` : mesaAtual.numero;
+    } else if (mesaTxt) {
+      console.warn("⚠️ abrirCardapio chamado sem mesaAtual definida.");
+      mesaTxt.textContent = "---";
+    }
+
+    // Resetar visual das categorias para "Todas"
+    document.querySelectorAll('.categoria').forEach(c => {
+      c.classList.toggle('ativa', c.dataset.categoria === 'todas');
+    });
+
+    document.getElementById('mesas').classList.add('hidden');
+    document.getElementById('pedido').classList.remove('hidden');
+    document.getElementById('btn-header-mesas').style.display = 'flex';
+    // Esconde o modal do carrinho caso esteja aberto
+    const modalCarrinho = document.getElementById('modal-carrinho');
+    if (modalCarrinho) {
+      modalCarrinho.style.display = 'none';
+      atualizarBloqueioScroll(); // Destrava o scroll
+    }
+
+    pedidoAtual = [];
+    window.pedidoObservacaoGeral = ''; // Reset observação geral
+    const elInput = document.getElementById('pedido-busca-input');
+    if (elInput) elInput.value = '';
+    exibirResumoPedido();
+    exibirMenu('todas');
+  } finally {
+    setTimeout(() => showLoading(false), 200);
   }
-
-  if (mesaTxt && mesaAtual) {
-    mesaTxt.textContent = pedidoAbertoNaMesa ? `${mesaAtual.numero} (+ itens)` : mesaAtual.numero;
-  } else if (mesaTxt) {
-    console.warn("⚠️ abrirCardapio chamado sem mesaAtual definida.");
-    mesaTxt.textContent = "---";
-  }
-
-  // Resetar visual das categorias para "Todas"
-  document.querySelectorAll('.categoria').forEach(c => {
-    c.classList.toggle('ativa', c.dataset.categoria === 'todas');
-  });
-
-  document.getElementById('mesas').classList.add('hidden');
-  document.getElementById('pedido').classList.remove('hidden');
-  document.getElementById('btn-header-mesas').style.display = 'flex';
-  // Esconde o modal do carrinho caso esteja aberto
-  const modalCarrinho = document.getElementById('modal-carrinho');
-  if (modalCarrinho) {
-    modalCarrinho.style.display = 'none';
-    atualizarBloqueioScroll(); // Destrava o scroll
-  }
-
-  pedidoAtual = [];
-  window.pedidoObservacaoGeral = ''; // Reset observação geral
-  const elInput = document.getElementById('pedido-busca-input');
-  if (elInput) elInput.value = '';
-  exibirResumoPedido();
-  exibirMenu('todas');
 }
 
 function toggleCarrinho() {
