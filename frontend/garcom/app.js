@@ -219,7 +219,12 @@ async function registerNativePush() {
       console.log('📩 Notificação recebida:', notification);
       
       // Se for um evento em tempo real já gerenciado pelo Pusher no foreground, ignore completamente o FCM no foreground
-      const eventosPusher = ['novo-pedido', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto', 'rascunho-recebido', 'solicitacao-fechamento-cliente', 'status-atualizado', 'status-caixa-atualizado', 'garcom-status-alterado'];
+      const eventosPusher = [
+        'novo-pedido', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto', 
+        'rascunho-recebido', 'solicitacao-fechamento-cliente', 'status-atualizado', 
+        'status-caixa-atualizado', 'garcom-status-alterado',
+        'pedido-atrasado-garcom', 'fechamento-atrasado', 'aguardando-cliente-registro-atrasado'
+      ];
       if (notification.data && eventosPusher.includes(notification.data.event)) {
         console.log("Ignorando FCM foreground para evento '" + notification.data.event + "' (já tratado pelo Pusher).");
         if (typeof carregarMesas === 'function') carregarMesas();
