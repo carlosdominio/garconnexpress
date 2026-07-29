@@ -1,5 +1,41 @@
 const API_BASE_URL = 'https://garconnexpress.vercel.app';
 
+function exibirTelaCarregamentoSistema(titulo = 'Carregando...', mensagem = 'Aguarde um instante enquanto preparamos o aplicativo.') {
+  let modal = document.getElementById('screen-loading-overlay');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'screen-loading-overlay';
+    modal.style.cssText = `
+      position: fixed; inset: 0; width: 100vw; height: 100vh;
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      z-index: 9999999; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 24px;
+      box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif;
+    `;
+    document.body.appendChild(modal);
+  }
+
+  modal.innerHTML = `
+    <div style="background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(255,255,255,0.12); border-radius: 24px; padding: 36px 28px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6); backdrop-filter: blur(16px); box-sizing: border-box;">
+      <div style="position: relative; width: 70px; height: 70px; margin: 0 auto 20px auto; display: flex; align-items: center; justify-content: center;">
+        <div style="position: absolute; inset: 0; border: 4px solid rgba(230,126,34,0.2); border-top: 4px solid #e67e22; border-radius: 50%; animation: spinOverlay 0.8s linear infinite;"></div>
+        <span style="font-size: 2rem; user-select: none;">⚡</span>
+      </div>
+      <style>
+        @keyframes spinOverlay { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      </style>
+      <h2 style="margin: 0 0 8px 0; font-size: 1.35rem; font-weight: 800; color: #f8fafc; text-transform: uppercase; letter-spacing: 0.5px;">${titulo}</h2>
+      <p style="margin: 0; font-size: 0.9rem; color: #94a3b8; line-height: 1.5;">${mensagem}</p>
+    </div>
+  `;
+  modal.style.display = 'flex';
+}
+
+function ocultarTelaCarregamentoSistema() {
+  const modal = document.getElementById('screen-loading-overlay');
+  if (modal) modal.style.display = 'none';
+}
+
 let isNativeApp = (window.Capacitor && window.Capacitor.isNativePlatform()) || 
                   navigator.userAgent.includes('Capacitor') || 
                   window.location.protocol === 'capacitor:' || 
@@ -33,6 +69,12 @@ window.fetch = async (...args) => {
         args[1].headers['Authorization'] = `Bearer ${token}`;
     }
 
+    const method = (args[1] && args[1].method) ? args[1].method.toUpperCase() : 'GET';
+    const isMutatingCall = (method === 'POST' || method === 'PUT' || method === 'DELETE') && typeof url === 'string' && url.includes('/api/');
+    if (isMutatingCall && typeof showLoading === 'function') {
+        showLoading(true, 'Processando...');
+    }
+
     try {
         const response = await originalFetch(...args);
 
@@ -47,6 +89,10 @@ window.fetch = async (...args) => {
     } catch (error) {
         console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
         throw error;
+    } finally {
+        if (isMutatingCall && typeof showLoading === 'function') {
+            showLoading(false);
+        }
     }
 };
 
@@ -223,13 +269,17 @@ function fecharToast(el) {
 }
 
 async function carregarPedidos() {
+    const container = document.getElementById('pedidos-container');
+    const isPrimeiroCarregamento = container && container.innerHTML.includes('Carregando pedidos...');
+    if (isPrimeiroCarregamento && typeof showLoading === 'function') {
+        showLoading(true, 'Conectando ao servidor...');
+    }
     try {
         const [caixaRes, pedidosRes] = await Promise.all([
             fetch('/api/caixa/status'),
             fetch('/api/pedidos/churrasco')
         ]);
         
-        const container = document.getElementById('pedidos-container');
         const closedScreen = document.getElementById('closed-screen');
         const header = document.getElementById('main-header');
 
@@ -262,6 +312,10 @@ async function carregarPedidos() {
             renderizarPedidos([]);
         }
         setTimeout(carregarPedidos, 5000);
+    } finally {
+        if (typeof showLoading === 'function') {
+            showLoading(false);
+        }
     }
 }
 
@@ -529,6 +583,12 @@ async function configurarPusher() {
             if (typeof carregarConfiguracoesToasts === 'function') carregarConfiguracoesToasts();
         });
 
+        canal.bind('versao-app-atualizada', (data) => {
+            console.log('🔄 Versão do código atualizada pelo Admin!', data);
+            exibirTelaCarregamentoSistema('⚡ Atualizando Churrasqueiro', 'O administrador aplicou novas configurações. Atualizando sistema...');
+            setTimeout(() => location.reload(true), 1500);
+        });
+
         canal.bind('som-global-atualizado', (data) => {
             console.log('🔄 Som global atualizado:', data);
             localStorage.setItem('churrasqueiro_som_global', data.somChurrasco || 'sino_moderno');
@@ -579,13 +639,27 @@ async function configurarPusher() {
 
         canal.bind('pedido-cancelado', (data) => {
             console.log('📢 Pedido cancelado recebido:', data);
-            const idParaCancelar = data.id || data.pedido_id;
-            if (idParaCancelar) {
-                mostrarNotificacaoCancelamento(data.mensagem || `Pedido #${idParaCancelar} cancelado`, idParaCancelar);
+            if (data && data.para_churrasco === true) {
+                const idParaCancelar = data.id || data.pedido_id;
+                if (idParaCancelar) {
+                    mostrarNotificacaoCancelamento(data.mensagem || `Pedido #${idParaCancelar} cancelado`, idParaCancelar);
+                }
             }
             
             clearTimeout(timeoutPusher);
             timeoutPusher = setTimeout(carregarPedidos, 50);
+        });
+
+        canal.bind('pedido-atrasado-churrasco', (data) => {
+            console.log('📢 Evento: pedido-atrasado-churrasco', data);
+            if (deveTocarSom('pedido-atrasado-churrasco')) tocarSomNotificacao('campainha');
+            dispararToastSistema('pedido-atrasado-churrasco', { mesa: data.mesa_numero || 'Mesa', pedido_id: data.pedido_id }, data.mensagem || 'O pedido do churrasco está atrasado!', 'error');
+        });
+
+        canal.bind('estoque-baixo', (data) => {
+            console.log('📢 Evento: estoque-baixo', data);
+            if (deveTocarSom('estoque-baixo')) tocarSomNotificacao('campainha');
+            dispararToastSistema('estoque-baixo', { mensagem: data.mensagem }, data.mensagem, 'warning');
         });
 
         canal.bind('menu-atualizado', () => {
@@ -608,14 +682,30 @@ async function configurarPusher() {
 
         canal.bind('status-atualizado', (data) => {
             console.log('📢 Status atualizado recebido:', data);
-            if (data && (data.status === 'itens_atualizados' || data.status === 'itens_adicionados')) {
-                const card = document.getElementById(`pedido-card-${data.pedido_id || data.id}`);
-                if (card) {
-                    const mesa = data.mesa_numero || 'X';
-                    dispararToastSistema('item-adicionado', { mesa }, `📝 Mesa ${mesa}: Itens atualizados`, 'info');
+
+            // Toasts para interações do Admin no pedido
+            if (data && data.status) {
+                const mesa = data.mesa_numero || 'Mesa';
+                const pid = data.pedido_id || data.id || '';
+                const statusToasts = {
+                    'recebido':               { msg: `✅ Pedido #${pid} da ${mesa} foi RECEBIDO pelo caixa!`,         tipo: 'success' },
+                    'preparando':             { msg: `🍳 Pedido #${pid} da ${mesa} está sendo PREPARADO!`,            tipo: 'info'    },
+                    'pronto':                 { msg: `🔔 Pedido #${pid} da ${mesa} está PRONTO para servir!`,         tipo: 'success' },
+                    'servido':                { msg: `🍽️ Pedido #${pid} da ${mesa} foi SERVIDO!`,                    tipo: 'success' },
+                    'entregue':               { msg: `✅ Pedido #${pid} da ${mesa} foi ENTREGUE!`,                    tipo: 'success' },
+                    'saiu_entrega':           { msg: `🛵 Pedido #${pid} da ${mesa} saiu para ENTREGA!`,              tipo: 'info'    },
+                    'aguardando_fechamento':  { msg: `💰 Pedido #${pid} da ${mesa} aguardando FECHAMENTO!`,           tipo: 'warning' },
+                    'itens_atualizados':      { msg: `📝 ${mesa}: Itens ATUALIZADOS no pedido!`,                     tipo: 'info'    },
+                    'itens_adicionados':      { msg: `➕ ${mesa}: Novos ITENS adicionados!`,                         tipo: 'info'    },
+                };
+
+                const toastInfo = statusToasts[data.status];
+                if (toastInfo) {
+                    dispararToastSistema('status-atualizado', { mesa, pedido_id: pid }, toastInfo.msg, toastInfo.tipo);
                     if (deveTocarSom('status-atualizado')) tocarSomNotificacao('campainha');
                 }
             }
+
             clearTimeout(timeoutPusher);
             timeoutPusher = setTimeout(carregarPedidos, 50);
         });
@@ -1049,7 +1139,11 @@ function showLoading(show = true, text = "Processando...") {
   const txt = document.getElementById('loading-rapido-texto');
   if (el) {
     if (txt) txt.innerText = text;
-    el.style.display = show ? 'flex' : 'none';
+    if (show) {
+      el.classList.remove('hidden');
+    } else {
+      el.classList.add('hidden');
+    }
   }
 }
 
