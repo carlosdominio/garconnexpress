@@ -664,14 +664,30 @@ async function configurarPusher() {
 
         canal.bind('status-atualizado', (data) => {
             console.log('📢 Status atualizado recebido:', data);
-            if (data && (data.status === 'itens_atualizados' || data.status === 'itens_adicionados')) {
-                const card = document.getElementById(`pedido-card-${data.pedido_id || data.id}`);
-                if (card) {
-                    const mesa = data.mesa_numero || 'X';
-                    dispararToastSistema('item-adicionado', { mesa }, `📝 Mesa ${mesa}: Itens atualizados`, 'info');
+
+            // Toasts para interações do Admin no pedido
+            if (data && data.status) {
+                const mesa = data.mesa_numero || 'Mesa';
+                const pid = data.pedido_id || data.id || '';
+                const statusToasts = {
+                    'recebido':               { msg: `✅ Pedido #${pid} da ${mesa} foi RECEBIDO pelo caixa!`,         tipo: 'success' },
+                    'preparando':             { msg: `🍳 Pedido #${pid} da ${mesa} está sendo PREPARADO!`,            tipo: 'info'    },
+                    'pronto':                 { msg: `🔔 Pedido #${pid} da ${mesa} está PRONTO para servir!`,         tipo: 'success' },
+                    'servido':                { msg: `🍽️ Pedido #${pid} da ${mesa} foi SERVIDO!`,                    tipo: 'success' },
+                    'entregue':               { msg: `✅ Pedido #${pid} da ${mesa} foi ENTREGUE!`,                    tipo: 'success' },
+                    'saiu_entrega':           { msg: `🛵 Pedido #${pid} da ${mesa} saiu para ENTREGA!`,              tipo: 'info'    },
+                    'aguardando_fechamento':  { msg: `💰 Pedido #${pid} da ${mesa} aguardando FECHAMENTO!`,           tipo: 'warning' },
+                    'itens_atualizados':      { msg: `📝 ${mesa}: Itens ATUALIZADOS no pedido!`,                     tipo: 'info'    },
+                    'itens_adicionados':      { msg: `➕ ${mesa}: Novos ITENS adicionados!`,                         tipo: 'info'    },
+                };
+
+                const toastInfo = statusToasts[data.status];
+                if (toastInfo) {
+                    dispararToastSistema('status-atualizado', { mesa, pedido_id: pid }, toastInfo.msg, toastInfo.tipo);
                     if (deveTocarSom('status-atualizado')) tocarSomNotificacao('campainha');
                 }
             }
+
             clearTimeout(timeoutPusher);
             timeoutPusher = setTimeout(carregarPedidos, 50);
         });
