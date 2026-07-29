@@ -1590,16 +1590,18 @@ async function checkAndNotifyDelayedOrders() {
         }
       }
       
-      // Verifica se o pedido atrasado tem itens para a cozinha
+      // Verifica se o pedido atrasado tem itens para a cozinha ou churrasco
       let enviaCozinha = false;
+      let enviaChurrasco = false;
       try {
         const itens = (await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [p.id])).rows;
         if (itens && itens.length > 0) {
           const itensIds = itens.map(i => i.menu_id);
           enviaCozinha = await checkTemItemCozinha(itensIds);
+          enviaChurrasco = await checkTemItemChurrasco(itensIds);
         }
       } catch (e) {
-        console.error("Erro ao checar itens da cozinha no atraso:", e);
+        console.error("Erro ao checar itens da cozinha/churrasco no atraso:", e);
       }
 
       if (enviaCozinha) {
@@ -1611,6 +1613,17 @@ async function checkAndNotifyDelayedOrders() {
           p.id
         );
         targets.push({ app: 'cozinha', title: pushObj.title, msg: pushObj.body });
+      }
+
+      if (enviaChurrasco) {
+        const pushObj = resolveAtrasoTemplate(
+          'pedido-atrasado-churrasco',
+          '🔥 CHURRASCO: PEDIDO ATRASADO!',
+          'O pedido #{pedido_id} ({mesa}) do churrasco está aguardando há mais de 10 minutos!',
+          mesaName,
+          p.id
+        );
+        targets.push({ app: 'churrasqueiro', title: pushObj.title, msg: pushObj.body });
       }
 
       // Atualiza de forma atômica para evitar envios duplicados por concorrência
