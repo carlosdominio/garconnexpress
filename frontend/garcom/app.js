@@ -219,12 +219,7 @@ async function registerNativePush() {
       console.log('📩 Notificação recebida:', notification);
       
       // Se for um evento em tempo real já gerenciado pelo Pusher no foreground, ignore completamente o FCM no foreground
-      const eventosPusher = [
-        'novo-pedido', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto', 
-        'rascunho-recebido', 'solicitacao-fechamento-cliente', 'status-atualizado', 
-        'status-caixa-atualizado', 'garcom-status-alterado',
-        'pedido-atrasado-garcom', 'fechamento-atrasado', 'aguardando-cliente-registro-atrasado'
-      ];
+      const eventosPusher = ['novo-pedido', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto', 'rascunho-recebido', 'solicitacao-fechamento-cliente', 'status-atualizado', 'status-caixa-atualizado', 'garcom-status-alterado'];
       if (notification.data && eventosPusher.includes(notification.data.event)) {
         console.log("Ignorando FCM foreground para evento '" + notification.data.event + "' (já tratado pelo Pusher).");
         if (typeof carregarMesas === 'function') carregarMesas();
@@ -1598,7 +1593,38 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
  * @param {string} titulo - Título opcional
  * @param {number} duracao - Tempo em ms (padrão 5s)
  */
+function normalizarTextoToast(txt) {
+  if (!txt) return '';
+  return txt
+    .toLowerCase()
+    .replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '') // remove emojis
+    .replace(/[^a-z0-9]/g, '') // remove non-alphanumeric
+    .trim();
+}
+
+let _ultimosToastsExibidos = new Map();
 function mostrarToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
+  const msgNormalizada = normalizarTextoToast(msg);
+  const agora = Date.now();
+  
+  for (const [key, value] of _ultimosToastsExibidos.entries()) {
+    // Se o registro é mais antigo que 4 segundos, limpa do Map
+    if (agora - value > 4000) {
+      _ultimosToastsExibidos.delete(key);
+      continue;
+    }
+    
+    // Compara se as mensagens são equivalentes ou se uma contém a outra
+    const keyNormalizada = normalizarTextoToast(key);
+    if (msgNormalizada === keyNormalizada || 
+        (msgNormalizada.length >= 10 && keyNormalizada.includes(msgNormalizada)) ||
+        (keyNormalizada.length >= 10 && msgNormalizada.includes(keyNormalizada))) {
+      console.log('🚫 Ignorando toast duplicado (comparação inteligente):', msg);
+      return;
+    }
+  }
+  _ultimosToastsExibidos.set(msg, agora);
+
   if (typeof adicionarNotificacaoPainel === 'function') adicionarNotificacaoPainel(msg, titulo, tipo);
   if (typeof exibirNotificacaoNativa === 'function') {
       exibirNotificacaoNativa(titulo || (tipo === 'success' ? 'SUCESSO' : tipo.toUpperCase()), msg, 'toast-' + Date.now());
