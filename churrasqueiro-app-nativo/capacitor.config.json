@@ -2,6 +2,11 @@
   "appId": "com.garconnexpress.churrasqueiro",
   "appName": "ChurrasqueiroExpress",
   "webDir": "www",
+  "server": {
+    "url": "https://garconnexpress.vercel.app/app-churrasqueiro",
+    "cleartext": true,
+    "androidScheme": "https"
+  },
   "plugins": {
     "PushNotifications": {
       "presentationOptions": []

@@ -9,7 +9,8 @@
           "frontend/**",
           "motoboy-app-nativo/www/**",
           "cozinha-app-nativo/www/**",
-          "garcom-app-nativo/www/**"
+          "garcom-app-nativo/www/**",
+          "churrasqueiro-app-nativo/www/**"
         ]
       }
     },
