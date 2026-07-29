@@ -763,8 +763,9 @@ async function safePusherTrigger(channel, event, data) {
   try {
     console.log(`📡 [Pusher] Enviando: Canal=${channel}, Evento=${event}`);
     
-    // Calcula previamente se é para a cozinha para injetar no websocket
+    // Calcula previamente se é para a cozinha ou churrasco para injetar no websocket
     let enviaCozinha = false;
+    let enviaChurrasco = false;
     if (event === 'novo-pedido' || event === 'pedido-cancelado') {
       const pId = data.pedido_id || data.id || (data.pedido ? data.pedido.id : null);
       if (pId) {
@@ -775,17 +776,26 @@ async function safePusherTrigger(channel, event, data) {
             const itensIds = data.itens ? data.itens.map(i => i.menu_id) : [];
             enviaCozinha = await checkTemItemCozinha(itensIds);
           }
+          if (data.para_churrasco !== undefined) {
+            enviaChurrasco = data.para_churrasco;
+          } else {
+            const itensIds = data.itens ? data.itens.map(i => i.menu_id) : [];
+            enviaChurrasco = await checkTemItemChurrasco(itensIds);
+          }
         } else if (event === 'pedido-cancelado') {
           try {
             const itensCancelados = (await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [pId])).rows;
             const itensIds = itensCancelados.map(i => i.menu_id);
             enviaCozinha = await checkTemItemCozinha(itensIds);
+            enviaChurrasco = await checkTemItemChurrasco(itensIds);
           } catch (e) {
             enviaCozinha = true; // Fallback se der erro
+            enviaChurrasco = true;
           }
         }
       }
       data.para_cozinha = enviaCozinha; // INJETA NO WEBSOCKET
+      data.para_churrasco = enviaChurrasco; // INJETA NO WEBSOCKET
     }
 
     // No Vercel, precisamos de uma confirmação real do envio
