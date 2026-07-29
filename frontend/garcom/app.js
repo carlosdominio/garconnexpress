@@ -731,9 +731,7 @@ async function realizarLogin() {
       const nomeExib = document.getElementById('garcom-nome-exibicao');
       if (nomeExib) nomeExib.textContent = `Garçom: ${garcomLogado.nome}`;
       
-      showLoading(true, "Autenticando e preparando mesas...");
       await iniciarApp();
-      showLoading(false);
     } else if (res.status === 429) {
       await mostrarAlerta("Muitas tentativas incorretas. Conta bloqueada por 15 minutos.", "Atenção (Segurança)", "🔒");
       // Resetar Loading em caso de erro
@@ -765,6 +763,7 @@ async function logout() {
 }
 
 async function iniciarApp() {
+  exibirTelaCarregamentoSistema('Conectando...', 'Autenticando e carregando configurações...');
   // Primeiro carrega as configurações de categorias
   await Promise.all([
     carregarConfigCozinha(),
@@ -775,6 +774,7 @@ async function iniciarApp() {
     calcularClockOffset()
   ]);
   
+  exibirTelaCarregamentoSistema('Carregando...', 'Buscando cardápio digital e mesas atualizadas...');
   // Agora que as configurações de categorias estão 100% carregadas, podemos carregar o menu e as mesas
   await Promise.all([
     carregarMenu(),
@@ -793,6 +793,8 @@ async function iniciarApp() {
   setInterval(() => {
     carregarMesas();
   }, 60000);
+
+  ocultarTelaCarregamentoSistema();
 }
 
 async function carregarConfigCozinha() {
@@ -2480,7 +2482,7 @@ function abrirCardapioAdicionar() {
 }
 
 function abrirCardapio() {
-  showLoading(true, "Carregando Cardápio Digital...");
+  exibirTelaCarregamentoSistema('Cardápio Digital', 'Abrindo categorias e carregando itens...');
   try {
     const mesaTxt = document.getElementById('mesa-atual');
     
@@ -2522,7 +2524,7 @@ function abrirCardapio() {
     exibirResumoPedido();
     exibirMenu('todas');
   } finally {
-    setTimeout(() => showLoading(false), 200);
+    setTimeout(() => ocultarTelaCarregamentoSistema(), 500);
   }
 }
 
