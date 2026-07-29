@@ -9155,6 +9155,9 @@ async function carregarVersaoApp() {
       const inMotoboyApk = document.getElementById('config-motoboy-apk-version');
       const inMotoboyUrl = document.getElementById('config-motoboy-apk-url');
 
+      const inChurrasqueiroApk = document.getElementById('config-churrasqueiro-apk-version');
+      const inChurrasqueiroUrl = document.getElementById('config-churrasqueiro-apk-url');
+
       if (inWeb && data.web_version) inWeb.value = data.web_version;
       
       if (inGarcomApk && data.garcom_apk_version) inGarcomApk.value = data.garcom_apk_version;
@@ -9165,6 +9168,9 @@ async function carregarVersaoApp() {
       
       if (inMotoboyApk && data.motoboy_apk_version) inMotoboyApk.value = data.motoboy_apk_version;
       if (inMotoboyUrl && data.motoboy_apk_url) inMotoboyUrl.value = data.motoboy_apk_url;
+
+      if (inChurrasqueiroApk && data.churrasqueiro_apk_version) inChurrasqueiroApk.value = data.churrasqueiro_apk_version;
+      if (inChurrasqueiroUrl && data.churrasqueiro_apk_url) inChurrasqueiroUrl.value = data.churrasqueiro_apk_url;
     }
   } catch (err) {
     console.error('Erro ao carregar configurações de versão:', err);
@@ -9184,6 +9190,9 @@ async function salvarVersaoApp() {
   const motoboy_apk_version = document.getElementById('config-motoboy-apk-version')?.value || '2.0.0';
   const motoboy_apk_url = document.getElementById('config-motoboy-apk-url')?.value || '/motoboy-v2.0.0-portrait.apk';
 
+  const churrasqueiro_apk_version = document.getElementById('config-churrasqueiro-apk-version')?.value || '1.0.0';
+  const churrasqueiro_apk_url = document.getElementById('config-churrasqueiro-apk-url')?.value || '/churrasqueiro-v1.0.0-portrait.apk';
+
   try {
     const res = await fetch('/api/config/versao-app', {
       method: 'POST',
@@ -9195,7 +9204,8 @@ async function salvarVersaoApp() {
         web_version,
         garcom_apk_version, garcom_apk_url,
         cozinha_apk_version, cozinha_apk_url,
-        motoboy_apk_version, motoboy_apk_url
+        motoboy_apk_version, motoboy_apk_url,
+        churrasqueiro_apk_version, churrasqueiro_apk_url
       })
     });
     const data = await res.json();

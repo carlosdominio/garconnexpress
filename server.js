@@ -5766,7 +5766,8 @@ app.get('/api/config/versao-app', ensureDbInitialized, async (req, res) => {
       "'config_web_version', " +
       "'config_garcom_apk_version', 'config_garcom_apk_url', " +
       "'config_cozinha_apk_version', 'config_cozinha_apk_url', " +
-      "'config_motoboy_apk_version', 'config_motoboy_apk_url'" +
+      "'config_motoboy_apk_version', 'config_motoboy_apk_url', " +
+      "'config_churrasqueiro_apk_version', 'config_churrasqueiro_apk_url'" +
       ")")).rows;
     const configMap = {};
     for (const r of configRows) {
@@ -5780,7 +5781,9 @@ app.get('/api/config/versao-app', ensureDbInitialized, async (req, res) => {
       cozinha_apk_version: configMap['config_cozinha_apk_version'] || '2.0.0',
       cozinha_apk_url: configMap['config_cozinha_apk_url'] || '/cozinha-v1.1.0-portrait.apk',
       motoboy_apk_version: configMap['config_motoboy_apk_version'] || '2.0.0',
-      motoboy_apk_url: configMap['config_motoboy_apk_url'] || '/motoboy-v2.0.0-portrait.apk'
+      motoboy_apk_url: configMap['config_motoboy_apk_url'] || '/motoboy-v2.0.0-portrait.apk',
+      churrasqueiro_apk_version: configMap['config_churrasqueiro_apk_version'] || '1.0.0',
+      churrasqueiro_apk_url: configMap['config_churrasqueiro_apk_url'] || '/churrasqueiro-v1.0.0-portrait.apk'
     });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
@@ -5790,7 +5793,8 @@ app.post('/api/config/versao-app', ensureDbInitialized, isAdmin, async (req, res
     web_version,
     garcom_apk_version, garcom_apk_url,
     cozinha_apk_version, cozinha_apk_url,
-    motoboy_apk_version, motoboy_apk_url
+    motoboy_apk_version, motoboy_apk_url,
+    churrasqueiro_apk_version, churrasqueiro_apk_url
   } = req.body;
   try {
     const configs = [
@@ -5800,7 +5804,9 @@ app.post('/api/config/versao-app', ensureDbInitialized, isAdmin, async (req, res
       { chave: 'config_cozinha_apk_version', valor: cozinha_apk_version || '2.0.0' },
       { chave: 'config_cozinha_apk_url', valor: cozinha_apk_url || '/cozinha-v1.1.0-portrait.apk' },
       { chave: 'config_motoboy_apk_version', valor: motoboy_apk_version || '2.0.0' },
-      { chave: 'config_motoboy_apk_url', valor: motoboy_apk_url || '/motoboy-v2.0.0-portrait.apk' }
+      { chave: 'config_motoboy_apk_url', valor: motoboy_apk_url || '/motoboy-v2.0.0-portrait.apk' },
+      { chave: 'config_churrasqueiro_apk_version', valor: churrasqueiro_apk_version || '1.0.0' },
+      { chave: 'config_churrasqueiro_apk_url', valor: churrasqueiro_apk_url || '/churrasqueiro-v1.0.0-portrait.apk' }
     ];
     for (const cfg of configs) {
       if (isPostgres) {

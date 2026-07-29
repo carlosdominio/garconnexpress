@@ -1439,7 +1439,7 @@
                   </div>
 
                   <!-- APK Motoboy -->
-                  <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 15px;">
+                  <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 12px;">
                     <span style="font-weight: bold; width: 120px; font-size: 0.85rem; color: #10b981;">🟢 APK Motoboy:</span>
                     <div style="flex: 1; min-width: 100px;">
                       <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Versão Mínima:</label>
@@ -1452,6 +1452,23 @@
                       </div>
                       <button type="button" onclick="triggerApkUpload('motoboy')" style="padding: 6px 10px; background: #10b981; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.75rem; font-weight: bold; height: 32px;"><i class="fa-solid fa-upload"></i> Subir APK</button>
                       <input type="file" id="upload-motoboy-file" accept=".apk" style="display: none;" onchange="handleApkUpload(this, 'motoboy')">
+                    </div>
+                  </div>
+
+                  <!-- APK Churrasqueiro -->
+                  <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 15px;">
+                    <span style="font-weight: bold; width: 120px; font-size: 0.85rem; color: #9c27b0;">🟣 APK Churrasqueiro:</span>
+                    <div style="flex: 1; min-width: 100px;">
+                      <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Versão Mínima:</label>
+                      <input type="text" id="config-churrasqueiro-apk-version" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: bold;" value="1.0.0">
+                    </div>
+                    <div style="flex: 2; min-width: 180px; display: flex; gap: 8px; align-items: flex-end;">
+                      <div style="flex: 1;">
+                        <label style="font-size: 0.65rem; font-weight: bold; color: #64748b; display: block;">Caminho/URL do APK:</label>
+                        <input type="text" id="config-churrasqueiro-apk-url" style="width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px;" value="/churrasqueiro-v1.0.0-portrait.apk">
+                      </div>
+                      <button type="button" onclick="triggerApkUpload('churrasqueiro')" style="padding: 6px 10px; background: #9c27b0; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.75rem; font-weight: bold; height: 32px;"><i class="fa-solid fa-upload"></i> Subir APK</button>
+                      <input type="file" id="upload-churrasqueiro-file" accept=".apk" style="display: none;" onchange="handleApkUpload(this, 'churrasqueiro')">
                     </div>
                   </div>
 
