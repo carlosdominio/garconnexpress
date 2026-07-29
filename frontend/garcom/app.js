@@ -1668,6 +1668,11 @@ let carregarMesasTimeout = null;
 async function carregarMesas() {
   if (isFetchingMesas) return;
   isFetchingMesas = true;
+  const container = document.getElementById('mesas-grid');
+  const isPrimeiroCarregamento = container && container.children.length === 0;
+  if (isPrimeiroCarregamento && typeof showLoading === 'function') {
+    showLoading(true, 'Conectando ao servidor...');
+  }
   try {
     const res = await fetch('/api/mesas');
     if (!res.ok) return; 
@@ -1677,6 +1682,9 @@ async function carregarMesas() {
     console.warn('⚠️ Falha temporária de conexão ao carregar mesas:', e.message || e);
   } finally {
     isFetchingMesas = false;
+    if (isPrimeiroCarregamento && typeof showLoading === 'function') {
+      showLoading(false);
+    }
   }
 }
 

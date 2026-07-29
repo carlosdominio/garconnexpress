@@ -259,13 +259,17 @@ function fecharToast(el) {
 }
 
 async function carregarPedidos() {
+    const container = document.getElementById('pedidos-container');
+    const isPrimeiroCarregamento = container && container.innerHTML.includes('Carregando pedidos...');
+    if (isPrimeiroCarregamento && typeof showLoading === 'function') {
+        showLoading(true, 'Conectando ao servidor...');
+    }
     try {
         const [caixaRes, pedidosRes] = await Promise.all([
             fetch('/api/caixa/status'),
             fetch('/api/pedidos/churrasco')
         ]);
         
-        const container = document.getElementById('pedidos-container');
         const closedScreen = document.getElementById('closed-screen');
         const header = document.getElementById('main-header');
 
@@ -298,6 +302,10 @@ async function carregarPedidos() {
             renderizarPedidos([]);
         }
         setTimeout(carregarPedidos, 5000);
+    } finally {
+        if (typeof showLoading === 'function') {
+            showLoading(false);
+        }
     }
 }
 
