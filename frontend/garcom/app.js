@@ -119,21 +119,8 @@ async function verificarVersaoSistema() {
         return;
       }
       console.log(`🔄 Nova versão do sistema encontrada (${data.versao}). Recarregando...`);
-      if (typeof Swal !== 'undefined') {
-        Swal.fire({
-          title: 'Sistema Atualizado! 🚀',
-          text: 'Estamos aplicando melhorias e atualizando o aplicativo...',
-          icon: 'info',
-          showConfirmButton: false,
-          allowOutsideClick: false,
-          timer: 2500
-        }).then(() => {
-          window.location.reload(true);
-        });
-      } else {
-        alert('O estabelecimento foi atualizado. O aplicativo será recarregado.');
-        window.location.reload(true);
-      }
+      exibirTelaCarregamentoSistema('⚡ Atualizando Garçom', 'Nova versão do sistema detectada. Aplicando atualizações...');
+      setTimeout(() => window.location.reload(true), 1500);
     }
   } catch (e) {
     console.error('Erro ao verificar versão do sistema:', e);

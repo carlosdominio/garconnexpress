@@ -1041,7 +1041,8 @@ async function verificarVersaoSistema() {
         const data = await res.json();
         if (data && data.versao && data.versao !== CLIENT_VERSION) {
             console.log(`🔄 Nova versão do sistema encontrada (${data.versao}). Recarregando...`);
-            window.location.reload(true);
+            exibirTelaCarregamentoSistema('⚡ Atualizando Cozinha', 'Nova versão do sistema detectada. Aplicando atualizações...');
+            setTimeout(() => window.location.reload(true), 1500);
         }
     } catch (e) {
         console.error('Erro ao verificar versão do sistema:', e);

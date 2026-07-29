@@ -178,21 +178,8 @@ const App = {
             const data = await res.json();
             if (data && data.versao && data.versao !== CLIENT_VERSION) {
                 console.log(`🔄 Nova versão do sistema encontrada (${data.versao}). Recarregando...`);
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        title: 'Sistema Atualizado! 🚀',
-                        text: 'Estamos aplicando melhorias e atualizando o aplicativo do motoboy...',
-                        icon: 'info',
-                        showConfirmButton: false,
-                        allowOutsideClick: false,
-                        timer: 2500
-                    }).then(() => {
-                        window.location.reload(true);
-                    });
-                } else {
-                    alert('O estabelecimento foi atualizado. O aplicativo do motoboy será recarregado.');
-                    window.location.reload(true);
-                }
+                exibirTelaCarregamentoSistema('⚡ Atualizando Entregas', 'Nova versão do sistema detectada. Aplicando atualizações...');
+                setTimeout(() => window.location.reload(true), 1500);
             }
         } catch (e) {
             console.error('Erro ao verificar versão do sistema:', e);
