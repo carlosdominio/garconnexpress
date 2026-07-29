@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Verifica versão do sistema contra descompasso de deploy
   verificarVersaoSistema();
-  setInterval(verificarVersaoSistema, 5 * 60 * 1000);
+  setInterval(verificarVersaoSistema, 60 * 1000);
 });
 
 function exibirTelaCarregamentoSistema(titulo = 'Carregando...', mensagem = 'Aguarde um instante enquanto preparamos o aplicativo.') {
@@ -738,7 +738,15 @@ async function realizarLogin() {
       localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
       if (data.token) localStorage.setItem('garcom_token', data.token); // Salva token
       if (typeof mostrarToast === 'function') mostrarToast("Login realizado com sucesso!", "success");
-      setTimeout(() => location.reload(), 1000);
+      
+      const telaLogin = document.getElementById('tela-login');
+      if (telaLogin) telaLogin.style.display = 'none';
+      const nomeExib = document.getElementById('garcom-nome-exibicao');
+      if (nomeExib) nomeExib.textContent = `Garçom: ${garcomLogado.nome}`;
+      
+      showLoading(true, "Autenticando e preparando mesas...");
+      await iniciarApp();
+      showLoading(false);
     } else if (res.status === 429) {
       await mostrarAlerta("Muitas tentativas incorretas. Conta bloqueada por 15 minutos.", "Atenção (Segurança)", "🔒");
       // Resetar Loading em caso de erro
@@ -2485,45 +2493,50 @@ function abrirCardapioAdicionar() {
 }
 
 function abrirCardapio() {
-  const mesaTxt = document.getElementById('mesa-atual');
-  
-  // SEGURANÇA: Se mesaAtual for null, tenta recuperar pelo título do modal antes de crashar
-  if (!mesaAtual) {
-    const modalTitulo = document.getElementById('modal-mesa-titulo');
-    if (modalTitulo && modalTitulo.innerText.includes('Mesa')) {
-        const num = modalTitulo.innerText.replace('Mesa ', '');
-        mesaAtual = mesas.find(m => m.numero == num);
+  showLoading(true, "Carregando Cardápio Digital...");
+  try {
+    const mesaTxt = document.getElementById('mesa-atual');
+    
+    // SEGURANÇA: Se mesaAtual for null, tenta recuperar pelo título do modal antes de crashar
+    if (!mesaAtual) {
+      const modalTitulo = document.getElementById('modal-mesa-titulo');
+      if (modalTitulo && modalTitulo.innerText.includes('Mesa')) {
+          const num = modalTitulo.innerText.replace('Mesa ', '');
+          mesaAtual = mesas.find(m => m.numero == num);
+      }
     }
+
+    if (mesaTxt && mesaAtual) {
+      mesaTxt.textContent = pedidoAbertoNaMesa ? `${mesaAtual.numero} (+ itens)` : mesaAtual.numero;
+    } else if (mesaTxt) {
+      console.warn("⚠️ abrirCardapio chamado sem mesaAtual definida.");
+      mesaTxt.textContent = "---";
+    }
+
+    // Resetar visual das categorias para "Todas"
+    document.querySelectorAll('.categoria').forEach(c => {
+      c.classList.toggle('ativa', c.dataset.categoria === 'todas');
+    });
+
+    document.getElementById('mesas').classList.add('hidden');
+    document.getElementById('pedido').classList.remove('hidden');
+    document.getElementById('btn-header-mesas').style.display = 'flex';
+    // Esconde o modal do carrinho caso esteja aberto
+    const modalCarrinho = document.getElementById('modal-carrinho');
+    if (modalCarrinho) {
+      modalCarrinho.style.display = 'none';
+      atualizarBloqueioScroll(); // Destrava o scroll
+    }
+
+    pedidoAtual = [];
+    window.pedidoObservacaoGeral = ''; // Reset observação geral
+    const elInput = document.getElementById('pedido-busca-input');
+    if (elInput) elInput.value = '';
+    exibirResumoPedido();
+    exibirMenu('todas');
+  } finally {
+    setTimeout(() => showLoading(false), 200);
   }
-
-  if (mesaTxt && mesaAtual) {
-    mesaTxt.textContent = pedidoAbertoNaMesa ? `${mesaAtual.numero} (+ itens)` : mesaAtual.numero;
-  } else if (mesaTxt) {
-    console.warn("⚠️ abrirCardapio chamado sem mesaAtual definida.");
-    mesaTxt.textContent = "---";
-  }
-
-  // Resetar visual das categorias para "Todas"
-  document.querySelectorAll('.categoria').forEach(c => {
-    c.classList.toggle('ativa', c.dataset.categoria === 'todas');
-  });
-
-  document.getElementById('mesas').classList.add('hidden');
-  document.getElementById('pedido').classList.remove('hidden');
-  document.getElementById('btn-header-mesas').style.display = 'flex';
-  // Esconde o modal do carrinho caso esteja aberto
-  const modalCarrinho = document.getElementById('modal-carrinho');
-  if (modalCarrinho) {
-    modalCarrinho.style.display = 'none';
-    atualizarBloqueioScroll(); // Destrava o scroll
-  }
-
-  pedidoAtual = [];
-  window.pedidoObservacaoGeral = ''; // Reset observação geral
-  const elInput = document.getElementById('pedido-busca-input');
-  if (elInput) elInput.value = '';
-  exibirResumoPedido();
-  exibirMenu('todas');
 }
 
 function toggleCarrinho() {

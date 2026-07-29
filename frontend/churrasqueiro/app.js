@@ -1058,6 +1058,23 @@ document.addEventListener('visibilitychange', () => {
 setInterval(atualizarCronometros, 1000);
 setInterval(carregarPedidos, 60000);
 
+const CLIENT_VERSION = '1.3.1';
+async function verificarVersaoSistema() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/versao?_t=${Date.now()}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.versao && data.versao !== CLIENT_VERSION) {
+            console.log(`🔄 Nova versão do sistema encontrada (${data.versao}). Recarregando...`);
+            window.location.reload(true);
+        }
+    } catch (e) {
+        console.error('Erro ao verificar versão do sistema:', e);
+    }
+}
+verificarVersaoSistema();
+setInterval(verificarVersaoSistema, 60 * 1000);
+
 document.addEventListener('click', () => {
     if (audioDesbloqueado) return;
     audioDesbloqueado = true;
