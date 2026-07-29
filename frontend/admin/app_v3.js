@@ -739,8 +739,12 @@ function atualizarCronometrosPedidos() {
         console.log(`🚨 ALERTA: Pedido #${pedidoId} esperando há ${minutos} min!`);
         tocarNotificacao('windows'); // Som de alerta curto
         
-        const mesaNome = card.dataset.mesa || `Pedido #${pedidoId}`;
-        const motivo = isFechamento ? 'SOLICITOU CONTA' : 'PEDIDO PENDENTE';
+        const isVirtual = card.id && card.id.startsWith('mesa-virtual-card-');
+        const mesaNome = card.dataset.mesa || (isVirtual ? `Mesa` : `Pedido #${pedidoId}`);
+        let motivo = isFechamento ? 'SOLICITOU CONTA' : 'PEDIDO PENDENTE';
+        if (isVirtual) {
+          motivo = 'AGUARDANDO PEDIDO';
+        }
         exibirNotificacaoNativa(`⚠️ ATRASO: ${mesaNome}`, `${motivo} há ${minutos} minutos!`, `atraso-${pedidoId}`);
         mostrarToast(`${motivo} há ${minutos} minutos!`, 'warning', `⚠️ ATRASO: ${mesaNome}`);
 
@@ -4451,6 +4455,7 @@ async function exibirPedidos() {
           card.id = cardId;
           card.className = newClassName;
           card.setAttribute('style', cardStyleText);
+          card.dataset.mesa = `Mesa ${m.numero}`;
           card.addEventListener('click', (e) => {
             if (e.target.closest('button')) return;
             abrirModalMesaAguardando(m.id);
@@ -4460,6 +4465,7 @@ async function exibirPedidos() {
           targetList.appendChild(card);
         } else {
           if (card.className !== newClassName) card.className = newClassName;
+          if (card.dataset.mesa !== `Mesa ${m.numero}`) card.dataset.mesa = `Mesa ${m.numero}`;
           const currentSig = card.getAttribute('data-content-signature');
           const newSig = `virtual_${minutosEspera}_${m.codigo_acesso}_${m.garcom_id}`;
           if (currentSig !== newSig) {
