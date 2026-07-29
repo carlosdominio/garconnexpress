@@ -12,9 +12,9 @@
       "sound": "notificacao.mp3"
     },
     "SplashScreen": {
-      "launchShowDuration": 4000,
+      "launchShowDuration": 3500,
       "launchAutoHide": true,
-      "backgroundColor": "#f1f2f6",
+      "backgroundColor": "#1e293b",
       "androidSplashResourceName": "splash",
       "showSpinner": true,
       "androidSpinnerStyle": "large",

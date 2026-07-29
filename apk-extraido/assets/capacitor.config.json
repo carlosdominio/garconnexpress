@@ -1,0 +1,29 @@
+{
+	"appId": "com.garconnexpress.churrasqueiro",
+	"appName": "ChurrasqueiroExpress",
+	"webDir": "www",
+	"plugins": {
+		"PushNotifications": {
+			"presentationOptions": []
+		},
+		"LocalNotifications": {
+			"smallIcon": "ic_stat_notification",
+			"iconColor": "#e67e22",
+			"sound": "notificacao.mp3"
+		},
+		"SplashScreen": {
+			"launchShowDuration": 4000,
+			"launchAutoHide": true,
+			"backgroundColor": "#f1f2f6",
+			"androidSplashResourceName": "splash",
+			"showSpinner": true,
+			"androidSpinnerStyle": "large",
+			"spinnerColor": "#e67e22"
+		}
+	},
+	"cordova": {
+		"preferences": {
+			"MediaPlaybackRequiresUserAction": "false"
+		}
+	}
+}
