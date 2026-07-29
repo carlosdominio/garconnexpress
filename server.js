@@ -1726,6 +1726,8 @@ async function checkAndNotifyDelayedOrders() {
                 firebaseAppToUse = admin.app('motoboy');
               } else if (targetApp === 'cozinha' && admin.apps.find(a => a.name === 'cozinha')) {
                 firebaseAppToUse = admin.app('cozinha');
+              } else if (targetApp === 'churrasqueiro' && admin.apps.find(a => a.name === 'churrasqueiro')) {
+                firebaseAppToUse = admin.app('churrasqueiro');
               }
               
               await firebaseAppToUse.messaging().send(message).catch(e => console.error('Erro FCM Atraso:', e.message));
