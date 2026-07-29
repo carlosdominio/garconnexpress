@@ -632,6 +632,18 @@ async function configurarPusher() {
             timeoutPusher = setTimeout(carregarPedidos, 50);
         });
 
+        canal.bind('pedido-atrasado-churrasco', (data) => {
+            console.log('📢 Evento: pedido-atrasado-churrasco', data);
+            if (deveTocarSom('pedido-atrasado-churrasco')) tocarSomNotificacao('campainha');
+            dispararToastSistema('pedido-atrasado-churrasco', { mesa: data.mesa_numero || 'Mesa', pedido_id: data.pedido_id }, data.mensagem || 'O pedido do churrasco está atrasado!', 'error');
+        });
+
+        canal.bind('estoque-baixo', (data) => {
+            console.log('📢 Evento: estoque-baixo', data);
+            if (deveTocarSom('estoque-baixo')) tocarSomNotificacao('campainha');
+            dispararToastSistema('estoque-baixo', { mensagem: data.mensagem }, data.mensagem, 'warning');
+        });
+
         canal.bind('menu-atualizado', () => {
             clearTimeout(timeoutPusher);
             timeoutPusher = setTimeout(carregarPedidos, 50);
