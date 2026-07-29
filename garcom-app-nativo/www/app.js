@@ -690,7 +690,11 @@ function showLoading(show = true, text = "Processando...") {
   const txt = document.getElementById('loading-rapido-texto');
   if (el) {
     if (txt) txt.innerText = text;
-    el.style.display = show ? 'flex' : 'none';
+    if (show) {
+      el.classList.remove('hidden');
+    } else {
+      el.classList.add('hidden');
+    }
   }
 }
 
