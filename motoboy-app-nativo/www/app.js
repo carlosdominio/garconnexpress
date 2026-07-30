@@ -412,10 +412,13 @@ const App = {
             }
 
             if (perm.receive === 'granted') {
+                // Usa o som configurado pelo admin (salvo no localStorage)
+                const somConfigurado = localStorage.getItem('motoboy_som_global') || 'campainha_classica';
+                const fcmSound = somConfigurado === 'original' ? 'notificacao.mp3' : `${somConfigurado}.wav`;
                 await PushNotifications.createChannel({
                     id: NOTIFICATION_CHANNEL_ID,
                     name: 'Pedidos e Alertas',
-                    sound: 'notificacao.mp3',
+                    sound: fcmSound,
                     importance: 5,
                     visibility: 1,
                     vibration: true
@@ -552,9 +555,32 @@ const App = {
                     setTimeout(() => location.reload(true), 1500);
                 });
 
-                this.channel.bind('som-global-atualizado', (data) => {
-                    console.log('🔄 Som global atualizado:', data);
-                    localStorage.setItem('motoboy_som_global', data.somMotoboy || 'campainha_classica');
+                this.channel.bind('som-global-atualizado', async (data) => {
+                    const novoSom = data.somMotoboy || 'campainha_classica';
+                    console.log('🔄 Som global atualizado para:', novoSom);
+                    localStorage.setItem('motoboy_som_global', novoSom);
+
+                    // Recria o canal FCM com o novo som (para notificações em background)
+                    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                        try {
+                            const { PushNotifications } = Capacitor.Plugins;
+                            if (PushNotifications) {
+                                await PushNotifications.deleteChannel({ id: NOTIFICATION_CHANNEL_ID });
+                                const fcmSound = novoSom === 'original' ? 'notificacao.mp3' : `${novoSom}.wav`;
+                                await PushNotifications.createChannel({
+                                    id: NOTIFICATION_CHANNEL_ID,
+                                    name: 'Pedidos e Alertas',
+                                    sound: fcmSound,
+                                    importance: 5,
+                                    visibility: 1,
+                                    vibration: true
+                                });
+                                console.log(`✅ Canal FCM recriado com som: ${fcmSound}`);
+                            }
+                        } catch (e) {
+                            console.error('Erro ao recriar canal FCM com novo som:', e);
+                        }
+                    }
                 });
 
                 this.channel.bind('comunicado-geral', (data) => {
