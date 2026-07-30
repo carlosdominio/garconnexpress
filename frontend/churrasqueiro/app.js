@@ -904,19 +904,25 @@ function limparNotificacoes() {
 }
 
 async function iniciarApp() {
+    exibirTelaCarregamentoSistema('Carregando...', 'Sincronizando pedidos e configurações...');
     solicitarPermissaoNotificacao();
-    await Promise.all([
-        carregarSomGlobalChurrasco(),
-        carregarConfiguracoesToasts(),
-        carregarPedidos(),
-        configurarPusher()
-    ]);
+    try {
+        await Promise.all([
+            carregarSomGlobalChurrasco(),
+            carregarConfiguracoesToasts(),
+            carregarPedidos(),
+            configurarPusher()
+        ]);
+    } catch (e) {
+        console.error('Erro na inicialização do app:', e);
+    }
     atualizarIconeSom();
     
     if (isNativeApp) {
         limparNotificacoesNativas();
         registerNativePush();
     }
+    ocultarTelaCarregamentoSistema();
 }
 
 async function realizarLogin() {
@@ -935,6 +941,8 @@ async function realizarLogin() {
 
     if (btn) btn.disabled = true;
     if (btnText) btnText.innerText = "Entrando...";
+    
+    exibirTelaCarregamentoSistema('Conectando...', 'Autenticando churrasqueiro e carregando dados...');
     
     try {
         let res = await fetch('/api/admin/login', {
@@ -966,6 +974,7 @@ async function realizarLogin() {
             mostrarToast("Login realizado com sucesso!", "success");
             location.reload();
         } else if (res.status === 429) {
+            ocultarTelaCarregamentoSistema();
             Swal.fire({
                 title: 'Sistema de Segurança',
                 text: 'Muitas tentativas incorretas. Conta bloqueada por 15 minutos.',
@@ -976,11 +985,13 @@ async function realizarLogin() {
             if (btn) btn.disabled = false;
             if (btnText) btnText.innerText = "Entrar";
         } else {
+            ocultarTelaCarregamentoSistema();
             exibirErroLogin("Usuário ou senha incorretos.\n\nPor favor, verifique os dados digitados e tente novamente. Caso o erro persista, confirme suas credenciais com a gerência.");
             if (btn) btn.disabled = false;
             if (btnText) btnText.innerText = "Entrar";
         }
     } catch (e) {
+        ocultarTelaCarregamentoSistema();
         console.error(e);
         exibirErroLogin("Erro de conexão ao realizar login.");
         if (btn) btn.disabled = false;
@@ -999,9 +1010,12 @@ function exibirErroLogin(mensagem) {
 }
 
 function logout() {
+    exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
     localStorage.removeItem('churrasqueiro_logado');
     localStorage.removeItem('churrasqueiro_token');
-    location.reload();
+    setTimeout(() => {
+        location.reload();
+    }, 1000);
 }
 
 (async () => {
