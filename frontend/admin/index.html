@@ -849,10 +849,10 @@
                     <div style="display: flex; gap: 10px; flex: 1;">
                       <div style="flex: 1; position: relative;">
                         <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); opacity: 0.5;">🔍</span>
-                        <input type="text" id="filtro-menu-busca" oninput="exibirMenuConfig()" placeholder="Buscar por nome..." 
+                        <input type="text" id="filtro-menu-busca" oninput="renderizarListaMenuConfig()" placeholder="Buscar por nome..." 
                                style="width: 100%; padding: 8px 10px 8px 32px; border-radius: 8px; border: 1px solid #cbd5e0; font-size: 0.9rem; outline: none;">
                       </div>
-                      <select id="filtro-menu-categoria" onchange="exibirMenuConfig()" 
+                      <select id="filtro-menu-categoria" onchange="renderizarListaMenuConfig()" 
                               style="display: none;">
                         <option value="">📂 Todas</option>
                       </select>
@@ -2099,7 +2099,7 @@
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="app_v3.js?v=1.3.7-bust-cache-30"></script>
+  <script src="app_v3.js?v=1.3.7-bust-cache-31"></script>
   <!-- Modal: Mesa Aguardando Cliente -->
   <div id="modal-mesa-aguardando" class="modal">
     <div class="modal-content" style="max-width: 420px; border-radius: 16px; overflow: hidden; padding: 0;">

@@ -2967,204 +2967,210 @@ document.addEventListener('click', () => {
 
 async function exibirMenuConfig() {
   const container = document.getElementById('lista-menu-config');
-  const selectFiltroCat = document.getElementById('filtro-menu-categoria');
-  const inputBusca = document.getElementById('filtro-menu-busca');
-  
   if (!container) return;
 
   try {
     const res = await fetch('/api/menu?admin=true');
     if (!res.ok) return;
     cardapio = await res.json(); // Atualiza variável global
-    
-    // 1. POPULA O SELECT DE CATEGORIAS (sempre reconstrói para refletir novas categorias)
-    if (selectFiltroCat) {
-      let catSelecionadaAtual = selectFiltroCat.value; // preserva seleção atual
-      
-      // Se acabou de ser renomeada, usa a categoria forçada
-      if (window.categoriaForcadaAposRenomear) {
-        catSelecionadaAtual = window.categoriaForcadaAposRenomear;
-        window.categoriaForcadaAposRenomear = null; // limpa após usar
-      }
-      
-      const categoriasUnicas = [...new Set(cardapio.map(item => item.categoria.trim().toUpperCase()))].sort();
-
-      // Reconstrói do zero
-      selectFiltroCat.innerHTML = '<option value="">📂 Todas</option>';
-      categoriasUnicas.forEach(cat => {
-        const opt = document.createElement('option');
-        opt.value = cat;
-        opt.innerText = cat;
-        selectFiltroCat.appendChild(opt);
-      });
-
-      // Adiciona o filtro virtual de Produtos Vencidos no Dropdown
-      const optVencido = document.createElement('option');
-      optVencido.value = 'VENCIDOS';
-      optVencido.innerText = '⏳ Produtos Vencidos';
-      optVencido.style.fontWeight = 'bold';
-      optVencido.style.color = '#e74c3c';
-      selectFiltroCat.appendChild(optVencido);
-
-      // Adiciona o filtro virtual de Estoque Baixo no Dropdown
-      const optEstoqueBaixo = document.createElement('option');
-      optEstoqueBaixo.value = 'ESTOQUE_BAIXO';
-      optEstoqueBaixo.innerText = '⚠️ Estoque Baixo (≤ 5)';
-      optEstoqueBaixo.style.fontWeight = 'bold';
-      optEstoqueBaixo.style.color = '#e67e22';
-      selectFiltroCat.appendChild(optEstoqueBaixo);
-
-      // Adiciona o filtro virtual de Próximo do Vencimento no Dropdown
-      const optProxVencimento = document.createElement('option');
-      optProxVencimento.value = 'PROXIMO_VENCIMENTO';
-      optProxVencimento.innerText = '⏰ Próximo do Vencimento (≤ 7 dias)';
-      optProxVencimento.style.fontWeight = 'bold';
-      optProxVencimento.style.color = '#f39c12';
-      selectFiltroCat.appendChild(optProxVencimento);
-
-      // Restaura a seleção anterior (se ainda existir)
-      if (catSelecionadaAtual) selectFiltroCat.value = catSelecionadaAtual;
-
-      // Sincroniza com a interface customizada
-      sincronizarFiltroCustomizado();
-    }
-
-    const hoje = new Date();
-    hoje.setHours(0,0,0,0);
-    let vencidosCount = 0;
-    let proxVencimentoCount = 0;
-
-    // 2. APLICA OS FILTROS (BUSCA E CATEGORIA)
-    const termoBusca = inputBusca ? inputBusca.value.toLowerCase().trim() : '';
-    const catSelecionada = selectFiltroCat ? selectFiltroCat.value.toUpperCase() : '';
-
-    const cardapioFiltrado = cardapio.filter(m => {
-      const matchBusca = m.nome.toLowerCase().includes(termoBusca) || (m.descricao && m.descricao.toLowerCase().includes(termoBusca));
-      
-      let matchCat = true;
-      if (catSelecionada === 'VENCIDOS') {
-         if (!m.validade) return false;
-         const dataVal = new Date(m.validade);
-         dataVal.setHours(0,0,0,0);
-         matchCat = dataVal < hoje;
-      } else if (catSelecionada === 'ESTOQUE_BAIXO') {
-         matchCat = m.estoque !== -1 && m.estoque !== null && m.estoque <= 5;
-      } else if (catSelecionada === 'PROXIMO_VENCIMENTO') {
-         if (!m.validade) return false;
-         const dataVal = new Date(m.validade);
-         dataVal.setHours(0,0,0,0);
-         const diffDias = Math.ceil((dataVal - hoje) / (1000 * 60 * 60 * 24));
-         matchCat = diffDias >= 0 && diffDias <= 7;
-      } else if (catSelecionada !== '') {
-         matchCat = m.categoria.trim().toUpperCase() === catSelecionada;
-      }
-
-      return matchBusca && matchCat;
-    });
-
-    if (cardapioFiltrado.length === 0) {
-      container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 4rem; opacity: 0.5;">
-        <p style="font-size: 1.5rem;">🔍 Nenhum item encontrado.</p>
-        <p>Tente mudar o filtro de categoria ou a busca.</p>
-      </div>`;
-      return;
-    }
-
-    // 3. AGRUPAR ITENS FILTRADOS POR CATEGORIA PARA RENDERIZAÇÃO
-    const categoriasNoFiltro = [...new Set(cardapioFiltrado.map(item => item.categoria.trim().toUpperCase()))].sort();
-    
-    let htmlFinal = '';
-
-    categoriasNoFiltro.forEach(cat => {
-      const itensDaCat = cardapioFiltrado.filter(i => i.categoria.trim().toUpperCase() === cat);
-      
-      htmlFinal += `
-        <div class="categoria-config-section" style="width: 100%; grid-column: 1 / -1; margin-top: 2rem;">
-          <h2 style="background: #2c3e50; color: white; padding: 10px 20px; border-radius: 8px; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <span>📂 ${cat}</span>
-              <button onclick="editarCategoria('${cat}')" style="background: #3498db; border: none; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; display: flex; align-items: center; gap: 3px;">
-                ✏️ Editar
-              </button>
-              <small style="font-size: 0.8rem; opacity: 0.8;">${itensDaCat.length} itens</small>
-            </div>
-            <button onclick="excluirCategoria('${cat}')" style="background: #e74c3c; border: none; color: white; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; font-weight: bold; transition: 0.2s; display: flex; align-items: center; gap: 5px;" onmouseover="this.style.background='#c0392b'" onmouseout="this.style.background='#e74c3c'">
-              🗑️ Excluir Categoria
-            </button>
-          </h2>
-          <div class="menu-config-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem;">
-            ${itensDaCat.map(m => {
-              let validadeHtml = '';
-              let classeValidade = '';
-              
-              if (m.validade) {
-                const dataVal = new Date(m.validade);
-                dataVal.setHours(0,0,0,0);
-                const diffDias = Math.ceil((dataVal - hoje) / (1000 * 60 * 60 * 24));
-                const dataFormatada = dataVal.toLocaleDateString('pt-BR');
-                
-                if (diffDias < 0) {
-                  classeValidade = 'vencido';
-                  validadeHtml = `<span style="color:#e74c3c; font-weight:bold;">❌ VENCIDO EM ${dataFormatada}</span>`;
-                  vencidosCount++;
-                } else if (diffDias <= 7) {
-                  classeValidade = 'alerta-validade';
-                  validadeHtml = `<span style="color:#f39c12; font-weight:bold;">⚠️ VENCE EM ${dataFormatada} (${diffDias} dias)</span>`;
-                  proxVencimentoCount++;
-                } else {
-                  validadeHtml = `Validade: ${dataFormatada}`;
-                }
-              }
-
-              const hasStatus = m.em_promocao || isItemParaCozinha(m) || isItemParaChurrasco(m) || (m.visivel === false || m.visivel === 0);
-              const statusHeader = hasStatus ? `
-                <div style="display: flex; width: 100%; height: 22px;">
-                  ${m.em_promocao ? '<div style="flex: 1; background: #f1c40f; color: #2c3e50; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🔥 PROMOÇÃO</div>' : ''}
-                  ${isItemParaCozinha(m) ? '<div style="flex: 1; background: #3498db; color: white; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🍳 COZINHA</div>' : ''}
-                  ${isItemParaChurrasco(m) ? '<div style="flex: 1; background: #e67e22; color: white; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🍢 CHURRASCO</div>' : ''}
-                  ${(m.visivel === false || m.visivel === 0) ? '<div style="flex: 1; background: #e74c3c; color: white; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🚫 OCULTO</div>' : ''}
-                </div>` : '';
-
-              return `
-              <div class="menu-item-config ${classeValidade}" id="item-menu-${m.id}" style="border-left: 5px solid ${classeValidade === 'vencido' ? '#e74c3c' : (classeValidade === 'alerta-validade' ? '#f39c12' : 'transparent')}; position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: stretch; padding: 0;">
-                
-                <!-- Tarjas de Status (Topo) -->
-                ${statusHeader}
-
-                <div style="display: flex; gap: 1.2rem; align-items: center; padding: 1.2rem;">
-                  <img src="${m.imagem}" alt="${m.nome}" style="filter: ${(m.visivel === false || m.visivel === 0) ? 'grayscale(1) opacity(0.6)' : 'none'}">
-                  <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;">
-                    <strong style="${(m.visivel === false || m.visivel === 0) ? 'color: #95a5a6;' : ''}">${m.nome}</strong>
-                    <small>${m.categoria} - ${m.preco_original ? `<span style="text-decoration: line-through; opacity: 0.6; font-size: 0.8rem;">R$ ${m.preco_original.toFixed(2)}</span> ` : ''}<span style="${m.em_promocao ? 'color: #e74c3c; font-weight: bold;' : ''}">R$ ${m.preco.toFixed(2)}</span></small>
-                    <small style="color: ${m.estoque === 0 ? '#e74c3c' : '#27ae60'}; font-weight: bold;">
-                      Estoque: ${m.estoque === -1 ? 'Ilimitado' : `${m.estoque} ${m.unidade || 'un'}`}
-                    </small>
-                    <small>${validadeHtml}</small>
-                  </div>
-                  <div style="display:flex; flex-direction:column; gap:0.4rem; justify-content:center; align-items:stretch; min-width:80px;">
-                    <button style="background:#3498db; padding:6px; font-size:0.8rem; border:none; border-radius:6px; color:white; cursor:pointer; height:max-content; box-shadow:0 2px 4px rgba(0,0,0,0.1);" onclick="prepararEdicaoMenuById(${m.id})">✏️ Editar</button>
-                    <button style="background:#e74c3c; padding:6px; font-size:0.8rem; border:none; border-radius:6px; color:white; cursor:pointer; height:max-content; box-shadow:0 2px 4px rgba(0,0,0,0.1);" onclick="excluirDoMenu(${m.id})">Excluir</button>
-                  </div>
-                </div>
-              </div>`;
-            }).join('')}
-          </div>
-        </div>
-      `;
-    });
-
-    container.innerHTML = htmlFinal || '<p style="text-align:center; padding: 2rem; opacity: 0.5;">Nenhum item cadastrado no cardápio.</p>';
-
-    if (vencidosCount > 0 || proxVencimentoCount > 0) {
-      const agora_ms = Date.now();
-      if (agora_ms - ultimoAlertaValidadeMostrado > 30000) {
-        exibirNotificacaoNativa('⚠️ Alerta de Validade', `🚨 ALERTA: ${vencidosCount} produtos vencidos e ${proxVencimentoCount} próximos da validade!`, 'validade-alerta');
-        mostrarToast(`🚨 ALERTA: ${vencidosCount} produtos vencidos e ${proxVencimentoCount} próximos da validade!`);
-        ultimoAlertaValidadeMostrado = agora_ms;
-      }
-    }
+    renderizarListaMenuConfig(true); // Popula o select de categorias na primeira vez
   } catch (e) {
     console.error("Erro ao carregar cardápio admin:", e);
+  }
+}
+
+function renderizarListaMenuConfig(rebuildCategories = false) {
+  const container = document.getElementById('lista-menu-config');
+  const selectFiltroCat = document.getElementById('filtro-menu-categoria');
+  const inputBusca = document.getElementById('filtro-menu-busca');
+  
+  if (!container) return;
+
+  // 1. POPULA O SELECT DE CATEGORIAS (sempre reconstrói se solicitado para refletir novas categorias)
+  if (rebuildCategories && selectFiltroCat) {
+    let catSelecionadaAtual = selectFiltroCat.value; // preserva seleção atual
+    
+    // Se acabou de ser renomeada, usa a categoria forçada
+    if (window.categoriaForcadaAposRenomear) {
+      catSelecionadaAtual = window.categoriaForcadaAposRenomear;
+      window.categoriaForcadaAposRenomear = null; // limpa após usar
+    }
+    
+    const categoriasUnicas = [...new Set(cardapio.map(item => item.categoria.trim().toUpperCase()))].sort();
+
+    // Reconstrói do zero
+    selectFiltroCat.innerHTML = '<option value="">📂 Todas</option>';
+    categoriasUnicas.forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.innerText = cat;
+      selectFiltroCat.appendChild(opt);
+    });
+
+    // Adiciona o filtro virtual de Produtos Vencidos no Dropdown
+    const optVencido = document.createElement('option');
+    optVencido.value = 'VENCIDOS';
+    optVencido.innerText = '⏳ Produtos Vencidos';
+    optVencido.style.fontWeight = 'bold';
+    optVencido.style.color = '#e74c3c';
+    selectFiltroCat.appendChild(optVencido);
+
+    // Adiciona o filtro virtual de Estoque Baixo no Dropdown
+    const optEstoqueBaixo = document.createElement('option');
+    optEstoqueBaixo.value = 'ESTOQUE_BAIXO';
+    optEstoqueBaixo.innerText = '⚠️ Estoque Baixo (≤ 5)';
+    optEstoqueBaixo.style.fontWeight = 'bold';
+    optEstoqueBaixo.style.color = '#e67e22';
+    selectFiltroCat.appendChild(optEstoqueBaixo);
+
+    // Adiciona o filtro virtual de Próximo do Vencimento no Dropdown
+    const optProxVencimento = document.createElement('option');
+    optProxVencimento.value = 'PROXIMO_VENCIMENTO';
+    optProxVencimento.innerText = '⏰ Próximo do Vencimento (≤ 7 dias)';
+    optProxVencimento.style.fontWeight = 'bold';
+    optProxVencimento.style.color = '#f39c12';
+    selectFiltroCat.appendChild(optProxVencimento);
+
+    // Restaura a seleção anterior (se ainda existir)
+    if (catSelecionadaAtual) selectFiltroCat.value = catSelecionadaAtual;
+
+    // Sincroniza com a interface customizada
+    sincronizarFiltroCustomizado();
+  }
+
+  const hoje = new Date();
+  hoje.setHours(0,0,0,0);
+  let vencidosCount = 0;
+  let proxVencimentoCount = 0;
+
+  // 2. APLICA OS FILTROS (BUSCA E CATEGORIA)
+  const termoBusca = inputBusca ? inputBusca.value.toLowerCase().trim() : '';
+  const catSelecionada = selectFiltroCat ? selectFiltroCat.value.toUpperCase() : '';
+
+  const cardapioFiltrado = cardapio.filter(m => {
+    const matchBusca = m.nome.toLowerCase().includes(termoBusca) || (m.descricao && m.descricao.toLowerCase().includes(termoBusca));
+    
+    let matchCat = true;
+    if (catSelecionada === 'VENCIDOS') {
+       if (!m.validade) return false;
+       const dataVal = new Date(m.validade);
+       dataVal.setHours(0,0,0,0);
+       matchCat = dataVal < hoje;
+    } else if (catSelecionada === 'ESTOQUE_BAIXO') {
+       matchCat = m.estoque !== -1 && m.estoque !== null && m.estoque <= 5;
+    } else if (catSelecionada === 'PROXIMO_VENCIMENTO') {
+       if (!m.validade) return false;
+       const dataVal = new Date(m.validade);
+       dataVal.setHours(0,0,0,0);
+       const diffDias = Math.ceil((dataVal - hoje) / (1000 * 60 * 60 * 24));
+       matchCat = diffDias >= 0 && diffDias <= 7;
+    } else if (catSelecionada !== '') {
+       matchCat = m.categoria.trim().toUpperCase() === catSelecionada;
+    }
+
+    return matchBusca && matchCat;
+  });
+
+  if (cardapioFiltrado.length === 0) {
+    container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 4rem; opacity: 0.5;">
+      <p style="font-size: 1.5rem;">🔍 Nenhum item encontrado.</p>
+      <p>Tente mudar o filtro de categoria ou a busca.</p>
+    </div>`;
+    return;
+  }
+
+  // 3. AGRUPAR ITENS FILTRADOS POR CATEGORIA PARA RENDERIZAÇÃO
+  const categoriasNoFiltro = [...new Set(cardapioFiltrado.map(item => item.categoria.trim().toUpperCase()))].sort();
+  
+  let htmlFinal = '';
+
+  categoriasNoFiltro.forEach(cat => {
+    const itensDaCat = cardapioFiltrado.filter(i => i.categoria.trim().toUpperCase() === cat);
+    
+    htmlFinal += `
+      <div class="categoria-config-section" style="width: 100%; grid-column: 1 / -1; margin-top: 2rem;">
+        <h2 style="background: #2c3e50; color: white; padding: 10px 20px; border-radius: 8px; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span>📂 ${cat}</span>
+            <button onclick="editarCategoria('${cat}')" style="background: #3498db; border: none; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; display: flex; align-items: center; gap: 3px;">
+              ✏️ Editar
+            </button>
+            <small style="font-size: 0.8rem; opacity: 0.8;">${itensDaCat.length} itens</small>
+          </div>
+          <button onclick="excluirCategoria('${cat}')" style="background: #e74c3c; border: none; color: white; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; font-weight: bold; transition: 0.2s; display: flex; align-items: center; gap: 5px;" onmouseover="this.style.background='#c0392b'" onmouseout="this.style.background='#e74c3c'">
+            🗑️ Excluir Categoria
+          </button>
+        </h2>
+        <div class="menu-config-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem;">
+          ${itensDaCat.map(m => {
+            let validadeHtml = '';
+            let classeValidade = '';
+            
+            if (m.validade) {
+              const dataVal = new Date(m.validade);
+              dataVal.setHours(0,0,0,0);
+              const diffDias = Math.ceil((dataVal - hoje) / (1000 * 60 * 60 * 24));
+              const dataFormatada = dataVal.toLocaleDateString('pt-BR');
+              
+              if (diffDias < 0) {
+                classeValidade = 'vencido';
+                validadeHtml = `<span style="color:#e74c3c; font-weight:bold;">❌ VENCIDO EM ${dataFormatada}</span>`;
+                vencidosCount++;
+              } else if (diffDias <= 7) {
+                classeValidade = 'alerta-validade';
+                validadeHtml = `<span style="color:#f39c12; font-weight:bold;">⚠️ VENCE EM ${dataFormatada} (${diffDias} dias)</span>`;
+                proxVencimentoCount++;
+              } else {
+                validadeHtml = `Validade: ${dataFormatada}`;
+              }
+            }
+
+            const hasStatus = m.em_promocao || isItemParaCozinha(m) || isItemParaChurrasco(m) || (m.visivel === false || m.visivel === 0);
+            const statusHeader = hasStatus ? `
+              <div style="display: flex; width: 100%; height: 22px;">
+                ${m.em_promocao ? '<div style="flex: 1; background: #f1c40f; color: #2c3e50; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🔥 PROMOÇÃO</div>' : ''}
+                ${isItemParaCozinha(m) ? '<div style="flex: 1; background: #3498db; color: white; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🍳 COZINHA</div>' : ''}
+                ${isItemParaChurrasco(m) ? '<div style="flex: 1; background: #e67e22; color: white; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🍢 CHURRASCO</div>' : ''}
+                ${(m.visivel === false || m.visivel === 0) ? '<div style="flex: 1; background: #e74c3c; color: white; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🚫 OCULTO</div>' : ''}
+              </div>` : '';
+
+            return `
+            <div class="menu-item-config ${classeValidade}" id="item-menu-${m.id}" style="border-left: 5px solid ${classeValidade === 'vencido' ? '#e74c3c' : (classeValidade === 'alerta-validade' ? '#f39c12' : 'transparent')}; position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: stretch; padding: 0;">
+              
+              <!-- Tarjas de Status (Topo) -->
+              ${statusHeader}
+
+              <div style="display: flex; gap: 1.2rem; align-items: center; padding: 1.2rem;">
+                <img src="${m.imagem}" alt="${m.nome}" style="filter: ${(m.visivel === false || m.visivel === 0) ? 'grayscale(1) opacity(0.6)' : 'none'}">
+                <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;">
+                  <strong style="${(m.visivel === false || m.visivel === 0) ? 'color: #95a5a6;' : ''}">${m.nome}</strong>
+                  <small>${m.categoria} - ${m.preco_original ? `<span style="text-decoration: line-through; opacity: 0.6; font-size: 0.8rem;">R$ ${m.preco_original.toFixed(2)}</span> ` : ''}<span style="${m.em_promocao ? 'color: #e74c3c; font-weight: bold;' : ''}">R$ ${m.preco.toFixed(2)}</span></small>
+                  <small style="color: ${m.estoque === 0 ? '#e74c3c' : '#27ae60'}; font-weight: bold;">
+                    Estoque: ${m.estoque === -1 ? 'Ilimitado' : `${m.estoque} ${m.unidade || 'un'}`}
+                  </small>
+                  <small>${validadeHtml}</small>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:0.4rem; justify-content:center; align-items:stretch; min-width:80px;">
+                  <button style="background:#3498db; padding:6px; font-size:0.8rem; border:none; border-radius:6px; color:white; cursor:pointer; height:max-content; box-shadow:0 2px 4px rgba(0,0,0,0.1);" onclick="prepararEdicaoMenuById(${m.id})">✏️ Editar</button>
+                  <button style="background:#e74c3c; padding:6px; font-size:0.8rem; border:none; border-radius:6px; color:white; cursor:pointer; height:max-content; box-shadow:0 2px 4px rgba(0,0,0,0.1);" onclick="excluirDoMenu(${m.id})">Excluir</button>
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = htmlFinal || '<p style="text-align:center; padding: 2rem; opacity: 0.5;">Nenhum item cadastrado no cardápio.</p>';
+
+  if (vencidosCount > 0 || proxVencimentoCount > 0) {
+    const agora_ms = Date.now();
+    if (agora_ms - ultimoAlertaValidadeMostrado > 30000) {
+      exibirNotificacaoNativa('⚠️ Alerta de Validade', `🚨 ALERTA: ${vencidosCount} produtos vencidos e ${proxVencimentoCount} próximos da validade!`, 'validade-alerta');
+      mostrarToast(`🚨 ALERTA: ${vencidosCount} produtos vencidos e ${proxVencimentoCount} próximos da validade!`);
+      ultimoAlertaValidadeMostrado = agora_ms;
+    }
   }
 }
 
@@ -6234,7 +6240,7 @@ async function carregarCardapio() {
   
   // Atualiza as interfaces que dependem do cardápio/estoque em tempo real
   if (abaAtiva === 'configuracoes') {
-      exibirMenuConfig();
+      renderizarListaMenuConfig(true); // Recria o select de categorias + renderiza
       exibirConfigCategoriasCozinha();
       exibirConfigCategoriasChurrasco();
   }
