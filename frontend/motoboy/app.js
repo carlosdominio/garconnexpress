@@ -415,9 +415,10 @@ const App = {
                 // Usa o som configurado pelo admin (salvo no localStorage)
                 const somConfigurado = localStorage.getItem('motoboy_som_global') || 'campainha_classica';
                 const fcmSound = somConfigurado === 'original' ? 'notificacao.mp3' : `${somConfigurado}.wav`;
+                const dynamicChannelId = 'motoboy_canal_' + somConfigurado;
                 await PushNotifications.createChannel({
-                    id: NOTIFICATION_CHANNEL_ID,
-                    name: 'Pedidos e Alertas',
+                    id: dynamicChannelId,
+                    name: 'Pedidos e Alertas (' + somConfigurado + ')',
                     sound: fcmSound,
                     importance: 5,
                     visibility: 1,
@@ -558,6 +559,7 @@ const App = {
                 this.channel.bind('som-global-atualizado', async (data) => {
                     const novoSom = data.somMotoboy || 'campainha_classica';
                     console.log('🔄 Som global atualizado para:', novoSom);
+                    const somAntigo = localStorage.getItem('motoboy_som_global') || 'campainha_classica';
                     localStorage.setItem('motoboy_som_global', novoSom);
 
                     // Recria o canal FCM com o novo som (para notificações em background)
@@ -565,17 +567,18 @@ const App = {
                         try {
                             const { PushNotifications } = Capacitor.Plugins;
                             if (PushNotifications) {
-                                await PushNotifications.deleteChannel({ id: NOTIFICATION_CHANNEL_ID });
+                                await PushNotifications.deleteChannel({ id: 'motoboy_canal_' + somAntigo });
+                                const newCanalId = 'motoboy_canal_' + novoSom;
                                 const fcmSound = novoSom === 'original' ? 'notificacao.mp3' : `${novoSom}.wav`;
                                 await PushNotifications.createChannel({
-                                    id: NOTIFICATION_CHANNEL_ID,
-                                    name: 'Pedidos e Alertas',
+                                    id: newCanalId,
+                                    name: 'Pedidos e Alertas (' + novoSom + ')',
                                     sound: fcmSound,
                                     importance: 5,
                                     visibility: 1,
                                     vibration: true
                                 });
-                                console.log(`✅ Canal FCM recriado com som: ${fcmSound}`);
+                                console.log(`✅ Canal FCM recriado com som: ${fcmSound} e ID: ${newCanalId}`);
                             }
                         } catch (e) {
                             console.error('Erro ao recriar canal FCM com novo som:', e);
@@ -1043,3 +1046,31 @@ function showLoading(show = true, text = "Processando...") {
     el.style.display = show ? 'flex' : 'none';
   }
 }
+
+// --- DESBLOQUEIO AUTOMÁTICO DE ÁUDIO ---
+let audioDesbloqueado = false;
+const desbloquearAudioSistema = () => {
+    if (audioDesbloqueado) return;
+    audioDesbloqueado = true;
+
+    for (const som in App.notifications.audiosNotificacao) {
+        const aud = App.notifications.audiosNotificacao[som];
+        if (aud) {
+            const prevMuted = aud.muted;
+            aud.muted = true;
+            aud.play().then(() => {
+                aud.pause();
+                aud.currentTime = 0;
+                aud.muted = prevMuted;
+            }).catch(e => console.warn('Erro ao pré-tocar som para desbloqueio:', e));
+        }
+    }
+    console.log('🔊 Áudios do aplicativo motoboy desbloqueados com sucesso no primeiro toque!');
+    
+    // Remove listeners para economizar recursos
+    document.removeEventListener('click', desbloquearAudioSistema);
+    document.removeEventListener('touchstart', desbloquearAudioSistema);
+};
+
+document.addEventListener('click', desbloquearAudioSistema);
+document.addEventListener('touchstart', desbloquearAudioSistema);
