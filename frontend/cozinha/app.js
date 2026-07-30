@@ -366,6 +366,8 @@ async function verificarCaixa() {
 }
 
 function renderizarPedidos(itens) {
+    const t0 = performance.now();
+
     // FILTRO DE SEGURANÇA REFORÇADO
     const itensValidos = itens.filter(item => {
         const pStatus = (item.pedido_status || '').toLowerCase();
@@ -382,6 +384,8 @@ function renderizarPedidos(itens) {
 
     if (!itensValidos || itensValidos.length === 0) {
         container.innerHTML = '<div class="sem-pedidos"><h2>🍳 Nenhum pedido pendente</h2></div>';
+        const t1 = performance.now();
+        console.log(`⚡ [Performance Cozinha] Vazio. Tempo: ${(t1 - t0).toFixed(2)}ms. Nós recriados: 1.`);
         return;
     }
 
@@ -408,15 +412,31 @@ function renderizarPedidos(itens) {
 
     const pedidosSorted = Object.values(pedidosMap).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
-    container.innerHTML = '';
-    pedidosSorted.forEach(pedido => {
-        const card = document.createElement('div');
-        card.className = 'card-pedido';
-        card.id = `pedido-card-${pedido.id}`;
-        card.dataset.id = pedido.id;
-        card.dataset.mesa = pedido.mesa;
+    const semPedidos = container.querySelector('.sem-pedidos');
+    if (semPedidos) {
+        semPedidos.remove();
+    }
 
-        card.innerHTML = `
+    const currentCardIds = new Set(pedidosSorted.map(p => String(p.id)));
+    const existingCards = Array.from(container.querySelectorAll('.card-pedido'));
+
+    let nosRecriados = 0;
+    let nosDeletados = 0;
+
+    // 1. Remove cards obsoletos
+    existingCards.forEach(card => {
+        const id = card.dataset.id;
+        if (!currentCardIds.has(id)) {
+            const itemRowsCount = card.querySelectorAll('.item-pedido').length;
+            nosDeletados += 8 + (itemRowsCount * 4); 
+            card.remove();
+        }
+    });
+
+    // 2. Insere ou atualiza os cards ativos na ordem correta
+    pedidosSorted.forEach(pedido => {
+        let card = document.getElementById(`pedido-card-${pedido.id}`);
+        const cardInnerHTML = `
             <div class="card-header" style="${pedido.is_delivery ? 'background: #e67e22;' : ''}">
                 <span class="mesa-num">${pedido.mesa}</span>
                 <span class="pedido-id">#${pedido.id} - <span class="pedido-tempo" data-created-at="${pedido.created_at}">${calcularTempo(pedido.created_at)}</span></span>
@@ -437,8 +457,41 @@ function renderizarPedidos(itens) {
                 <button class="btn-pronto" onclick="marcarComoPronto(${pedido.id}, this)">CONCLUIR PEDIDO</button>
             </div>
         `;
-        container.appendChild(card);
+
+        const itemsStateKey = JSON.stringify(pedido.itens.map(i => `${i.item_id}-${i.item_status}-${i.quantidade}-${i.observacao}`));
+        const cardNodesCount = 8 + (pedido.itens.length * 4);
+
+        if (!card) {
+            // Novo card (Criação de nós)
+            card = document.createElement('div');
+            card.className = 'card-pedido';
+            card.id = `pedido-card-${pedido.id}`;
+            card.dataset.id = pedido.id;
+            card.dataset.mesa = pedido.mesa;
+            card.dataset.obs = pedido.pedido_observacao || '';
+            card.dataset.itemsState = itemsStateKey;
+            card.innerHTML = cardInnerHTML;
+            container.appendChild(card);
+            
+            nosRecriados += cardNodesCount;
+        } else {
+            // Card existente - verifica se houve mudança real
+            const lastState = card.dataset.itemsState;
+            if (lastState !== itemsStateKey || card.dataset.mesa !== pedido.mesa || card.dataset.obs !== (pedido.pedido_observacao || '')) {
+                card.dataset.itemsState = itemsStateKey;
+                card.dataset.mesa = pedido.mesa;
+                card.dataset.obs = pedido.pedido_observacao || '';
+                card.innerHTML = cardInnerHTML;
+                
+                nosRecriados += cardNodesCount;
+            }
+            // Reposiciona o card mantendo-o no DOM
+            container.appendChild(card);
+        }
     });
+
+    const t1 = performance.now();
+    console.log(`⚡ [Performance Cozinha] Diffing DOM em ${(t1 - t0).toFixed(2)}ms. Nós recriados: ${nosRecriados}. Nós deletados: ${nosDeletados}.`);
 }
 
 function calcularTempo(createdAt) {

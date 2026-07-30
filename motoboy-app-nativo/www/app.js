@@ -740,7 +740,9 @@ const App = {
 
             if (!sections['a-caminho']) return;
 
-            Object.values(sections).forEach(s => { if(s) s.innerHTML = ''; });
+            const t0 = performance.now();
+
+            const pedidosPorCat = { 'a-caminho': [], 'pendente': [], 'entregue': [] };
             const n = { 'a-caminho': 0, 'pendente': 0, 'entregue': 0 };
 
             App.state.pedidos.forEach(p => {
@@ -749,21 +751,121 @@ const App = {
                 if (s === 'entregue' || s === 'aguardando_fechamento') cat = 'entregue';
                 else if (['pronto', 'servido', 'saiu_entrega'].includes(s)) cat = 'a-caminho';
                 
-                if (sections[cat]) {
-                    sections[cat].appendChild(this.createCard(p, cat));
-                    n[cat]++;
-                }
+                pedidosPorCat[cat].push(p);
+                n[cat]++;
             });
 
-            Object.keys(sections).forEach(k => {
-                if (sections[k] && n[k] === 0) sections[k].innerHTML = '<div class="empty-state">Nenhum pedido.</div>';
-                if (counts[k]) counts[k].innerText = n[k];
+            let nosRecriados = 0;
+            let nosDeletados = 0;
+
+            Object.keys(sections).forEach(cat => {
+                const sectionContainer = sections[cat];
+                if (!sectionContainer) return;
+
+                const emptyState = sectionContainer.querySelector('.empty-state');
+                if (emptyState && n[cat] > 0) {
+                    emptyState.remove();
+                }
+
+                const existingCards = Array.from(sectionContainer.querySelectorAll('.pedido-card'));
+                const activeIdsInCat = new Set(pedidosPorCat[cat].map(p => String(p.id)));
+
+                existingCards.forEach(card => {
+                    const id = card.dataset.id;
+                    if (!activeIdsInCat.has(id)) {
+                        const itemRowsCount = card.querySelectorAll('.item-row').length;
+                        nosDeletados += 10 + (itemRowsCount * 2);
+                        card.remove();
+                    }
+                });
+
+                pedidosPorCat[cat].forEach(p => {
+                    let card = document.getElementById(`delivery-card-${p.id}`);
+                    const itemsStateKey = JSON.stringify(p.itens ? p.itens.map(i => `${i.menu_id}-${i.quantidade}-${i.status}`) : []);
+                    const stateKey = `${p.status}-${p.total}-${itemsStateKey}-${p.observacao}`;
+                    const cardNodesCount = 10 + (p.itens ? p.itens.length * 2 : 0);
+
+                    if (!card) {
+                        card = this.createCard(p, cat);
+                        card.dataset.state = stateKey;
+                        sectionContainer.appendChild(card);
+                        nosRecriados += cardNodesCount;
+                    } else {
+                        if (card.parentElement !== sectionContainer || card.dataset.state !== stateKey) {
+                            const isDone = cat === 'entregue';
+                            const isReady = cat === 'a-caminho';
+                            let displayStatus = cat.replace('-', ' ').toUpperCase();
+                            if (cat === 'a-caminho') displayStatus = 'PRONTO / A CAMINHO';
+                            else if (cat === 'pendente') displayStatus = 'PREPARANDO';
+
+                            let buttonHTML = '';
+                            if (isDone) {
+                                buttonHTML = `<button class="btn-entregar" style="background:#bdc3c7; box-shadow:none; cursor:not-allowed;" disabled><i class="fas fa-check-double"></i> ENTREGUE</button>`;
+                            } else if (isReady) {
+                                buttonHTML = `<button class="btn-entregar" onclick="App.ui.confirmarEntrega(${p.id}, this)"><i class="fas fa-motorcycle"></i> CONFIRMAR ENTREGA</button>`;
+                            } else {
+                                buttonHTML = `<button class="btn-entregar" style="background:#94a3b8; box-shadow: 0 4px 0 #64748b; cursor:not-allowed;" disabled><i class="fas fa-clock"></i> AGUARDANDO COZINHA</button>`;
+                            }
+
+                            let cliente = "Consumidor";
+                            let endereco = "Entrega no balcão/Local";
+                            let contato = "Não informado";
+                            if (p.observacao) {
+                                const lines = p.observacao.split('\n');
+                                const lNome = lines.find(l => /👤\s*Cliente:/i.test(l));
+                                const lEnd = lines.find(l => /🏠\s*End:/i.test(l));
+                                const lTel = lines.find(l => /(📞\s*Tel:|📱\s*WhatsApp:)/i.test(l));
+                                if (lNome) cliente = lNome.replace(/👤\s*Cliente:/i, '').trim();
+                                if (lEnd) endereco = lEnd.replace(/🏠\s*End:/i, '').trim();
+                                if (lTel) contato = lTel.replace(/(📞\s*Tel:|📱\s*WhatsApp:)/i, '').trim();
+                            }
+
+                            card.className = `pedido-card ${cat}`;
+                            card.innerHTML = `
+                                <div class="pedido-header">
+                                    <div>
+                                        <span class="pedido-id">#${p.id}</span>
+                                        <span class="status-badge ${cat}">${displayStatus}</span>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <div class="pedido-total">R$ ${parseFloat(p.total).toFixed(2).replace('.', ',')}</div>
+                                        <span class="pedido-time">${new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    </div>
+                                </div>
+                                <div class="pedido-body">
+                                    <strong class="cliente-info">${cliente}</strong>
+                                    <div class="endereco-info"><i class="fas fa-map-marker-alt"></i> ${endereco}</div>
+                                    <div class="contato-info" style="font-size: 0.9rem; color: #27ae60; font-weight: 700; margin-bottom: 10px;">
+                                        <i class="fab fa-whatsapp"></i> ${contato}
+                                    </div>
+                                    <div class="pedido-itens">
+                                        ${p.itens ? p.itens.map(i => `<div class="item-row">${i.quantidade}x ${i.nome}</div>`).join('') : ''}
+                                    </div>
+                                </div>
+                                ${buttonHTML}
+                            `;
+                            card.dataset.state = stateKey;
+                            nosRecriados += cardNodesCount;
+                        }
+                        sectionContainer.appendChild(card);
+                    }
+                });
+
+                if (n[cat] === 0) {
+                    sectionContainer.innerHTML = '<div class="empty-state">Nenhum pedido.</div>';
+                }
+                if (counts[cat]) counts[cat].innerText = n[cat];
             });
+
+            const t1 = performance.now();
+            console.log(`⚡ [Performance Motoboy] Diffing DOM em ${(t1 - t0).toFixed(2)}ms. Nós recriados: ${nosRecriados}. Nós deletados: ${nosDeletados}.`);
         },
 
         createCard(p, cat) {
             const card = document.createElement('div');
             card.className = `pedido-card ${cat}`;
+            card.id = `delivery-card-${p.id}`;
+            card.dataset.id = p.id;
             const time = new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const isDone = cat === 'entregue';
             const isReady = cat === 'a-caminho';
