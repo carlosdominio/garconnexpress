@@ -18,8 +18,8 @@ function exibirTelaCarregamentoSistema(titulo = 'Carregando...', mensagem = 'Agu
   modal.innerHTML = `
     <div style="background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(255,255,255,0.12); border-radius: 24px; padding: 36px 28px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6); backdrop-filter: blur(16px); box-sizing: border-box;">
       <div style="position: relative; width: 70px; height: 70px; margin: 0 auto 20px auto; display: flex; align-items: center; justify-content: center;">
-        <div style="position: absolute; inset: 0; border: 4px solid rgba(230,126,34,0.2); border-top: 4px solid #e67e22; border-radius: 50%; animation: spinOverlay 0.8s linear infinite;"></div>
-        <span style="font-size: 2rem; user-select: none;">⚡</span>
+        <div style="position: absolute; inset: 0; border: 4px solid rgba(231,76,60,0.2); border-top: 4px solid #e74c3c; border-radius: 50%; animation: spinOverlay 0.8s linear infinite;"></div>
+        <span style="font-size: 2rem; user-select: none;">🍳</span>
       </div>
       <style>
         @keyframes spinOverlay { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -911,19 +911,25 @@ function limparNotificacoes() {
 }
 
 async function iniciarApp() {
+    exibirTelaCarregamentoSistema('Carregando...', 'Sincronizando pedidos e configurações...');
     solicitarPermissaoNotificacao();
-    await Promise.all([
-        carregarSomGlobalCozinha(),
-        carregarConfiguracoesToasts(),
-        carregarPedidos(),
-        configurarPusher()
-    ]);
+    try {
+        await Promise.all([
+            carregarSomGlobalCozinha(),
+            carregarConfiguracoesToasts(),
+            carregarPedidos(),
+            configurarPusher()
+        ]);
+    } catch (e) {
+        console.error('Erro na inicialização do app:', e);
+    }
     atualizarIconeSom();
     
     if (isNativeApp) {
         limparNotificacoesNativas();
         registerNativePush();
     }
+    ocultarTelaCarregamentoSistema();
 }
 
 async function realizarLogin() {
@@ -942,6 +948,8 @@ async function realizarLogin() {
 
     if (btn) btn.disabled = true;
     if (btnText) btnText.innerText = "Entrando...";
+    
+    exibirTelaCarregamentoSistema('Conectando...', 'Autenticando cozinha e carregando dados...');
     
     try {
         // Tenta fazer login como Admin primeiro
@@ -975,21 +983,24 @@ async function realizarLogin() {
             mostrarToast("Login realizado com sucesso!", "success");
             location.reload();
         } else if (res.status === 429) {
+            ocultarTelaCarregamentoSistema();
             Swal.fire({
                 title: 'Sistema de Segurança',
                 text: 'Muitas tentativas incorretas. Conta bloqueada por 15 minutos.',
                 icon: 'warning',
-                confirmButtonColor: '#e67e22',
+                confirmButtonColor: '#e74c3c',
                 confirmButtonText: 'OK'
             });
             if (btn) btn.disabled = false;
             if (btnText) btnText.innerText = "Entrar";
         } else {
+            ocultarTelaCarregamentoSistema();
             exibirErroLogin("Usuário ou senha incorretos.\n\nPor favor, verifique os dados digitados e tente novamente. Caso o erro persista, confirme suas credenciais com a gerência.");
             if (btn) btn.disabled = false;
             if (btnText) btnText.innerText = "Entrar";
         }
     } catch (e) {
+        ocultarTelaCarregamentoSistema();
         console.error(e);
         exibirErroLogin("Erro de conexão ao realizar login.");
         if (btn) btn.disabled = false;
@@ -1008,9 +1019,12 @@ function exibirErroLogin(mensagem) {
 }
 
 function logout() {
+    exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
     localStorage.removeItem('cozinha_logado');
     localStorage.removeItem('cozinha_token');
-    location.reload();
+    setTimeout(() => {
+        location.reload();
+    }, 1000);
 }
 
 // Bateria (executa solto no boot nativo)
@@ -1082,7 +1096,7 @@ async function verificarVersaoSistema() {
         const data = await res.json();
         if (data && data.versao && data.versao !== CLIENT_VERSION) {
             console.log(`🔄 Nova versão do sistema encontrada (${data.versao}). Recarregando...`);
-            exibirTelaCarregamentoSistema('⚡ Atualizando Cozinha', 'Nova versão do sistema detectada. Aplicando atualizações...');
+            exibirTelaCarregamentoSistema('🍳 Atualizando Cozinha', 'Nova versão do sistema detectada. Aplicando atualizações...');
             setTimeout(() => window.location.reload(true), 1500);
         }
     } catch (e) {
