@@ -5382,8 +5382,13 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
         if (optMulti) optMulti.disabled = false;
     }
   }
-  
-  document.getElementById('fechamento-recebido-admin').value = pedidoParaFecharAdmin.valor_recebido || '';
+  const inputRecebido = document.getElementById('fechamento-recebido-admin');
+  inputRecebido.value = pedidoParaFecharAdmin.valor_recebido || '';
+  window.recebidoModificadoManualmente = false;
+  inputRecebido.oninput = () => {
+    window.recebidoModificadoManualmente = true;
+    recalcularTotalFechamentoAdmin();
+  };
   document.getElementById('fechamento-divisao-pessoas').value = pedidoParaFecharAdmin.num_pessoas || 1;
   
   // Reseta tipo de desconto para porcentagem ao abrir (Ativado por padrão)
@@ -5539,15 +5544,20 @@ function recalcularTotalFechamentoAdmin() {
     desconto = (subtotalConsumoAdmin + taxa + acrescimo) * (descontoInput / 100);
   }
 
-  const recebido = parseFloat(document.getElementById('fechamento-recebido-admin').value) || 0;
-  const pessoas = parseInt(document.getElementById('fechamento-divisao-pessoas').value) || 1;
-  
   // BUSCA O VALOR JÁ PAGO SALVO NO OBJETO DO PEDIDO
   const pagoParcial = (pedidoParaFecharAdmin && pedidoParaFecharAdmin.pago_parcial) ? pedidoParaFecharAdmin.pago_parcial : 0;
 
   // O SALDO RESTANTE agora é o Total Bruto (itens+taxa+acres-desc) MENOS o que já foi pago antecipadamente
   const totalBruto = (subtotalConsumoAdmin + taxa + acrescimo - desconto);
   const saldoRestante = Math.max(0, totalBruto - pagoParcial);
+
+  // Se o usuário não modificou o campo manualmente, atualiza o valor recebido para o saldo restante
+  if (!window.recebidoModificadoManualmente) {
+    document.getElementById('fechamento-recebido-admin').value = saldoRestante > 0 ? saldoRestante.toFixed(2) : '';
+  }
+
+  const recebido = parseFloat(document.getElementById('fechamento-recebido-admin').value) || 0;
+  const pessoas = parseInt(document.getElementById('fechamento-divisao-pessoas').value) || 1;
   const valorPessoa = saldoRestante / pessoas;
   
   const trocoTotal = recebido > saldoRestante ? recebido - saldoRestante : 0;
