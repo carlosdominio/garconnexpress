@@ -194,6 +194,10 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+// Ativa a compressão GZIP para todas as respostas HTTP
+const compression = require('compression');
+app.use(compression());
+
 // Middleware de Sanitização Global (Anti-XSS) - Limpa todos os textos que o cliente envia
 const sanitizeHtml = require('sanitize-html');
 const sanitizePayload = (obj) => {
@@ -695,12 +699,12 @@ if (isPostgres) {
     db = new Pool({ 
       connectionString,
       ssl: { 
-        rejectUnauthorized: false, // Aceita certificados self-signed do Neon
+        rejectUnauthorized: false, // Aceita certificados self-signed
         require: true 
       },
-      max: process.env.VERCEL ? 1 : 10, // Conexão única por container na Vercel para evitar vazamento
-      idleTimeoutMillis: process.env.VERCEL ? 1000 : 30000, // Tempo de 1s para fechar a conexão antes do container congelar na Vercel
-      connectionTimeoutMillis: process.env.VERCEL ? 10000 : 15000, // Aumentado para 10s no Vercel para suportar cold starts do Neon sem dar timeout
+      max: process.env.VERCEL ? 4 : 15, // Aumentado para 4 no Vercel (Supabase Pooler) e 15 local para paralelismo real
+      idleTimeoutMillis: process.env.VERCEL ? 1500 : 30000, // Tempo de 1.5s para fechar conexões ociosas no Vercel
+      connectionTimeoutMillis: process.env.VERCEL ? 8000 : 15000, // Timeout otimizado de 8s para conexões no Vercel
     });
     
     db.on('error', (err) => {
