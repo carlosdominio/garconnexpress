@@ -14,7 +14,7 @@ export const options = {
   },
 };
 
-const BASE_URL = 'https://garconnexpress.vercel.app'; // Altere para a URL correta de produção/homologação
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:3001';
 
 export default function () {
   // Cenário 1: Cliente acessando o cardápio (GET)
