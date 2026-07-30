@@ -324,6 +324,7 @@ const App = {
                 document.body.style.overflow = isOpenNow ? '' : 'hidden';
                 
                 if (wasOpen !== null) { // Não notifica na primeira carga
+                    App.notifications.playAlert(); // Toca o som configurado!
                     if (!isOpenNow) {
                         App.ui.showToast("O caixa foi fechado! Bom descanso.", "error", "🔒 CAIXA FECHADO");
                     } else {
