@@ -90,11 +90,14 @@ let pusher;
 let canal;
 let timeoutPusher;
 const container = document.getElementById('pedidos-container');
-const somTiposDisponiveis = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave'];
+const somTiposDisponiveis = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave', 'sino_cristal', 'alerta_moderno'];
 const audiosNotificacao = {};
 function inicializarAudios() {
   for (const som of somTiposDisponiveis) {
-    audiosNotificacao[som] = new Audio(getSoundPath(som));
+    const audio = new Audio(getSoundPath(som));
+    audio.preload = 'auto';
+    audio.load();
+    audiosNotificacao[som] = audio;
   }
 }
 inicializarAudios();

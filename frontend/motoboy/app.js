@@ -375,11 +375,14 @@ const App = {
 
     // --- GERENCIADOR DE NOTIFICAÇÕES ---
     notifications: {
-        somTiposDisponiveis: ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave'],
+        somTiposDisponiveis: ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave', 'sino_cristal', 'alerta_moderno'],
         audiosNotificacao: {},
         inicializarAudios() {
             for (const som of this.somTiposDisponiveis) {
-                this.audiosNotificacao[som] = new Audio(getSoundPath(som));
+                const audio = new Audio(getSoundPath(som));
+                audio.preload = 'auto';
+                audio.load();
+                this.audiosNotificacao[som] = audio;
             }
         },
 

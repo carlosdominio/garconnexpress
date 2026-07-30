@@ -865,11 +865,14 @@ async function atualizarStatusCaixa() {
 let somAtivo = localStorage.getItem('garcom_som_ativo') !== 'false';
 let audioDesbloqueado = false;
 let ultimoSomTocado = 0;
-const somTiposDisponiveis = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave'];
+const somTiposDisponiveis = ['original', 'campainha_classica', 'sino_moderno', 'alerta_digital', 'alerta_urgente', 'suave', 'sino_cristal', 'alerta_moderno'];
 const audiosNotificacao = {};
 function inicializarAudios() {
   for (const som of somTiposDisponiveis) {
-    audiosNotificacao[som] = new Audio(getSoundPath(som));
+    const audio = new Audio(getSoundPath(som));
+    audio.preload = 'auto';
+    audio.load();
+    audiosNotificacao[som] = audio;
   }
 }
 inicializarAudios();
