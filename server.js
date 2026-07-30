@@ -1040,12 +1040,12 @@ async function safePusherTrigger(channel, event, data) {
         }
 
         const pushPromises = [];
+        const sentEndpoints = new Set();
         for (const target of targets) {
           const targetApp = target.app;
           const pushTitle = target.title;
           const currentPushMsg = target.msg;
 
-          const sentEndpoints = new Set();
           for (const sub of subs) {
             // FILTRO 1: Só envia se o app_type da inscrição coincidir com o alvo do evento
             if (sub.app_type !== targetApp) continue;
@@ -1642,6 +1642,7 @@ async function checkAndNotifyDelayedOrders() {
       });
 
       // Envia notificações para todos os dispositivos correspondentes
+      const sentEndpoints = new Set();
       for (const target of targets) {
         const targetApp = target.app;
         const pushTitle = target.title;
@@ -1656,7 +1657,6 @@ async function checkAndNotifyDelayedOrders() {
           });
         }
         
-        const sentEndpoints = new Set();
         for (const sub of subs) {
           if (sub.app_type !== targetApp) continue;
           if (sentEndpoints.has(sub.endpoint)) continue;

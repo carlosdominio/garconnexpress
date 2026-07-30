@@ -217,7 +217,36 @@ function tocarSomNotificacao(tipo = 'campainha') {
     tocarCampainha();
 }
 
+const _ultimosToastsExibidos = new Map();
+function normalizarTextoToast(str) {
+  if (!str) return '';
+  return str.toString()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .trim();
+}
+
 function mostrarToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
+    const msgNormalizada = normalizarTextoToast(msg);
+    const agora = Date.now();
+    
+    for (const [key, value] of _ultimosToastsExibidos.entries()) {
+        if (agora - value > 4000) {
+            _ultimosToastsExibidos.delete(key);
+            continue;
+        }
+        const keyNormalizada = normalizarTextoToast(key);
+        if (msgNormalizada === keyNormalizada || 
+            (msgNormalizada.length >= 10 && keyNormalizada.includes(msgNormalizada)) ||
+            (keyNormalizada.length >= 10 && msgNormalizada.includes(keyNormalizada))) {
+            console.log('⚠️ Ignorando toast duplicado (comparação inteligente):', msg);
+            return;
+        }
+    }
+    _ultimosToastsExibidos.set(msg, agora);
+
     if (typeof adicionarNotificacaoPainel === 'function') adicionarNotificacaoPainel(msg, titulo, tipo);
     let container = document.getElementById('toast-container');
     if (!container) {
@@ -810,6 +839,15 @@ async function registerNativePush() {
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 Notificação recebida (Churrasqueiro):', notification);
       
+      // Se for um evento em tempo real já gerenciado pelo Pusher no foreground, ignore completamente o FCM no foreground
+      const eventosPusher = ['novo-pedido', 'pedido-cancelado', 'status-caixa-atualizado', 'status-atualizado', 'pedido-atrasado', 'estoque-baixo'];
+      const ev = notification.data ? (notification.data.event || notification.data.evento) : null;
+      if (ev && eventosPusher.includes(ev)) {
+        console.log("Ignorando FCM foreground para evento '" + ev + "' (já tratado pelo Pusher).");
+        if (typeof carregarPedidos === 'function') carregarPedidos();
+        return;
+      }
+
       if (deveTocarSom('status-atualizado')) tocarCampainha();
       if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
         try {
