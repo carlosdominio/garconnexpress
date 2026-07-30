@@ -21,8 +21,8 @@ function exibirTelaCarregamentoSistema(titulo = 'Carregando...', mensagem = 'Agu
   modal.innerHTML = `
     <div style="background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(255,255,255,0.12); border-radius: 24px; padding: 36px 28px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6); backdrop-filter: blur(16px); box-sizing: border-box;">
       <div style="position: relative; width: 70px; height: 70px; margin: 0 auto 20px auto; display: flex; align-items: center; justify-content: center;">
-        <div style="position: absolute; inset: 0; border: 4px solid rgba(16,185,129,0.2); border-top: 4px solid #10b981; border-radius: 50%; animation: spinOverlay 0.8s linear infinite;"></div>
-        <span style="font-size: 2rem; user-select: none;">⚡</span>
+        <div style="position: absolute; inset: 0; border: 4px solid rgba(52,152,219,0.2); border-top: 4px solid #3498db; border-radius: 50%; animation: spinOverlay 0.8s linear infinite;"></div>
+        <span style="font-size: 2rem; user-select: none;">🛵</span>
       </div>
       <style>
         @keyframes spinOverlay { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -105,12 +105,7 @@ const App = {
         App.notifications.inicializarAudios();
         console.log('🚀 Inicializando Motoboy App v2.0.3...');
         
-        const ov = document.getElementById('loading-app');
-        const ovMsg = document.getElementById('loading-text');
-        if (ov && ovMsg) {
-            ov.classList.remove('hidden');
-            ovMsg.textContent = 'Sincronizando entregas...';
-        }
+        exibirTelaCarregamentoSistema('Carregando...', 'Sincronizando entregas...');
 
         // VERIFICA OTIMIZAÇÃO DE BATERIA (Evita suspensão do Pusher e FCM)
         if (window.Capacitor && window.Capacitor.isNativePlatform()) {
@@ -142,7 +137,10 @@ const App = {
         
         await carregarSomGlobalMotoboy();
         
-        if (!this.checkAuth()) return;
+        if (!this.checkAuth()) {
+            ocultarTelaCarregamentoSistema();
+            return;
+        }
 
         try {
             await this.notifications.init();
@@ -163,7 +161,7 @@ const App = {
         setInterval(() => this.verificarVersaoSistema(), 60 * 1000);
 
         setTimeout(() => {
-            if (ov) ov.classList.add('hidden');
+            ocultarTelaCarregamentoSistema();
             if (window.Capacitor && window.Capacitor.Plugins.SplashScreen) {
                 window.Capacitor.Plugins.SplashScreen.hide();
             }
@@ -178,7 +176,7 @@ const App = {
             const data = await res.json();
             if (data && data.versao && data.versao !== CLIENT_VERSION) {
                 console.log(`🔄 Nova versão do sistema encontrada (${data.versao}). Recarregando...`);
-                exibirTelaCarregamentoSistema('⚡ Atualizando Entregas', 'Nova versão do sistema detectada. Aplicando atualizações...');
+                exibirTelaCarregamentoSistema('🛵 Atualizando Entregas', 'Nova versão do sistema detectada. Aplicando atualizações...');
                 setTimeout(() => window.location.reload(true), 1500);
             }
         } catch (e) {
@@ -188,11 +186,10 @@ const App = {
 
     checkAuth() {
         const screen = document.getElementById('login-screen');
-        const ov = document.getElementById('loading-app');
         if (!this.state.token) {
             if (screen) screen.style.display = 'flex';
             document.body.style.overflow = 'hidden';
-            if (ov) ov.classList.add('hidden'); // Esconde o loading para mostrar o login
+            ocultarTelaCarregamentoSistema();
             if (window.Capacitor && window.Capacitor.Plugins.SplashScreen) {
                 window.Capacitor.Plugins.SplashScreen.hide();
             }
@@ -219,12 +216,7 @@ const App = {
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENTRANDO...';
             }
 
-            const ov = document.getElementById('loading-app');
-            const ovMsg = document.getElementById('loading-text');
-            if (ov && ovMsg) {
-                ov.classList.remove('hidden');
-                ovMsg.textContent = 'Entrando...';
-            }
+            exibirTelaCarregamentoSistema('Conectando...', 'Autenticando entregador e carregando dados...');
 
             // Atraso de 600ms para a tela de carregamento aparecer
             setTimeout(async () => {
@@ -242,12 +234,12 @@ const App = {
                     localStorage.setItem('motoboy_token', data.token);
                     localStorage.setItem('motoboy_user', JSON.stringify(data.garcom));
                     
-                    if (ovMsg) ovMsg.textContent = 'Carregando entregas do sistema...';
+                    exibirTelaCarregamentoSistema('Carregando...', 'Buscando entregas do sistema...');
                     App.ui.showToast("Login realizado com sucesso!", "success");
                     setTimeout(() => location.reload(), 1000);
 
                 } else if (res.status === 429) {
-                    if (ov) ov.classList.add('hidden');
+                    ocultarTelaCarregamentoSistema();
                     Swal.fire({
                         title: 'Sistema de Segurança',
                         text: 'Muitas tentativas incorretas. Conta bloqueada por 15 minutos.',
@@ -261,7 +253,7 @@ const App = {
                         btn.innerHTML = 'ENTRAR NO APP <i class="fas fa-arrow-right"></i>';
                     }
                 } else {
-                    if (ov) ov.classList.add('hidden');
+                    ocultarTelaCarregamentoSistema();
                     console.log('❌ Login falhou: Resposta do servidor indicou falha.');
                     Swal.fire({
                         title: 'Acesso Negado',
@@ -277,7 +269,7 @@ const App = {
                     }
                 }
             } catch (err) {
-                if (ov) ov.classList.add('hidden');
+                ocultarTelaCarregamentoSistema();
                 console.error('❌ Erro na requisição de login (catch block):', err);
                 Swal.fire({
                     title: 'Erro de Conexão',
@@ -358,18 +350,13 @@ const App = {
         });
 
         if (isConfirmed) {
-            const ov = document.getElementById('loading-app');
-            const ovMsg = document.getElementById('loading-text');
-            if (ov && ovMsg) {
-                ov.classList.remove('hidden');
-                ovMsg.textContent = 'Saindo da conta...';
-            }
+            exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
             
             setTimeout(() => {
                 localStorage.removeItem('motoboy_token');
                 localStorage.removeItem('motoboy_user');
                 location.reload();
-            }, 500);
+            }, 1000);
         }
     },
 
@@ -561,7 +548,7 @@ const App = {
 
                 this.channel.bind('versao-app-atualizada', (data) => {
                     console.log('🔄 Versão do código atualizada pelo Admin!', data);
-                    exibirTelaCarregamentoSistema('⚡ Atualizando Entregas', 'O administrador aplicou novas configurações. Atualizando sistema...');
+                    exibirTelaCarregamentoSistema('🛵 Atualizando Entregas', 'O administrador aplicou novas configurações. Atualizando sistema...');
                     setTimeout(() => location.reload(true), 1500);
                 });
 
