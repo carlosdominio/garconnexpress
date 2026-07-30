@@ -387,8 +387,36 @@ app.get('/api/cron/cardapio', async (req, res) => {
                     const limiteStr = limite.toISOString().replace('T', ' ').substring(0, 19);
                     const statusTerminais = "'entregue', 'cancelado', 'servido', 'fechado', 'pago', 'concluido', 'concluído', 'aguardando_fechamento'";
                     
-                    await query(`DELETE FROM pedido_itens WHERE pedido_id IN (SELECT id FROM pedidos WHERE status IN (${statusTerminais}) AND created_at < ?)`, [limiteStr]);
-                    await query(`DELETE FROM pedidos WHERE status IN (${statusTerminais}) AND created_at < ?`, [limiteStr]);
+                    // Deleção paginada de itens do pedido (lotes de 500) para evitar locks de tabela longos
+                    let itensDeletados = 1;
+                    while (itensDeletados > 0) {
+                        const resItens = await query(`
+                            DELETE FROM pedido_itens 
+                            WHERE id IN (
+                                SELECT pi.id FROM pedido_itens pi
+                                JOIN pedidos p ON pi.pedido_id = p.id
+                                WHERE p.status IN (${statusTerminais}) AND p.created_at < ?
+                                LIMIT 500
+                            )
+                        `, [limiteStr]);
+                        itensDeletados = resItens.changes || 0;
+                        await new Promise(r => setTimeout(r, 50));
+                    }
+                    
+                    // Deleção paginada de pedidos (lotes de 500)
+                    let pedidosDeletados = 1;
+                    while (pedidosDeletados > 0) {
+                        const resPedidos = await query(`
+                            DELETE FROM pedidos 
+                            WHERE id IN (
+                                SELECT id FROM pedidos 
+                                WHERE status IN (${statusTerminais}) AND created_at < ?
+                                LIMIT 500
+                            )
+                        `, [limiteStr]);
+                        pedidosDeletados = resPedidos.changes || 0;
+                        await new Promise(r => setTimeout(r, 50));
+                    }
                     console.log('✅ FAXINA AUTOMATICA CONCLUIDA:', hoje);
                 } catch (err) {
                     console.error('❌ Erro na Faxina Diária Automática:', err.message);
@@ -612,6 +640,10 @@ async function sendWhatsAppMessage(text, targetNumber = null, pedidoId = 9999) {
 
 
 
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  console.error('\n❌ ERRO FATAL DE SEGURANÇA: JWT_SECRET não está definido no ambiente de produção!');
+  process.exit(1);
+}
 if (!process.env.JWT_SECRET) {
   console.warn('\n⚠️  [SEGURANÇA] JWT_SECRET não está definido como variável de ambiente!');
   console.warn('   Para produção, defina JWT_SECRET no Vercel/Render com um valor gerado por:');
@@ -4297,12 +4329,7 @@ app.post('/api/pedidos/:id/pagamento-fracao', isAuthenticated, async (req, res) 
     const col = getColPagamento(forma_pagamento);
     await query(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [valor_pago, valor_pago, cx.id]);
 
-    // 3. Garante que a tabela existe e registra o pagamento
-    const sqlCreate = isPostgres 
-      ? `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`
-          : `CREATE TABLE IF NOT EXISTS pagamentos (id INTEGER PRIMARY KEY AUTOINCREMENT, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`;
-    
-    await query(sqlCreate);
+    // 3. Registra o pagamento
     await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento, recebido, troco) VALUES (?, ?, ?, ?, ?)", [id, valor_pago, forma_pagamento, rec, trc]);
 
     // 4. Atualiza o pedido original: incrementa o pago_parcial e ajusta o número de pessoas
@@ -4333,10 +4360,6 @@ app.post('/api/pedidos/:id/pagamento-parcial', isAuthenticated, async (req, res)
     if (!cx) return res.status(400).json({ error: 'CAIXA FECHADO' });
 
     // 1. Registra o pagamento na tabela de pagamentos vinculada ao pedido principal
-    const sqlCreate = isPostgres 
-      ? `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`
-          : `CREATE TABLE IF NOT EXISTS pagamentos (id INTEGER PRIMARY KEY AUTOINCREMENT, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`;
-    await query(sqlCreate);
     await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento, recebido, troco) VALUES (?, ?, ?, ?, ?)", [id, total, forma_pagamento, total, 0]);
 
     // 2. Remove os itens do pedido original (já que foram pagos separadamente)
@@ -4418,9 +4441,6 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
       const p = (await query("SELECT total, forma_pagamento, pago_parcial FROM pedidos WHERE id = ?", [id])).rows[0];
       if (p) {
         // Registra o pagamento final na tabela de pagamentos
-        const sqlCreate = isPostgres
-          ? `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`
-          : `CREATE TABLE IF NOT EXISTS pagamentos (id INTEGER PRIMARY KEY AUTOINCREMENT, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`;
 
         if (Array.isArray(pagamentos_detalhados) && pagamentos_detalhados.length > 0) {
           // Cenário Multi-Pagamento (Suporta formato novo de objeto ou antigo de string)
