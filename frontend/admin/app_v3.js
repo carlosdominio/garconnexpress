@@ -511,7 +511,7 @@ async function iniciarPainelAdmin() {
   carregarStatusDelivery();
   carregarStatusCardapio();
   carregarStatusWhatsApp(); 
-  setInterval(carregarStatusWhatsApp, 15000); // Sincroniza o status da conexão a cada 15 segundos
+  setInterval(carregarStatusWhatsApp, 300000); // Sincroniza o status da conexão a cada 5 minutos
 
   // Listener para sincronizar o estado da aba assim que o iframe do WhatsApp carregar
   const zapIframe = document.getElementById('whatsapp-iframe');
@@ -585,12 +585,15 @@ async function iniciarPainelAdmin() {
     atualizarCronometrosPedidos();
   }, 10000); // Atualiza a cada 10 segundos para maior precisão
 
-  // Mantém o servidor do Vercel ativo e força a verificação de atrasos no banco a cada 30 segundos
+  // Força a verificação de atrasos no banco a cada 5 minutos
   setInterval(() => {
     if (localStorage.getItem('admin_token')) {
       fetch('/api/pedidos').catch(e => console.warn('Erro ao pingar pedidos para checar atrasos:', e.message));
     }
-    // Sincroniza periodicamente para garantir que o iframe não perca o estado de segundo plano
+  }, 300000);
+
+  // Sincroniza periodicamente para garantir que o iframe não perca o estado de segundo plano
+  setInterval(() => {
     const zapIframe = document.getElementById('whatsapp-iframe');
     if (zapIframe && zapIframe.contentWindow) {
       zapIframe.contentWindow.postMessage({ type: 'tab_change', active: (abaAtiva === 'whatsapp') }, '*');
