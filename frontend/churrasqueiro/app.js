@@ -104,7 +104,10 @@ const somTiposDisponiveis = ['original', 'campainha_classica', 'sino_moderno', '
 const audiosNotificacao = {};
 function inicializarAudios() {
   for (const som of somTiposDisponiveis) {
-    audiosNotificacao[som] = new Audio(getSoundPath(som));
+    const audio = new Audio(getSoundPath(som));
+    audio.preload = 'auto';
+    audio.load();
+    audiosNotificacao[som] = audio;
   }
 }
 inicializarAudios();
