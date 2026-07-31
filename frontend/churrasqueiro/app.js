@@ -377,6 +377,33 @@ async function verificarCaixa() {
     }
 }
 
+async function verificarCaixaManual(btn) {
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> VERIFICANDO...';
+  }
+  try {
+    const res = await fetch('/api/caixa/status');
+    const caixa = await res.json();
+    const aberto = !!caixa;
+    if (!aberto) {
+      if (typeof dispararToastSistema === 'function') {
+        dispararToastSistema('status-caixa-atualizado', { status: 'FECHADO' }, "O caixa continua fechado no momento.", 'error');
+      }
+    } else {
+      verificarCaixa();
+      carregarPedidos();
+    }
+  } catch (e) {
+    console.error('Erro ao verificar caixa:', e);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-sync-alt"></i> ATUALIZAR STATUS';
+    }
+  }
+}
+
 function renderizarPedidos(itens) {
     const t0 = performance.now();
 

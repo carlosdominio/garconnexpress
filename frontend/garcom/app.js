@@ -858,8 +858,33 @@ async function atualizarStatusCaixa() {
       badge.className = 'badge-caixa fechado';
     }
     // Sempre recarrega as mesas para aplicar o visual correto (bloqueado ou liberado)
-    carregarMesas();
   } catch (e) { console.error('Erro status caixa:', e); }
+}
+
+async function verificarCaixaManual(btn) {
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> VERIFICANDO...';
+  }
+  try {
+    const res = await fetch('/api/caixa/status');
+    const caixa = await res.json();
+    const aberto = !!caixa;
+    if (!aberto) {
+      if (typeof mostrarToast === 'function') {
+        mostrarToast("O caixa continua fechado no momento.", "error", "🔒 CAIXA FECHADO");
+      }
+    } else {
+      atualizarStatusCaixa();
+    }
+  } catch (e) {
+    console.error('Erro ao verificar caixa:', e);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-sync-alt"></i> Verificar Novamente';
+    }
+  }
 }
 
 let somAtivo = localStorage.getItem('garcom_som_ativo') !== 'false';
