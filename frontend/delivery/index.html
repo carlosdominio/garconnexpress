@@ -140,6 +140,14 @@
     <div id="main-content" style="display: none;">
         <div id="sticky-header-group">
             <header><h1>GuGA Bebidas</h1><p>Delivery</p></header>
+            <!-- Barra de Busca -->
+            <div class="search-container" style="padding: 10px 20px 5px 20px; background: var(--bg);">
+                <div style="position: relative; display: flex; align-items: center; width: 100%;">
+                    <i class="fas fa-search" style="position: absolute; left: 15px; color: var(--text-light); font-size: 0.95rem;"></i>
+                    <input type="text" id="menu-search-input" placeholder="Buscar no cardápio..." oninput="handleSearch(this.value)" style="width: 100%; padding: 12px 15px 12px 42px; border-radius: 20px; border: 2px solid #eee; background: white; font-size: 0.95rem; outline: none; transition: 0.2s; box-shadow: var(--shadow);">
+                    <i class="fas fa-times-circle" id="clear-search-btn" onclick="clearSearch()" style="position: absolute; right: 15px; color: var(--text-light); font-size: 1.1rem; cursor: pointer; display: none;"></i>
+                </div>
+            </div>
             <div class="categories" id="categories-container"></div>
         </div>
         <div class="container" id="menu-container"></div>
@@ -205,7 +213,7 @@
 
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     <script>
-        let fullMenu = [], cart = [], currentCategory = null, pusher;
+        let fullMenu = [], cart = [], currentCategory = null, pusher, searchTerm = '';
         let ultimoScriptEncoded = localStorage.getItem('ultimoScriptEncoded') || '';
         let pedidoAtivoId = localStorage.getItem('pedidoAtivoId') || null;
 
@@ -490,10 +498,46 @@
             renderMenu();
         }
 
+        function handleSearch(val) {
+            searchTerm = val.toLowerCase().trim();
+            const clearBtn = document.getElementById('clear-search-btn');
+            if (clearBtn) {
+                clearBtn.style.display = searchTerm ? 'block' : 'none';
+            }
+            renderMenu();
+        }
+
+        function clearSearch() {
+            const input = document.getElementById('menu-search-input');
+            if (input) {
+                input.value = '';
+                handleSearch('');
+            }
+        }
+
         function renderMenu() {
             const container = document.getElementById('menu-container');
             container.innerHTML = '';
-            const menuToShow = currentCategory ? fullMenu.filter(i => i.categoria.trim().toUpperCase() === currentCategory) : fullMenu;
+            
+            let menuToShow = currentCategory ? fullMenu.filter(i => i.categoria.trim().toUpperCase() === currentCategory) : fullMenu;
+            
+            if (searchTerm) {
+                menuToShow = menuToShow.filter(i => 
+                    i.nome.toLowerCase().includes(searchTerm) || 
+                    (i.descricao && i.descricao.toLowerCase().includes(searchTerm))
+                );
+            }
+            
+            if (menuToShow.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 3rem 1.5rem; opacity: 0.6; grid-column: 1 / -1;">
+                        <i class="fas fa-search" style="font-size: 2.5rem; color: var(--text-light); margin-bottom: 12px; display: block;"></i>
+                        <p style="font-size: 1.1rem; font-weight: bold; color: var(--text);">Nenhum produto encontrado</p>
+                        <p style="font-size: 0.85rem; color: var(--text-light); margin-top: 4px;">Tente digitar um nome diferente.</p>
+                    </div>`;
+                return;
+            }
+            
             const groups = menuToShow.reduce((acc, i) => { const n = i.categoria.trim().toUpperCase(); if(!acc[n]) acc[n]=[]; acc[n].push(i); return acc; }, {});
             
             for (const cat in groups) {
