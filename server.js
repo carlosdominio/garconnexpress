@@ -947,12 +947,34 @@ async function safePusherTrigger(channel, event, data) {
           msgChurrasco = resolveTemplate('status-caixa-atualizado', defT, defB);
           msgMotoboy = resolveTemplate('status-caixa-atualizado', defT, defB);
         } else if (event === 'estoque-baixo') {
-          const defT = '⚠️ ESTOQUE BAIXO';
-          const defB = 'Alerta de estoque baixo para {item}: restam apenas {qtd} un.!';
+          const defT = data.estoque === 0 ? '🚨 ESTOQUE ZERADO' : '⚠️ ESTOQUE BAIXO';
+          const defB = data.estoque === 0
+            ? `O produto "${data.nome || data.item || ''}" acabou!`
+            : `Alerta de estoque baixo para {item}: restam apenas {qtd} un.!`;
           msgGarcom = resolveTemplate('estoque-baixo', defT, defB);
           msgCozinha = resolveTemplate('estoque-baixo', defT, defB);
           msgChurrasco = resolveTemplate('estoque-baixo', defT, defB);
           msgMotoboy = resolveTemplate('estoque-baixo', defT, defB);
+
+          // Garante o texto correto mesmo se houver o padrão de texto salvo no banco
+          if (data.estoque === 0) {
+            if (msgGarcom.title === '⚠️ ESTOQUE BAIXO') msgGarcom.title = '🚨 ESTOQUE ZERADO';
+            if (msgGarcom.body.includes('restam apenas 0 un.')) {
+              msgGarcom.body = `O produto "${data.nome || data.item || ''}" acabou!`;
+            }
+            if (msgCozinha.title === '⚠️ ESTOQUE BAIXO') msgCozinha.title = '🚨 ESTOQUE ZERADO';
+            if (msgCozinha.body.includes('restam apenas 0 un.')) {
+              msgCozinha.body = `O produto "${data.nome || data.item || ''}" acabou!`;
+            }
+            if (msgChurrasco.title === '⚠️ ESTOQUE BAIXO') msgChurrasco.title = '🚨 ESTOQUE ZERADO';
+            if (msgChurrasco.body.includes('restam apenas 0 un.')) {
+              msgChurrasco.body = `O produto "${data.nome || data.item || ''}" acabou!`;
+            }
+            if (msgMotoboy.title === '⚠️ ESTOQUE BAIXO') msgMotoboy.title = '🚨 ESTOQUE ZERADO';
+            if (msgMotoboy.body.includes('restam apenas 0 un.')) {
+              msgMotoboy.body = `O produto "${data.nome || data.item || ''}" acabou!`;
+            }
+          }
         } else if (event === 'status-atualizado') {
           if (data.status === 'cancelado') {
             return true; // Deixa que o evento 'pedido-cancelado' envie a notificação, evita duplicidade.
