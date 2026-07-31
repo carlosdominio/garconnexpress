@@ -6643,8 +6643,17 @@ app.get('/api/diag', isAdmin, async (req, res) => {
         `CREATE INDEX IF NOT EXISTS idx_pedidos_created_at ON pedidos(created_at)`,
         `CREATE INDEX IF NOT EXISTS idx_estoque_mov_criado_at ON estoque_movimentacoes(criado_at)`,
         `CREATE INDEX IF NOT EXISTS idx_codigos_acesso_mesa_status ON codigos_acesso(mesa_id, status)`,
-        `CREATE INDEX IF NOT EXISTS idx_pedido_itens_menu_id ON pedido_itens(menu_id)`
       ];
+      for (let tableSql of tables) {
+        if (isPostgres) await db.query(tableSql);
+        else db.exec(tableSql.replace(/SERIAL PRIMARY KEY/g, 'INTEGER PRIMARY KEY AUTOINCREMENT'));
+      }
+      res.json({ success: true, message: 'Tabelas criadas/verificadas com sucesso.' });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // --- CÁLCULO DE FRETE / TAXA DE ENTREGA POR KM (OPENSTREETMAP OSRM) ---
   app.post('/api/frete/calcular', ensureDbInitialized, async (req, res) => {
     try {
