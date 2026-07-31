@@ -2469,12 +2469,12 @@ async function initDb() {
   try {
     const addCol = async (t, c, type) => { 
       try { 
-        if (isPostgres) await db.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS ${c} ${type}`); 
-        else {
-          // Verifica se a coluna já existe no SQLite antes de adicionar
-          const info = db.prepare(`PRAGMA table_info(${t})`).all();
-          if (!info.some(col => col.name === c)) {
-            db.prepare(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`).run();
+        if (isPostgres) {
+          await query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS ${c} ${type}`); 
+        } else {
+          const info = await query(`PRAGMA table_info(${t})`);
+          if (info.rows && !info.rows.some(col => col.name === c)) {
+            await query(`ALTER TABLE ${t} ADD COLUMN ${c} ${type}`);
           }
         }
       } catch (e) {
