@@ -5530,6 +5530,13 @@ async function confirmarCancelamentoDesdeFechamento() {
 }
 
 function recalcularTotalFechamentoAdmin() {
+  const formaPagamento = document.getElementById('fechamento-forma-admin')?.value || 'Dinheiro';
+  if (formaPagamento !== 'Dinheiro') {
+    const inputRecebido = document.getElementById('fechamento-recebido-admin');
+    if (inputRecebido) inputRecebido.value = '';
+    window.recebidoModificadoManualmente = false;
+  }
+
   const selecionados = itensFechamentoAdmin.filter(i => i.selecionadoFechamento);
   subtotalConsumoAdmin = selecionados.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
 
