@@ -1580,17 +1580,38 @@ function renderizarCarrinhoLancar() {
   if (elTotal) elTotal.innerText = `R$ ${total.toFixed(2)}`;
 }
 
+async function buscarCEPLancarAdmin() {
+  const cepInput = document.getElementById('lancar-delivery-cep')?.value.replace(/\D/g, '');
+  if (!cepInput || cepInput.length !== 8) return mostrarToast('Digite um CEP válido com 8 dígitos', 'aviso');
+  try {
+    const res = await fetch(`https://viacep.com.br/ws/${cepInput}/json/`);
+    if (res.ok) {
+      const data = await res.json();
+      if (!data.erro) {
+        if (document.getElementById('lancar-delivery-endereco')) document.getElementById('lancar-delivery-endereco').value = data.logradouro || '';
+        if (document.getElementById('lancar-delivery-bairro')) document.getElementById('lancar-delivery-bairro').value = data.bairro || '';
+        await calcularFreteLancarAdmin();
+      } else {
+        mostrarToast('CEP não encontrado', 'aviso');
+      }
+    }
+  } catch (e) {
+    console.error('Erro ao buscar CEP no lancar:', e);
+  }
+}
+
 async function calcularFreteLancarAdmin() {
+  const cep = document.getElementById('lancar-delivery-cep')?.value.trim();
   const address = document.getElementById('lancar-delivery-endereco')?.value.trim();
   const bairro = document.getElementById('lancar-delivery-bairro')?.value.trim();
-  const fullAddress = [address, bairro].filter(Boolean).join(', ');
-  if (!fullAddress) return mostrarToast('Digite o endereço ou bairro para calcular o frete', 'aviso');
+  const fullAddress = [cep, address, bairro].filter(Boolean).join(', ');
+  if (!fullAddress) return mostrarToast('Digite o CEP, endereço ou bairro para calcular o frete', 'aviso');
 
   try {
     const res = await fetch('/api/frete/calcular', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ endereco: fullAddress })
+      body: JSON.stringify({ cep: cep, endereco: [address, bairro].filter(Boolean).join(', ') })
     });
     if (res.ok) {
       const data = await res.json();

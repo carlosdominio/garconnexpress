@@ -2015,10 +2015,18 @@
           </div>
         </div>
 
+        <div class="form-group">
+          <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; margin-bottom: 4px; text-transform: uppercase;">CEP</label>
+          <div style="position: relative; display: flex; align-items: center;">
+            <input type="text" id="lancar-delivery-cep" placeholder="Ex: 57014-290" onchange="buscarCEPLancarAdmin()" style="width: 100%; padding: 10px; padding-right: 90px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #1e293b; outline: none;" onfocus="this.style.borderColor='#e67e22'">
+            <button type="button" onclick="buscarCEPLancarAdmin()" style="position: absolute; right: 4px; width: auto; padding: 6px 12px; background: #e67e22; color: #fff; border: none; font-size: 0.75rem; border-radius: 6px; font-weight: bold; cursor: pointer;">BUSCAR</button>
+          </div>
+        </div>
+
         <div style="display: grid; grid-template-columns: 3fr 1fr; gap: 10px;">
           <div class="form-group">
             <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; margin-bottom: 4px; text-transform: uppercase;">Endereço / Rua *</label>
-            <input type="text" id="lancar-delivery-endereco" placeholder="Ex: Av. Paulista" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #1e293b; outline: none; transition: 0.2s;" onfocus="this.style.borderColor='#e67e22'">
+            <input type="text" id="lancar-delivery-endereco" placeholder="Ex: Av. Paulista" onchange="calcularFreteLancarAdmin()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #1e293b; outline: none; transition: 0.2s;" onfocus="this.style.borderColor='#e67e22'">
           </div>
           <div class="form-group">
             <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; margin-bottom: 4px; text-transform: uppercase;">Número *</label>
