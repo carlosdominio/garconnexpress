@@ -2513,6 +2513,8 @@ async function initDb() {
     await addCol('garcons', 'is_online', 'BOOLEAN DEFAULT FALSE');
     await addCol('garcons', 'last_assigned_at', 'TIMESTAMP');
     await addCol('pedidos', 'cliente_telefone', 'TEXT');
+    await addCol('pedidos', 'taxa_entrega', 'REAL DEFAULT 0');
+    await addCol('pedidos', 'distancia_km', 'REAL DEFAULT 0');
     await addCol('pedidos', 'pagamentos_detalhados', 'TEXT');
     await addCol('pedidos', 'balcao_imediato', 'INTEGER DEFAULT 0');
     
