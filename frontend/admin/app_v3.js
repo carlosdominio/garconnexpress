@@ -5384,7 +5384,7 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   }
   const inputRecebido = document.getElementById('fechamento-recebido-admin');
   inputRecebido.value = pedidoParaFecharAdmin.valor_recebido || '';
-  window.recebidoModificadoManualmente = false;
+  window.recebidoModificadoManualmente = !!pedidoParaFecharAdmin.valor_recebido;
   inputRecebido.oninput = () => {
     window.recebidoModificadoManualmente = true;
     recalcularTotalFechamentoAdmin();
