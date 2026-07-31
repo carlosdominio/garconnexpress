@@ -340,6 +340,28 @@ const App = {
         }
     },
 
+    async atualizarStatusCaixaManual(btn) {
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> VERIFICANDO...';
+        }
+        try {
+            const isOpen = await this.checkCaixaStatus();
+            if (!isOpen) {
+                this.ui.showToast("O caixa continua fechado no momento.", "error", "🔒 CAIXA FECHADO");
+            } else {
+                this.loadPedidos();
+            }
+        } catch (e) {
+            console.error("Erro ao verificar caixa:", e);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-sync-alt"></i> ATUALIZAR STATUS';
+            }
+        }
+    },
+
     async logout() {
         const { isConfirmed } = await Swal.fire({
             title: 'Sair do App?',
