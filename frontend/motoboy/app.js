@@ -149,7 +149,7 @@ const App = {
             console.error('Erro na inicialização de módulos:', e);
         }
         
-        this.checkCaixaStatus();
+        await this.checkCaixaStatus();
         setInterval(() => this.checkCaixaStatus(), 30000);
 
         this.loadPedidos();
@@ -310,11 +310,9 @@ const App = {
     async checkCaixaStatus() {
         try {
             const res = await fetch(`${API_BASE_URL}/api/caixa/status?_t=${new Date().getTime()}`);
-            const status = await res.json();
+            const status = res.ok ? await res.json() : null;
             const wasOpen = App.state.caixaAberto;
-            const isOpenNow = !!status;
-            
-            if (wasOpen === isOpenNow) return; // Se não mudou, não faz nada
+            const isOpenNow = !!(status && (status.status === 'aberto' || status.id));
             
             App.state.caixaAberto = isOpenNow;
             
@@ -323,7 +321,7 @@ const App = {
                 screen.style.display = isOpenNow ? 'none' : 'flex';
                 document.body.style.overflow = isOpenNow ? '' : 'hidden';
                 
-                if (wasOpen !== null) { // Não notifica na primeira carga
+                if (wasOpen !== null && wasOpen !== isOpenNow) {
                     App.notifications.playAlert(); // Toca o som configurado!
                     if (!isOpenNow) {
                         App.ui.showToast("O caixa foi fechado! Bom descanso.", "error", "🔒 CAIXA FECHADO");
@@ -335,7 +333,11 @@ const App = {
             if (!isOpenNow) {
                 if (typeof App.ui.limparNotificacoes === 'function') App.ui.limparNotificacoes();
             }
-        } catch (e) { console.error("Erro status caixa:", e); }
+            return isOpenNow;
+        } catch (e) { 
+            console.error("Erro status caixa:", e);
+            return App.state.caixaAberto;
+        }
     },
 
     async logout() {
