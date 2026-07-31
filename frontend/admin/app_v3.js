@@ -1573,9 +1573,37 @@ function renderizarCarrinhoLancar() {
   
   const selectMesa = document.getElementById('lancar-mesa-select');
   const isDelivery = selectMesa && selectMesa.value === 'DELIVERY';
-  const total = isDelivery ? (cobrarTaxa ? subtotal + 3.00 : subtotal) : (cobrarTaxa ? subtotal * 1.10 : subtotal);
+  const taxaDeliveryInput = parseFloat(document.getElementById('lancar-delivery-taxa')?.value);
+  const taxaDeliveryVal = !isNaN(taxaDeliveryInput) ? taxaDeliveryInput : 5.00;
+  const total = isDelivery ? (cobrarTaxa ? subtotal + taxaDeliveryVal : subtotal) : (cobrarTaxa ? subtotal * 1.10 : subtotal);
   const elTotal = document.getElementById('lancar-total');
   if (elTotal) elTotal.innerText = `R$ ${total.toFixed(2)}`;
+}
+
+async function calcularFreteLancarAdmin() {
+  const address = document.getElementById('lancar-delivery-endereco')?.value.trim();
+  const bairro = document.getElementById('lancar-delivery-bairro')?.value.trim();
+  const fullAddress = [address, bairro].filter(Boolean).join(', ');
+  if (!fullAddress) return mostrarToast('Digite o endereço ou bairro para calcular o frete', 'aviso');
+
+  try {
+    const res = await fetch('/api/frete/calcular', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endereco: fullAddress })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        const inputTaxa = document.getElementById('lancar-delivery-taxa');
+        if (inputTaxa) inputTaxa.value = data.valor_taxa.toFixed(2);
+        recalcularTotalLancar();
+        mostrarToast(`Frete calculado: R$ ${data.valor_taxa.toFixed(2)} (${data.distancia_km} km)`, 'sucesso');
+      }
+    }
+  } catch (e) {
+    console.error('Erro ao calcular frete lancar:', e);
+  }
 }
 
 async function limparCarrinhoLancar() {
@@ -1665,7 +1693,9 @@ async function confirmarLancarPedidoDelivery() {
       return mostrarAlerta("Para pagamentos em Dinheiro, o campo 'Troco para quanto?' é obrigatório!", "Aviso", "⚠️");
     }
     const subtotal = carrinhoLancar.reduce((s,i) => s + (i.preco * i.quantidade), 0);
-    const totalEstimado = subtotal + 3.00; // Taxa de entrega fixa
+    const taxaDeliveryInput = parseFloat(document.getElementById('lancar-delivery-taxa')?.value);
+    const taxaDeliveryVal = !isNaN(taxaDeliveryInput) ? taxaDeliveryInput : 5.00;
+    const totalEstimado = subtotal + taxaDeliveryVal;
     if (parseFloat(change) < totalEstimado) {
       return mostrarAlerta(`O valor recebido (R$ ${parseFloat(change).toFixed(2)}) não pode ser menor que o total do pedido (R$ ${totalEstimado.toFixed(2)})!`, "Aviso", "⚠️");
     }
@@ -1695,7 +1725,9 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
   const garcomId = isDelivery ? 'DELIVERY' : 'ADMIN';
   const cobrarTaxa = document.getElementById('lancar-taxa-toggle').checked;
   const subtotal = carrinhoLancar.reduce((s,i) => s + (i.preco * i.quantidade), 0);
-  const totalEstimado = isDelivery ? subtotal + 3.00 : (cobrarTaxa ? subtotal * 1.10 : subtotal);
+  const taxaDeliveryInput = parseFloat(document.getElementById('lancar-delivery-taxa')?.value);
+  const taxaDeliveryVal = !isNaN(taxaDeliveryInput) ? taxaDeliveryInput : 5.00;
+  const totalEstimado = isDelivery ? subtotal + taxaDeliveryVal : (cobrarTaxa ? subtotal * 1.10 : subtotal);
 
   if (!await mostrarConfirmacao(`Confirmar lançamento de R$ ${totalEstimado.toFixed(2)}?`, "Novo Pedido", "Confirmar", "Cancelar", "🚀")) return;
 
@@ -1752,6 +1784,7 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
         garcom_id: garcomId, 
         itens: carrinhoLancar, 
         cobrar_taxa: isDelivery ? true : cobrarTaxa,
+        taxa_entrega: isDelivery ? taxaDeliveryVal : undefined,
         observacao: isDelivery ? customObs : undefined,
         cliente_telefone: isDelivery ? wppTelefone : undefined,
         forma_pagamento: isDelivery ? formaPag : undefined,
@@ -3755,7 +3788,8 @@ async function imprimirResumoDiario() {
       performanceGarcons[garcomId].atendimentos++;
       if (garcomId === 'DELIVERY') {
         const cobrarTaxaNoPedido = (p.cobrar_taxa == 1 || p.cobrar_taxa === true);
-        performanceGarcons[garcomId].taxasEntrega += cobrarTaxaNoPedido ? 3.00 : 0;
+        const tDelVal = (p.taxa_entrega !== undefined && p.taxa_entrega !== null) ? parseFloat(p.taxa_entrega) : 3.00;
+        performanceGarcons[garcomId].taxasEntrega += cobrarTaxaNoPedido ? tDelVal : 0;
       }
     } else if (p.status === 'cancelado') {
       totalCancelado += valorTotalPedido;
@@ -4234,7 +4268,8 @@ async function exibirPedidos() {
 
       const itensParaSoma = itens.filter(i => (i.status || '').toLowerCase() !== 'cancelado');
       const subtotal = itensParaSoma.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
-      const taxaServico = cobrarTaxaNoPedido ? (isDelivery ? 3.00 : (subtotal * 0.10)) : 0;
+      const taxaDeliveryVal = (pedido.taxa_entrega !== undefined && pedido.taxa_entrega !== null) ? parseFloat(pedido.taxa_entrega) : 3.00;
+      const taxaServico = cobrarTaxaNoPedido ? (isDelivery ? taxaDeliveryVal : (subtotal * 0.10)) : 0;
       const pagoParcial = pedido.pago_parcial || 0;
       const totalConsumo = (subtotal + taxaServico);
       const totalExibicao = ((isAguardando && !isDelivery) ? pedido.total : (totalConsumo - pagoParcial)) || 0;
@@ -7020,7 +7055,8 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false) {
   const acrescimo = pedido.acrescimo || 0;
   const desconto = pedido.desconto || 0;
   const isDeliveryCupom = (pedido.garcom_id === 'DELIVERY');
-  const taxa = cobrarTaxaNoCupom ? (isDeliveryCupom ? 3.00 : subtotal * 0.10) : 0;
+  const taxaDeliveryCupomVal = (pedido.taxa_entrega !== undefined && pedido.taxa_entrega !== null) ? parseFloat(pedido.taxa_entrega) : 3.00;
+  const taxa = cobrarTaxaNoCupom ? (isDeliveryCupom ? taxaDeliveryCupomVal : subtotal * 0.10) : 0;
   const pagoAnterior = pedido.pago_parcial || 0;
   
   const totalGeralMesa = subtotal + taxa + acrescimo - desconto;
@@ -7335,7 +7371,7 @@ async function imprimirRelatorioCaixa() {
       let taxaPedido = 0;
       if (p.cobrar_taxa) {
         if (isDelivery) {
-          taxaPedido = 3.00;
+          taxaPedido = (p.taxa_entrega !== undefined && p.taxa_entrega !== null) ? parseFloat(p.taxa_entrega) : 3.00;
         } else {
           taxaPedido = valorTotalPedido - (valorTotalPedido / 1.1);
         }
@@ -7523,8 +7559,9 @@ async function abrirModalOpcoes(pedidoId) {
   document.getElementById('modal-opcoes-titulo').innerText = mesaNome;
   document.getElementById('modal-opcoes-info').innerText = `Pedido #${pedido.id} | Garçom: ${pedido.garcom_id || 'Admin'}`;
   
+  const taxaDeliveryModalVal = (pedido.taxa_entrega !== undefined && pedido.taxa_entrega !== null) ? parseFloat(pedido.taxa_entrega) : 3.00;
   const lblTaxa = document.getElementById('modal-taxa-label-text');
-  if (lblTaxa) lblTaxa.innerText = isDelivery ? 'R$ 3.00 ENTREGA' : '10% TAXA';
+  if (lblTaxa) lblTaxa.innerText = isDelivery ? `R$ ${taxaDeliveryModalVal.toFixed(2)} ENTREGA` : '10% TAXA';
 
   // Exibir observação do pedido se existir
   const infoExtra = document.getElementById('modal-opcoes-info-extra');
@@ -7541,7 +7578,7 @@ async function abrirModalOpcoes(pedidoId) {
   const cobrarTaxaNoPedido = (pedidosStatusTaxa[pedidoId] !== undefined) ? pedidosStatusTaxa[pedidoId] : (pedido.cobrar_taxa === undefined || pedido.cobrar_taxa === null ? true : (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true));
   const itensParaSomaModal = itens.filter(i => (i.status || '').toLowerCase() !== 'cancelado');
   const subtotal = itensParaSomaModal.reduce((sum, i) => sum + ((i.preco || 0) * (i.quantidade || 1)), 0);
-  const taxaServico = cobrarTaxaNoPedido ? (isDelivery ? 3.00 : (subtotal * 0.10)) : 0;
+  const taxaServico = cobrarTaxaNoPedido ? (isDelivery ? taxaDeliveryModalVal : (subtotal * 0.10)) : 0;
   const pagoParcial = pedido.pago_parcial || 0;
   const isAguardandoReal = isAguardando && !isDelivery;
   const totalExibicao = (isAguardandoReal ? pedido.total : (subtotal + taxaServico - pagoParcial)) || 0;
