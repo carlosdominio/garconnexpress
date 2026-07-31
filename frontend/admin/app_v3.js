@@ -5610,7 +5610,6 @@ function recalcularTotalFechamentoAdmin() {
   }
 
   // CONTROLE DINÂMICO DE VISIBILIDADE DO TROCO
-  const formaPagamento = document.getElementById('fechamento-forma-admin').value;
   const secaoTroco = document.getElementById('secao-troco-admin');
   const inputRecebido = document.getElementById('fechamento-recebido-admin');
 
