@@ -990,22 +990,19 @@ async function safePusherTrigger(channel, event, data) {
           targets.push({ app: 'churrasqueiro', title: msgChurrasco.title, msg: msgChurrasco.body });
           targets.push({ app: 'motoboy', title: msgMotoboy.title, msg: msgMotoboy.body });
         } else if (event === 'estoque-baixo') {
-          // Push nativo de estoque vai APENAS para Cozinha e Churrasco (conforme categoria do produto).
-          // Garçom NÃO recebe push nativo de estoque (mantém comportamento atual inalterado).
-          // O Painel ADM sempre recebe via WebSocket Pusher (independente desta lógica).
+          // Garçom: mantém exatamente o comportamento original (recebe notificações de estoque baixo/zerado)
+          targets.push({ app: 'garcom',  title: msgGarcom.title, msg: msgGarcom.body });
+
+          // Cozinha e Churrasco: envia apenas se o item pertencer a eles
           const catItem = String(data.categoria || '').toLowerCase();
           const ehChurrasco = catItem.includes('churras') || catItem.includes('carne') || catItem.includes('espeto') || catItem.includes('grill');
           const ehCozinha   = data.enviar_cozinha === true || data.enviar_cozinha === 1 || data.enviar_cozinha === '1';
+
           if (ehCozinha && msgCozinha.body) {
             targets.push({ app: 'cozinha', title: msgCozinha.title, msg: msgCozinha.body });
           }
           if (ehChurrasco && msgChurrasco.body) {
             targets.push({ app: 'churrasqueiro', title: msgChurrasco.title, msg: msgChurrasco.body });
-          }
-          // Se o item não for de cozinha nem de churrasco, envia para ambos como fallback seguro
-          if (!ehCozinha && !ehChurrasco) {
-            if (msgCozinha.body) targets.push({ app: 'cozinha', title: msgCozinha.title, msg: msgCozinha.body });
-            if (msgChurrasco.body) targets.push({ app: 'churrasqueiro', title: msgChurrasco.title, msg: msgChurrasco.body });
           }
         } else if (isDelivery) {
           if (event === 'pedido-cancelado' && enviaCozinha) {
