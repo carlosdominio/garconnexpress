@@ -27,6 +27,21 @@ const admin = require('firebase-admin');
 // Configuração de ambiente
 dotenv.config({ path: path.join(__dirname, '.env') });
 
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  console.error('\n❌ ERRO FATAL DE SEGURANÇA: A variável de ambiente JWT_SECRET não está definida!');
+  process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'seusegredomuitolouco123' : null);
+if (!JWT_SECRET) {
+  console.error('\n❌ ERRO FATAL: JWT_SECRET é obrigatório!');
+  process.exit(1);
+}
+const BOT_SECRET = process.env.BOT_SECRET || process.env.JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'seusegredomuitolouco123' : null);
+if (!BOT_SECRET) {
+  console.error('\n❌ ERRO FATAL: BOT_SECRET ou JWT_SECRET é obrigatório!');
+  process.exit(1);
+}
+
 // --- Configuração VAPID (Web Push - Navegador) ---
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
@@ -663,20 +678,6 @@ async function sendWhatsAppMessage(text, targetNumber = null, pedidoId = 9999) {
 
 
 
-if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
-  console.error('\n❌ ERRO FATAL DE SEGURANÇA: A variável de ambiente JWT_SECRET não está definida!');
-  process.exit(1);
-}
-const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'seusegredomuitolouco123' : null);
-if (!JWT_SECRET) {
-  console.error('\n❌ ERRO FATAL: JWT_SECRET é obrigatório!');
-  process.exit(1);
-}
-const BOT_SECRET = process.env.BOT_SECRET || process.env.JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'seusegredomuitolouco123' : null);
-if (!BOT_SECRET) {
-  console.error('\n❌ ERRO FATAL: BOT_SECRET ou JWT_SECRET é obrigatório!');
-  process.exit(1);
-}
 const saltRounds = 10;
 
 const rateLimit = require('express-rate-limit');
