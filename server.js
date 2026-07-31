@@ -3900,8 +3900,8 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
       await query(`INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status, preco) VALUES ${placeholders}`, values);
 
       for (const item of itens) {
+        // abaterEstoquePorFichaTecnica já chama verificarEstoqueBaixo internamente
         await abaterEstoquePorFichaTecnica(item.menu_id, item.quantidade);
-        await verificarEstoqueBaixo(item.menu_id);
       }
     }
     let mesaNum = 'BALCÃO';
