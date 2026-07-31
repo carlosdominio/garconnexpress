@@ -420,16 +420,35 @@ const App = {
             // Limpa ao abrir
             await this.clearNotifications();
 
-            // Limpa ao voltar para primeiro plano OU ao ir para segundo plano (ao sair do app)
+            // Sincroniza status e limpa notificações ao mudar visibilidade do app (primeiro/segundo plano)
+            const handleAppStateResume = async () => {
+                exibirTelaCarregamentoSistema('Carregando...', 'Sincronizando entregas...');
+                await this.clearNotifications();
+                await App.checkCaixaStatus();
+                if (App.state.caixaAberto) {
+                    await App.loadPedidos();
+                }
+                setTimeout(() => ocultarTelaCarregamentoSistema(), 300);
+            };
+
             document.addEventListener('visibilitychange', async () => {
                 if (document.visibilityState === 'visible') {
-                    await this.clearNotifications();
-                    // Sincroniza o status do caixa ao voltar ao primeiro plano
-                    App.checkCaixaStatus();
+                    await handleAppStateResume();
                 } else if (document.visibilityState === 'hidden') {
+                    exibirTelaCarregamentoSistema('Carregando...', 'Sincronizando entregas...');
                     await this.clearNotifications();
                 }
             });
+
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+                window.Capacitor.Plugins.App.addListener('appStateChange', async ({ isActive }) => {
+                    if (isActive) {
+                        await handleAppStateResume();
+                    } else {
+                        exibirTelaCarregamentoSistema('Carregando...', 'Sincronizando entregas...');
+                    }
+                });
+            }
 
             let perm = await PushNotifications.checkPermissions();
             if (perm.receive !== 'granted') {
