@@ -161,17 +161,17 @@
                 <div class="form-group">
                     <label>CEP</label>
                     <div style="position: relative; display: flex; align-items: center;">
-                        <input type="number" id="cust-cep" placeholder="Ex: 57000000" style="padding-right: 100px;">
+                        <input type="number" id="cust-cep" placeholder="Ex: 57000000" onchange="calcularFreteCliente()" style="padding-right: 100px;">
                         <button onclick="buscarCEP()" style="position: absolute; right: 5px; width: auto; padding: 8px 15px; background: var(--primary); color: #fff; margin-bottom: 0; font-size: 0.8rem; border-radius: 8px;">BUSCAR</button>
                     </div>
                 </div>
 
                 <div style="display: flex; gap: 10px;">
-                    <div class="form-group" style="flex: 3;"><label>Endereço</label><input type="text" id="cust-address" placeholder="Rua / Avenida"></div>
+                    <div class="form-group" style="flex: 3;"><label>Endereço</label><input type="text" id="cust-address" placeholder="Rua / Avenida" onchange="calcularFreteCliente()" onblur="calcularFreteCliente()"></div>
                     <div class="form-group" style="flex: 1;"><label>Nº</label><input type="text" id="cust-number" placeholder="123"></div>
                 </div>
 
-                <div class="form-group"><label>Bairro / Complemento / Ref</label><input type="text" id="cust-bairro" placeholder="Ex: Centro - Próximo ao mercado"></div>
+                <div class="form-group"><label>Bairro / Complemento / Ref</label><input type="text" id="cust-bairro" placeholder="Ex: Centro - Próximo ao mercado" onchange="calcularFreteCliente()" onblur="calcularFreteCliente()"></div>
                 <div class="form-group"><label>Observações do Pedido</label><textarea id="cust-obs" rows="2" placeholder="Alguma preferência? (Ex: sem cebola, ponto da carne...)"></textarea></div>
                 
                 <div class="form-group">
@@ -191,8 +191,8 @@
                     <span id="modal-subtotal">R$ 0,00</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 12px; color: var(--text-light); font-size: 0.9rem;">
-                    <span>Taxa de Entrega</span>
-                    <span>R$ 3,00</span>
+                    <span id="label-taxa-entrega">Taxa de Entrega</span>
+                    <span id="val-taxa-entrega" style="font-weight: bold; color: var(--primary);">R$ 5,00</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; border-top: 2px dashed #eee; pt: 12px; margin-top: 10px; padding-top: 10px;">
                     <span style="font-weight: 800; font-size: 1rem;">TOTAL FINAL</span>
@@ -210,14 +210,33 @@
         let pedidoAtivoId = localStorage.getItem('pedidoAtivoId') || null;
 
         const ADMIN_NUMBER = '558293157048'; // Número do Admin para o WhatsApp
-        const TAXA_ENTREGA = 3.00; // Taxa de entrega fixa
+        let TAXA_ENTREGA = 5.00;
+        let DISTANCIA_KM = 0;
+        let DENTRO_DO_RAIO = true;
 
         document.addEventListener('DOMContentLoaded', async () => {
             await verificarCaixa();
+            await carregarConfigFrete();
             initPusher();
             loadMenu();
             verificarStatusAtivo();
         });
+
+        async function carregarConfigFrete() {
+            try {
+                const res = await fetch('/api/configuracao-entrega');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.frete_taxa_base) {
+                        TAXA_ENTREGA = data.frete_taxa_base;
+                        const elVal = document.getElementById('val-taxa-entrega');
+                        if (elVal) elVal.textContent = `R$ ${TAXA_ENTREGA.toFixed(2)}`;
+                    }
+                }
+            } catch (e) {
+                console.warn('Usando taxa padrao:', e);
+            }
+        }
 
         async function initPusher() {
             try {
@@ -567,7 +586,46 @@
                 </div>`).join('');
             const subtotal = cart.reduce((s, x) => s + (x.qty*x.preco), 0);
             document.getElementById('modal-subtotal').innerText = `R$ ${subtotal.toFixed(2)}`;
+            const valTaxaEl = document.getElementById('val-taxa-entrega');
+            if (valTaxaEl) valTaxaEl.innerText = `R$ ${TAXA_ENTREGA.toFixed(2)}`;
             document.getElementById('modal-cart-total').innerText = `R$ ${(subtotal + TAXA_ENTREGA).toFixed(2)}`;
+        }
+
+        async function calcularFreteCliente() {
+            const address = document.getElementById('cust-address')?.value.trim();
+            const bairro = document.getElementById('cust-bairro')?.value.trim();
+            if (!address) return;
+            const fullAddress = [address, bairro].filter(Boolean).join(', ');
+            
+            const labelTaxa = document.getElementById('label-taxa-entrega');
+            if (labelTaxa) labelTaxa.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando frete...';
+
+            try {
+                const res = await fetch('/api/frete/calcular', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ endereco: fullAddress })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success) {
+                        TAXA_ENTREGA = data.valor_taxa;
+                        DISTANCIA_KM = data.distancia_km;
+                        DENTRO_DO_RAIO = data.dentro_do_raio;
+                        if (labelTaxa) {
+                            if (data.dentro_do_raio) {
+                                labelTaxa.innerHTML = `Taxa de Entrega (${data.distancia_km} km):`;
+                            } else {
+                                labelTaxa.innerHTML = `<span style="color: #ff4757; font-weight: bold;">⚠️ Fora do raio (${data.distancia_km} km)</span>`;
+                            }
+                        }
+                        updateCartBar();
+                        renderCartModal();
+                    }
+                }
+            } catch (e) {
+                console.error('Erro ao calcular frete:', e);
+            }
         }
 
         function removeFromCart(id) {
@@ -592,6 +650,7 @@
 
             if (!name || !phone || !address || !number) return Swal.fire('Aviso', 'Preencha Nome, WhatsApp/Telefone, Endereço e Número.', 'warning');
             if (cart.length === 0) return Swal.fire('Aviso', 'Seu carrinho está vazio.', 'warning');
+            if (!DENTRO_DO_RAIO) return Swal.fire('Atenção', 'Infelizmente o seu endereço está fora do nosso raio de atendimento para delivery.', 'warning');
 
             const btn = document.getElementById('btn-finalizar');
             btn.disabled = true;
@@ -624,9 +683,11 @@
                     body: JSON.stringify({
                         mesa_id: null,
                         garcom_id: 'DELIVERY',
-                        cliente_telefone: phone.replace(/\D/g, ''), // Envia apenas números
+                        cliente_telefone: phone.replace(/\D/g, ''),
                         itens: itemsPayload,
-                        cobrar_taxa: true, // DEVE ser true para ativar a taxa de R$ 3,00 no Admin
+                        cobrar_taxa: true,
+                        taxa_entrega: TAXA_ENTREGA,
+                        distancia_km: DISTANCIA_KM,
                         total: totalFinal,
                         observacao: orderObs,
                         forma_pagamento: payment,
@@ -721,6 +782,26 @@
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-check"></i> FINALIZAR PEDIDO';
+            }
+        }
+
+        async function buscarCEP() {
+            const cepInput = document.getElementById('cust-cep')?.value.replace(/\D/g, '');
+            if (!cepInput || cepInput.length !== 8) return Swal.fire('Aviso', 'Digite um CEP válido com 8 dígitos.', 'warning');
+            try {
+                const res = await fetch(`https://viacep.com.br/ws/${cepInput}/json/`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (!data.erro) {
+                        if (document.getElementById('cust-address')) document.getElementById('cust-address').value = data.logradouro || '';
+                        if (document.getElementById('cust-bairro')) document.getElementById('cust-bairro').value = data.bairro || '';
+                        await calcularFreteCliente();
+                    } else {
+                        Swal.fire('Aviso', 'CEP não encontrado.', 'warning');
+                    }
+                }
+            } catch (e) {
+                console.error('Erro ao buscar CEP:', e);
             }
         }
     </script>

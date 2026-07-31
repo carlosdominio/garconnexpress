@@ -5334,7 +5334,10 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
 
   const lblTaxaFechamento = document.getElementById('lbl-fechamento-taxa');
   if (lblTaxaFechamento) {
-    lblTaxaFechamento.textContent = isDelivery ? "Taxa de Entrega (R$ 3,00):" : "Taxa de Serviço (10%):";
+    const taxaEntregaVal = (pedidoParaFecharAdmin && pedidoParaFecharAdmin.taxa_entrega !== undefined && pedidoParaFecharAdmin.taxa_entrega !== null)
+      ? parseFloat(pedidoParaFecharAdmin.taxa_entrega)
+      : 3.00;
+    lblTaxaFechamento.textContent = isDelivery ? `Taxa de Entrega (R$ ${taxaEntregaVal.toFixed(2)}):` : "Taxa de Serviço (10%):";
   }
   
   let cobrarTaxaNoPedido = true;
@@ -5542,7 +5545,10 @@ function recalcularTotalFechamentoAdmin() {
 
   const cobrarTaxa = document.getElementById('fechamento-taxa-admin').checked;
   const isDelivery = (pedidoParaFecharAdmin && pedidoParaFecharAdmin.garcom_id === 'DELIVERY');
-  const taxa = cobrarTaxa ? (isDelivery ? 3.00 : subtotalConsumoAdmin * 0.10) : 0;
+  const taxaEntregaVal = (pedidoParaFecharAdmin && pedidoParaFecharAdmin.taxa_entrega !== undefined && pedidoParaFecharAdmin.taxa_entrega !== null)
+    ? parseFloat(pedidoParaFecharAdmin.taxa_entrega)
+    : 3.00;
+  const taxa = cobrarTaxa ? (isDelivery ? taxaEntregaVal : subtotalConsumoAdmin * 0.10) : 0;
   const acrescimo = parseFloat(document.getElementById('fechamento-acrescimo-admin').value) || 0;
 
   const descontoInput = parseFloat(document.getElementById('fechamento-desconto-admin').value) || 0;

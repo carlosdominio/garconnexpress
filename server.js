@@ -3773,8 +3773,11 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
 
     // 4. Cálculo do Total Seguro (Ignora req.body.total enviado pelo cliente)
     let total;
+    let taxaEntrega = 0;
+    const distKm = parseFloat(req.body.distancia_km) || 0;
     if (garcom_id === 'DELIVERY') {
-      total = subtotalReal + 3.00;
+      taxaEntrega = (req.body.taxa_entrega !== undefined && req.body.taxa_entrega !== null) ? parseFloat(req.body.taxa_entrega) : 3.00;
+      total = subtotalReal + taxaEntrega;
     } else {
       const taxaMultiplicador = await getTaxaServicoMultiplicador();
       total = deveCobrarTaxa ? Math.round(subtotalReal * taxaMultiplicador * 100) / 100 : subtotalReal;
@@ -3789,10 +3792,10 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
     const vTrc = troco || 0;
 
     if (isPostgres) {
-      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc]);
+      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
       pedidoId = resPedido.rows[0].id;
     } else {
-      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc]);
+      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
       pedidoId = resPedido.lastInsertRowid;
     }
 
@@ -6642,11 +6645,143 @@ app.get('/api/diag', isAdmin, async (req, res) => {
         `CREATE INDEX IF NOT EXISTS idx_codigos_acesso_mesa_status ON codigos_acesso(mesa_id, status)`,
         `CREATE INDEX IF NOT EXISTS idx_pedido_itens_menu_id ON pedido_itens(menu_id)`
       ];
-      for (let tableSql of tables) {
-        if (isPostgres) await db.query(tableSql);
-        else db.exec(tableSql.replace(/SERIAL PRIMARY KEY/g, 'INTEGER PRIMARY KEY AUTOINCREMENT'));
+  // --- CÁLCULO DE FRETE / TAXA DE ENTREGA POR KM (OPENSTREETMAP OSRM) ---
+  app.post('/api/frete/calcular', ensureDbInitialized, async (req, res) => {
+    try {
+      const { endereco, cep, lat_cliente, lng_cliente } = req.body;
+      
+      const configsRows = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'frete_%'")).rows;
+      const cfgMap = {};
+      for (const r of configsRows) cfgMap[r.chave] = r.valor;
+
+      const modo = cfgMap['frete_modo'] || 'por_km';
+      const taxaBase = parseFloat(cfgMap['frete_taxa_base']) || 5.00;
+      const kmBaseIncluso = parseFloat(cfgMap['frete_km_base_incluso']) || 2.0;
+      const valorKmAdicional = parseFloat(cfgMap['frete_valor_km_adicional']) || 1.50;
+      const raioMaximo = parseFloat(cfgMap['frete_raio_maximo']) || 15.0;
+
+      const latRestaurante = parseFloat(cfgMap['frete_lat_restaurante']) || -23.550520;
+      const lngRestaurante = parseFloat(cfgMap['frete_lng_restaurante']) || -46.633309;
+
+      let destLat = parseFloat(lat_cliente);
+      let destLng = parseFloat(lng_cliente);
+
+      if ((!destLat || !destLng) && (endereco || cep)) {
+        try {
+          const queryStr = cep || endereco;
+          const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryStr)}&limit=1`, {
+            headers: { 'User-Agent': 'GarcomExpress/2.0' }
+          });
+          if (nomRes.ok) {
+            const nomData = await nomRes.json();
+            if (nomData && nomData.length > 0) {
+              destLat = parseFloat(nomData[0].lat);
+              destLng = parseFloat(nomData[0].lon);
+            }
+          }
+        } catch (errNom) {
+          console.warn('⚠️ Erro ao geolocalizar via Nominatim:', errNom.message);
+        }
       }
-      res.json({ success: true, message: 'Tabelas criadas/verificadas com sucesso.' });
+
+      if (isNaN(destLat) || isNaN(destLng)) {
+        return res.json({
+          success: true,
+          valor_taxa: taxaBase,
+          distancia_km: 0,
+          dentro_do_raio: true,
+          mensagem: 'Endereço registrado. Taxa padrão aplicada.'
+        });
+      }
+
+      let distanciaKm = 0;
+      try {
+        const osrmRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${lngRestaurante},${latRestaurante};${destLng},${destLat}?overview=false`);
+        if (osrmRes.ok) {
+          const osrmData = await osrmRes.json();
+          if (osrmData && osrmData.routes && osrmData.routes.length > 0) {
+            distanciaKm = Math.round((osrmData.routes[0].distance / 1000) * 100) / 100;
+          }
+        }
+      } catch (errOsrm) {
+        console.warn('⚠️ OSRM indisponível, utilizando distância direta:', errOsrm.message);
+      }
+
+      if (!distanciaKm || distanciaKm <= 0) {
+        const R = 6371;
+        const dLat = (destLat - latRestaurante) * Math.PI / 180;
+        const dLon = (destLng - lngRestaurante) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(latRestaurante * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) *
+                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        distanciaKm = Math.round((R * c * 1.3) * 100) / 100;
+      }
+
+      const dentroDoRaio = distanciaKm <= raioMaximo;
+      let valorTaxa = taxaBase;
+      if (distanciaKm > kmBaseIncluso) {
+        valorTaxa = taxaBase + ((distanciaKm - kmBaseIncluso) * valorKmAdicional);
+      }
+      valorTaxa = Math.round(valorTaxa * 100) / 100;
+
+      res.json({
+        success: true,
+        valor_taxa: valorTaxa,
+        distancia_km: distanciaKm,
+        dentro_do_raio: dentroDoRaio,
+        lat: destLat,
+        lng: destLng,
+        mensagem: dentroDoRaio ? 'Frete calculado com sucesso.' : `Distância de ${distanciaKm}km excede o raio máximo de ${raioMaximo}km.`
+      });
+    } catch (error) {
+      console.error('Erro ao calcular frete:', error);
+      res.status(500).json({ success: false, error: 'Erro ao calcular frete por distância' });
+    }
+  });
+
+  app.get('/api/configuracao-entrega', ensureDbInitialized, async (req, res) => {
+    try {
+      const rows = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'frete_%'")).rows;
+      const configMap = {};
+      for (const r of rows) configMap[r.chave] = r.valor;
+      res.json({
+        frete_modo: configMap['frete_modo'] || 'por_km',
+        frete_taxa_base: parseFloat(configMap['frete_taxa_base']) || 5.00,
+        frete_km_base_incluso: parseFloat(configMap['frete_km_base_incluso']) || 2.0,
+        frete_valor_km_adicional: parseFloat(configMap['frete_valor_km_adicional']) || 1.50,
+        frete_raio_maximo: parseFloat(configMap['frete_raio_maximo']) || 15.0,
+        frete_endereco_restaurante: configMap['frete_endereco_restaurante'] || '',
+        frete_lat_restaurante: parseFloat(configMap['frete_lat_restaurante']) || -23.550520,
+        frete_lng_restaurante: parseFloat(configMap['frete_lng_restaurante']) || -46.633309
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/configuracao-entrega', ensureDbInitialized, isAdmin, async (req, res) => {
+    try {
+      const { frete_modo, frete_taxa_base, frete_km_base_incluso, frete_valor_km_adicional, frete_raio_maximo, frete_endereco_restaurante, frete_lat_restaurante, frete_lng_restaurante } = req.body;
+      const configs = [
+        { chave: 'frete_modo', valor: frete_modo || 'por_km' },
+        { chave: 'frete_taxa_base', valor: String(frete_taxa_base || 5.00) },
+        { chave: 'frete_km_base_incluso', valor: String(frete_km_base_incluso || 2.0) },
+        { chave: 'frete_valor_km_adicional', valor: String(frete_valor_km_adicional || 1.50) },
+        { chave: 'frete_raio_maximo', valor: String(frete_raio_maximo || 15.0) },
+        { chave: 'frete_endereco_restaurante', valor: frete_endereco_restaurante || '' },
+        { chave: 'frete_lat_restaurante', valor: String(frete_lat_restaurante || -23.550520) },
+        { chave: 'frete_lng_restaurante', valor: String(frete_lng_restaurante || -46.633309) }
+      ];
+
+      for (const cfg of configs) {
+        if (isPostgres) {
+          await query("INSERT INTO sistema_config (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [cfg.chave, cfg.valor]);
+        } else {
+          await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES (?, ?)", [cfg.chave, cfg.valor]);
+        }
+      }
+      res.json({ success: true, message: 'Configurações de frete salvas.' });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
