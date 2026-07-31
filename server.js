@@ -901,7 +901,7 @@ async function safePusherTrigger(channel, event, data) {
               .replace(/{status}/g, data.status === 'fechado' ? '🔴 O caixa foi FECHADO. Atendimento encerrado.' : '🟢 O caixa foi ABERTO. Bom trabalho!')
               .replace(/{itens}/g, itemsList)
               .replace(/{item}/g, data.item || data.nome || '')
-              .replace(/{qtd}/g, data.qtd || data.estoque || '1')
+              .replace(/{qtd}/g, (data.qtd !== undefined && data.qtd !== null) ? data.qtd : ((data.estoque !== undefined && data.estoque !== null) ? data.estoque : '1'))
               .replace(/{detalhes}/g, data.detalhes_edicao || '')
               .replace(/{pedido_id}/g, String(data.pedido_id || data.id || ''));
           };
