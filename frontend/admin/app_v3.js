@@ -1183,7 +1183,7 @@ function renderTabelaValorEstoqueDetalhado(itens) {
 
 async function carregarProdutosMovimentacao() {
   try {
-    const res = await fetch('/api/menu');
+    const res = await fetch('/api/menu?admin=true');
     if (!res.ok) return;
     const menu = await res.json();
     const select = document.getElementById('mov-produto');
@@ -2106,7 +2106,7 @@ async function exibirConfigOrdemCategorias() {
   if (!container) return;
 
   try {
-    const resMenu = await fetch('/api/menu');
+    const resMenu = await fetch('/api/menu?admin=true');
     const menu = await resMenu.json();
     const categoriasExistentes = [...new Set(menu.map(item => item.categoria.trim()))];
     
@@ -2184,7 +2184,7 @@ async function exibirConfigCategoriasCozinha() {
 
   try {
     // Busca todas as categorias existentes no menu
-    const resMenu = await fetch('/api/menu');
+    const resMenu = await fetch('/api/menu?admin=true');
     const menu = await resMenu.json();
     const categorias = [...new Set(menu.map(item => item.categoria.trim().toUpperCase()))].sort();
 
@@ -2239,7 +2239,7 @@ async function exibirConfigCategoriasChurrasco() {
   if (!container) return;
 
   try {
-    const resMenu = await fetch('/api/menu');
+    const resMenu = await fetch('/api/menu?admin=true');
     const menu = await resMenu.json();
     const categorias = [...new Set(menu.map(item => item.categoria.trim().toUpperCase()))].sort();
 
@@ -6347,7 +6347,7 @@ function calcularTrocoMultiPag(index, valorCota) {
 }
 
 async function carregarCardapio() {
-  const res = await fetch('/api/menu');
+  const res = await fetch('/api/menu?admin=true');
   cardapio = await res.json();
   const select = document.getElementById('menu-select');
   if (select) {
