@@ -477,15 +477,14 @@ let whatsappRealStatus = 'DESCONECTADO';
 const clientesEmAtendimento = new Map(); // Armazena { numero: timestamp } - ESCOPO GLOBAL
 
 if (botUrlFinal) {
-  const botSecret = process.env.BOT_SECRET || process.env.JWT_SECRET || 'seusegredomuitolouco123';
   whatsappSocket = ioClient(botUrlFinal, {
     reconnection: true,
     reconnectionAttempts: Infinity,
     auth: {
-      token: botSecret
+      token: BOT_SECRET
     },
     query: {
-      token: botSecret
+      token: BOT_SECRET
     }
   });
 
@@ -521,6 +520,30 @@ if (botUrlFinal) {
     }
   });
 }
+
+app.post('/api/whatsapp/webhook', async (req, res) => {
+  try {
+    const { token, sender, text, fromMe } = req.body;
+    if (!token || token !== BOT_SECRET) {
+      return res.status(401).json({ error: 'Token inválido ou não autorizado.' });
+    }
+    if (fromMe) return res.json({ success: true });
+
+    const from = sender ? sender.split('@')[0].replace(/\D/g, '') : '';
+    const msg = text ? text.trim() : '';
+
+    if (from && msg) {
+      if (msg.includes('🛍️ *NOVO PEDIDO - DELIVERY*') || msg.includes('🛵 DELIVERY')) {
+        clientesEmAtendimento.set(from, Date.now() + (4 * 60 * 60 * 1000));
+        console.log(`📦 [Webhook] Pedido detectado para ${from}. Mantendo modo automático no cache.`);
+      }
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Erro no webhook do WhatsApp:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Cache simples para configurações
 let configCache = {
@@ -641,15 +664,19 @@ async function sendWhatsAppMessage(text, targetNumber = null, pedidoId = 9999) {
 
 
 if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
-  console.error('\n❌ ERRO FATAL DE SEGURANÇA: JWT_SECRET não está definido no ambiente de produção!');
+  console.error('\n❌ ERRO FATAL DE SEGURANÇA: A variável de ambiente JWT_SECRET não está definida!');
   process.exit(1);
 }
-if (!process.env.JWT_SECRET) {
-  console.warn('\n⚠️  [SEGURANÇA] JWT_SECRET não está definido como variável de ambiente!');
-  console.warn('   Para produção, defina JWT_SECRET no Vercel/Render com um valor gerado por:');
-  console.warn('   node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'seusegredomuitolouco123' : null);
+if (!JWT_SECRET) {
+  console.error('\n❌ ERRO FATAL: JWT_SECRET é obrigatório!');
+  process.exit(1);
 }
-const JWT_SECRET = process.env.JWT_SECRET || 'seusegredomuitolouco123';
+const BOT_SECRET = process.env.BOT_SECRET || process.env.JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'seusegredomuitolouco123' : null);
+if (!BOT_SECRET) {
+  console.error('\n❌ ERRO FATAL: BOT_SECRET ou JWT_SECRET é obrigatório!');
+  process.exit(1);
+}
 const saltRounds = 10;
 
 const rateLimit = require('express-rate-limit');
@@ -734,7 +761,7 @@ if (isPostgres) {
         rejectUnauthorized: false, // Aceita certificados self-signed
         require: true 
       },
-      max: process.env.VERCEL ? 4 : 15, // Aumentado para 4 no Vercel (Supabase Pooler) e 15 local para paralelismo real
+      max: process.env.VERCEL ? 1 : 15, // Limitado a 1 no Vercel (evita estouro no Supabase) e 15 local
       idleTimeoutMillis: process.env.VERCEL ? 1500 : 30000, // Tempo de 1.5s para fechar conexões ociosas no Vercel
       connectionTimeoutMillis: process.env.VERCEL ? 8000 : 15000, // Timeout otimizado de 8s para conexões no Vercel
     });
@@ -788,6 +815,43 @@ async function query(text, params) {
   } catch (err) {
     console.error('DATABASE ERROR:', err.message);
     throw err;
+  }
+}
+
+async function runInTransaction(callback) {
+  if (isPostgres) {
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      const txQuery = async (text, params) => {
+        let i = 1;
+        const pgText = text.replace(/\?/g, () => `$${i++}`);
+        const res = (params && params.length > 0) ? await client.query(pgText, params) : await client.query(pgText);
+        return { 
+          rows: res.rows || [], 
+          changes: res.rowCount || 0, 
+          lastInsertRowid: (res.rows && res.rows.length > 0) ? (res.rows[0].id || null) : null 
+        };
+      };
+      const result = await callback(txQuery);
+      await client.query('COMMIT');
+      return result;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } else {
+    try {
+      await query('BEGIN TRANSACTION');
+      const result = await callback(query);
+      await query('COMMIT');
+      return result;
+    } catch (e) {
+      await query('ROLLBACK');
+      throw e;
+    }
   }
 }
 
@@ -1527,7 +1591,8 @@ async function checkAndNotifyDelayedOrders() {
     // Buscamos códigos de acesso ativos que foram gerados há mais de 5 minutos, onde o status da mesa seja 'ocupada'
     // e que NÃO possuam nenhum pedido (rascunho ou ativo) criado após a geração do código
     const delayedAcessoRes = await query(`
-      SELECT ca.id, ca.mesa_id, ca.codigo, CAST(ca.criado_at AS TEXT) as criado_str, m.numero as mesa_numero, m.garcom_id 
+      SELECT ca.id, ca.mesa_id, ca.codigo, CAST(ca.criado_at AS TEXT) as criado_str, m.numero as mesa_numero, m.garcom_id,
+             (SELECT CAST(id AS TEXT) FROM garcons WHERE usuario = m.garcom_id OR CAST(id AS TEXT) = m.garcom_id LIMIT 1) as garcom_pk
       FROM codigos_acesso ca
       JOIN mesas m ON ca.mesa_id = m.id
       WHERE ca.status = 'ativo' 
@@ -1584,7 +1649,7 @@ async function checkAndNotifyDelayedOrders() {
       const pushPromises = [];
       for (const sub of subs) {
         // Envia para o garçom atribuído à mesa
-        if (sub.app_type !== 'garcom' || (sub.garcom_id !== ca.garcom_id)) continue;
+        if (sub.app_type !== 'garcom' || (sub.garcom_id !== ca.garcom_id && sub.garcom_id !== String(ca.garcom_pk))) continue;
         if (sentEndpoints.has(sub.endpoint)) continue;
         sentEndpoints.add(sub.endpoint);
 
@@ -2573,6 +2638,7 @@ async function initDb() {
     await addCol('menu', 'unidade', "TEXT DEFAULT 'un'");
     await addCol('menu', 'preco_custo', 'REAL DEFAULT 0');
     await addCol('codigos_acesso', 'notificado_atraso_registro', 'INTEGER DEFAULT 0');
+    await addCol('pedidos', 'tracking_token', 'TEXT');
   } catch (e) { 
     console.error('Erro na migração:', e);
     dbInitError = e;
@@ -2885,12 +2951,11 @@ async function notifyDeliveryStatusToBot(number, status, pedidoId, tempo = null,
   if (!botUrlFinal) return;
   try {
     const botUrl = botUrlFinal.endsWith('/') ? botUrlFinal : `${botUrlFinal}/`;
-    const botSecret = process.env.BOT_SECRET || process.env.JWT_SECRET || 'seusegredomuitolouco123';
     await fetch(`${botUrl}api/notify-delivery`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${botSecret}`
+        'Authorization': `Bearer ${BOT_SECRET}`
       },
       body: JSON.stringify({ number, status, pedidoId, tempo, mensagem })
     });
@@ -5770,7 +5835,6 @@ app.get('/api/whatsapp-status', isAuthenticated, async (req, res) => {
       }
     }
 
-    const botSecret = process.env.BOT_SECRET || process.env.JWT_SECRET || 'seusegredomuitolouco123';
     res.json({
       configured: !!botUrlFinal,
       connected: isSocketConnected,
@@ -5779,7 +5843,7 @@ app.get('/api/whatsapp-status', isAuthenticated, async (req, res) => {
       number: numbersDisplay,
       // botUrl só retorna para admins (com o token anexado)
       ...(req.user && req.user.role === 'admin' ? { 
-        botUrl: botUrlFinal ? `${botUrlFinal}${botUrlFinal.includes('?') ? '&' : '?'}token=${botSecret}` : '' 
+        botUrl: botUrlFinal ? `${botUrlFinal}${botUrlFinal.includes('?') ? '&' : '?'}token=${BOT_SECRET}` : '' 
       } : {})
     });
   } catch (error) {
@@ -5946,13 +6010,13 @@ app.post('/api/config/versao-app', ensureDbInitialized, isAdmin, async (req, res
 });
 
 app.post('/api/config/upload-apk', express.raw({ type: 'application/octet-stream', limit: '150mb' }), ensureDbInitialized, isAdmin, async (req, res) => {
-  const filename = req.query.filename;
+  const path = require('path');
+  const filename = path.basename(req.query.filename || '');
   if (!filename || !filename.endsWith('.apk')) {
     return res.status(400).json({ success: false, error: 'Arquivo inválido ou nome ausente.' });
   }
   try {
     const fs = require('fs');
-    const path = require('path');
     let filePath = path.join(__dirname, filename);
     
     try {
