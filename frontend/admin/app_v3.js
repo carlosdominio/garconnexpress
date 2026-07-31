@@ -1582,7 +1582,7 @@ function renderizarCarrinhoLancar() {
   const elTotal = document.getElementById('lancar-total');
   if (elTotal) {
     elTotal.innerHTML = isDelivery 
-      ? `<span style="font-size: 1.2rem; color: #e67e22; font-weight: 900;">R$ ${subtotal.toFixed(2)}</span> <span style="font-size: 0.75rem; color: #64748b; font-weight: bold; background: #fff3cd; padding: 2px 6px; border-radius: 4px; border: 1px solid #ffeeba;">Valor s/ Taxa</span>`
+      ? `<div style="display:flex; align-items:center; gap:8px;"><span style="font-size:1.1rem; color:#64748b; font-weight:800; text-transform:uppercase;">Valor s/ Taxa:</span> <span style="font-size:1.5rem; color:#e67e22; font-weight:900;">R$ ${subtotal.toFixed(2)}</span></div>`
       : `R$ ${(cobrarTaxa ? subtotal * 1.10 : subtotal).toFixed(2)}`;
   }
   
@@ -1591,7 +1591,9 @@ function renderizarCarrinhoLancar() {
 
 function atualizarResumoDeliveryModal() {
   const subtotal = carrinhoLancar.reduce((s, i) => s + (i.preco * i.quantidade), 0);
-  const taxaVal = parseFloat(document.getElementById('lancar-delivery-taxa')?.value) || 0;
+  const inputTaxaEl = document.getElementById('lancar-delivery-taxa');
+  const rawVal = inputTaxaEl ? inputTaxaEl.value.trim() : '';
+  const taxaVal = rawVal !== '' ? (parseFloat(rawVal) || 0) : 0;
   const total = subtotal + taxaVal;
 
   const elSub = document.getElementById('modal-delivery-subtotal');
@@ -1599,7 +1601,15 @@ function atualizarResumoDeliveryModal() {
   const elTot = document.getElementById('modal-delivery-total');
 
   if (elSub) elSub.innerText = `R$ ${subtotal.toFixed(2)}`;
-  if (elTaxa) elTaxa.innerText = `R$ ${taxaVal.toFixed(2)}`;
+  if (elTaxa) {
+    if (rawVal === '') {
+      elTaxa.innerText = 'R$ 0.00 (Digite o CEP para calcular)';
+      elTaxa.style.color = '#7f8c8d';
+    } else {
+      elTaxa.innerText = `R$ ${taxaVal.toFixed(2)}`;
+      elTaxa.style.color = '#d35400';
+    }
+  }
   if (elTot) elTot.innerText = `R$ ${total.toFixed(2)}`;
 }
 
@@ -1641,8 +1651,11 @@ async function calcularFreteLancarAdmin() {
       if (data.success) {
         const inputTaxa = document.getElementById('lancar-delivery-taxa');
         if (inputTaxa) inputTaxa.value = data.valor_taxa.toFixed(2);
+        atualizarResumoDeliveryModal();
         recalcularTotalLancar();
         mostrarToast(`Frete calculado: R$ ${data.valor_taxa.toFixed(2)} (${data.distancia_km} km)`, 'sucesso');
+      } else if (data.error) {
+        mostrarToast(data.error, 'erro');
       }
     }
   } catch (e) {
@@ -1692,21 +1705,9 @@ function removerDoCarrinhoLancar(index) {
   exibirMenuLancar(catNome);
 }
 
-async function abrirModalLancarDelivery() {
+function abrirModalLancarDelivery() {
   if (document.getElementById('lancar-delivery-cep')) document.getElementById('lancar-delivery-cep').value = '';
-  
-  let taxaInicial = '5.00';
-  try {
-    const resCfg = await fetch('/api/configuracao-entrega');
-    if (resCfg.ok) {
-      const cfg = await resCfg.json();
-      if (cfg && cfg.taxa_base_km !== undefined) {
-        taxaInicial = parseFloat(cfg.taxa_base_km).toFixed(2);
-      }
-    }
-  } catch(e) {}
-
-  if (document.getElementById('lancar-delivery-taxa')) document.getElementById('lancar-delivery-taxa').value = taxaInicial;
+  if (document.getElementById('lancar-delivery-taxa')) document.getElementById('lancar-delivery-taxa').value = '';
   document.getElementById('lancar-delivery-nome').value = '';
   document.getElementById('lancar-delivery-telefone').value = '';
   document.getElementById('lancar-delivery-endereco').value = '';
