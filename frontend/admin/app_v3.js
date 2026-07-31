@@ -1581,7 +1581,9 @@ function renderizarCarrinhoLancar() {
 
   const elTotal = document.getElementById('lancar-total');
   if (elTotal) {
-    elTotal.innerText = isDelivery ? `R$ ${subtotal.toFixed(2)}` : `R$ ${(cobrarTaxa ? subtotal * 1.10 : subtotal).toFixed(2)}`;
+    elTotal.innerHTML = isDelivery 
+      ? `<span style="font-size: 1.2rem; color: #e67e22; font-weight: 900;">R$ ${subtotal.toFixed(2)}</span> <span style="font-size: 0.75rem; color: #64748b; font-weight: bold; background: #fff3cd; padding: 2px 6px; border-radius: 4px; border: 1px solid #ffeeba;">Valor s/ Taxa</span>`
+      : `R$ ${(cobrarTaxa ? subtotal * 1.10 : subtotal).toFixed(2)}`;
   }
   
   atualizarResumoDeliveryModal();
@@ -1690,9 +1692,21 @@ function removerDoCarrinhoLancar(index) {
   exibirMenuLancar(catNome);
 }
 
-function abrirModalLancarDelivery() {
+async function abrirModalLancarDelivery() {
   if (document.getElementById('lancar-delivery-cep')) document.getElementById('lancar-delivery-cep').value = '';
-  if (document.getElementById('lancar-delivery-taxa')) document.getElementById('lancar-delivery-taxa').value = '';
+  
+  let taxaInicial = '5.00';
+  try {
+    const resCfg = await fetch('/api/configuracao-entrega');
+    if (resCfg.ok) {
+      const cfg = await resCfg.json();
+      if (cfg && cfg.taxa_base_km !== undefined) {
+        taxaInicial = parseFloat(cfg.taxa_base_km).toFixed(2);
+      }
+    }
+  } catch(e) {}
+
+  if (document.getElementById('lancar-delivery-taxa')) document.getElementById('lancar-delivery-taxa').value = taxaInicial;
   document.getElementById('lancar-delivery-nome').value = '';
   document.getElementById('lancar-delivery-telefone').value = '';
   document.getElementById('lancar-delivery-endereco').value = '';
