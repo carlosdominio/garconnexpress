@@ -6669,8 +6669,8 @@ app.get('/api/diag', isAdmin, async (req, res) => {
       const valorKmAdicional = parseFloat(cfgMap['frete_valor_km_adicional']) || 1.50;
       const raioMaximo = parseFloat(cfgMap['frete_raio_maximo']) || 15.0;
 
-      const latRestaurante = parseFloat(cfgMap['frete_lat_restaurante']) || -23.550520;
-      const lngRestaurante = parseFloat(cfgMap['frete_lng_restaurante']) || -46.633309;
+      const latRestaurante = parseFloat(cfgMap['frete_lat_restaurante']) || -9.6600395;
+      const lngRestaurante = parseFloat(cfgMap['frete_lng_restaurante']) || -35.7515460;
 
       let destLat = parseFloat(lat_cliente);
       let destLng = parseFloat(lng_cliente);
@@ -6760,9 +6760,9 @@ app.get('/api/diag', isAdmin, async (req, res) => {
         frete_km_base_incluso: parseFloat(configMap['frete_km_base_incluso']) || 2.0,
         frete_valor_km_adicional: parseFloat(configMap['frete_valor_km_adicional']) || 1.50,
         frete_raio_maximo: parseFloat(configMap['frete_raio_maximo']) || 15.0,
-        frete_endereco_restaurante: configMap['frete_endereco_restaurante'] || '',
-        frete_lat_restaurante: parseFloat(configMap['frete_lat_restaurante']) || -23.550520,
-        frete_lng_restaurante: parseFloat(configMap['frete_lng_restaurante']) || -46.633309
+        frete_endereco_restaurante: configMap['frete_endereco_restaurante'] || 'Rua Santo Antônio, 132 - Ponta Grossa, Maceió - AL, 57014-290',
+        frete_lat_restaurante: parseFloat(configMap['frete_lat_restaurante']) || -9.6600395,
+        frete_lng_restaurante: parseFloat(configMap['frete_lng_restaurante']) || -35.7515460
       });
     } catch (e) {
       res.status(500).json({ error: e.message });
