@@ -5558,9 +5558,9 @@ function recalcularTotalFechamentoAdmin() {
   const totalBruto = (subtotalConsumoAdmin + taxa + acrescimo - desconto);
   const saldoRestante = Math.max(0, totalBruto - pagoParcial);
 
-  // Se o usuário não modificou o campo manualmente, atualiza o valor recebido para o saldo restante
+  // Se o usuário não modificou o campo manualmente, mantém o valor recebido vazio (limpo)
   if (!window.recebidoModificadoManualmente) {
-    document.getElementById('fechamento-recebido-admin').value = saldoRestante > 0 ? saldoRestante.toFixed(2) : '';
+    document.getElementById('fechamento-recebido-admin').value = '';
   }
 
   const recebido = parseFloat(document.getElementById('fechamento-recebido-admin').value) || 0;
