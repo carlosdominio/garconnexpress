@@ -20,6 +20,17 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
+    <!-- Tela de Carregamento Inicial (Hardcoded para Zero Flash de Conteúdo) -->
+    <div id="screen-loading-overlay" style="position: fixed; inset: 0; width: 100vw; height: 100vh; background: linear-gradient(135deg, #0f172a, #1e293b); z-index: 9999999; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif;">
+        <div style="width: 80px; height: 80px; margin-bottom: 24px; position: relative; display: flex; align-items: center; justify-content: center;">
+            <div style="position: absolute; inset: 0; border: 4px solid rgba(255,255,255,0.1); border-top-color: #38bdf8; border-radius: 50%; animation: spinOverlay 1s linear infinite;"></div>
+            <span style="font-size: 32px;">🛵</span>
+        </div>
+        <h3 id="screen-loading-title" style="color: #f8fafc; font-size: 20px; font-weight: 700; margin: 0 0 8px 0; text-align: center;">Carregando...</h3>
+        <p id="screen-loading-subtitle" style="color: #94a3b8; font-size: 14px; margin: 0; text-align: center; max-width: 320px; line-height: 1.4;">Sincronizando entregas...</p>
+        <style>@keyframes spinOverlay { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+    </div>
+
     <!-- Tela de Login -->
     <div id="login-screen" class="tela-login" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100vh; background: #2c3e50; z-index: 100000; align-items: center; justify-content: center; flex-direction: column;">
         <div class="login-box" style="background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); text-align: center; width: 90%; max-width: 400px;">
