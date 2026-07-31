@@ -1581,7 +1581,7 @@ function renderizarCarrinhoLancar() {
 
   const elTotal = document.getElementById('lancar-total');
   if (elTotal) {
-    elTotal.innerText = isDelivery ? `R$ ${subtotal.toFixed(2)} (Subtotal)` : `R$ ${(cobrarTaxa ? subtotal * 1.10 : subtotal).toFixed(2)}`;
+    elTotal.innerText = isDelivery ? `R$ ${subtotal.toFixed(2)}` : `R$ ${(cobrarTaxa ? subtotal * 1.10 : subtotal).toFixed(2)}`;
   }
   
   atualizarResumoDeliveryModal();
