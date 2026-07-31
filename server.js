@@ -1387,7 +1387,8 @@ async function checkAndNotifyDelayedOrders() {
     });
 
     for (const p of delayedClosures) {
-      const mesaName = p.mesa_numero ? (String(p.mesa_numero).toUpperCase().includes('MESA') ? p.mesa_numero : 'Mesa ' + p.mesa_numero) : 'BALCAO';
+      const isDeliveryOrder = p.garcom_id === 'DELIVERY';
+      const mesaName = isDeliveryOrder ? 'DELIVERY' : (p.mesa_numero ? (String(p.mesa_numero).toUpperCase().includes('MESA') ? p.mesa_numero : 'Mesa ' + p.mesa_numero) : 'BALCAO');
       const updateRes = await query("UPDATE pedidos SET notificado_atraso_fechamento = 1 WHERE id = ? AND (notificado_atraso_fechamento = 0 OR notificado_atraso_fechamento IS NULL)", [p.id]);
       if (updateRes.changes === 0) continue;
 
@@ -1600,7 +1601,7 @@ async function checkAndNotifyDelayedOrders() {
 
     for (const p of delayedOrders) {
       const isDelivery = p.garcom_id === 'DELIVERY';
-      const mesaName = p.mesa_numero ? (String(p.mesa_numero).toUpperCase().includes('MESA') ? p.mesa_numero : `Mesa ${p.mesa_numero}`) : 'BALCÃO';
+      const mesaName = isDelivery ? 'DELIVERY' : (p.mesa_numero ? (String(p.mesa_numero).toUpperCase().includes('MESA') ? p.mesa_numero : `Mesa ${p.mesa_numero}`) : 'BALCÃO');
       
       const targets = [];
       
