@@ -1573,11 +1573,32 @@ function renderizarCarrinhoLancar() {
   
   const selectMesa = document.getElementById('lancar-mesa-select');
   const isDelivery = selectMesa && selectMesa.value === 'DELIVERY';
-  const taxaDeliveryInput = parseFloat(document.getElementById('lancar-delivery-taxa')?.value);
-  const taxaDeliveryVal = !isNaN(taxaDeliveryInput) ? taxaDeliveryInput : 5.00;
-  const total = isDelivery ? (cobrarTaxa ? subtotal + taxaDeliveryVal : subtotal) : (cobrarTaxa ? subtotal * 1.10 : subtotal);
+  
+  const containerTaxaToggle = document.getElementById('lancar-taxa-container');
+  if (containerTaxaToggle) {
+    containerTaxaToggle.style.display = isDelivery ? 'none' : 'flex';
+  }
+
   const elTotal = document.getElementById('lancar-total');
-  if (elTotal) elTotal.innerText = `R$ ${total.toFixed(2)}`;
+  if (elTotal) {
+    elTotal.innerText = isDelivery ? `R$ ${subtotal.toFixed(2)} (Subtotal)` : `R$ ${(cobrarTaxa ? subtotal * 1.10 : subtotal).toFixed(2)}`;
+  }
+  
+  atualizarResumoDeliveryModal();
+}
+
+function atualizarResumoDeliveryModal() {
+  const subtotal = carrinhoLancar.reduce((s, i) => s + (i.preco * i.quantidade), 0);
+  const taxaVal = parseFloat(document.getElementById('lancar-delivery-taxa')?.value) || 0;
+  const total = subtotal + taxaVal;
+
+  const elSub = document.getElementById('modal-delivery-subtotal');
+  const elTaxa = document.getElementById('modal-delivery-taxa-label');
+  const elTot = document.getElementById('modal-delivery-total');
+
+  if (elSub) elSub.innerText = `R$ ${subtotal.toFixed(2)}`;
+  if (elTaxa) elTaxa.innerText = `R$ ${taxaVal.toFixed(2)}`;
+  if (elTot) elTot.innerText = `R$ ${total.toFixed(2)}`;
 }
 
 async function buscarCEPLancarAdmin() {
@@ -1670,6 +1691,8 @@ function removerDoCarrinhoLancar(index) {
 }
 
 function abrirModalLancarDelivery() {
+  if (document.getElementById('lancar-delivery-cep')) document.getElementById('lancar-delivery-cep').value = '';
+  if (document.getElementById('lancar-delivery-taxa')) document.getElementById('lancar-delivery-taxa').value = '';
   document.getElementById('lancar-delivery-nome').value = '';
   document.getElementById('lancar-delivery-telefone').value = '';
   document.getElementById('lancar-delivery-endereco').value = '';
@@ -1680,6 +1703,7 @@ function abrirModalLancarDelivery() {
   document.getElementById('lancar-delivery-obs').value = '';
   document.getElementById('lancar-delivery-troco-container').style.display = 'block';
 
+  atualizarResumoDeliveryModal();
   document.getElementById('modal-lancar-delivery-dados').style.display = 'flex';
   document.body.classList.add('modal-open');
 }
