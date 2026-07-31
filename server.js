@@ -990,7 +990,23 @@ async function safePusherTrigger(channel, event, data) {
           targets.push({ app: 'churrasqueiro', title: msgChurrasco.title, msg: msgChurrasco.body });
           targets.push({ app: 'motoboy', title: msgMotoboy.title, msg: msgMotoboy.body });
         } else if (event === 'estoque-baixo') {
-          targets.push({ app: 'garcom',  title: msgGarcom.title, msg: msgGarcom.body });
+          // Push nativo de estoque vai APENAS para Cozinha e Churrasco (conforme categoria do produto).
+          // Garçom NÃO recebe push nativo de estoque (mantém comportamento atual inalterado).
+          // O Painel ADM sempre recebe via WebSocket Pusher (independente desta lógica).
+          const catItem = String(data.categoria || '').toLowerCase();
+          const ehChurrasco = catItem.includes('churras') || catItem.includes('carne') || catItem.includes('espeto') || catItem.includes('grill');
+          const ehCozinha   = data.enviar_cozinha === true || data.enviar_cozinha === 1 || data.enviar_cozinha === '1';
+          if (ehCozinha && msgCozinha.body) {
+            targets.push({ app: 'cozinha', title: msgCozinha.title, msg: msgCozinha.body });
+          }
+          if (ehChurrasco && msgChurrasco.body) {
+            targets.push({ app: 'churrasqueiro', title: msgChurrasco.title, msg: msgChurrasco.body });
+          }
+          // Se o item não for de cozinha nem de churrasco, envia para ambos como fallback seguro
+          if (!ehCozinha && !ehChurrasco) {
+            if (msgCozinha.body) targets.push({ app: 'cozinha', title: msgCozinha.title, msg: msgCozinha.body });
+            if (msgChurrasco.body) targets.push({ app: 'churrasqueiro', title: msgChurrasco.title, msg: msgChurrasco.body });
+          }
         } else if (isDelivery) {
           if (event === 'pedido-cancelado' && enviaCozinha) {
              // Se for cancelamento de delivery E tem item de cozinha, NÃO envia push pro motoboy.
@@ -2025,14 +2041,22 @@ async function getTaxaServicoMultiplicador() {
 
 async function verificarEstoqueBaixo(menuId) {
   try {
-    const item = (await query("SELECT id, nome, estoque FROM menu WHERE id = ?", [menuId])).rows[0];
+    // Busca enviar_cozinha e categoria para rotear o push nativo corretamente
+    const item = (await query("SELECT id, nome, estoque, enviar_cozinha, categoria FROM menu WHERE id = ?", [menuId])).rows[0];
     if (item && item.estoque !== -1 && item.estoque <= 5) {
-      console.log(`⚠️ [Estoque] Baixo: ${item.nome} (${item.estoque})`);
+      const tipo = item.estoque === 0 ? '🚨 ESTOQUE ZERADO' : '⚠️ ESTOQUE BAIXO';
+      const msg  = item.estoque === 0
+        ? `🚨 ESTOQUE ZERADO: O produto "${item.nome}" acabou!`
+        : `⚠️ ESTOQUE BAIXO: ${item.nome} — restam apenas ${item.estoque} un.`;
+      console.log(`${tipo} | ${item.nome} (${item.estoque} un)`);
+      // O safePusherTrigger dispara o WebSocket Pusher (→ Painel ADM) E o FCM nativo (→ Cozinha/Churrasco)
       await safePusherTrigger('garconnexpress', 'estoque-baixo', {
         id: item.id,
         nome: item.nome,
         estoque: item.estoque,
-        mensagem: `⚠️ ESTOQUE BAIXO: ${item.nome} restam apenas ${item.estoque} un.`
+        enviar_cozinha: item.enviar_cozinha,
+        categoria: item.categoria,
+        mensagem: msg
       });
     }
   } catch (e) {
@@ -2066,6 +2090,8 @@ async function abaterEstoquePorFichaTecnica(menuId, quantidadeVendida) {
         'UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?',
         [quantidadeVendida, menuId]
       );
+      // Verifica e dispara alerta de estoque baixo também para produtos simples
+      await verificarEstoqueBaixo(menuId);
     }
   } catch (e) {
     console.error('Erro ao abater estoque por ficha técnica:', e.message);
