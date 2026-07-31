@@ -1033,6 +1033,7 @@ async function safePusherTrigger(channel, event, data) {
         }
 
         // Adiciona a cozinha e churrasqueiro como alvo para eventos gerais e específicos
+        // IMPORTANTE: estoque-baixo já é tratado acima com filtragem por categoria — não entra aqui
         if (event === 'novo-pedido' || event === 'pedido-cancelado') {
           if (enviaCozinha && msgCozinha.body) {
             targets.push({ app: 'cozinha', title: msgCozinha.title, msg: msgCozinha.body });
@@ -1040,7 +1041,8 @@ async function safePusherTrigger(channel, event, data) {
           if (enviaChurrasco && msgChurrasco.body) {
             targets.push({ app: 'churrasqueiro', title: msgChurrasco.title, msg: msgChurrasco.body });
           }
-        } else {
+        } else if (event !== 'estoque-baixo') {
+          // Para outros eventos (chamado-garcom, pedido-pronto, etc.), envia normalmente para cozinha/churrasqueiro
           if (msgCozinha.body) {
             targets.push({ app: 'cozinha', title: msgCozinha.title, msg: msgCozinha.body });
           }
