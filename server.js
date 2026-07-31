@@ -3794,10 +3794,31 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
     const vTrc = troco || 0;
 
     if (isPostgres) {
-      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
-      pedidoId = resPedido.rows[0].id;
+      try {
+        resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
+      } catch (errCol) {
+        if (errCol.message && (errCol.message.includes('taxa_entrega') || errCol.message.includes('distancia_km'))) {
+          console.warn('⚠️ Coluna taxa_entrega ausente. Criando colunas no PostgreSQL automaticamente...');
+          await query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS taxa_entrega REAL DEFAULT 0");
+          await query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS distancia_km REAL DEFAULT 0");
+          resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
+        } else {
+          throw errCol;
+        }
+      }
+      pedidoId = resPedido.rows && resPedido.rows[0] ? resPedido.rows[0].id : resPedido.lastInsertRowid;
     } else {
-      resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
+      try {
+        resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
+      } catch (errColSq) {
+        if (errColSq.message && (errColSq.message.includes('taxa_entrega') || errColSq.message.includes('distancia_km') || errColSq.message.includes('has no column'))) {
+          try { await query("ALTER TABLE pedidos ADD COLUMN taxa_entrega REAL DEFAULT 0"); } catch(e){}
+          try { await query("ALTER TABLE pedidos ADD COLUMN distancia_km REAL DEFAULT 0"); } catch(e){}
+          resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
+        } else {
+          throw errColSq;
+        }
+      }
       pedidoId = resPedido.lastInsertRowid;
     }
 
