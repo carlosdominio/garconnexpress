@@ -2939,16 +2939,25 @@ async function checkTemItemChurrasco(itensIds) {
   const catsChurrasco = configC.rows[0]?.valor ? JSON.parse(configC.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
   
   // Se não houver categorias de churrasco configuradas no painel, não envia para o churrasco
-  if (catsChurrasco.length === 0) return false;
+  if (catsChurrasco.length === 0) {
+    console.log(`🍢 [checkTemItemChurrasco] Nenhuma categoria de churrasco configurada → false`);
+    return false;
+  }
 
   const uniqueIds = [...new Set(itensIds)];
-  const menuItemsRes = await query(`SELECT categoria FROM menu WHERE id IN (${uniqueIds.map(() => '?').join(',')})`, uniqueIds);
+  const menuItemsRes = await query(`SELECT id, categoria FROM menu WHERE id IN (${uniqueIds.map(() => '?').join(',')})`, uniqueIds);
   
-  for (const m of menuItemsRes.rows) {
-    const categoria = (m.categoria || '').trim().toUpperCase();
+  const categoriasItens = menuItemsRes.rows.map(m => String(m.categoria || '').trim().toUpperCase());
+  console.log(`🍢 [checkTemItemChurrasco] catsChurrasco=${JSON.stringify(catsChurrasco)} | categoriasItens=${JSON.stringify(categoriasItens)}`);
+
+  for (const categoria of categoriasItens) {
     // Comparação EXATA: evita falsos positivos por substring
-    if (catsChurrasco.includes(categoria)) return true;
+    if (catsChurrasco.includes(categoria)) {
+      console.log(`🍢 [checkTemItemChurrasco] MATCH EXATO: "${categoria}" → true`);
+      return true;
+    }
   }
+  console.log(`🍢 [checkTemItemChurrasco] Nenhum item é churrasco → false`);
   return false;
 }
 
@@ -4022,6 +4031,7 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
     // 2. Verifica se o pedido tem itens para a cozinha ou churrasqueiro
     const temItemCozinha = await checkTemItemCozinha(menuIds);
     const temItemChurrasco = await checkTemItemChurrasco(menuIds);
+    console.log(`🚀 [novo-pedido #${pedidoId}] para_cozinha=${temItemCozinha} | para_churrasco=${temItemChurrasco} | menuIds=${JSON.stringify(menuIds)}`);
 
     // Dispara notificações CRÍTICAS para a UI (Aguardar para garantir envio no Vercel)
     await Promise.all([
