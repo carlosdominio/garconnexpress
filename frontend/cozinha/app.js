@@ -807,26 +807,9 @@ async function configurarPusher() {
         });
 
         canal.bind('novo-pedido', (data) => {
-            console.log('Novo pedido recebido!', data);
-            
-            if (!data || data.para_cozinha !== false) {
-                const mesa = (data.pedido && data.pedido.mesa_numero) || data.mesa_numero || 'BALCÃO';
-                const mesaStr = String(mesa);
-                const labelMesa = (mesaStr.includes('DELIVERY') || mesaStr.startsWith('Mesa')) ? mesaStr : `Mesa ${mesaStr}`;
-                const isAddition = !!data.is_addition;
-                const evKey = isAddition ? 'item-adicionado' : 'novo-pedido';
-
-                if (isAddition) {
-                    dispararToastSistema('item-adicionado', { mesa: labelMesa, pedido_id: data.pedido ? data.pedido.id : '' }, `🍳 ITEM ADICIONADO: ${labelMesa}`, 'success');
-                    exibirNotificacaoNativa(`🍳 ITEM ADICIONADO: ${labelMesa}`, "Novos itens foram adicionados para a cozinha!", `pedido-${data.pedido_id || 'novo'}`);
-                } else {
-                    dispararToastSistema('novo-pedido', { mesa: labelMesa, pedido_id: data.pedido ? data.pedido.id : '' }, `🍳 NOVO PEDIDO: ${labelMesa}`, 'success');
-                    exibirNotificacaoNativa(`🍳 NOVO PEDIDO: ${labelMesa}`, "Um novo pedido chegou para a cozinha!", `pedido-${data.pedido_id || 'novo'}`);
-                }
-
-                if (deveTocarSom(evKey)) tocarSomNotificacao('campainha');
-            }
-            
+            console.log('🍳 [Cozinha] novo-pedido recebido. para_cozinha=', data?.para_cozinha);
+            // A notificação é controlada pelo carregarPedidos: só dispara se a API retornar itens NOVOS
+            // Isso é 100% confiável pois usa o mesmo filtro SQL do endpoint /api/pedidos/cozinha
             clearTimeout(timeoutPusher);
             timeoutPusher = setTimeout(carregarPedidos, 50);
         });
