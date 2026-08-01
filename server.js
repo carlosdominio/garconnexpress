@@ -2922,33 +2922,25 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
 
 async function checkTemItemCozinha(itensIds) {
   if (!itensIds || itensIds.length === 0) return false;
-  const configK = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
-  const catsCozinha = configK.rows[0]?.valor ? JSON.parse(configK.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
   
   const configC = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
-  const catsChurrasco = configC.rows[0]?.valor ? JSON.parse(configC.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
+  const catsChurrasco = configC.rows[0]?.valor ? JSON.parse(configC.rows[0].valor).map(c => String(c).trim().toUpperCase()) : [];
 
   const uniqueIds = [...new Set(itensIds)];
   const menuItemsRes = await query(`SELECT enviar_cozinha, categoria FROM menu WHERE id IN (${uniqueIds.map(() => '?').join(',')})`, uniqueIds);
   
   for (const m of menuItemsRes.rows) {
     const envCozinha = m.enviar_cozinha;
-    const categoria = (m.categoria || '').trim().toUpperCase();
+    const categoria = String(m.categoria || '').trim().toUpperCase();
     
-    // Se pertencer ao churrasco, não vai para a cozinha
-    if (catsChurrasco.includes(categoria)) continue;
-
-    let vaiCozinha = false;
-    if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') {
-      vaiCozinha = false;
-    } else if (envCozinha === 1 || envCozinha === true || envCozinha === '1' || envCozinha === 'true') {
-      vaiCozinha = true;
-    } else if (catsCozinha.length > 0) {
-      vaiCozinha = catsCozinha.includes(categoria);
-    } else {
-      vaiCozinha = true; // Default
-    }
-    if (vaiCozinha) return true;
+    // Se explicitamente marcado como NÃO enviar para cozinha → ignora
+    if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') continue;
+    
+    // Se pertencer ao churrasco exclusivamente → ignora
+    if (catsChurrasco.length > 0 && catsChurrasco.includes(categoria)) continue;
+    
+    // Qualquer outro item (null, 1, true, ou categoria não-churrasco) → vai para a cozinha
+    return true;
   }
   return false;
 }
