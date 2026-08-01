@@ -1859,7 +1859,11 @@ async function checkAndNotifyDelayedOrders() {
               const androidNotification = {
                 channelId: channelName,
                 defaultSound: activeSound === 'original',
-                notificationPriority: 'PRIORITY_MAX'
+                notificationPriority: 'PRIORITY_MAX',
+                icon: 'ic_stat_notification',
+                color: '#e74c3c',
+                defaultVibrateTimings: true,
+                defaultLightSettings: true
               };
               if (activeSound !== 'original' && activeSound !== 'mudo') {
                 androidNotification.sound = fcmSoundFile;
