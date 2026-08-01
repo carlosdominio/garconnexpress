@@ -302,13 +302,18 @@ function fecharToast(el) {
 
 // IDs de pedidos do churrasco já conhecidos (para detectar novos com segurança)
 let _churrascoPedidosConhecidos = null;
+let _primeiroCarregamentoChurrasco = true;
 
 async function carregarPedidos(opcoes = {}) {
     const { verificarNovos = false } = opcoes;
     const container = document.getElementById('pedidos-container');
-    const isPrimeiroCarregamento = container && container.innerHTML.includes('Carregando pedidos...');
-    if (isPrimeiroCarregamento && typeof showLoading === 'function') {
-        showLoading(true, 'Conectando ao servidor...');
+    
+    if (_primeiroCarregamentoChurrasco) {
+        if (typeof exibirTelaCarregamentoSistema === 'function') {
+            exibirTelaCarregamentoSistema('Carregando pedidos...', 'Sincronizando com o servidor...');
+        } else if (typeof showLoading === 'function') {
+            showLoading(true, 'Carregando pedidos...');
+        }
     }
     try {
         const [caixaRes, pedidosRes] = await Promise.all([
@@ -370,6 +375,10 @@ async function carregarPedidos(opcoes = {}) {
         }
         setTimeout(carregarPedidos, 5000);
     } finally {
+        _primeiroCarregamentoChurrasco = false;
+        if (typeof ocultarTelaCarregamentoSistema === 'function') {
+            ocultarTelaCarregamentoSistema();
+        }
         if (typeof showLoading === 'function') {
             showLoading(false);
         }
