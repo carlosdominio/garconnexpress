@@ -1,5 +1,26 @@
 const API_BASE_URL = 'https://garconnexpress.vercel.app';
 
+// Debugger de erros globais para o app nativo
+window.onerror = function(message, source, lineno, colno, error) {
+  const errText = `🚨 ERRO: ${message}\nLink: ${source}:${lineno}:${colno}\nStack: ${error ? error.stack : 'Sem stack'}`;
+  console.error(errText);
+  if (typeof Swal !== 'undefined') {
+    Swal.fire({ title: 'Erro de Execução', text: errText, icon: 'error', confirmButtonText: 'OK' });
+  } else {
+    alert(errText);
+  }
+};
+
+window.addEventListener('unhandledrejection', function(event) {
+  const errText = `🚨 REJEIÇÃO NÃO TRATADA: ${event.reason}`;
+  console.error(errText);
+  if (typeof Swal !== 'undefined') {
+    Swal.fire({ title: 'Rejeição de Promessa', text: errText, icon: 'error', confirmButtonText: 'OK' });
+  } else {
+    alert(errText);
+  }
+});
+
 function exibirTelaCarregamentoSistema(titulo = 'Carregando...', mensagem = 'Aguarde um instante enquanto preparamos o aplicativo.') {
   let modal = document.getElementById('screen-loading-overlay');
   if (!modal) {
