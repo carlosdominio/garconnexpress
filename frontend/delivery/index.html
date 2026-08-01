@@ -54,6 +54,47 @@
         .btn-add-initial { background: var(--primary); color: white; border: none; padding: 8px 20px; border-radius: 20px; font-size: 0.9rem; font-weight: 700; cursor: pointer; }
         .cart-bar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: calc(100% - 40px); max-width: 500px; background: #2f3542; color: white; padding: 18px 25px; border-radius: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); z-index: 200; cursor: pointer; display: none; }
 
+        /* Botão Scroll to Top (Voltar ao Topo) */
+        .btn-scroll-top {
+            position: fixed;
+            bottom: 25px;
+            right: 20px;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary, #ea1d2c), var(--primary-dark, #b51722));
+            color: #ffffff;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            box-shadow: 0 8px 22px rgba(234, 29, 44, 0.45);
+            z-index: 990;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(20px) scale(0.85);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn-scroll-top.visible {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0) scale(1);
+        }
+        .btn-scroll-top.has-cart {
+            bottom: 95px;
+        }
+        .btn-scroll-top:hover {
+            transform: translateY(-4px) scale(1.08);
+            box-shadow: 0 12px 28px rgba(234, 29, 44, 0.6);
+        }
+        .btn-scroll-top:active {
+            transform: scale(0.92);
+        }
+
         .modal-cart { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; z-index: 1000; justify-content: flex-end; flex-direction: column; }
         .modal-content { background: white; border-radius: 40px 40px 0 0; padding: 40px 25px; max-height: 94vh; overflow-y: auto; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -164,6 +205,10 @@
             <div class="info"><span id="cart-qty">0 itens</span><span id="cart-total" style="display: block; font-weight: 900; font-size: 1.2rem;">R$ 0,00</span></div>
             <div style="font-weight: 800; font-size: 0.9rem;">VER CARRINHO <i class="fas fa-shopping-cart"></i></div>
         </div>
+        <!-- Botão Scroll to Top (Voltar ao Topo) -->
+        <button id="btn-scroll-top" class="btn-scroll-top" aria-label="Voltar ao topo" title="Voltar ao topo">
+            <i class="fas fa-arrow-up"></i>
+        </button>
     </div>
 
     <div class="modal-cart" id="modal-cart">
@@ -858,6 +903,38 @@
             }
         }
     </script>
+
+  <script>
+    (function() {
+      const btnScrollTop = document.getElementById('btn-scroll-top');
+      const cartBar = document.getElementById('cart-bar');
+      if (btnScrollTop) {
+        function checkScroll() {
+          if (cartBar && window.getComputedStyle(cartBar).display !== 'none') {
+            btnScrollTop.classList.add('has-cart');
+          } else {
+            btnScrollTop.classList.remove('has-cart');
+          }
+
+          if (window.scrollY > 250 || document.documentElement.scrollTop > 250) {
+            btnScrollTop.classList.add('visible');
+          } else {
+            btnScrollTop.classList.remove('visible');
+          }
+        }
+
+        window.addEventListener('scroll', checkScroll, { passive: true });
+        window.addEventListener('resize', checkScroll, { passive: true });
+
+        btnScrollTop.addEventListener('click', function() {
+          window.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+          });
+        });
+      }
+    })();
+  </script>
 
   <script>
     if ('serviceWorker' in navigator) {
