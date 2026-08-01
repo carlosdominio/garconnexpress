@@ -309,9 +309,7 @@ async function carregarPedidos(opcoes = {}) {
     const container = document.getElementById('pedidos-container');
     
     if (_primeiroCarregamentoChurrasco) {
-        if (typeof exibirTelaCarregamentoSistema === 'function') {
-            exibirTelaCarregamentoSistema('Carregando pedidos...', 'Sincronizando com o servidor...');
-        } else if (typeof showLoading === 'function') {
+        if (typeof showLoading === 'function') {
             showLoading(true, 'Carregando pedidos...');
         }
     }
@@ -835,7 +833,6 @@ async function configurarPusher() {
                 const mesa = data.mesa_numero || 'Mesa';
                 const pid = data.pedido_id || data.id || '';
                 const statusToasts = {
-                    'recebido':               { msg: `✅ Pedido #${pid} da ${mesa} foi RECEBIDO pelo caixa!`,         tipo: 'success' },
                     'preparando':             { msg: `🍳 Pedido #${pid} da ${mesa} está sendo PREPARADO!`,            tipo: 'info'    },
                     'pronto':                 { msg: `🔔 Pedido #${pid} da ${mesa} está PRONTO para servir!`,         tipo: 'success' },
                     'servido':                { msg: `🍽️ Pedido #${pid} da ${mesa} foi SERVIDO!`,                    tipo: 'success' },

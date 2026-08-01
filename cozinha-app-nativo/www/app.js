@@ -335,9 +335,7 @@ async function carregarPedidos(opcoes = {}) {
     const container = document.getElementById('pedidos-container');
     
     if (_primeiroCarregamentoCozinha) {
-        if (typeof exibirTelaCarregamentoSistema === 'function') {
-            exibirTelaCarregamentoSistema('Carregando pedidos...', 'Sincronizando com o servidor...');
-        } else if (typeof showLoading === 'function') {
+        if (typeof showLoading === 'function') {
             showLoading(true, 'Carregando pedidos...');
         }
     }
