@@ -789,6 +789,14 @@ async function configurarPusher() {
 
         canal.bind('status-atualizado', (data) => {
             console.log('📢 Status atualizado recebido:', data);
+
+            // Só processa alertas/toasts/sons se for um pedido da cozinha
+            if (data && data.para_cozinha === false) {
+                clearTimeout(timeoutPusher);
+                timeoutPusher = setTimeout(carregarPedidos, 50);
+                return;
+            }
+
             if (data && (data.status === 'itens_atualizados' || data.status === 'itens_adicionados')) {
                 const card = document.getElementById(`pedido-card-${data.pedido_id || data.id}`);
                 if (card) {

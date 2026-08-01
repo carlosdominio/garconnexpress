@@ -815,6 +815,13 @@ async function configurarPusher() {
         canal.bind('status-atualizado', (data) => {
             console.log('📢 Status atualizado recebido:', data);
 
+            // Só processa alertas/toasts/sons se for um pedido do churrasco
+            if (data && data.para_churrasco !== true) {
+                clearTimeout(timeoutPusher);
+                timeoutPusher = setTimeout(carregarPedidos, 50);
+                return;
+            }
+
             // Toasts para interações do Admin no pedido
             if (data && data.status) {
                 const mesa = data.mesa_numero || 'Mesa';

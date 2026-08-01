@@ -870,21 +870,41 @@ async function safePusherTrigger(channel, event, data) {
     // Calcula previamente se é para a cozinha ou churrasco para injetar no websocket
     let enviaCozinha = false;
     let enviaChurrasco = false;
-    if (event === 'novo-pedido' || event === 'pedido-cancelado') {
+    if (event === 'novo-pedido' || event === 'pedido-cancelado' || event === 'status-atualizado') {
       const pId = data.pedido_id || data.id || (data.pedido ? data.pedido.id : null);
       if (pId) {
-        if (event === 'novo-pedido') {
+        if (event === 'novo-pedido' || event === 'status-atualizado') {
           if (data.para_cozinha !== undefined) {
             enviaCozinha = data.para_cozinha;
           } else {
             const itensIds = data.itens ? data.itens.map(i => i.menu_id) : [];
-            enviaCozinha = await checkTemItemCozinha(itensIds);
+            if (itensIds.length > 0) {
+              enviaCozinha = await checkTemItemCozinha(itensIds);
+            } else {
+              try {
+                const itensRes = await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [pId]);
+                const ids = itensRes.rows.map(i => i.menu_id);
+                enviaCozinha = await checkTemItemCozinha(ids);
+              } catch (e) {
+                enviaCozinha = true;
+              }
+            }
           }
           if (data.para_churrasco !== undefined) {
             enviaChurrasco = data.para_churrasco;
           } else {
             const itensIds = data.itens ? data.itens.map(i => i.menu_id) : [];
-            enviaChurrasco = await checkTemItemChurrasco(itensIds);
+            if (itensIds.length > 0) {
+              enviaChurrasco = await checkTemItemChurrasco(itensIds);
+            } else {
+              try {
+                const itensRes = await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [pId]);
+                const ids = itensRes.rows.map(i => i.menu_id);
+                enviaChurrasco = await checkTemItemChurrasco(ids);
+              } catch (e) {
+                enviaChurrasco = false;
+              }
+            }
           }
         } else if (event === 'pedido-cancelado') {
           try {
