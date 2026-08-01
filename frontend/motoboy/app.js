@@ -84,6 +84,63 @@ async function carregarSomGlobalMotoboy() {
   }
 }
 
+let _toastTemplatesMotoboy = [];
+
+async function carregarConfiguracoesToastsMotoboy() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/toast-config/listar`);
+    const data = await res.json();
+    if (data.success && Array.isArray(data.templates)) {
+      _toastTemplatesMotoboy = data.templates;
+    }
+  } catch (e) {
+    console.warn('⚠️ Erro ao carregar modelos de toast para Motoboy:', e.message);
+  }
+}
+
+function dispararToastMotoboy(evento, dados = {}, fallbackText = '', fallbackTipo = 'info') {
+  const config = _toastTemplatesMotoboy.find(x => x.evento === evento);
+  const ativo = config ? config.ativo !== false : true;
+  if (!ativo) {
+    console.log(`💬 [Motoboy Toast] Evento [${evento}] está desativado pelo administrador.`);
+    return;
+  }
+  
+  const template = (config && config.texto) ? config.texto : fallbackText;
+  if (!template) return;
+  
+  const mesaVal = dados.mesa || dados.mesa_numero || dados.mesaNum || 'Delivery';
+  const clienteVal = dados.cliente || dados.nomeExibicao || '';
+  const itensVal = dados.itens || '';
+  const statusVal = dados.status || '';
+  const msgVal = dados.mensagem || '';
+  const pedidoIdVal = dados.pedido_id || dados.id || dados.pedidoId || '';
+  const itemVal = dados.item || '';
+  const qtdVal = dados.qtd || '';
+  
+  let msgFinal = template
+    .replace(/{mesa}/g, mesaVal)
+    .replace(/{cliente}/g, clienteVal)
+    .replace(/{itens}/g, itensVal)
+    .replace(/{status}/g, statusVal)
+    .replace(/{pedido_id}/g, pedidoIdVal)
+    .replace(/{mensagem}/g, msgVal)
+    .replace(/{item}/g, itemVal)
+    .replace(/{qtd}/g, qtdVal);
+
+  const tipo = config ? (config.tipo === 'erro' ? 'error' : (config.tipo === 'sucesso' ? 'success' : 'info')) : fallbackTipo;
+  const titulo = config ? (config.label || 'Delivery Express') : 'Delivery Express';
+
+  App.notifications.showLocal(titulo, msgFinal, `${evento}_${pedidoIdVal || Date.now()}`);
+  App.ui.showToast(msgFinal, tipo);
+
+  if (!config || config.som !== false) {
+    if (App.audio && typeof App.audio.playBell === 'function') {
+      App.audio.playBell();
+    }
+  }
+}
+
 const App = {
     state: {
         token: localStorage.getItem('motoboy_token'),
@@ -103,6 +160,7 @@ const App = {
 
     async init() {
         App.notifications.inicializarAudios();
+        carregarConfiguracoesToastsMotoboy();
         console.log('🚀 Inicializando Motoboy App v2.0.3...');
         
         exibirTelaCarregamentoSistema('Carregando...', 'Sincronizando entregas...');
@@ -630,49 +688,73 @@ const App = {
                     }
                 });
 
+                this.channel.bind('toast-config-atualizado', () => {
+                    carregarConfiguracoesToastsMotoboy();
+                });
+
                 this.channel.bind('comunicado-geral', (data) => {
                     console.log('📢 Evento recebido: comunicado-geral', data);
                     if (data.destinatario === 'todos' || data.destinatario === 'motoboy') {
-                        if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell();
-                        App.notifications.showLocal('📢 COMUNICADO GERAL', data.mensagem || '', 'broadcast');
-                        App.ui.showToast(data.mensagem || '', 'info');
+                        dispararToastMotoboy('comunicado-geral', { mensagem: data.mensagem || '' }, `📢 COMUNICADO GERAL: ${data.mensagem || ''}`, 'info');
                     }
                 });
 
                 this.channel.bind('pedido-atrasado-motoboy', (data) => {
                     console.log('📢 Evento: pedido-atrasado-motoboy', data);
-                    if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell();
-                    App.notifications.showLocal('⚠️ ENTREGA ATRASADA', data.mensagem || '', 'atrasado');
-                    App.ui.showToast(data.mensagem || '', 'error');
+                    const pId = String(data.pedido_id || '');
+                    dispararToastMotoboy('pedido-atrasado-motoboy', { pedido_id: pId, mensagem: data.mensagem || '' }, `🔥 MOTOBOY: ENTREGA ATRASADA! O pedido #${pId} está parado há mais de 10 minutos!`, 'error');
                 });
 
-                this.channel.bind('status-caixa-atualizado', () => App.checkCaixaStatus());
+                this.channel.bind('status-caixa-atualizado', (data) => {
+                    App.checkCaixaStatus();
+                    const statusTxt = (data && data.status) ? data.status : 'atualizado';
+                    dispararToastMotoboy('status-caixa-atualizado', { status: statusTxt }, `💼 Status do caixa: ${statusTxt}`, 'info');
+                });
+
+                this.channel.bind('pedido-entregue', (data) => {
+                    App.loadPedidos();
+                    const pId = String(data.pedido_id || data.id || '');
+                    const mesaVal = data.mesa || data.mesa_numero || 'Delivery';
+                    dispararToastMotoboy('pedido-entregue', { pedido_id: pId, mesa: mesaVal }, `✅ O pedido #${pId} (${mesaVal}) foi Finalizado com sucesso!`, 'success');
+                });
+
+                this.channel.bind('saiu-entrega', (data) => {
+                    App.loadPedidos();
+                    const pId = String(data.pedido_id || data.id || '');
+                    const mesaVal = data.mesa || data.mesa_numero || 'Delivery';
+                    dispararToastMotoboy('saiu-entrega', { pedido_id: pId, mesa: mesaVal }, `🛵 O pedido da ${mesaVal} saiu para entrega!`, 'info');
+                });
 
                 this.channel.bind('status-atualizado', (data) => {
-                    if (data.garcom_id !== 'DELIVERY') return;
+                    if (data.garcom_id !== 'DELIVERY' && String(data.garcom_id) !== 'DELIVERY') return;
                     App.loadPedidos();
-                    const pId = String(data.pedido_id || '');
-                    if (['pronto', 'servido', 'saiu_entrega'].includes(data.status) && pId) {
-                        let title = 'Motoboy Pro';
-                        let body = `Pedido #${pId} atualizado!`;
-                        if (data.status === 'pronto') { title = '🍳 PEDIDO PRONTO'; body = `Pedido #${pId} pronto na cozinha.`; }
-                        if (data.status === 'servido' || data.status === 'saiu_entrega') { title = '🛵 A CAMINHO'; body = `Pedido #${pId} saiu para entrega!`; }
-                        
-                        App.notifications.showLocal(title, body, `${data.status}_${pId}`);
+                    const pId = String(data.pedido_id || data.id || '');
+                    const mesaVal = data.mesa_numero || data.mesa || 'Delivery';
+                    const statusStr = data.status || '';
+
+                    if (pId) {
+                        if (statusStr === 'entregue' || statusStr === 'concluido') {
+                            dispararToastMotoboy('pedido-entregue', { pedido_id: pId, mesa: mesaVal }, `✅ O pedido #${pId} (${mesaVal}) foi Finalizado com sucesso!`, 'success');
+                        } else if (statusStr === 'saiu_entrega' || statusStr === 'servido') {
+                            dispararToastMotoboy('saiu-entrega', { pedido_id: pId, mesa: mesaVal }, `🛵 O pedido da ${mesaVal} saiu para entrega!`, 'info');
+                        } else if (statusStr === 'pronto') {
+                            dispararToastMotoboy('pedido-pronto', { pedido_id: pId, mesa: mesaVal }, `🍳 O pedido #${pId} (${mesaVal}) está pronto na cozinha!`, 'success');
+                        }
                     }
                 });
 
                 this.channel.bind('novo-pedido', (data) => {
                     const p = data.pedido || data;
-                    if (p.garcom_id !== 'DELIVERY') return;
+                    if (p.garcom_id !== 'DELIVERY' && String(p.garcom_id) !== 'DELIVERY') return;
                     App.loadPedidos();
                     const pId = String(p.id || p.pedido_id || '');
+                    const mesaVal = p.mesa_numero || p.mesa || 'Delivery';
                     if (pId) {
                         const isAddition = !!data.is_addition;
                         if (isAddition) {
-                            App.notifications.showLocal(`➕ ITEM ADICIONADO`, `Novos itens adicionados no pedido #${pId}!`, `novo_${pId}`);
+                            dispararToastMotoboy('item-adicionado', { pedido_id: pId, mesa: mesaVal }, `➕ Novos itens adicionados no pedido #${pId}!`, 'info');
                         } else {
-                            App.notifications.showLocal(`🆕 NOVO DELIVERY`, `Pedido #${pId} recebido!`, `novo_${pId}`);
+                            dispararToastMotoboy('novo-pedido', { pedido_id: pId, mesa: mesaVal }, `🍕 Novo pedido #${pId} recebido!`, 'info');
                         }
                     }
                 });
