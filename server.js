@@ -493,8 +493,11 @@ const clientesEmAtendimento = new Map(); // Armazena { numero: timestamp } - ESC
 
 if (botUrlFinal) {
   whatsappSocket = ioClient(botUrlFinal, {
+    transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: Infinity,
+    reconnectionDelay: 2000,
+    reconnectionDelayMax: 10000,
     auth: {
       token: BOT_SECRET
     },

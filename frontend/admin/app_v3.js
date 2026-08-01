@@ -9720,11 +9720,13 @@ async function inicializarWhatsAppWidget() {
         if (!waWidgetSocket && typeof io !== 'undefined') {
             // Força transporte WebSocket e anexa o token de autenticação
             waWidgetSocket = io(waWidgetBotBaseUrl, { 
-                transports: ['websocket'],
+                transports: ['websocket', 'polling'],
                 auth: { token: waWidgetBotToken },
                 query: { token: waWidgetBotToken },
-                reconnectionAttempts: 3,
-                reconnectionDelay: 10000
+                reconnection: true,
+                reconnectionAttempts: Infinity,
+                reconnectionDelay: 2000,
+                reconnectionDelayMax: 10000
             });
 
             waWidgetSocket.on('connect_error', (err) => {
