@@ -393,6 +393,8 @@ async function verificarCaixaManual(btn) {
 }
 
 function renderizarPedidos(itens) {
+    const container = document.getElementById('pedidos-container');
+    if (!container) return;
     const t0 = performance.now();
 
     // FILTRO DE SEGURANÇA REFORÇADO
