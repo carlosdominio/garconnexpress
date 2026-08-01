@@ -6531,7 +6531,7 @@ app.get('/api/toast-config/listar', ensureDbInitialized, async (req, res) => {
       const customSound = configMap[`toast_sound_${d.evento}`];
       return {
         ...d,
-        texto: (customText !== undefined && customText !== null) ? customText : d.textoPadrao,
+        texto: (customText !== undefined && customText !== null && customText !== '') ? customText : d.textoPadrao,
         ativo: (customEnabled !== undefined && customEnabled !== null) ? customEnabled === 'true' : true,
         som: (customSound !== undefined && customSound !== null) ? customSound === 'true' : true
       };
