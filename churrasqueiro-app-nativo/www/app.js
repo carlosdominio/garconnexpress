@@ -952,16 +952,26 @@ async function registerNativePush() {
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 Notificação recebida (Churrasqueiro):', notification);
       
-      // NOTA: 'pedido-atrasado-churrasco' NÃO está aqui pois vem via FCM (background), não via Pusher
-      const eventosPusher = ['novo-pedido', 'pedido-cancelado', 'status-caixa-atualizado', 'status-atualizado', 'estoque-baixo'];
       const ev = notification.data ? (notification.data.event || notification.data.evento) : null;
+      const pedidoId = notification.data && (notification.data.pedido_id || notification.data.id);
+
+      // Marca o pedido como já conhecido para evitar que carregarPedidos toque o som de novo
+      if (pedidoId && _churrascoPedidosConhecidos !== null) {
+        _churrascoPedidosConhecidos.add(String(pedidoId));
+        console.log('🔕 Pedido', pedidoId, 'marcado como conhecido (via FCM foreground) para evitar dupla notificação');
+      }
+
+      // Se for um evento em tempo real já gerenciado pelo Pusher no foreground, apenas recarrega os pedidos
+      // NOTA: 'pedido-atrasado-churrasco' NÃO está aqui pois é apenas FCM (background), não Pusher
+      const eventosPusher = ['novo-pedido', 'pedido-cancelado', 'status-caixa-atualizado', 'status-atualizado', 'estoque-baixo'];
       if (ev && eventosPusher.includes(ev)) {
         console.log("Ignorando FCM foreground para evento '" + ev + "' (já tratado pelo Pusher).");
         if (typeof carregarPedidos === 'function') carregarPedidos();
         return;
       }
 
-      if (deveTocarSom('status-atualizado')) tocarCampainha();
+      // Para eventos não tratados pelo Pusher (ex: pedido-atrasado-churrasco): toca o som
+      if (deveTocarSom(ev || 'status-atualizado')) tocarCampainha();
       if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
         try {
           await window.Capacitor.Plugins.Haptics.vibrate();
@@ -973,6 +983,13 @@ async function registerNativePush() {
 
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
       console.log('🖱️ Clique na notificação detectado:', notification);
+      // Marca o pedido como já conhecido para evitar tocar o som de novo ao abrir o app
+      const data = notification.notification && notification.notification.data;
+      const pedidoId = data && (data.pedido_id || data.id);
+      if (pedidoId && _churrascoPedidosConhecidos !== null) {
+        _churrascoPedidosConhecidos.add(String(pedidoId));
+        console.log('🔕 Pedido', pedidoId, 'marcado como conhecido (via FCM tap) para evitar dupla notificação');
+      }
       if (typeof carregarPedidos === 'function') carregarPedidos();
     });
 
