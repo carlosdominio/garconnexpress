@@ -1106,15 +1106,9 @@ async function configurarPusher() {
       // Garçom sempre toca para pedidos prontos
       if (deveTocarSom('pedido-pronto')) tocarCampainha();
 
-      // Mostra Toast e Notificação Nativa
-      dispararToastSistema('pedido-pronto', { mesa: data.mesa_numero }, data.mensagem, 'success');
-
-      // Mostra apenas alerta informativo
-      const msgCompleta = data.mensagem || '';
-      const isChurrasco = msgCompleta.includes('Churrasqueiro') || msgCompleta.includes('🍢') || msgCompleta.includes('churrasco');
-      const emoji = isChurrasco ? '🍢' : '🍳';
-      const local = isChurrasco ? 'CHURRASQUEIRO' : 'COZINHA';
-      mostrarAlerta(data.mensagem, `${emoji} ${local}: PEDIDO PRONTO!`, emoji);
+      // Mostra Toast em tempo real configurado no Admin
+      const mesaVal = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : null) || 'Mesa';
+      dispararToastSistema('pedido-pronto', { mesa: mesaVal, pedido_id: data.pedido_id || (data.pedido ? data.pedido.id : '') }, data.mensagem, 'success');
 
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => carregarMesas(), 50);
@@ -1352,7 +1346,8 @@ async function configurarPusher() {
       }
 
       if (deveTocarSom('chamado-garcom')) tocarCampainha();
-      mostrarAlerta(data.mensagem, "🛎️ CHAMADO DE CLIENTE", "🛎️");
+      const mesaVal = data.mesa_numero || data.mesa_id || 'Mesa';
+      dispararToastSistema('chamado-garcom', { mesa: mesaVal, mensagem: data.mensagem || '' }, `🛎️ Chamado de atendimento na ${mesaVal}!`, 'warning');
     });
 
     channel.bind('menu-atualizado', (data) => {
@@ -1418,7 +1413,8 @@ async function configurarPusher() {
       }
 
       if (deveTocarSom('solicitacao-fechamento-cliente')) tocarCampainha();
-      mostrarAlerta(data.mensagem, "🙋‍♂️ SOLICITAÇÃO DE FECHAMENTO", "💰");
+      const mesaVal = data.mesa_numero || data.mesa_id || 'Mesa';
+      dispararToastSistema('solicitacao-fechamento-cliente', { mesa: mesaVal, pedido_id: data.pedido_id || '' }, `💰 A ${mesaVal} solicitou o fechamento da conta.`, 'info');
       
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => carregarMesas(), 50);
