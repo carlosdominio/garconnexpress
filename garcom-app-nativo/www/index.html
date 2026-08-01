@@ -309,6 +309,8 @@
       <div style="width: 30px; height: 30px; border: 3px solid #e2e8f0; border-top: 3px solid #e74c3c; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
       <span id="loading-rapido-texto" style="font-weight: bold; color: #2c3e50; font-size: 1rem; font-family: inherit;">Processando...</span>
     </div>
+  </div>
+
   <!-- Botão Scroll to Top (Voltar ao Topo) -->
   <button id="btn-scroll-top" class="btn-scroll-top" aria-label="Voltar ao topo" title="Voltar ao topo">
     <i class="fa-solid fa-arrow-up"></i>
@@ -326,21 +328,22 @@
             btnScrollTop.classList.remove('has-float-btn');
           }
 
-          if (window.scrollY > 250 || document.documentElement.scrollTop > 250) {
+          const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+          if (scrollTop > 150) {
             btnScrollTop.classList.add('visible');
           } else {
             btnScrollTop.classList.remove('visible');
           }
         }
 
-        window.addEventListener('scroll', checkScroll, { passive: true });
+        window.addEventListener('scroll', checkScroll, { passive: true, capture: true });
+        document.addEventListener('scroll', checkScroll, { passive: true, capture: true });
         window.addEventListener('resize', checkScroll, { passive: true });
 
         btnScrollTop.addEventListener('click', function() {
-          window.scrollTo({
-            top: 0,
-            behavior: 'smooth'
-          });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+          document.body.scrollTo({ top: 0, behavior: 'smooth' });
         });
       }
     })();
