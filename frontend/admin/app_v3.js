@@ -163,6 +163,7 @@ let pedidoEmEdicao = null;
 let itensEmEdicao = [];
 let categoriaEdicaoAtual = 'todas';
 let abaAtiva = 'ativos';
+let _mesasLancarCache = null; // Cache das mesas para evitar delay ao voltar para a aba
 let ultimoAlertaValidadeMostrado = 0; // Debounce para o alerta de produtos vencidos
 let subAbaAtiva = 'garcom';
 let adminLogado = null;
@@ -1355,15 +1356,27 @@ let carrinhoLancar = [];
 
 async function prepararLancarPedido() {
   carrinhoLancar = [];
-  await carregarMesasLancar();
-  exibirCategoriasLancar();
-  exibirMenuLancar('todas');
-  renderizarCarrinhoLancar();
+
+  // Se já temos cache do cardápio e das mesas, renderiza imediatamente sem esperar a API
+  if (cardapio && cardapio.length > 0 && _mesasLancarCache) {
+    exibirCategoriasLancar();
+    exibirMenuLancar('todas');
+    renderizarCarrinhoLancar();
+    // Atualiza mesas em background sem bloquear a tela
+    carregarMesasLancar().catch(() => {});
+  } else {
+    // Primeira vez: carrega normalmente aguardando a resposta
+    await carregarMesasLancar();
+    exibirCategoriasLancar();
+    exibirMenuLancar('todas');
+    renderizarCarrinhoLancar();
+  }
 }
 
 async function carregarMesasLancar() {
   const res = await fetch('/api/mesas');
   const mesas = await res.json();
+  _mesasLancarCache = mesas; // Salva no cache para próximas visitas
   const select = document.getElementById('lancar-mesa-select');
   if (!select) return;
   
