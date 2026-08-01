@@ -300,7 +300,11 @@ function fecharToast(el) {
     setTimeout(() => { if (el.parentNode) el.remove(); }, 400);
 }
 
-async function carregarPedidos() {
+// IDs de pedidos do churrasco já conhecidos (para detectar novos com segurança)
+let _churrascoPedidosConhecidos = null;
+
+async function carregarPedidos(opcoes = {}) {
+    const { verificarNovos = false } = opcoes;
     const container = document.getElementById('pedidos-container');
     const isPrimeiroCarregamento = container && container.innerHTML.includes('Carregando pedidos...');
     if (isPrimeiroCarregamento && typeof showLoading === 'function') {
@@ -322,6 +326,7 @@ async function carregarPedidos() {
                 if (closedScreen) closedScreen.style.display = 'flex';
                 if (header) header.style.opacity = '0.3';
                 if (typeof limparNotificacoes === 'function') limparNotificacoes();
+                _churrascoPedidosConhecidos = new Set();
                 return;
             }
         }
@@ -332,7 +337,28 @@ async function carregarPedidos() {
         
         if (pedidosRes.ok) {
             const itens = await pedidosRes.json();
-            renderizarPedidos(Array.isArray(itens) ? itens : []);
+            const itensValidos = Array.isArray(itens) ? itens : [];
+
+            // Detecta pedidos NOVOS do churrasco pela resposta REAL da API
+            if (verificarNovos && _churrascoPedidosConhecidos !== null) {
+                const idsAtuais = new Set(itensValidos.map(i => i.pedido_id));
+                const novosIds = [...idsAtuais].filter(id => !_churrascoPedidosConhecidos.has(id));
+                if (novosIds.length > 0) {
+                    console.log(`🍢 [Churrasco] Novos pedidos detectados pela API: ${novosIds.join(', ')}`);
+                    const primeiroNovo = itensValidos.find(i => novosIds.includes(i.pedido_id));
+                    const mesa = primeiroNovo?.mesa_numero || 'BALCÃO';
+                    const labelMesa = (String(mesa).includes('DELIVERY') || String(mesa).startsWith('Mesa')) ? mesa : `Mesa ${mesa}`;
+                    dispararToastSistema('novo-pedido', { mesa: labelMesa, pedido_id: novosIds[0] }, `🍢 NOVO PEDIDO: ${labelMesa}`, 'success');
+                    exibirNotificacaoNativa(`🍢 NOVO PEDIDO: ${labelMesa}`, 'Um novo pedido chegou para o churrasco!', `pedido-${novosIds[0]}`);
+                    if (deveTocarSom('novo-pedido')) tocarSomNotificacao('campainha');
+                }
+                _churrascoPedidosConhecidos = idsAtuais;
+            } else {
+                // Primeira carga: só memoriza os IDs existentes, sem notificar
+                _churrascoPedidosConhecidos = new Set(itensValidos.map(i => i.pedido_id));
+            }
+
+            renderizarPedidos(itensValidos);
         } else {
             console.warn('⚠️ Resposta da API de pedidos não OK:', pedidosRes.status);
             renderizarPedidos([]);
@@ -736,27 +762,11 @@ async function configurarPusher() {
         });
 
         canal.bind('novo-pedido', (data) => {
-            console.log('Novo pedido recebido!', data);
-            
-            if (data && data.para_churrasco === true) {
-                const mesa = (data.pedido && data.pedido.mesa_numero) || data.mesa_numero || 'BALCÃO';
-                const labelMesa = (mesa.includes('DELIVERY') || mesa.startsWith('Mesa')) ? mesa : `Mesa ${mesa}`;
-                const isAddition = !!data.is_addition;
-                const evKey = isAddition ? 'item-adicionado' : 'novo-pedido';
-
-                if (isAddition) {
-                    dispararToastSistema('item-adicionado', { mesa: labelMesa, pedido_id: data.pedido ? data.pedido.id : '' }, `🍢 ITEM ADICIONADO: ${labelMesa}`, 'success');
-                    exibirNotificacaoNativa(`🍢 ITEM ADICIONADO: ${labelMesa}`, "Novos itens foram adicionados para o churrasco!", `pedido-${data.pedido_id || 'novo'}`);
-                } else {
-                    dispararToastSistema('novo-pedido', { mesa: labelMesa, pedido_id: data.pedido ? data.pedido.id : '' }, `🍢 NOVO PEDIDO: ${labelMesa}`, 'success');
-                    exibirNotificacaoNativa(`🍢 NOVO PEDIDO: ${labelMesa}`, "Um novo pedido chegou para o churrasco!", `pedido-${data.pedido_id || 'novo'}`);
-                }
-
-                if (deveTocarSom(evKey)) tocarSomNotificacao('campainha');
-            }
-            
+            console.log('🍢 [Churrasco] novo-pedido recebido. para_churrasco=', data?.para_churrasco);
+            // A notificação é controlada pelo carregarPedidos: só dispara se a API retornar itens NOVOS
+            // Isso é 100% confiável pois usa o mesmo filtro SQL do endpoint /api/pedidos/churrasco
             clearTimeout(timeoutPusher);
-            timeoutPusher = setTimeout(carregarPedidos, 50);
+            timeoutPusher = setTimeout(() => carregarPedidos({ verificarNovos: true }), 50);
         });
 
         canal.bind('pedido-cancelado', (data) => {
