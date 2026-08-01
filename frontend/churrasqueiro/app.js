@@ -349,7 +349,6 @@ async function carregarPedidos(opcoes = {}) {
                     const mesa = primeiroNovo?.mesa_numero || 'BALCÃO';
                     const labelMesa = (String(mesa).includes('DELIVERY') || String(mesa).startsWith('Mesa')) ? mesa : `Mesa ${mesa}`;
                     dispararToastSistema('novo-pedido', { mesa: labelMesa, pedido_id: novosIds[0] }, `🍢 NOVO PEDIDO: ${labelMesa}`, 'success');
-                    exibirNotificacaoNativa(`🍢 NOVO PEDIDO: ${labelMesa}`, 'Um novo pedido chegou para o churrasco!', `pedido-${novosIds[0]}`);
                     if (deveTocarSom('novo-pedido')) tocarSomNotificacao('campainha');
                 }
                 _churrascoPedidosConhecidos = idsAtuais;
