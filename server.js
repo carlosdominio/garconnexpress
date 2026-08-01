@@ -4019,37 +4019,8 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
     });
     const msgWpp = `🚀 *NOVO PEDIDO #${pedidoId}*\n📍 Mesa: ${mesaNum}\n📝 Itens:\n${itensNomes.join('\n')}\n💰 Total: R$ ${total.toFixed(2)}`;
     // 2. Verifica se o pedido tem itens para a cozinha ou churrasqueiro
-    const configK = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
-    const catsCozinha = configK.rows[0]?.valor ? JSON.parse(configK.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
-    
-    const configC = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
-    const catsChurrasco = configC.rows[0]?.valor ? JSON.parse(configC.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
-
-    let temItemCozinha = false;
-    let temItemChurrasco = false;
-    for (const item of itens) {
-      const m = menuMap[item.menu_id];
-      if (m) {
-        const envCozinha = m.enviar_cozinha;
-        const categoria = (m.categoria || '').trim().toUpperCase();
-        
-        if (catsChurrasco.includes(categoria)) {
-          temItemChurrasco = true;
-        } else {
-          let vaiCozinha = false;
-          if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') {
-            vaiCozinha = false; 
-          } else if (catsCozinha.length > 0) {
-            vaiCozinha = catsCozinha.includes(categoria); 
-          } else {
-            vaiCozinha = (envCozinha === 1 || envCozinha === true || envCozinha === '1' || envCozinha === 'true');
-          }
-          if (vaiCozinha) {
-            temItemCozinha = true;
-          }
-        }
-      }
-    }
+    const temItemCozinha = await checkTemItemCozinha(menuIds);
+    const temItemChurrasco = await checkTemItemChurrasco(menuIds);
 
     // Dispara notificações CRÍTICAS para a UI (Aguardar para garantir envio no Vercel)
     await Promise.all([

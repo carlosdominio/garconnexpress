@@ -737,7 +737,7 @@ async function configurarPusher() {
         canal.bind('novo-pedido', (data) => {
             console.log('Novo pedido recebido!', data);
             
-            if (data && data.para_cozinha === true) {
+            if (!data || data.para_cozinha !== false) {
                 const mesa = (data.pedido && data.pedido.mesa_numero) || data.mesa_numero || 'BALCÃO';
                 const labelMesa = (mesa.includes('DELIVERY') || mesa.startsWith('Mesa')) ? mesa : `Mesa ${mesa}`;
                 const isAddition = !!data.is_addition;
