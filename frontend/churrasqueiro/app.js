@@ -789,14 +789,14 @@ async function configurarPusher() {
 
         canal.bind('pedido-atrasado-churrasco', (data) => {
             console.log('📢 Evento: pedido-atrasado-churrasco', data);
-            if (deveTocarSom('pedido-atrasado-churrasco')) tocarSomNotificacao('campainha');
-            dispararToastSistema('pedido-atrasado-churrasco', { mesa: data.mesa_numero || 'Mesa', pedido_id: data.pedido_id }, data.mensagem || 'O pedido do churrasco está atrasado!', 'error');
+            const toastExibido = dispararToastSistema('pedido-atrasado-churrasco', { mesa: data.mesa_numero || 'Mesa', pedido_id: data.pedido_id }, data.mensagem || 'O pedido do churrasco está atrasado!', 'error');
+            if (toastExibido && deveTocarSom('pedido-atrasado-churrasco')) tocarSomNotificacao('campainha');
         });
 
         canal.bind('estoque-baixo', (data) => {
             console.log('📢 Evento: estoque-baixo', data);
-            if (deveTocarSom('estoque-baixo')) tocarSomNotificacao('campainha');
-            dispararToastSistema('estoque-baixo', { mensagem: data.mensagem }, data.mensagem, 'warning');
+            const toastExibido = dispararToastSistema('estoque-baixo', { mensagem: data.mensagem }, data.mensagem, 'warning');
+            if (toastExibido && deveTocarSom('estoque-baixo')) tocarSomNotificacao('campainha');
         });
 
         canal.bind('menu-atualizado', () => {
@@ -1293,14 +1293,14 @@ function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTip
   const ativo = config ? config.ativo : true;
   if (!ativo) {
     console.log(`💬 [Toast Alertas] Evento [${evento}] está desativado pelo administrador.`);
-    return;
+    return false;
   }
   
   // Se config.texto for vazio/nulo, usa o fallbackText (padrão do código)
   const template = (config && config.texto) ? config.texto : fallbackText;
   if (!template) {
     console.warn(`💬 [Toast Alertas] Evento [${evento}] sem texto configurado e sem fallback.`);
-    return;
+    return false;
   }
   
   const mesaVal = dados.mesa_numero || dados.mesaNum || dados.mesa_id || dados.nMesa || dados.mesa || '';
@@ -1320,6 +1320,7 @@ function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTip
     
   const tipo = config ? (config.tipo === 'erro' ? 'error' : (config.tipo === 'sucesso' ? 'success' : 'info')) : fallbackTipo;
   mostrarToast(msgFinal, tipo);
+  return true;
 }
 
 function showLoading(show = true, text = "Processando...") {

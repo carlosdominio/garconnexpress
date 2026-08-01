@@ -1176,6 +1176,7 @@ function logout() {
     localStorage.removeItem('cozinha_logado');
     localStorage.removeItem('cozinha_token');
     mostrarToast("Sessão encerrada com sucesso!", "info");
+    exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
     setTimeout(() => {
         location.reload();
     }, 1500);
