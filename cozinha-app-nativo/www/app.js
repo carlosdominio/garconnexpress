@@ -614,7 +614,8 @@ function marcarComoPronto(pedidoId, btn) {
     const msg = document.getElementById('confirmacao-pronto-msg');
     
     if (modal && msg) {
-        const labelMesa = (mesa.includes('DELIVERY') || mesa.startsWith('Mesa')) ? mesa : `Mesa ${mesa}`;
+        const mesaStr = String(mesa);
+        const labelMesa = (mesaStr.includes('DELIVERY') || mesaStr.startsWith('Mesa')) ? mesaStr : `Mesa ${mesaStr}`;
         msg.innerHTML = `Deseja marcar o pedido do <strong>${labelMesa}</strong> como pronto?`;
         modal.classList.add('active');
         
@@ -760,7 +761,8 @@ async function configurarPusher() {
             
             if (!data || data.para_cozinha !== false) {
                 const mesa = (data.pedido && data.pedido.mesa_numero) || data.mesa_numero || 'BALCÃO';
-                const labelMesa = (mesa.includes('DELIVERY') || mesa.startsWith('Mesa')) ? mesa : `Mesa ${mesa}`;
+                const mesaStr = String(mesa);
+                const labelMesa = (mesaStr.includes('DELIVERY') || mesaStr.startsWith('Mesa')) ? mesaStr : `Mesa ${mesaStr}`;
                 const isAddition = !!data.is_addition;
                 const evKey = isAddition ? 'item-adicionado' : 'novo-pedido';
 
