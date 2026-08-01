@@ -1173,12 +1173,12 @@ function exibirErroLogin(mensagem) {
 }
 
 function logout() {
-    exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
     localStorage.removeItem('cozinha_logado');
     localStorage.removeItem('cozinha_token');
+    mostrarToast("Sessão encerrada com sucesso!", "info");
     setTimeout(() => {
         location.reload();
-    }, 1000);
+    }, 1500);
 }
 
 // Bateria (executa solto no boot nativo)

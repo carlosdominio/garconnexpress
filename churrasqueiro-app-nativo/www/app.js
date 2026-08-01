@@ -1159,12 +1159,12 @@ function exibirErroLogin(mensagem) {
 }
 
 function logout() {
-    exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
     localStorage.removeItem('churrasqueiro_logado');
     localStorage.removeItem('churrasqueiro_token');
+    mostrarToast("Sessão encerrada com sucesso!", "info");
     setTimeout(() => {
         location.reload();
-    }, 1000);
+    }, 1500);
 }
 
 (async () => {
