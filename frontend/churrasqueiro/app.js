@@ -896,6 +896,8 @@ async function registerNativePush() {
       const canalId = 'churrasqueiro_canal_' + somTipo;
 
       try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}
+      // Deleta o canal personalizado antigo para forçar o Android a recriar com o som correto
+      try { await PushNotifications.deleteChannel({ id: canalId }); } catch(e) {}
 
       // Cria o canal padrão com alta importância
       await PushNotifications.createChannel({
@@ -950,8 +952,8 @@ async function registerNativePush() {
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 Notificação recebida (Churrasqueiro):', notification);
       
-      // Se for um evento em tempo real já gerenciado pelo Pusher no foreground, ignore completamente o FCM no foreground
-      const eventosPusher = ['novo-pedido', 'pedido-cancelado', 'status-caixa-atualizado', 'status-atualizado', 'pedido-atrasado', 'estoque-baixo'];
+      // NOTA: 'pedido-atrasado-churrasco' NÃO está aqui pois vem via FCM (background), não via Pusher
+      const eventosPusher = ['novo-pedido', 'pedido-cancelado', 'status-caixa-atualizado', 'status-atualizado', 'estoque-baixo'];
       const ev = notification.data ? (notification.data.event || notification.data.evento) : null;
       if (ev && eventosPusher.includes(ev)) {
         console.log("Ignorando FCM foreground para evento '" + ev + "' (já tratado pelo Pusher).");
