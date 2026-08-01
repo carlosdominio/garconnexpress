@@ -369,20 +369,20 @@ async function carregarPedidos(opcoes = {}) {
             const itensValidos = Array.isArray(itens) ? itens : [];
 
             // Detecta pedidos NOVOS da cozinha pela resposta REAL da API
-            if (verificarNovos && _cozinhaPedidosConhecidos !== null) {
+            if (_cozinhaPedidosConhecidos !== null) {
                 const idsAtuais = new Set(itensValidos.map(i => i.pedido_id));
                 const novosIds = [...idsAtuais].filter(id => !_cozinhaPedidosConhecidos.has(id));
                 if (novosIds.length > 0) {
-                    console.log(`🍔 [Cozinha] Novos pedidos detectados pela API: ${novosIds.join(', ')}`);
+                    console.log(`🍳 [Cozinha] Novos pedidos detectados pela API: ${novosIds.join(', ')}`);
                     const primeiroNovo = itensValidos.find(i => novosIds.includes(i.pedido_id));
                     const mesa = primeiroNovo?.mesa_numero || 'BALCÃO';
                     const labelMesa = (String(mesa).includes('DELIVERY') || String(mesa).startsWith('Mesa')) ? mesa : `Mesa ${mesa}`;
-                    dispararToastSistema('novo-pedido', { mesa: labelMesa, pedido_id: novosIds[0] }, `🍕 NOVO PEDIDO: ${labelMesa}`, 'success');
+                    dispararToastSistema('novo-pedido', { mesa: labelMesa, pedido_id: novosIds[0] }, `🍳 NOVO PEDIDO: ${labelMesa}`, 'success');
                     if (deveTocarSom('novo-pedido')) tocarSomNotificacao('campainha');
                 }
                 _cozinhaPedidosConhecidos = idsAtuais;
             } else {
-                // Primeira carga: só memoriza os IDs existentes
+                // Primeira carga: só memoriza os IDs existentes, sem notificar
                 _cozinhaPedidosConhecidos = new Set(itensValidos.map(i => i.pedido_id));
             }
 

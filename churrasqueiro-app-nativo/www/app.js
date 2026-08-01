@@ -342,8 +342,7 @@ async function carregarPedidos(opcoes = {}) {
             const itens = await pedidosRes.json();
             const itensValidos = Array.isArray(itens) ? itens : [];
 
-            // Detecta pedidos NOVOS do churrasco pela resposta REAL da API
-            if (verificarNovos && _churrascoPedidosConhecidos !== null) {
+            if (_churrascoPedidosConhecidos !== null) {
                 const idsAtuais = new Set(itensValidos.map(i => i.pedido_id));
                 const novosIds = [...idsAtuais].filter(id => !_churrascoPedidosConhecidos.has(id));
                 if (novosIds.length > 0) {
