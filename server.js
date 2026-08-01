@@ -1587,7 +1587,7 @@ async function checkAndNotifyDelayedOrders() {
               defaultSound: activeSound === 'original',
               notificationPriority: 'PRIORITY_MAX'
             };
-            if (activeSound !== 'original' && activeSound !== 'mudo') {
+            if (activeSound !== 'mudo') {
               androidNotification.sound = fcmSoundFile;
             }
 
@@ -1700,7 +1700,7 @@ async function checkAndNotifyDelayedOrders() {
               defaultSound: activeSound === 'original',
               notificationPriority: 'PRIORITY_MAX'
             };
-            if (activeSound !== 'original' && activeSound !== 'mudo') {
+            if (activeSound !== 'mudo') {
               androidNotification.sound = fcmSoundFile;
             }
 
@@ -1865,7 +1865,7 @@ async function checkAndNotifyDelayedOrders() {
                 defaultVibrateTimings: true,
                 defaultLightSettings: true
               };
-              if (activeSound !== 'original' && activeSound !== 'mudo') {
+              if (activeSound !== 'mudo') {
                 androidNotification.sound = fcmSoundFile;
               }
 
@@ -2341,7 +2341,7 @@ async function sendPushToGarcons(title, body, event = 'geral', dataExtra = {}, t
             defaultSound: activeSound === 'original',
             notificationPriority: 'PRIORITY_MAX'
           };
-          if (activeSound !== 'original' && activeSound !== 'mudo') {
+          if (activeSound !== 'mudo') {
             androidNotification.sound = fcmSoundFile;
           }
 

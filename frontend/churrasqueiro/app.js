@@ -1296,8 +1296,12 @@ function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTip
     return;
   }
   
-  const template = config ? config.texto : fallbackText;
-  if (!template) return;
+  // Se config.texto for vazio/nulo, usa o fallbackText (padrão do código)
+  const template = (config && config.texto) ? config.texto : fallbackText;
+  if (!template) {
+    console.warn(`💬 [Toast Alertas] Evento [${evento}] sem texto configurado e sem fallback.`);
+    return;
+  }
   
   const mesaVal = dados.mesa_numero || dados.mesaNum || dados.mesa_id || dados.nMesa || dados.mesa || '';
   const clienteVal = dados.cliente || dados.nomeExibicao || '';
