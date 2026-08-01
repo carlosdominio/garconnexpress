@@ -1119,7 +1119,7 @@ async function realizarLogin() {
             localStorage.setItem('cozinha_logado', 'true');
             localStorage.setItem('cozinha_token', data.token);
             mostrarToast("Login realizado com sucesso!", "success");
-            location.reload();
+            setTimeout(() => { location.reload(); }, 1500);
             return;
         }
         
@@ -1135,7 +1135,7 @@ async function realizarLogin() {
             localStorage.setItem('cozinha_logado', 'true');
             localStorage.setItem('cozinha_token', data.token);
             mostrarToast("Login realizado com sucesso!", "success");
-            location.reload();
+            setTimeout(() => { location.reload(); }, 1500);
         } else if (res.status === 429) {
             ocultarTelaCarregamentoSistema();
             Swal.fire({
