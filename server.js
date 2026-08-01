@@ -3497,11 +3497,13 @@ app.get('/api/pedidos/cozinha', ensureDbInitialized, isAuthenticated, async (req
         p.created_at,
         p.observacao as pedido_observacao,
         p.garcom_id,
+        COALESCE(g.nome, p.garcom_id) as garcom_nome,
         mes.numero as mesa_numero
         FROM pedido_itens pi
       JOIN menu m ON pi.menu_id = m.id 
       JOIN pedidos p ON pi.pedido_id = p.id 
       LEFT JOIN mesas mes ON p.mesa_id = mes.id 
+      LEFT JOIN garcons g ON p.garcom_id = g.usuario
       WHERE (${whereClause}) AND ${filterCozinha}
       ORDER BY p.created_at ASC
     `);
@@ -3534,11 +3536,13 @@ app.get('/api/pedidos/churrasco', ensureDbInitialized, isAuthenticated, async (r
         p.created_at,
         p.observacao as pedido_observacao,
         p.garcom_id,
+        COALESCE(g.nome, p.garcom_id) as garcom_nome,
         mes.numero as mesa_numero
         FROM pedido_itens pi
       JOIN menu m ON pi.menu_id = m.id 
       JOIN pedidos p ON pi.pedido_id = p.id 
       LEFT JOIN mesas mes ON p.mesa_id = mes.id 
+      LEFT JOIN garcons g ON p.garcom_id = g.usuario
       WHERE (${whereClause}) AND ${filterChurrasco}
       ORDER BY p.created_at ASC
     `);

@@ -423,11 +423,17 @@ function renderizarPedidos(itens) {
             console.log(`📦 [Render] Agrupando Pedido #${item.pedido_id}`);
             
             const isDelivery = item.garcom_id === 'DELIVERY';
+            const isCliente = item.garcom_id === 'CLIENTE';
             const mesaNome = isDelivery ? `DELIVERY #${item.pedido_id}` : (item.mesa_numero ? `Mesa ${item.mesa_numero}` : 'BALCÃO');
+            let garcomDisplay = item.garcom_nome || item.garcom_id || 'Garçom';
+            if (isDelivery) garcomDisplay = 'Delivery';
+            else if (isCliente) garcomDisplay = 'Cardápio Digital';
+            else if (garcomDisplay === 'ADMIN') garcomDisplay = 'Painel Admin';
 
             pedidosMap[item.pedido_id] = {
                 id: item.pedido_id,
                 mesa: mesaNome,
+                garcom_nome: garcomDisplay,
                 is_delivery: isDelivery,
                 created_at: item.created_at,
                 pedido_observacao: item.pedido_observacao,
@@ -465,7 +471,10 @@ function renderizarPedidos(itens) {
         let card = document.getElementById(`pedido-card-${pedido.id}`);
         const cardInnerHTML = `
             <div class="card-header" style="${pedido.is_delivery ? 'background: #e67e22;' : ''}">
-                <span class="mesa-num">${pedido.mesa}</span>
+                <div>
+                    <span class="mesa-num">${pedido.mesa}</span>
+                    <span class="garcom-nome" style="display: block; font-size: 0.8rem; opacity: 0.95; margin-top: 2px; font-weight: 600;">🤵 ${pedido.garcom_nome}</span>
+                </div>
                 <span class="pedido-id">#${pedido.id} - <span class="pedido-tempo" data-created-at="${pedido.created_at}">${calcularTempo(pedido.created_at)}</span></span>
             </div>
             <div class="card-body">
