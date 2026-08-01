@@ -894,7 +894,7 @@ async function safePusherTrigger(channel, event, data) {
             enviaChurrasco = await checkTemItemChurrasco(itensIds);
           } catch (e) {
             enviaCozinha = true; // Fallback se der erro
-            enviaChurrasco = true;
+            enviaChurrasco = false;
           }
         }
       }
@@ -945,7 +945,7 @@ async function safePusherTrigger(channel, event, data) {
             }
           }
         }
-        if (enviaChurrasco === undefined) enviaChurrasco = true;
+        if (enviaChurrasco === undefined) enviaChurrasco = false;
 
         const mesaRaw = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : 'BALCÃO');
         let mesaFormatada = mesaRaw;
