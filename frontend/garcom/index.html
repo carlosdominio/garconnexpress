@@ -29,6 +29,48 @@
   <meta name="theme-color" content="#2c3e50">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <style>
+    /* Botão Scroll to Top (Voltar ao Topo) */
+    .btn-scroll-top {
+        position: fixed;
+        bottom: 25px;
+        right: 20px;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #2c3e50, #1a252f);
+        color: #ffffff;
+        border: none;
+        outline: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+        z-index: 990;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(20px) scale(0.85);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        -webkit-tap-highlight-color: transparent;
+    }
+    .btn-scroll-top.visible {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0) scale(1);
+    }
+    .btn-scroll-top.has-float-btn {
+        bottom: 95px;
+    }
+    .btn-scroll-top:hover {
+        transform: translateY(-4px) scale(1.08);
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+    }
+    .btn-scroll-top:active {
+        transform: scale(0.92);
+    }
+  </style>
 </head>
 <body>
   <!-- Tela de Login -->
@@ -267,7 +309,42 @@
       <div style="width: 30px; height: 30px; border: 3px solid #e2e8f0; border-top: 3px solid #e74c3c; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
       <span id="loading-rapido-texto" style="font-weight: bold; color: #2c3e50; font-size: 1rem; font-family: inherit;">Processando...</span>
     </div>
-  </div>
+  <!-- Botão Scroll to Top (Voltar ao Topo) -->
+  <button id="btn-scroll-top" class="btn-scroll-top" aria-label="Voltar ao topo" title="Voltar ao topo">
+    <i class="fa-solid fa-arrow-up"></i>
+  </button>
+
+  <script>
+    (function() {
+      const btnScrollTop = document.getElementById('btn-scroll-top');
+      if (btnScrollTop) {
+        function checkScroll() {
+          const floatBtns = document.querySelector('.float-buttons');
+          if (floatBtns && window.getComputedStyle(floatBtns).display !== 'none') {
+            btnScrollTop.classList.add('has-float-btn');
+          } else {
+            btnScrollTop.classList.remove('has-float-btn');
+          }
+
+          if (window.scrollY > 250 || document.documentElement.scrollTop > 250) {
+            btnScrollTop.classList.add('visible');
+          } else {
+            btnScrollTop.classList.remove('visible');
+          }
+        }
+
+        window.addEventListener('scroll', checkScroll, { passive: true });
+        window.addEventListener('resize', checkScroll, { passive: true });
+
+        btnScrollTop.addEventListener('click', function() {
+          window.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+          });
+        });
+      }
+    })();
+  </script>
 
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
