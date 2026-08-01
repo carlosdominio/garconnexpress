@@ -289,6 +289,12 @@ async function subscribeToPush() {
     return;
   }
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  
+  if ('Notification' in window && Notification.permission === 'denied') {
+    console.warn('⚠️ Web Push desativado: Permissão de notificação foi bloqueada no navegador.');
+    return;
+  }
+
   try {
     const reg = await navigator.serviceWorker.ready;
     let subscription = await reg.pushManager.getSubscription();
@@ -318,7 +324,11 @@ async function subscribeToPush() {
     });
     console.log('✅ Web Push (Background Nativo) ativado com sucesso!');
   } catch (error) {
-    console.error('❌ Falha ao inscrever no Web Push:', error);
+    if (error.name === 'NotAllowedError') {
+      console.warn('⚠️ Web Push desativado pelo navegador: Permissão de notificações negada pelo usuário.');
+    } else {
+      console.error('❌ Falha ao inscrever no Web Push:', error);
+    }
   }
 }
 
