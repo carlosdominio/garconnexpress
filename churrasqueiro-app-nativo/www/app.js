@@ -742,7 +742,6 @@ async function configurarPusher() {
                 }
 
                 if (deveTocarSom(evKey)) tocarSomNotificacao('campainha');
-                tocarSomNotificacao('windows');
             }
             
             clearTimeout(timeoutPusher);

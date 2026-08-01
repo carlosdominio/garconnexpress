@@ -132,13 +132,6 @@ function dispararToastMotoboy(evento, dados = {}, fallbackText = '', fallbackTip
   const titulo = config ? (config.label || 'Delivery Express') : 'Delivery Express';
 
   App.notifications.showLocal(titulo, msgFinal, `${evento}_${pedidoIdVal || Date.now()}`);
-  App.ui.showToast(msgFinal, tipo);
-
-  if (!config || config.som !== false) {
-    if (App.audio && typeof App.audio.playBell === 'function') {
-      App.audio.playBell();
-    }
-  }
 }
 
 const App = {
