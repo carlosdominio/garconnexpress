@@ -1230,16 +1230,21 @@ document.addEventListener('click', () => {
     if (audioDesbloqueado) return;
     audioDesbloqueado = true;
     
-    audioNotificacao.muted = true;
-    audioNotificacao.play().then(() => {
-        audioNotificacao.pause();
-        audioNotificacao.currentTime = 0;
-        // Só desmuda se o som estiver ativo
-        if (somAtivo) {
-            audioNotificacao.muted = false;
-        }
-        console.log('🔊 Áudio preparado!');
-    }).catch(e => console.log('Erro ao preparar áudio:', e));
+    const somTipo = localStorage.getItem('cozinha_som_global') || 'sino_moderno';
+    const audioObj = audiosNotificacao[somTipo] || audiosNotificacao['sino_moderno'];
+    
+    if (audioObj) {
+        audioObj.muted = true;
+        audioObj.play().then(() => {
+            audioObj.pause();
+            audioObj.currentTime = 0;
+            // Só desmuda se o som estiver ativo
+            if (somAtivo) {
+                audioObj.muted = false;
+            }
+            console.log('🔊 Áudio preparado!');
+        }).catch(e => console.log('Erro ao preparar áudio:', e));
+    }
 }, { once: true });
 
 
