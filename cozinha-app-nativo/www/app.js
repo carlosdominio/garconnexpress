@@ -903,13 +903,10 @@ async function registerNativePush() {
     if (!PushNotifications) return;
 
     if (window.Capacitor.getPlatform() === 'android') {
-      const somTipo = localStorage.getItem('cozinha_som_global') || 'sino_moderno';
-      const somRec = somTipo === 'original' ? 'notificacao' : somTipo;
-      const canalId = 'cozinha_canal_' + somTipo;
-
+      // Remove canal legado inválido
       try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}
 
-      // Cria o canal padrão com alta importância para evitar fallback (Miscellaneous)
+      // Pré-registra o canal padrão
       await PushNotifications.createChannel({
         id: 'pedidos',
         name: 'Pedidos Cozinha (Padrão)',
@@ -920,16 +917,23 @@ async function registerNativePush() {
         vibration: true
       });
 
-      // Cria o canal com o som personalizado
-      await PushNotifications.createChannel({
-        id: canalId,
-        name: 'Pedidos Cozinha (' + somTipo + ')',
-        description: 'Notificações de novos pedidos e chamados',
-        sound: somRec,
-        importance: 5,
-        visibility: 1,
-        vibration: true
-      });
+      // Pré-registra TODOS os canais de som disponíveis no Android
+      // Isso garante que qualquer som configurado no Painel Admin já esteja registrado no dispositivo
+      const todosOsSons = ['sino_moderno', 'campainha_classica', 'alerta_digital', 'alerta_urgente', 'suave', 'sino_cristal', 'alerta_moderno', 'notificacao'];
+      for (const som of todosOsSons) {
+        try {
+          await PushNotifications.createChannel({
+            id: 'cozinha_canal_' + som,
+            name: 'Cozinha - ' + som.replace(/_/g, ' '),
+            description: 'Canal de notificação com som: ' + som,
+            sound: som,
+            importance: 5,
+            visibility: 1,
+            vibration: true
+          });
+        } catch(e) { console.warn('Canal já existe ou erro:', som, e); }
+      }
+      console.log('✅ Todos os canais FCM da Cozinha registrados no Android.');
     }
 
     let permStatus = await PushNotifications.checkPermissions();
