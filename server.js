@@ -6606,6 +6606,67 @@ app.post('/api/toast-config/testar', ensureDbInitialized, isAdmin, async (req, r
   }
 });
 
+app.post('/api/simular-atraso-churrasco', ensureDbInitialized, async (req, res) => {
+  try {
+    const configRows = (await query("SELECT chave, valor FROM sistema_config WHERE chave = 'config_som_churrasco'")).rows;
+    const activeSound = (configRows[0] && configRows[0].valor) ? configRows[0].valor : 'alerta_urgente';
+    const channelName = 'churrasqueiro_canal_' + activeSound;
+    const fcmSoundFile = activeSound === 'original' ? 'notificacao' : activeSound;
+
+    if (typeof safePusherTrigger !== 'undefined') {
+      await safePusherTrigger('garconnexpress', 'pedido-atrasado-churrasco', {
+        pedido_id: 999,
+        mesa_numero: '99',
+        mensagem: '🔥 SIMULAÇÃO: Pedido #999 do churrasco está atrasado!'
+      });
+    }
+
+    const subs = (await query("SELECT * FROM push_subscriptions WHERE app_type = 'churrasqueiro'")).rows;
+    let enviados = 0;
+
+    for (const sub of subs) {
+      if (admin.apps.length > 0) {
+        let firebaseApp = admin;
+        if (admin.apps.find(a => a.name === 'churrasqueiro')) firebaseApp = admin.app('churrasqueiro');
+
+        const message = {
+          notification: {
+            title: '🔥 CHURRASCO: PEDIDO ATRASADO! (TESTE)',
+            body: 'O pedido #999 (Mesa 99) do churrasco está aguardando há mais de 10 minutos!'
+          },
+          data: {
+            event: 'pedido-atrasado-churrasco',
+            sound: fcmSoundFile,
+            pedido_id: '999',
+            status: 'atrasado'
+          },
+          android: {
+            priority: 'high',
+            notification: {
+              channelId: channelName,
+              sound: fcmSoundFile,
+              notificationPriority: 'PRIORITY_MAX',
+              icon: 'ic_stat_notification',
+              color: '#e74c3c',
+              defaultVibrateTimings: true,
+              defaultLightSettings: true
+            }
+          },
+          token: sub.endpoint
+        };
+
+        await firebaseApp.messaging().send(message)
+          .then(() => enviados++)
+          .catch(err => console.error('Erro ao simular FCM atraso:', err.message));
+      }
+    }
+
+    res.json({ success: true, enviados, som: activeSound, canal: channelName });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 
 app.post('/api/config/broadcast', ensureDbInitialized, isAdmin, async (req, res) => {
   try {
