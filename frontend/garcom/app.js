@@ -193,24 +193,7 @@ async function registerNativePush() {
     }
 
     if (permStatus.receive !== 'granted') {
-      console.warn('❌ Permissão de notificação negada.');
-      if (typeof Swal !== 'undefined') {
-        Swal.fire({
-          title: 'Notificações Desativadas 🔔',
-          text: 'As notificações do aplicativo estão desativadas! É necessário permitir o envio de notificações para receber os chamados e pedidos.',
-          icon: 'warning',
-          confirmButtonText: 'ATIVAR NOTIFICAÇÕES',
-          confirmButtonColor: '#e74c3c',
-          allowOutsideClick: false
-        }).then(async (result) => {
-          if (result.isConfirmed) {
-            try {
-              let p = await PushNotifications.requestPermissions();
-              if (p.receive === 'granted') registerNativePush();
-            } catch(e) {}
-          }
-        });
-      }
+      console.warn('❌ Permissão de notificação negada no Android.');
       return;
     }
 

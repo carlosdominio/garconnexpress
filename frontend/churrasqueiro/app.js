@@ -937,12 +937,12 @@ async function registerNativePush() {
     }
 
     let permStatus = await PushNotifications.checkPermissions();
-    if (permStatus.receive === 'prompt') {
+    if (permStatus.receive !== 'granted') {
       permStatus = await PushNotifications.requestPermissions();
     }
 
     if (permStatus.receive !== 'granted') {
-      console.warn('❌ Permissão de notificação negada.');
+      console.warn('❌ Permissão de notificação negada no Android.');
       return;
     }
 
