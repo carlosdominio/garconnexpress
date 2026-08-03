@@ -765,9 +765,23 @@ function atualizarCronometrosPedidos() {
   verificarAlertasSubTabs();
 }
 
+function resetarMesaLancar() {
+  const selectMesa = document.getElementById('lancar-mesa-select');
+  if (selectMesa) {
+    selectMesa.value = '';
+    sincronizarFiltroCustomizadoLancar();
+  }
+}
+
 function switchTab(tab) {
   // Salva a posição do scroll antes de trocar
   const scrollPos = window.scrollY;
+
+  // Se o usuário está saindo da aba de lançar pedidos, reseta a mesa selecionada para o padrão
+  if (abaAtiva === 'lancar' && tab !== 'lancar') {
+    resetarMesaLancar();
+  }
+
   abaAtiva = tab;
 
   // Limpa busca e filtros do histórico ao trocar de aba principal
@@ -1371,6 +1385,9 @@ async function prepararLancarPedido() {
     exibirMenuLancar('todas');
     renderizarCarrinhoLancar();
   }
+  
+  // Garante que a seleção de mesa volte para "Selecione a Mesa" (padrão)
+  resetarMesaLancar();
 }
 
 function renderizarMesasSelectLancar(mesas) {
@@ -1899,6 +1916,7 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
 
       carrinhoLancar = [];
       renderizarCarrinhoLancar();
+      resetarMesaLancar();
       
       window.isFechamentoImediatoBalcao = false;
       
