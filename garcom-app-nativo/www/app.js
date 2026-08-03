@@ -157,10 +157,14 @@ async function registerNativePush() {
 
     // Cria o canal de notificação com o som personalizado no Android
     if (window.Capacitor.getPlatform() === 'android') {
+      const somTipo = localStorage.getItem('garcom_som_global') || 'campainha_classica';
+      const somRec = somTipo === 'original' ? 'notificacao' : somTipo;
+      const canalId = 'garcom_canal_' + somTipo;
+
       try { await PushNotifications.deleteChannel({ id: 'pedidos' }); } catch(e) {}
       try { await PushNotifications.deleteChannel({ id: 'pedidos_v4' }); } catch(e) {}
 
-      // Pré-registra o canal padrão com alta importância
+      // Cria o canal padrão com alta importância para evitar fallback (Miscellaneous)
       await PushNotifications.createChannel({
         id: 'garcom_v1',
         name: 'Alertas de Pedidos (Padrão)',
@@ -171,26 +175,20 @@ async function registerNativePush() {
         vibration: true
       });
 
-      // Pré-registra TODOS os canais de som disponíveis no Android
-      const todosOsSons = ['sino_moderno', 'campainha_classica', 'alerta_digital', 'alerta_urgente', 'suave', 'sino_cristal', 'alerta_moderno', 'notificacao'];
-      for (const som of todosOsSons) {
-        try {
-          await PushNotifications.createChannel({
-            id: 'garcom_canal_' + som,
-            name: 'Garçom - ' + som.replace(/_/g, ' '),
-            description: 'Canal de notificação com som: ' + som,
-            sound: som,
-            importance: 5,
-            visibility: 1,
-            vibration: true
-          });
-        } catch(e) { console.warn('Canal Garçom já existe ou erro:', som, e); }
-      }
-      console.log('✅ Todos os canais FCM do Garçom registrados no Android.');
+      // Cria o canal com o som personalizado
+      await PushNotifications.createChannel({
+        id: canalId,
+        name: 'Alertas de Pedidos (' + somTipo + ')',
+        description: 'Notificações de novos pedidos e chamados',
+        sound: somRec,
+        importance: 5,
+        visibility: 1,
+        vibration: true
+      });
     }
 
     let permStatus = await PushNotifications.checkPermissions();
-    if (permStatus.receive !== 'granted') {
+    if (permStatus.receive === 'prompt') {
       permStatus = await PushNotifications.requestPermissions();
     }
 
@@ -782,7 +780,6 @@ async function logout() {
 
 async function iniciarApp() {
   exibirTelaCarregamentoSistema('Conectando...', 'Autenticando e carregando configurações...');
-  solicitarPermissaoNotificacao();
   // Primeiro carrega as configurações de categorias
   await Promise.all([
     carregarConfigCozinha(),
