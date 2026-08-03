@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
      } catch(e) { console.warn('Aviso Bateria:', e); }
 
      limparNotificacoesNativas();
-     if (window.Capacitor && window.Capacitor.Plugins && localStorage.getItem('garcom_token')) {
+     if (window.Capacitor && window.Capacitor.Plugins) {
         await registerNativePush();
      }
   }
@@ -201,18 +201,21 @@ async function registerNativePush() {
 
     PushNotifications.addListener('registration', async (token) => {
       console.log('🔥 Token FCM recebido:', token.value);
-      await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + localStorage.getItem('garcom_token')
-        },
-        body: JSON.stringify({
-          endpoint: token.value,
-          keys: { p256dh: '', auth: '' },
-          isNative: true
-        })
-      });
+      const tokenGarcom = localStorage.getItem('garcom_token');
+      if (tokenGarcom) {
+        await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + tokenGarcom
+          },
+          body: JSON.stringify({
+            endpoint: token.value,
+            keys: { p256dh: '', auth: '' },
+            isNative: true
+          })
+        }).catch(e => console.error("Erro ao sincronizar token FCM:", e));
+      }
     });
 
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
