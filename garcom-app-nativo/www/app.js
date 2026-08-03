@@ -190,7 +190,7 @@ async function registerNativePush() {
     }
 
     let permStatus = await PushNotifications.checkPermissions();
-    if (permStatus.receive === 'prompt') {
+    if (permStatus.receive !== 'granted') {
       permStatus = await PushNotifications.requestPermissions();
     }
 
@@ -782,6 +782,7 @@ async function logout() {
 
 async function iniciarApp() {
   exibirTelaCarregamentoSistema('Conectando...', 'Autenticando e carregando configurações...');
+  solicitarPermissaoNotificacao();
   // Primeiro carrega as configurações de categorias
   await Promise.all([
     carregarConfigCozinha(),
