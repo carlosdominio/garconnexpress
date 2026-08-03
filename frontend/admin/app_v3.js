@@ -1373,18 +1373,20 @@ async function prepararLancarPedido() {
   }
 }
 
-async function carregarMesasLancar() {
-  const res = await fetch('/api/mesas');
-  const mesas = await res.json();
-  _mesasLancarCache = mesas; // Salva no cache para próximas visitas
+function renderizarMesasSelectLancar(mesas) {
+  _mesasLancarCache = mesas;
   const select = document.getElementById('lancar-mesa-select');
   if (!select) return;
   
-  select.innerHTML = '<option value="">Selecione a Mesa</option>' + 
+  const optionsHtml = '<option value="">Selecione a Mesa</option>' + 
     '<option value="BALCAO" style="font-weight:bold; color:#27ae60;">🏪 BALCÃO / VENDA DIRETA</option>' +
     '<option value="DELIVERY" style="font-weight:bold; color:#e67e22;">🛵 DELIVERY</option>' +
     mesas.map(m => `<option value="${m.id}">Mesa ${m.numero} (${m.status.toUpperCase()})</option>`).join('');
-  sincronizarFiltroCustomizadoLancar();
+  
+  if (select.innerHTML !== optionsHtml) {
+    select.innerHTML = optionsHtml;
+    sincronizarFiltroCustomizadoLancar();
+  }
 
   if (!select.dataset.listenerAdded) {
     select.addEventListener('change', () => {
@@ -1408,6 +1410,19 @@ async function carregarMesasLancar() {
       renderizarCarrinhoLancar();
     });
     select.dataset.listenerAdded = 'true';
+  }
+}
+
+async function carregarMesasLancar() {
+  if (_mesasLancarCache) {
+    renderizarMesasSelectLancar(_mesasLancarCache);
+  }
+  try {
+    const res = await fetch('/api/mesas');
+    const mesas = await res.json();
+    renderizarMesasSelectLancar(mesas);
+  } catch (e) {
+    console.error("Erro ao carregar mesas de lançar:", e);
   }
 }
 
@@ -2968,35 +2983,28 @@ function sincronizarFiltroCustomizadoLancar() {
   const customLabel = document.getElementById('custom-select-label-lancar');
   if (!nativeSelect || !customOptionsDiv || !customLabel) return;
 
-  customOptionsDiv.innerHTML = '';
-  
   const selectedOpt = nativeSelect.options[nativeSelect.selectedIndex];
   if (selectedOpt) customLabel.innerText = selectedOpt.innerText;
 
-  Array.from(nativeSelect.options).forEach(opt => {
-    const item = document.createElement('div');
-    item.innerText = opt.innerText;
-    item.style.padding = '10px 20px 10px 12px';
-    item.style.cursor = 'pointer';
-    item.style.fontWeight = 'bold';
-    item.style.color = '#2c3e50';
-    item.style.fontSize = '0.95rem';
-    item.style.transition = 'background 0.15s';
-    item.style.whiteSpace = 'nowrap';
-    
-    item.addEventListener('mouseenter', () => { item.style.background = '#edf2f7'; });
-    item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
+  customOptionsDiv.innerHTML = Array.from(nativeSelect.options).map(opt => `
+    <div class="lancar-custom-opt" data-value="${opt.value}" style="padding:10px 20px 10px 12px; cursor:pointer; font-weight:bold; color:#2c3e50; font-size:0.95rem; white-space:nowrap; transition:background 0.15s;" onmouseenter="this.style.background='#edf2f7'" onmouseleave="this.style.background='transparent'">${opt.innerText}</div>
+  `).join('');
 
-    item.addEventListener('click', () => {
-      nativeSelect.value = opt.value;
-      customLabel.innerText = opt.innerText;
+  if (!customOptionsDiv.dataset.clickBound) {
+    customOptionsDiv.addEventListener('click', (e) => {
+      const target = e.target.closest('.lancar-custom-opt');
+      if (!target) return;
+      const val = target.getAttribute('data-value');
+      nativeSelect.value = val;
+      const optMatch = Array.from(nativeSelect.options).find(o => o.value === val);
+      if (optMatch) customLabel.innerText = optMatch.innerText;
       customOptionsDiv.style.display = 'none';
-      document.getElementById('custom-select-arrow-lancar').innerText = '▼';
+      const arrow = document.getElementById('custom-select-arrow-lancar');
+      if (arrow) arrow.innerText = '▼';
       nativeSelect.dispatchEvent(new Event('change'));
     });
-
-    customOptionsDiv.appendChild(item);
-  });
+    customOptionsDiv.dataset.clickBound = 'true';
+  }
 }
 
 function toggleCustomSelectHistorico(event) {
