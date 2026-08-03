@@ -1481,7 +1481,7 @@ async function checkAndNotifyDelayedOrders() {
       return diffMinutes >= 10;
     });
 
-    const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_title_%' OR chave LIKE 'fcm_body_%' OR chave IN ('config_som_garcom', 'config_som_cozinha', 'config_som_motoboy')")).rows;
+    const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_title_%' OR chave LIKE 'fcm_body_%' OR chave IN ('config_som_garcom', 'config_som_cozinha', 'config_som_motoboy', 'config_som_churrasco')")).rows;
     const configMap = {};
     for (const r of configData) configMap[r.chave] = r.valor;
 
@@ -6171,7 +6171,7 @@ app.get('/api/debug-fcm', isAdmin, async (req, res) => {
     // Busca configurações de som no banco
     const dbConfigs = {};
     try {
-      const result = await query("SELECT chave, valor FROM sistema_config WHERE chave IN ('config_som_motoboy', 'config_som_garcom', 'config_som_cozinha')");
+      const result = await query("SELECT chave, valor FROM sistema_config WHERE chave IN ('config_som_motoboy', 'config_som_garcom', 'config_som_cozinha', 'config_som_churrasco')");
       for (const row of result.rows) {
         dbConfigs[row.chave] = row.valor;
       }
