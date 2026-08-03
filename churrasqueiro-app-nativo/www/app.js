@@ -793,8 +793,16 @@ async function configurarPusher() {
 
         canal.bind('pedido-atrasado-churrasco', (data) => {
             console.log('📢 Evento: pedido-atrasado-churrasco', data);
-            const toastExibido = dispararToastSistema('pedido-atrasado-churrasco', { mesa: data.mesa_numero || 'Mesa', pedido_id: data.pedido_id }, data.mensagem || 'O pedido do churrasco está atrasado!', 'error');
-            if (toastExibido && deveTocarSom('pedido-atrasado-churrasco')) tocarSomNotificacao('campainha');
+            const pId = data && (data.pedido_id || data.id);
+            const jaNotificadoFCM = pId && _fcmPedidosJaNotificados.has(String(pId));
+
+            const toastExibido = dispararToastSistema('pedido-atrasado-churrasco', { mesa: data.mesa_numero || 'Mesa', pedido_id: pId }, data.mensagem || 'O pedido do churrasco está atrasado!', 'error');
+            
+            if (!jaNotificadoFCM && toastExibido && deveTocarSom('pedido-atrasado-churrasco')) {
+                tocarSomNotificacao('campainha');
+            } else if (jaNotificadoFCM) {
+                console.log('🔕 Som de atraso do pedido #' + pId + ' suprimido pois já foi notificado via FCM.');
+            }
         });
 
         canal.bind('estoque-baixo', (data) => {
