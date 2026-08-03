@@ -1729,8 +1729,12 @@ async function carregarMenu() {
       categoriaAtual = 'todas';
       sessionStorage.setItem('garcom_categoria_atual', 'todas');
     }
-    renderizarCategorias();
     exibirMenu(categoriaAtual);
+    // Se as categorias já foram renderizadas, atualiza o visual
+    const container = document.getElementById('categorias');
+    if (container && container.innerHTML !== '') {
+        configurarEventos(); 
+    }
   }
 }
 
@@ -2588,7 +2592,6 @@ function abrirCardapio() {
     window.pedidoObservacaoGeral = ''; // Reset observação geral
     const elInput = document.getElementById('pedido-busca-input');
     if (elInput) elInput.value = '';
-    renderizarCategorias();
     exibirResumoPedido();
     exibirMenu('todas');
   } finally {
@@ -3283,49 +3286,31 @@ async function cancelarCodigoAcesso() {
   }
 }
 
-function renderizarCategorias() {
-  const container = document.getElementById('categorias');
-  if (!container || !Array.isArray(menu)) return;
-
-  const categorias = ['todas', ...new Set(menu.map(item => item.categoria).filter(Boolean))];
-  container.innerHTML = categorias.map(cat => `
-    <div class="categoria ${cat === categoriaAtual ? 'ativa' : ''}" data-categoria="${cat}">
-      ${cat === 'todas' ? 'Todos' : cat}
-    </div>
-  `).join('');
-
-  if (!container.dataset.wheelAdded) {
-    container.addEventListener('wheel', (evt) => {
-      evt.preventDefault();
-      container.scrollLeft += evt.deltaY;
-    });
-    container.dataset.wheelAdded = 'true';
-  }
-
-  container.querySelectorAll('.categoria').forEach(cat => {
-    cat.addEventListener('click', () => {
-      categoriaAtual = cat.dataset.categoria;
-      sessionStorage.setItem('garcom_categoria_atual', categoriaAtual);
-      container.querySelectorAll('.categoria').forEach(c => c.classList.remove('ativa'));
-      cat.classList.add('ativa');
-      const queryText = (document.getElementById('pedido-busca-input')?.value || '').trim().toLowerCase();
-      exibirMenu(categoriaAtual, queryText);
-    });
-  });
-}
-
 function configurarEventos() {
-  const btnEnviar = document.getElementById('enviar-pedido');
-  if (btnEnviar && !btnEnviar.dataset.bound) {
-    btnEnviar.addEventListener('click', enviarPedido);
-    btnEnviar.dataset.bound = 'true';
+  document.getElementById('enviar-pedido').addEventListener('click', enviarPedido);
+  document.getElementById('voltar-mesas').addEventListener('click', voltarParaMesas);
+  const categorias = ['todas', ...new Set(menu.map(item => item.categoria))];
+  const container = document.getElementById('categorias');
+  if (container) {
+    container.innerHTML = categorias.map(cat => `<div class="categoria ${cat === categoriaAtual ? 'ativa' : ''}" data-categoria="${cat}">${cat === 'todas' ? 'Todos' : cat}</div>`).join('');
+    
+    // Habilitar scroll horizontal com a roda do mouse
+    container.addEventListener('wheel', (evt) => {
+        evt.preventDefault();
+        container.scrollLeft += evt.deltaY;
+    });
+
+    document.querySelectorAll('.categoria').forEach(cat => {
+      cat.addEventListener('click', () => {
+        categoriaAtual = cat.dataset.categoria;
+        sessionStorage.setItem('garcom_categoria_atual', categoriaAtual);
+        document.querySelectorAll('.categoria').forEach(c => c.classList.remove('ativa'));
+        cat.classList.add('ativa');
+        const queryText = (document.getElementById('pedido-busca-input')?.value || '').trim().toLowerCase();
+        exibirMenu(categoriaAtual, queryText);
+      });
+    });
   }
-  const btnVoltar = document.getElementById('voltar-mesas');
-  if (btnVoltar && !btnVoltar.dataset.bound) {
-    btnVoltar.addEventListener('click', voltarParaMesas);
-    btnVoltar.dataset.bound = 'true';
-  }
-  renderizarCategorias();
 }
 
 function verQRCodeMesa() {
