@@ -507,18 +507,33 @@ const App = {
             }
 
             if (perm.receive === 'granted') {
-                // Usa o som configurado pelo admin (salvo no localStorage)
-                const somConfigurado = localStorage.getItem('motoboy_som_global') || 'campainha_classica';
-                const fcmSound = somConfigurado === 'original' ? 'notificacao.mp3' : `${somConfigurado}.wav`;
-                const dynamicChannelId = 'motoboy_canal_' + somConfigurado;
+                // Pré-registra o canal padrão de fallback
                 await PushNotifications.createChannel({
-                    id: dynamicChannelId,
-                    name: 'Pedidos e Alertas (' + somConfigurado + ')',
-                    sound: fcmSound,
+                    id: 'pedidos',
+                    name: 'Pedidos Motoboy (Padrão)',
+                    description: 'Canal padrão para notificações urgentes',
+                    sound: 'notificacao',
                     importance: 5,
                     visibility: 1,
                     vibration: true
-                });
+                }).catch(e => console.warn('Erro ao criar canal pedidos:', e));
+
+                // Pré-registra TODOS os canais de som disponíveis no Android (sem extensão .wav/.mp3)
+                const todosOsSons = ['sino_moderno', 'campainha_classica', 'alerta_digital', 'alerta_urgente', 'suave', 'sino_cristal', 'alerta_moderno', 'notificacao'];
+                for (const som of todosOsSons) {
+                    try {
+                        await PushNotifications.createChannel({
+                            id: 'motoboy_canal_' + som,
+                            name: 'Motoboy - ' + som.replace(/_/g, ' '),
+                            description: 'Canal de notificação com som: ' + som,
+                            sound: som,
+                            importance: 5,
+                            visibility: 1,
+                            vibration: true
+                        });
+                    } catch(e) { console.warn('Canal Motoboy já existe ou erro:', som, e); }
+                }
+                console.log('✅ Todos os canais FCM do Motoboy registrados no Android.');
                 await PushNotifications.register();
             }
 
@@ -535,8 +550,13 @@ const App = {
                     return;
                 }
 
+                const pId = String(notification.data?.pedido_id || notification.data?.id || '');
+                if (pId) {
+                    App.state.notifiedEvents.add(`fcm_${pId}`);
+                    console.log('🔕 [Motoboy] Pedido', pId, 'marcado via FCM foreground/bg para evitar dupla notificação');
+                }
+
                 App.loadPedidos();
-                const pId = String(notification.data?.pedido_id || '');
                 const status = String(notification.data?.status || '');
                 const event = String(notification.data?.event || '');
                 
@@ -553,16 +573,19 @@ const App = {
                 if (eventKey && !App.state.notifiedEvents.has(eventKey)) {
                     App.state.notifiedEvents.add(eventKey);
                     setTimeout(() => App.state.notifiedEvents.delete(eventKey), 15000);
-                    
-                    // this.playAlert(); // Removido para evitar duplicidade com o Pusher (quando o app tá aberto)
-                    // App.ui.showToast(notification.body || 'Novo alerta!', 'info', notification.title);
                 }
             });
 
             PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
                 console.log('Push action performed:', notification);
+                const data = notification.notification && notification.notification.data;
+                const pId = String(data?.pedido_id || data?.id || '');
+                if (pId) {
+                    App.state.notifiedEvents.add(`fcm_${pId}`);
+                    console.log('🔕 [Motoboy] Pedido', pId, 'marcado via clique FCM para evitar dupla notificação');
+                }
                 // Se clicou em notificação de caixa, sincroniza
-                if (notification.notification && notification.notification.data && notification.notification.data.event === 'status-caixa-atualizado') {
+                if (data && data.event === 'status-caixa-atualizado') {
                     App.checkCaixaStatus();
                     return;
                 }
