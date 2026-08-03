@@ -329,6 +329,8 @@ function fecharToast(el) {
 // IDs de pedidos da cozinha já conhecidos (para detectar novos com segurança)
 let _cozinhaPedidosConhecidos = null;
 let _primeiroCarregamentoCozinha = true;
+// IDs já notificados pelo FCM (evita tocar o som duas vezes se for notificado via Push)
+const _fcmPedidosJaNotificados = new Set();
 
 async function carregarPedidos(opcoes = {}) {
     const { verificarNovos = false } = opcoes;
@@ -382,8 +384,10 @@ async function carregarPedidos(opcoes = {}) {
                 }
                 _cozinhaPedidosConhecidos = idsAtuais;
             } else {
-                // Primeira carga: só memoriza os IDs existentes, sem notificar
+                // Primeira carga: memoriza os IDs existentes + os já notificados pelo FCM, sem notificar nada
                 _cozinhaPedidosConhecidos = new Set(itensValidos.map(i => i.pedido_id));
+                _fcmPedidosJaNotificados.forEach(id => _cozinhaPedidosConhecidos.add(String(id)));
+                console.log('🔕 [Cozinha] Pedidos do FCM absorvidos no carregamento inicial:', [..._fcmPedidosJaNotificados]);
             }
 
             renderizarPedidos(itensValidos);
@@ -802,8 +806,16 @@ async function configurarPusher() {
 
         canal.bind('pedido-atrasado-cozinha', (data) => {
             console.log('📢 Evento: pedido-atrasado-cozinha', data);
-            if (deveTocarSom('pedido-atrasado-cozinha')) tocarSomNotificacao('campainha');
-            dispararToastSistema('pedido-atrasado-cozinha', { mesa: data.mesa_numero || 'Mesa', pedido_id: data.pedido_id }, data.mensagem, 'error');
+            const pId = data && (data.pedido_id || data.id);
+            const jaNotificadoFCM = pId && _fcmPedidosJaNotificados.has(String(pId));
+
+            const toastExibido = dispararToastSistema('pedido-atrasado-cozinha', { mesa: data.mesa_numero || 'Mesa', pedido_id: pId }, data.mensagem || 'O pedido da cozinha está atrasado!', 'error');
+            
+            if (!jaNotificadoFCM && toastExibido && deveTocarSom('pedido-atrasado-cozinha')) {
+                tocarSomNotificacao('campainha');
+            } else if (jaNotificadoFCM) {
+                console.log('🔕 Som de atraso do pedido #' + pId + ' suprimido pois já foi notificado via FCM.');
+            }
         });
 
         canal.bind('novo-pedido', (data) => {
@@ -966,16 +978,29 @@ async function registerNativePush() {
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 Notificação recebida (Cozinha):', notification);
       
-      // Se for um evento em tempo real já gerenciado pelo Pusher no foreground, ignore completamente o FCM no foreground
-      const eventosPusher = ['novo-pedido', 'pedido-cancelado', 'status-caixa-atualizado', 'status-atualizado', 'pedido-atrasado'];
       const ev = notification.data ? (notification.data.event || notification.data.evento) : null;
+      const pedidoId = notification.data && (notification.data.pedido_id || notification.data.id);
+
+      // Registra SEMPRE no set de FCM (funciona mesmo se o app estava fechado e o conjunto ainda era null)
+      if (pedidoId) {
+        _fcmPedidosJaNotificados.add(String(pedidoId));
+        if (_cozinhaPedidosConhecidos !== null) {
+          _cozinhaPedidosConhecidos.add(String(pedidoId));
+        }
+        console.log('🔕 [Cozinha] Pedido', pedidoId, 'marcado via FCM foreground/bg para evitar dupla notificação');
+      }
+
+      // Se for um evento em tempo real já gerenciado pelo Pusher no foreground, apenas recarrega os pedidos
+      // NOTA: 'pedido-atrasado-cozinha' NÃO está aqui pois é apenas FCM (background), não Pusher
+      const eventosPusher = ['novo-pedido', 'pedido-cancelado', 'status-caixa-atualizado', 'status-atualizado', 'estoque-baixo'];
       if (ev && eventosPusher.includes(ev)) {
         console.log("Ignorando FCM foreground para evento '" + ev + "' (já tratado pelo Pusher).");
         if (typeof carregarPedidos === 'function') carregarPedidos();
         return;
       }
 
-      if (deveTocarSom('status-atualizado')) tocarCampainha();
+      // Para eventos não tratados pelo Pusher (ex: pedido-atrasado-cozinha): toca o som
+      if (deveTocarSom(ev || 'status-atualizado')) tocarCampainha();
       if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
         try {
           await window.Capacitor.Plugins.Haptics.vibrate();
@@ -987,6 +1012,16 @@ async function registerNativePush() {
 
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
       console.log('🖱️ Clique na notificação detectado:', notification);
+      // Marca o pedido como já notificado via FCM para evitar tocar o som novamente ao abrir o app
+      const data = notification.notification && notification.notification.data;
+      const pedidoId = data && (data.pedido_id || data.id);
+      if (pedidoId) {
+        _fcmPedidosJaNotificados.add(String(pedidoId));
+        if (_cozinhaPedidosConhecidos !== null) {
+          _cozinhaPedidosConhecidos.add(String(pedidoId));
+        }
+        console.log('🔕 [Cozinha] Pedido', pedidoId, 'marcado via clique FCM para evitar dupla notificação');
+      }
       if (typeof carregarPedidos === 'function') carregarPedidos();
     });
 
@@ -1329,14 +1364,14 @@ function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTip
   const ativo = config ? config.ativo : true;
   if (!ativo) {
     console.log(`💬 [Toast Alertas] Evento [${evento}] está desativado pelo administrador.`);
-    return;
+    return false;
   }
   
   // Se config.texto for vazio/nulo, usa o fallbackText (padrão do código)
   const template = (config && config.texto) ? config.texto : fallbackText;
   if (!template) {
     console.warn(`💬 [Toast Alertas] Evento [${evento}] sem texto configurado e sem fallback.`);
-    return;
+    return false;
   }
   
   const mesaVal = dados.mesa_numero || dados.mesaNum || dados.mesa_id || dados.nMesa || dados.mesa || '';
@@ -1356,6 +1391,7 @@ function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTip
     
   const tipo = config ? (config.tipo === 'erro' ? 'error' : (config.tipo === 'sucesso' ? 'success' : 'info')) : fallbackTipo;
   mostrarToast(msgFinal, tipo);
+  return true;
 }
 
 function showLoading(show = true, text = "Processando...") {
