@@ -303,6 +303,8 @@ function fecharToast(el) {
 // IDs de pedidos do churrasco já conhecidos (para detectar novos com segurança)
 let _churrascoPedidosConhecidos = null;
 let _primeiroCarregamentoChurrasco = true;
+// IDs já notificados pelo FCM (evita tocar o som duas vezes se for notificado via Push)
+const _fcmPedidosJaNotificados = new Set();
 
 async function carregarPedidos(opcoes = {}) {
     const { verificarNovos = false } = opcoes;
@@ -355,8 +357,10 @@ async function carregarPedidos(opcoes = {}) {
                 }
                 _churrascoPedidosConhecidos = idsAtuais;
             } else {
-                // Primeira carga: só memoriza os IDs existentes, sem notificar
+                // Primeira carga: memoriza os IDs existentes + os já notificados pelo FCM, sem notificar nada
                 _churrascoPedidosConhecidos = new Set(itensValidos.map(i => i.pedido_id));
+                _fcmPedidosJaNotificados.forEach(id => _churrascoPedidosConhecidos.add(String(id)));
+                console.log('🔕 [Churrasco] Pedidos do FCM absorvidos no carregamento inicial:', [..._fcmPedidosJaNotificados]);
             }
 
             renderizarPedidos(itensValidos);
@@ -957,10 +961,13 @@ async function registerNativePush() {
       const ev = notification.data ? (notification.data.event || notification.data.evento) : null;
       const pedidoId = notification.data && (notification.data.pedido_id || notification.data.id);
 
-      // Marca o pedido como já conhecido para evitar que carregarPedidos toque o som de novo
-      if (pedidoId && _churrascoPedidosConhecidos !== null) {
-        _churrascoPedidosConhecidos.add(String(pedidoId));
-        console.log('🔕 Pedido', pedidoId, 'marcado como conhecido (via FCM foreground) para evitar dupla notificação');
+      // Registra SEMPRE no set de FCM (funciona mesmo se o app estava fechado e o conjunto ainda era null)
+      if (pedidoId) {
+        _fcmPedidosJaNotificados.add(String(pedidoId));
+        if (_churrascoPedidosConhecidos !== null) {
+          _churrascoPedidosConhecidos.add(String(pedidoId));
+        }
+        console.log('🔕 [Churrasco] Pedido', pedidoId, 'marcado via FCM foreground/bg para evitar dupla notificação');
       }
 
       // Se for um evento em tempo real já gerenciado pelo Pusher no foreground, apenas recarrega os pedidos
@@ -985,12 +992,15 @@ async function registerNativePush() {
 
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
       console.log('🖱️ Clique na notificação detectado:', notification);
-      // Marca o pedido como já conhecido para evitar tocar o som de novo ao abrir o app
+      // Marca o pedido como já notificado via FCM para evitar tocar o som novamente ao abrir o app
       const data = notification.notification && notification.notification.data;
       const pedidoId = data && (data.pedido_id || data.id);
-      if (pedidoId && _churrascoPedidosConhecidos !== null) {
-        _churrascoPedidosConhecidos.add(String(pedidoId));
-        console.log('🔕 Pedido', pedidoId, 'marcado como conhecido (via FCM tap) para evitar dupla notificação');
+      if (pedidoId) {
+        _fcmPedidosJaNotificados.add(String(pedidoId));
+        if (_churrascoPedidosConhecidos !== null) {
+          _churrascoPedidosConhecidos.add(String(pedidoId));
+        }
+        console.log('🔕 [Churrasco] Pedido', pedidoId, 'marcado via clique FCM para evitar dupla notificação');
       }
       if (typeof carregarPedidos === 'function') carregarPedidos();
     });
