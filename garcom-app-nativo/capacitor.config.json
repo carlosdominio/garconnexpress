@@ -21,6 +21,7 @@
       "launchAutoHide": true,
       "backgroundColor": "#f1f2f6",
       "androidSplashResourceName": "splash",
+      "androidScaleType": "FIT_CENTER",
       "showSpinner": true,
       "androidSpinnerStyle": "large",
       "spinnerColor": "#e74c3c"

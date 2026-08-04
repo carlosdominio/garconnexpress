@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
      } catch(e) { console.warn('Aviso Bateria:', e); }
 
      limparNotificacoesNativas();
-     if (window.Capacitor && window.Capacitor.Plugins) {
+     if (window.Capacitor && window.Capacitor.Plugins && localStorage.getItem('garcom_token')) {
         await registerNativePush();
      }
   }
@@ -784,6 +784,9 @@ async function logout() {
 async function iniciarApp() {
   exibirTelaCarregamentoSistema('Conectando...', 'Autenticando e carregando configurações...');
   solicitarPermissaoNotificacao();
+  if (window.Capacitor && window.Capacitor.Plugins && typeof registerNativePush === 'function') {
+      await registerNativePush();
+  }
   // Primeiro carrega as configurações de categorias
   await Promise.all([
     carregarConfigCozinha(),
