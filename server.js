@@ -372,8 +372,10 @@ if (!process.env.VERCEL) {
 app.get('/api/cron/cardapio', async (req, res) => {
     const cronSecret = process.env.CRON_SECRET;
     const authHeader = req.headers['authorization'];
-    if (!cronSecret || !authHeader || authHeader !== `Bearer ${cronSecret}`) {
-        return res.status(401).json({ error: 'Unauthorized cron request. CRON_SECRET must be configured and provided.' });
+    const isVercelCron = req.headers['x-vercel-cron'] === '1' || (req.headers['user-agent'] && req.headers['user-agent'].includes('vercel-cron'));
+
+    if (!isVercelCron && (!cronSecret || !authHeader || authHeader !== `Bearer ${cronSecret}`)) {
+        return res.status(401).json({ error: 'Unauthorized cron request. CRON_SECRET or Vercel Cron header must be provided.' });
     }
     if (typeof botUrlFinal !== 'undefined' && botUrlFinal) {
         const pingUrl = botUrlFinal.endsWith('/') ? `${botUrlFinal}health` : `${botUrlFinal}/health`;
@@ -2120,8 +2122,10 @@ app.get('/api/debug/push-subs', isAdmin, ensureDbInitialized, async (req, res) =
 app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) => {
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers['authorization'];
-  if (!cronSecret || !authHeader || authHeader !== `Bearer ${cronSecret}`) {
-    return res.status(401).json({ error: 'Unauthorized cron request. CRON_SECRET must be configured and provided.' });
+  const isVercelCron = req.headers['x-vercel-cron'] === '1' || (req.headers['user-agent'] && req.headers['user-agent'].includes('vercel-cron'));
+
+  if (!isVercelCron && (!cronSecret || !authHeader || authHeader !== `Bearer ${cronSecret}`)) {
+    return res.status(401).json({ error: 'Unauthorized cron request. CRON_SECRET or Vercel Cron header must be provided.' });
   }
   await checkAndNotifyDelayedOrders();
   await checkAndSendScheduledFCM();
@@ -3926,11 +3930,29 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
 
       const latRestaurante = parseFloat(cfgMap['frete_lat_restaurante']) || -9.6600395;
       const lngRestaurante = parseFloat(cfgMap['frete_lng_restaurante']) || -35.7515460;
-      const destLat = parseFloat(req.body.lat_cliente || req.body.lat);
-      const destLng = parseFloat(req.body.lng_cliente || req.body.lng);
+      let destLat = parseFloat(req.body.lat_cliente || req.body.lat);
+      let destLng = parseFloat(req.body.lng_cliente || req.body.lng);
+
+      if ((isNaN(destLat) || isNaN(destLng)) && (req.body.endereco || req.body.cep)) {
+        try {
+          const queryStr = req.body.cep || req.body.endereco;
+          const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryStr)}&limit=1`, {
+            headers: { 'User-Agent': 'GarcomExpress/2.0' }
+          });
+          if (nomRes.ok) {
+            const nomData = await nomRes.json();
+            if (nomData && nomData.length > 0) {
+              destLat = parseFloat(nomData[0].lat);
+              destLng = parseFloat(nomData[0].lon);
+            }
+          }
+        } catch (errNom) {
+          console.warn('⚠️ Erro ao geolocalizar endereço via Nominatim:', errNom.message);
+        }
+      }
 
       if (isNaN(destLat) || isNaN(destLng)) {
-        return res.status(400).json({ error: 'Geolocalização (latitude e longitude) é obrigatória para calcular a taxa de entrega no delivery.' });
+        return res.status(400).json({ error: 'Geolocalização (latitude e longitude) ou endereço válido é obrigatória para calcular a taxa de entrega no delivery.' });
       }
 
       const R = 6371;

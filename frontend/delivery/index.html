@@ -276,6 +276,8 @@
         let TAXA_ENTREGA = 5.00;
         let DISTANCIA_KM = 0;
         let DENTRO_DO_RAIO = true;
+        let LAT_CLIENTE = null;
+        let LNG_CLIENTE = null;
 
         document.addEventListener('DOMContentLoaded', async () => {
             await verificarCaixa();
@@ -711,6 +713,8 @@
                         TAXA_ENTREGA = data.valor_taxa;
                         DISTANCIA_KM = data.distancia_km;
                         DENTRO_DO_RAIO = data.dentro_do_raio;
+                        LAT_CLIENTE = data.lat;
+                        LNG_CLIENTE = data.lng;
                         if (labelTaxa) {
                             if (data.dentro_do_raio) {
                                 labelTaxa.innerHTML = `Taxa de Entrega (${data.distancia_km} km):`;
@@ -787,6 +791,9 @@
                         cobrar_taxa: true,
                         taxa_entrega: TAXA_ENTREGA,
                         distancia_km: DISTANCIA_KM,
+                        lat_cliente: LAT_CLIENTE,
+                        lng_cliente: LNG_CLIENTE,
+                        endereco: `${address}, ${number}${bairro ? ' - ' + bairro : ''}`,
                         total: totalFinal,
                         observacao: orderObs,
                         forma_pagamento: payment,
