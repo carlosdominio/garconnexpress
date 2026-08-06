@@ -1324,6 +1324,23 @@
                     </select>
                     <button type="button" onclick="tocarPreviewSomApp('config-som-admin')" style="padding: 8px 12px; background: #3b82f6; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.82rem; font-weight: bold;">▶️ Testar</button>
                   </div>
+
+                  <!-- 6. Notificações do WhatsApp (Zap) -->
+                  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <span style="font-weight: bold; width: 180px; font-size: 0.9rem; color: #1e293b;">💬 Notificações Zap (WhatsApp):</span>
+                    <select id="config-som-whatsapp" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: white; width: 200px; cursor: pointer;">
+                      <option value="original">🔔 Som Padrão (Original)</option>
+                      <option value="mudo">🔇 Mudo (Sem Som)</option>
+                      <option value="campainha_classica">🔔 Campainha Clássica</option>
+                      <option value="sino_moderno">🎵 Sino Moderno</option>
+                      <option value="alerta_digital">📟 Alerta Digital</option>
+                      <option value="alerta_urgente">🚨 Alerta Urgente</option>
+                      <option value="suave">🍃 Suave/Discreto</option>
+                      <option value="sino_cristal">✨ Sino de Cristal (WAV)</option>
+                      <option value="alerta_moderno">⚡ Alerta Moderno (WAV)</option>
+                    </select>
+                    <button type="button" onclick="tocarPreviewSomApp('config-som-whatsapp')" style="padding: 8px 12px; background: #3b82f6; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 0.82rem; font-weight: bold;">▶️ Testar</button>
+                  </div>
                 </div>
 
                 <button onclick="salvarSonsApps()" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer; font-size: 0.9rem; margin-bottom: 2rem;"><i class="fa-solid fa-floppy-disk"></i> SALVAR CONFIGURAÇÃO DE SONS</button>

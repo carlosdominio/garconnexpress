@@ -7915,6 +7915,13 @@ async function acaoOpcoesMesa(acao) {
 function alternarSomWhatsApp(checked) {
   localStorage.setItem('admin_som_whatsapp', checked ? 'true' : 'false');
   mostrarToast(checked ? 'Som de novas mensagens ativado!' : 'Som de novas mensagens desativado!', 'info', '💬 Som WhatsApp');
+  if (checked) {
+    const somTipo = localStorage.getItem('admin_som_whatsapp_tipo') || localStorage.getItem('admin_som_global') || 'campainha_classica';
+    if (somTipo !== 'mudo') {
+      const audioZap = new Audio(getSoundPath(somTipo));
+      audioZap.play().catch(e => console.log('Erro ao tocar som ao ativar WhatsApp:', e.message));
+    }
+  }
 }
 
 function formatarTelefone(tel) {
@@ -7960,8 +7967,8 @@ window.addEventListener('message', (event) => {
             // Toca o som de notificação se o toque do WhatsApp estiver ativado
             const somZapAtivo = localStorage.getItem('admin_som_whatsapp') !== 'false';
             if (somZapAtivo) {
-                // Toca o mesmo som configurado globalmente no painel administrativo
-                const somTipo = localStorage.getItem('admin_som_global') || 'campainha_classica';
+                // Toca o som configurado para o WhatsApp
+                const somTipo = localStorage.getItem('admin_som_whatsapp_tipo') || localStorage.getItem('admin_som_global') || 'campainha_classica';
                 if (somTipo !== 'mudo') {
                     const audioZap = new Audio(getSoundPath(somTipo));
                     audioZap.play().catch(e => console.log('Erro ao tocar som do WhatsApp:', e.message));
@@ -9247,14 +9254,17 @@ async function carregarSonsApps() {
       const selectMotoboy = document.getElementById('config-som-motoboy');
       const selectAdmin = document.getElementById('config-som-admin');
       const selectChurrasqueiro = document.getElementById('config-som-churrasqueiro');
+      const selectWhatsapp = document.getElementById('config-som-whatsapp');
       
       if (selectGarcom) selectGarcom.value = data.somGarcom;
       if (selectCozinha) selectCozinha.value = data.somCozinha;
       if (selectMotoboy) selectMotoboy.value = data.somMotoboy;
       if (selectAdmin) selectAdmin.value = data.somAdmin;
       if (selectChurrasqueiro) selectChurrasqueiro.value = data.somChurrasco || 'sino_moderno';
+      if (selectWhatsapp) selectWhatsapp.value = data.somWhatsapp || 'campainha_classica';
       
       localStorage.setItem('admin_som_global', data.somAdmin || 'alerta_digital');
+      localStorage.setItem('admin_som_whatsapp_tipo', data.somWhatsapp || 'campainha_classica');
     }
   } catch (err) {
     console.error('Erro ao carregar configurações de som dos apps:', err);
@@ -9267,16 +9277,18 @@ async function salvarSonsApps() {
   const somMotoboy = document.getElementById('config-som-motoboy')?.value || 'campainha_classica';
   const somAdmin = document.getElementById('config-som-admin')?.value || 'alerta_digital';
   const somChurrasco = document.getElementById('config-som-churrasqueiro')?.value || 'sino_moderno';
+  const somWhatsapp = document.getElementById('config-som-whatsapp')?.value || 'campainha_classica';
   
   try {
     const res = await fetch('/api/config/som-global', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
-      body: JSON.stringify({ somGarcom, somCozinha, somAdmin, somMotoboy, somChurrasco })
+      body: JSON.stringify({ somGarcom, somCozinha, somAdmin, somMotoboy, somChurrasco, somWhatsapp })
     });
     const data = await res.json();
     if (data.success) {
       localStorage.setItem('admin_som_global', somAdmin);
+      localStorage.setItem('admin_som_whatsapp_tipo', somWhatsapp);
       await mostrarConfirmacaoFCM('Sucesso', '🔔 Configuração de sons salva com sucesso!', 'sucesso', true);
       carregarSonsApps();
     } else {
@@ -10500,7 +10512,7 @@ function atualizarBadgeUnreadGlobal() {
 function reproduzirSomNotificacaoWidget() {
     const somZapAtivo = localStorage.getItem('admin_som_whatsapp') !== 'false';
     if (somZapAtivo) {
-        const somTipo = localStorage.getItem('admin_som_global') || 'campainha_classica';
+        const somTipo = localStorage.getItem('admin_som_whatsapp_tipo') || localStorage.getItem('admin_som_global') || 'campainha_classica';
         if (somTipo !== 'mudo') {
             const audio = new Audio(getSoundPath(somTipo));
             audio.play().catch(e => console.log('Erro ao tocar som no widget:', e.message));

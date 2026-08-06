@@ -39,11 +39,19 @@ document.addEventListener('DOMContentLoaded', async () => {
          if (BatteryOptimization) {
              const { enabled } = await BatteryOptimization.isBatteryOptimizationEnabled();
              if (enabled) {
-                 await mostrarAlerta("Para não perder pedidos com a tela desligada, o aplicativo pedirá permissão para rodar sem limites de bateria. Pressione Fechar e depois escolha 'Permitir' na janela do celular.", "Atenção à Bateria", "🔋");
-                 try {
-                     await BatteryOptimization.requestIgnoreBatteryOptimization();
-                 } catch(e) {
-                     await BatteryOptimization.openBatteryOptimizationSettings();
+                 const aceitou = await mostrarConfirmacao(
+                     "Para não perder avisos de pedidos quando a tela estiver desligada, permita que o aplicativo funcione sem restrições de bateria.",
+                     "Otimização de Bateria",
+                     "Permitir",
+                     "Agora não",
+                     "🔋"
+                 );
+                 if (aceitou) {
+                     try {
+                         await BatteryOptimization.requestIgnoreBatteryOptimization();
+                     } catch(e) {
+                         console.warn('Aviso ao solicitar ignore battery optimization:', e);
+                     }
                  }
              }
          }

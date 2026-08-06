@@ -796,7 +796,7 @@ async function query(text, params) {
       };
     } else {
       const stmt = db.prepare(text);
-      if (text.trim().toUpperCase().startsWith('SELECT') || text.trim().toUpperCase().includes('RETURNING')) {
+      if (text.trim().toUpperCase().startsWith('SELECT') || text.trim().toUpperCase().startsWith('PRAGMA') || text.trim().toUpperCase().includes('RETURNING')) {
         const rows = stmt.all(...(params || []));
         return { 
           rows: rows,
@@ -2629,6 +2629,7 @@ async function initDb() {
     await addCol('push_subscriptions', 'is_native', 'INTEGER DEFAULT 0'); // 1 = token FCM nativo (Capacitor), 0 = Web Push
     await addCol('mesas', 'garcom_id', 'TEXT');
     await addCol('pedidos', 'forma_pagamento', 'TEXT');
+    await addCol('pedidos', 'notificado_atraso', 'INTEGER DEFAULT 0');
     await addCol('pedidos', 'notificado_atraso_fechamento', 'INTEGER DEFAULT 0');
     await addCol('pedidos', 'desconto', 'REAL DEFAULT 0');
     await addCol('pedidos', 'acrescimo', 'REAL DEFAULT 0');
@@ -6054,7 +6055,7 @@ app.post('/api/config/upload-apk', express.raw({ type: 'application/octet-stream
 
 app.get('/api/config/som-global', ensureDbInitialized, async (req, res) => {
   try {
-    const configRows = (await query("SELECT chave, valor FROM sistema_config WHERE chave IN ('config_som_garcom', 'config_som_cozinha', 'config_som_admin', 'config_som_motoboy', 'config_som_churrasco')")).rows;
+    const configRows = (await query("SELECT chave, valor FROM sistema_config WHERE chave IN ('config_som_garcom', 'config_som_cozinha', 'config_som_admin', 'config_som_motoboy', 'config_som_churrasco', 'config_som_whatsapp')")).rows;
     const configMap = {};
     for (const r of configRows) {
       configMap[r.chave] = r.valor;
@@ -6065,20 +6066,22 @@ app.get('/api/config/som-global', ensureDbInitialized, async (req, res) => {
       somCozinha: configMap['config_som_cozinha'] || 'sino_moderno',
       somAdmin: configMap['config_som_admin'] || 'alerta_digital',
       somMotoboy: configMap['config_som_motoboy'] || 'campainha_classica',
-      somChurrasco: configMap['config_som_churrasco'] || 'sino_moderno'
+      somChurrasco: configMap['config_som_churrasco'] || 'sino_moderno',
+      somWhatsapp: configMap['config_som_whatsapp'] || 'campainha_classica'
     });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 app.post('/api/config/som-global', ensureDbInitialized, isAdmin, async (req, res) => {
-  const { somGarcom, somCozinha, somAdmin, somMotoboy, somChurrasco } = req.body;
+  const { somGarcom, somCozinha, somAdmin, somMotoboy, somChurrasco, somWhatsapp } = req.body;
   try {
     const configs = [
       { chave: 'config_som_garcom', valor: somGarcom || 'campainha_classica' },
       { chave: 'config_som_cozinha', valor: somCozinha || 'sino_moderno' },
       { chave: 'config_som_admin', valor: somAdmin || 'alerta_digital' },
       { chave: 'config_som_motoboy', valor: somMotoboy || 'campainha_classica' },
-      { chave: 'config_som_churrasco', valor: somChurrasco || 'sino_moderno' }
+      { chave: 'config_som_churrasco', valor: somChurrasco || 'sino_moderno' },
+      { chave: 'config_som_whatsapp', valor: somWhatsapp || 'campainha_classica' }
     ];
     for (const cfg of configs) {
       if (isPostgres) {
@@ -6093,7 +6096,8 @@ app.post('/api/config/som-global', ensureDbInitialized, isAdmin, async (req, res
         somCozinha: somCozinha || 'sino_moderno',
         somAdmin: somAdmin || 'alerta_digital',
         somMotoboy: somMotoboy || 'campainha_classica',
-        somChurrasco: somChurrasco || 'sino_moderno'
+        somChurrasco: somChurrasco || 'sino_moderno',
+        somWhatsapp: somWhatsapp || 'campainha_classica'
       });
     }
     res.json({ success: true });
