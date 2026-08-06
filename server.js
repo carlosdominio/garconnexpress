@@ -3929,18 +3929,18 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
       const destLat = parseFloat(req.body.lat_cliente || req.body.lat);
       const destLng = parseFloat(req.body.lng_cliente || req.body.lng);
 
-      if (!isNaN(destLat) && !isNaN(destLng)) {
-        const R = 6371;
-        const dLat = (destLat - latRestaurante) * Math.PI / 180;
-        const dLon = (destLng - lngRestaurante) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(latRestaurante * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) *
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        distKm = Math.round((R * c * 1.3) * 100) / 100;
-      } else {
-        distKm = 0;
+      if (isNaN(destLat) || isNaN(destLng)) {
+        return res.status(400).json({ error: 'Geolocalização (latitude e longitude) é obrigatória para calcular a taxa de entrega no delivery.' });
       }
+
+      const R = 6371;
+      const dLat = (destLat - latRestaurante) * Math.PI / 180;
+      const dLon = (destLng - lngRestaurante) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(latRestaurante * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      distKm = Math.round((R * c * 1.3) * 100) / 100;
 
       if (distKm > raioMaximo) {
         return res.status(400).json({ error: `Endereço a ${distKm}km excede o raio máximo de entrega (${raioMaximo} km).` });
@@ -4484,38 +4484,41 @@ app.post('/api/pedidos/:id/pagamento-fracao', isAuthenticated, async (req, res) 
   
   try {
     if (valor_pago <= 0) return res.status(400).json({ error: 'Valor de pagamento não pode ser negativo ou zero' });
-    const cx = (await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'")).rows[0];
-    if (!cx) return res.status(400).json({ error: 'CAIXA FECHADO' });
 
-    // Salva o pagamento com os valores REAIS de recebido e troco
-    const rec = (recebido !== undefined) ? recebido : valor_pago;
-    const trc = (troco !== undefined) ? troco : 0;
+    const txRes = await runInTransaction(async (tx) => {
+      const cxRes = await tx("SELECT id FROM fluxo_caixa WHERE status = 'aberto'", []);
+      const cx = cxRes.rows[0];
+      if (!cx) return { code: 400, error: 'CAIXA FECHADO' };
 
-    // 1. Busca o pedido original para saber o total atual e a mesa
-    const pOrig = (await query("SELECT * FROM pedidos WHERE id = ?", [id])).rows[0];
-    if (!pOrig) return res.status(404).json({ error: 'PEDIDO NÃO ENCONTRADO' });
+      const rec = (recebido !== undefined) ? recebido : valor_pago;
+      const trc = (troco !== undefined) ? troco : 0;
 
-    // 2. Registra o valor no fluxo de caixa
-    const col = getColPagamento(forma_pagamento);
-    await query(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [valor_pago, valor_pago, cx.id]);
+      const selectSql = isPostgres ? "SELECT * FROM pedidos WHERE id = $1 FOR UPDATE" : "SELECT * FROM pedidos WHERE id = ?";
+      const pOrigRes = await tx(selectSql, [id]);
+      const pOrig = pOrigRes.rows[0];
+      if (!pOrig) return { code: 404, error: 'PEDIDO NÃO ENCONTRADO' };
 
-    // 3. Registra o pagamento
-    await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento, recebido, troco) VALUES (?, ?, ?, ?, ?)", [id, valor_pago, forma_pagamento, rec, trc]);
+      const col = getColPagamento(forma_pagamento);
+      await tx(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [valor_pago, valor_pago, cx.id]);
+      await tx("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento, recebido, troco) VALUES (?, ?, ?, ?, ?)", [id, valor_pago, forma_pagamento, rec, trc]);
 
-    // 4. Atualiza o pedido original: incrementa o pago_parcial e ajusta o número de pessoas
-    const novoPagoParcial = (pOrig.pago_parcial || 0) + valor_pago;
-    // O total do pedido pOrig.total já deve estar atualizado com o valor total bruto (subtotal+taxa+acres-desc)
-    const novoTotalMesa = Math.max(0, pOrig.total - valor_pago);
-    const novoValorPessoa = num_pessoas_restantes > 0 ? novoTotalMesa / num_pessoas_restantes : 0;
+      const novoPagoParcial = (pOrig.pago_parcial || 0) + valor_pago;
+      const novoTotalMesa = Math.max(0, pOrig.total - valor_pago);
+      const novoValorPessoa = num_pessoas_restantes > 0 ? novoTotalMesa / num_pessoas_restantes : 0;
 
-    await query("UPDATE pedidos SET total = ?, pago_parcial = ?, num_pessoas = ?, valor_por_pessoa = ? WHERE id = ?", 
-      [novoTotalMesa, novoPagoParcial, num_pessoas_restantes, novoValorPessoa, id]);
+      await tx("UPDATE pedidos SET total = ?, pago_parcial = ?, num_pessoas = ?, valor_por_pessoa = ? WHERE id = ?", 
+        [novoTotalMesa, novoPagoParcial, num_pessoas_restantes, novoValorPessoa, id]);
+
+      return { code: 200, novoTotalMesa };
+    });
+
+    if (txRes.error) return res.status(txRes.code).json({ error: txRes.error });
 
     await notifyStatus(id, mesa_id, 'itens_atualizados');
     
     res.json({ 
       success: true, 
-      saldo_restante: novoTotalMesa 
+      saldo_restante: txRes.novoTotalMesa 
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -4526,41 +4529,48 @@ app.post('/api/pedidos/:id/pagamento-parcial', isAuthenticated, async (req, res)
   const { id } = req.params;
   const { mesa_id, itens, forma_pagamento, total, num_pessoas, valor_por_pessoa } = req.body;
   try {
-    const cx = (await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'")).rows[0];
-    if (!cx) return res.status(400).json({ error: 'CAIXA FECHADO' });
+    const txRes = await runInTransaction(async (tx) => {
+      const cxRes = await tx("SELECT id FROM fluxo_caixa WHERE status = 'aberto'", []);
+      const cx = cxRes.rows[0];
+      if (!cx) return { code: 400, error: 'CAIXA FECHADO' };
 
-    // 1. Registra o pagamento na tabela de pagamentos vinculada ao pedido principal
-    await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento, recebido, troco) VALUES (?, ?, ?, ?, ?)", [id, total, forma_pagamento, total, 0]);
+      await tx("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento, recebido, troco) VALUES (?, ?, ?, ?, ?)", [id, total, forma_pagamento, total, 0]);
 
-    // 2. Remove os itens do pedido original (já que foram pagos separadamente)
-    for (const i of itens) {
-      await query('DELETE FROM pedido_itens WHERE id = ?', [i.id]);
-    }
+      for (const i of itens) {
+        await tx('DELETE FROM pedido_itens WHERE id = ?', [i.id]);
+      }
 
-    // 3. Registra o valor no fluxo de caixa
-    const col = getColPagamento(forma_pagamento);
-    await query(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [total, total, cx.id]);
+      const col = getColPagamento(forma_pagamento);
+      await tx(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [total, total, cx.id]);
 
-    // 4. Verifica se restam itens no pedido original
-    const rest = (await query("SELECT id FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
-    if (rest.length === 0) { 
-      await query("UPDATE pedidos SET status = 'entregue', pago_parcial = pago_parcial + ?, total = 0 WHERE id = ?", [total, id]); 
-      await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [mesa_id]);
-      await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [mesa_id]);
-      
-      // Notifica o cliente para encerrar o acesso
+      const restRes = await tx("SELECT id FROM pedido_itens WHERE pedido_id = ?", [id]);
+      const rest = restRes.rows;
+      if (rest.length === 0) { 
+        await tx("UPDATE pedidos SET status = 'entregue', pago_parcial = pago_parcial + ?, total = 0 WHERE id = ?", [total, id]); 
+        await tx("UPDATE mesas SET status = 'livre' WHERE id = ?", [mesa_id]);
+        await tx("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [mesa_id]);
+        return { code: 200, deslogarMesa: true };
+      } else { 
+        const pDataRes = await tx("SELECT total, pago_parcial FROM pedidos WHERE id = ?", [id]);
+        const pData = pDataRes.rows[0];
+        const novoTotal = pData ? Math.max(0, (pData.total || 0) - total) : 0;
+        const novoPagoParcial = pData ? ((pData.pago_parcial || 0) + total) : total;
+        await tx("UPDATE pedidos SET total = ?, pago_parcial = ? WHERE id = ?", [novoTotal, novoPagoParcial, id]);
+        return { code: 200, deslogarMesa: false };
+      }
+    });
+
+    if (txRes.error) return res.status(txRes.code).json({ error: txRes.error });
+
+    if (txRes.deslogarMesa) {
       await safePusherTrigger('garconnexpress', `deslogar-mesa-${mesa_id}`, { 
         mensagem: "Sua conta foi finalizada. Obrigado pela preferência!" 
       });
-
-    } else { 
-      // Atualiza o total do pedido original subtraindo o que foi pago
-      const pData = (await query("SELECT total, pago_parcial FROM pedidos WHERE id = ?", [id])).rows[0];
-      const novoTotal = pData ? Math.max(0, (pData.total || 0) - total) : 0;
-      const novoPagoParcial = pData ? ((pData.pago_parcial || 0) + total) : total;
-      await query("UPDATE pedidos SET total = ?, pago_parcial = ? WHERE id = ?", [novoTotal, novoPagoParcial, id]);
+      await notifyStatus(null, mesa_id, 'liberada'); 
+    } else {
       await notifyStatus(id, mesa_id, 'itens_atualizados'); 
     }
+
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
@@ -4605,14 +4615,22 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
   try {
     const txResult = await runInTransaction(async (tx) => {
       const selectSql = isPostgres 
-        ? "SELECT status, total, forma_pagamento, pago_parcial FROM pedidos WHERE id = $1 FOR UPDATE"
-        : "SELECT status, total, forma_pagamento, pago_parcial FROM pedidos WHERE id = ?";
+        ? "SELECT status, garcom_id, total, forma_pagamento, pago_parcial FROM pedidos WHERE id = $1 FOR UPDATE"
+        : "SELECT status, garcom_id, total, forma_pagamento, pago_parcial FROM pedidos WHERE id = ?";
       const prevStatusRes = await tx(selectSql, [id]);
       const p = prevStatusRes.rows[0];
 
       if (!p) {
         return { code: 404, error: 'Pedido não encontrado' };
       }
+
+      // Validação de RBAC por papel e dono do pedido
+      const userRole = req.user ? req.user.role : null;
+      const userUsuario = req.user ? (req.user.usuario || req.user.username) : null;
+      if (userRole === 'garcom' && p.garcom_id && p.garcom_id !== 'DELIVERY' && p.garcom_id !== 'QRCODE' && p.garcom_id !== userUsuario) {
+        return { code: 403, error: 'Acesso negado: você só pode alterar status de pedidos atribuídos a você.' };
+      }
+
       const prevStatus = p.status;
 
       if (prevStatus === status) {
@@ -5354,7 +5372,7 @@ app.post('/api/login', loginLimiter, async (req, res) => {
 
 app.get('/api/pusher-config', (req, res) => {
   res.json({
-    key: (process.env.PUSHER_APP_KEY || "5b2b284e309dea9d90fb").trim(),
+    key: (process.env.PUSHER_APP_KEY || "").trim(),
     cluster: (process.env.PUSHER_CLUSTER || "sa1").trim()
   });
 });
