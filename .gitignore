@@ -19,3 +19,5 @@ backups/
 firebase-adminsdk*.json
 firebase-motoboy-adminsdk.json
 .vercel
+*.jks
+*.keystore

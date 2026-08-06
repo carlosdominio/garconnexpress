@@ -177,26 +177,24 @@ app.use('/_vercel', (req, res) => {
 
 // Middleware manual para garantir que OPTIONS responda sempre com sucesso e headers corretos
 app.use((req, res, next) => {
-  const allowedOrigins = [
+  const allowedOrigins = new Set([
     'https://garconnexpress.vercel.app',
     'http://localhost:3000',
     'http://localhost',
     'https://localhost',
     'capacitor://localhost',
     'http://10.0.2.2'
-  ];
+  ]);
   const origin = req.headers.origin;
   
-  if (allowedOrigins.includes(origin) || (origin && (origin.startsWith('http://localhost') || origin.startsWith('https://localhost') || origin.startsWith('capacitor://')))) {
+  if (origin && (allowedOrigins.has(origin) || /^https?:\/\/localhost(:\d+)?$/.test(origin) || origin.startsWith('capacitor://'))) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Credentials', 'true');
   } else if (!origin) {
-    // Para requisições server-to-server ou app nativo antigo
+    // Para requisições server-to-server ou app nativo antigo sem Origin header
     res.header('Access-Control-Allow-Origin', '*');
-  } else {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
   }
+  // Se for origin desconhecido, não refletimos nem liberamos credentials
 
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept, Origin');
@@ -372,6 +370,11 @@ if (!process.env.VERCEL) {
 
 // ENDPOINT PARA VERCEL CRON JOBS
 app.get('/api/cron/cardapio', async (req, res) => {
+    const cronSecret = process.env.CRON_SECRET;
+    const authHeader = req.headers['authorization'];
+    if (!cronSecret || !authHeader || authHeader !== `Bearer ${cronSecret}`) {
+        return res.status(401).json({ error: 'Unauthorized cron request. CRON_SECRET must be configured and provided.' });
+    }
     if (typeof botUrlFinal !== 'undefined' && botUrlFinal) {
         const pingUrl = botUrlFinal.endsWith('/') ? `${botUrlFinal}health` : `${botUrlFinal}/health`;
         await fetch(pingUrl).catch((err) => console.log('⚠️ Erro ao acordar o robô no Render:', err.message));
@@ -729,17 +732,21 @@ const statusLimiter = rateLimit({
 
 
 
-// INICIALIZAÇÃO DO PUSHER (Com as novas chaves do usuário)
+// INICIALIZAÇÃO DO PUSHER (Credenciais via Variáveis de Ambiente)
 const pusherConfig = {
-  appId: (process.env.PUSHER_APP_ID || "2122978").trim(),
-  key: (process.env.PUSHER_APP_KEY || "5b2b284e309dea9d90fb").trim(),
-  secret: (process.env.PUSHER_APP_SECRET || "11b8e639d6b1d940871a").trim(),
+  appId: (process.env.PUSHER_APP_ID || "").trim(),
+  key: (process.env.PUSHER_APP_KEY || "").trim(),
+  secret: (process.env.PUSHER_APP_SECRET || "").trim(),
   cluster: (process.env.PUSHER_CLUSTER || "sa1").trim(),
   useTLS: true
 };
 
 let pusher = new Pusher(pusherConfig);
-console.log('📡 PUSHER CONFIGURADO COM SUCESSO (LOCAL/VERCEL)');
+if (!process.env.PUSHER_APP_KEY || !process.env.PUSHER_APP_SECRET) {
+  console.warn('⚠️ AVISO: Variáveis PUSHER_APP_KEY / PUSHER_APP_SECRET não definidas no ambiente!');
+} else {
+  console.log('📡 PUSHER CONFIGURADO COM SUCESSO (LOCAL/VERCEL)');
+}
 
 const isPostgres = !!process.env.VERCEL || (!!(process.env.DATABASE_URL || process.env.POSTGRES_URL) && (process.env.NODE_ENV === 'production' || process.env.FORCE_POSTGRES_LOCAL === 'true'));
 let db;
@@ -2111,13 +2118,10 @@ app.get('/api/debug/push-subs', isAdmin, ensureDbInitialized, async (req, res) =
 
 // --- ROTA CRON MANUAL DE MONITORAMENTO DE PEDIDOS ATRASADOS (>10 MIN) ---
 app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) => {
-  // Proteção por CRON_SECRET: se definido, exige o header Authorization correto
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = req.headers['authorization'];
-    if (!authHeader || authHeader !== `Bearer ${cronSecret}`) {
-      return res.status(401).json({ error: 'Unauthorized cron request.' });
-    }
+  const authHeader = req.headers['authorization'];
+  if (!cronSecret || !authHeader || authHeader !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ error: 'Unauthorized cron request. CRON_SECRET must be configured and provided.' });
   }
   await checkAndNotifyDelayedOrders();
   await checkAndSendScheduledFCM();
@@ -3662,7 +3666,7 @@ app.delete('/api/pedidos/limpar', isAdmin, async (req, res) => {
   } catch (error) { res.status(500).json({ error: "Erro ao limpar: " + error.message }); }
 });
 
-app.get('/api/pedidos/ativo-telefone/:telefone', ensureDbInitialized, async (req, res) => {
+app.get('/api/pedidos/ativo-telefone/:telefone', ensureDbInitialized, isAuthenticated, async (req, res) => {
   try {
     const { telefone } = req.params;
     const cleanPhone = telefone.replace(/\D/g, '');
@@ -3686,43 +3690,27 @@ app.get('/api/pedidos/ativo-telefone/:telefone', ensureDbInitialized, async (req
   }
 });
 
-app.get('/api/pedidos/:id', ensureDbInitialized, async (req, res) => {
+app.get('/api/pedidos/:id', ensureDbInitialized, isAuthenticated, async (req, res) => {
   try {
     const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Pedido não encontrado' });
     }
     const pedido = result.rows[0];
-    if (pedido.garcom_id === 'DELIVERY') {
-      return res.json(pedido);
-    }
-    return isAuthenticated(req, res, () => {
-      res.json(pedido);
-    });
+    res.json(pedido);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/pedidos/:id/itens', ensureDbInitialized, async (req, res) => { 
+app.get('/api/pedidos/:id/itens', ensureDbInitialized, isAuthenticated, async (req, res) => { 
   try {
     const pedidoRes = await query("SELECT garcom_id FROM pedidos WHERE id = ?", [req.params.id]);
     if (pedidoRes.rows.length === 0) {
       return res.status(404).json({ error: 'Pedido não encontrado' });
     }
-    const isDelivery = pedidoRes.rows[0].garcom_id === 'DELIVERY';
-    
-    const fetchItens = async () => {
-      const result = await query(`SELECT pi.*, m.nome, COALESCE(pi.preco, m.preco) as preco, m.categoria, m.enviar_cozinha, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [req.params.id]);
-      res.json(result.rows);
-    };
-
-    if (isDelivery) {
-      return await fetchItens();
-    }
-    return isAuthenticated(req, res, async () => {
-      await fetchItens();
-    });
+    const result = await query(`SELECT pi.*, m.nome, COALESCE(pi.preco, m.preco) as preco, m.categoria, m.enviar_cozinha, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [req.params.id]);
+    res.json(result.rows);
   } catch (error) {
     console.error('Erro ao buscar itens do pedido:', error);
     res.status(500).json({ error: error.message });
@@ -3921,12 +3909,48 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
       subtotalReal += (precoOficial * item.quantidade);
     }
 
-    // 4. Cálculo do Total Seguro (Ignora req.body.total enviado pelo cliente)
+    // 4. Cálculo do Total e Frete Seguro (Ignora req.body.total, req.body.taxa_entrega e req.body.distancia_km)
     let total;
     let taxaEntrega = 0;
-    const distKm = parseFloat(req.body.distancia_km) || 0;
+    let distKm = 0;
+
     if (garcom_id === 'DELIVERY') {
-      taxaEntrega = (req.body.taxa_entrega !== undefined && req.body.taxa_entrega !== null) ? parseFloat(req.body.taxa_entrega) : 3.00;
+      const configsRows = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'frete_%'")).rows;
+      const cfgMap = {};
+      for (const r of configsRows) cfgMap[r.chave] = r.valor;
+
+      const taxaBase = parseFloat(cfgMap['frete_taxa_base']) || 5.00;
+      const kmBaseIncluso = parseFloat(cfgMap['frete_km_base_incluso']) || 2.0;
+      const valorKmAdicional = parseFloat(cfgMap['frete_valor_km_adicional']) || 1.50;
+      const raioMaximo = parseFloat(cfgMap['frete_raio_maximo']) || 15.0;
+
+      const latRestaurante = parseFloat(cfgMap['frete_lat_restaurante']) || -9.6600395;
+      const lngRestaurante = parseFloat(cfgMap['frete_lng_restaurante']) || -35.7515460;
+      const destLat = parseFloat(req.body.lat_cliente || req.body.lat);
+      const destLng = parseFloat(req.body.lng_cliente || req.body.lng);
+
+      if (!isNaN(destLat) && !isNaN(destLng)) {
+        const R = 6371;
+        const dLat = (destLat - latRestaurante) * Math.PI / 180;
+        const dLon = (destLng - lngRestaurante) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(latRestaurante * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) *
+                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        distKm = Math.round((R * c * 1.3) * 100) / 100;
+      } else {
+        distKm = 0;
+      }
+
+      if (distKm > raioMaximo) {
+        return res.status(400).json({ error: `Endereço a ${distKm}km excede o raio máximo de entrega (${raioMaximo} km).` });
+      }
+
+      taxaEntrega = taxaBase;
+      if (distKm > kmBaseIncluso) {
+        taxaEntrega += ((distKm - kmBaseIncluso) * valorKmAdicional);
+      }
+      taxaEntrega = Math.round(taxaEntrega * 100) / 100;
       total = subtotalReal + taxaEntrega;
     } else {
       const taxaMultiplicador = await getTaxaServicoMultiplicador();
@@ -4529,7 +4553,6 @@ app.post('/api/pedidos/:id/pagamento-parcial', isAuthenticated, async (req, res)
         mensagem: "Sua conta foi finalizada. Obrigado pela preferência!" 
       });
 
-      await notifyStatus(null, mesa_id, 'liberada'); 
     } else { 
       // Atualiza o total do pedido original subtraindo o que foi pago
       const pData = (await query("SELECT total, pago_parcial FROM pedidos WHERE id = ?", [id])).rows[0];
@@ -4580,16 +4603,32 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
   const { id } = req.params;
   const { status, pagamentos_detalhados } = req.body;
   try {
-    if (status === 'entregue') {
-      const cx = (await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'")).rows[0];
-      if (!cx) return res.status(400).json({ error: 'CAIXA FECHADO' });
+    const txResult = await runInTransaction(async (tx) => {
+      const selectSql = isPostgres 
+        ? "SELECT status, total, forma_pagamento, pago_parcial FROM pedidos WHERE id = $1 FOR UPDATE"
+        : "SELECT status, total, forma_pagamento, pago_parcial FROM pedidos WHERE id = ?";
+      const prevStatusRes = await tx(selectSql, [id]);
+      const p = prevStatusRes.rows[0];
 
-      const p = (await query("SELECT total, forma_pagamento, pago_parcial FROM pedidos WHERE id = ?", [id])).rows[0];
-      if (p) {
-        // Registra o pagamento final na tabela de pagamentos
+      if (!p) {
+        return { code: 404, error: 'Pedido não encontrado' };
+      }
+      const prevStatus = p.status;
+
+      if (prevStatus === status) {
+        return { code: 200, already: true };
+      }
+
+      if (status === 'entregue' && ['entregue', 'cancelado'].includes(prevStatus)) {
+        return { code: 409, error: 'Pedido já foi finalizado ou cancelado anteriormente.' };
+      }
+
+      if (status === 'entregue') {
+        const cxRes = await tx("SELECT id FROM fluxo_caixa WHERE status = 'aberto'", []);
+        const cx = cxRes.rows[0];
+        if (!cx) return { code: 400, error: 'CAIXA FECHADO' };
 
         if (Array.isArray(pagamentos_detalhados) && pagamentos_detalhados.length > 0) {
-          // Cenário Multi-Pagamento (Suporta formato novo de objeto ou antigo de string)
           for (const pag of pagamentos_detalhados) {
             let forma = (pag && typeof pag === 'object') ? pag.forma_pagamento : pag;
             let valorParte = (pag && typeof pag === 'object') ? pag.valor : (p.total / pagamentos_detalhados.length);
@@ -4598,53 +4637,53 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
             
             if (!forma) forma = 'Dinheiro';
             if (!valorParte || isNaN(valorParte)) valorParte = 0;
-            if (valorParte < 0) return res.status(400).json({ error: 'Valor fracionado negativo detectado' });
+            if (valorParte < 0) return { code: 400, error: 'Valor fracionado negativo detectado' };
 
             const col = getColPagamento(forma);
-            await query(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [valorParte, valorParte, cx.id]);
-            await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento, recebido, troco) VALUES (?, ?, ?, ?, ?)", [id, valorParte, forma, recebido, troco]);
+            await tx(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [valorParte, valorParte, cx.id]);
+            await tx("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento, recebido, troco) VALUES (?, ?, ?, ?, ?)", [id, valorParte, forma, recebido, troco]);
           }
         } else {
-          // Cenário Normal (Um único pagamento para o saldo restante)
           const col = getColPagamento(p.forma_pagamento);
           const valorFinal = p.total;
-          
-          // Busca dados de recebido/troco do pedido original (salvos no solicitar-fechamento)
-          const pDatalhes = (await query("SELECT valor_recebido, troco FROM pedidos WHERE id = ?", [id])).rows[0];
-          const rec = pDatalhes ? pDatalhes.valor_recebido : valorFinal;
-          const trc = pDatalhes ? pDatalhes.troco : 0;
+          const pDetalhesRes = await tx("SELECT valor_recebido, troco FROM pedidos WHERE id = ?", [id]);
+          const pDetalhes = pDetalhesRes.rows[0];
+          const rec = pDetalhes ? pDetalhes.valor_recebido : valorFinal;
+          const trc = pDetalhes ? pDetalhes.troco : 0;
 
-          await query(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [valorFinal, valorFinal, cx.id]);
-          await query("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento, recebido, troco) VALUES (?, ?, ?, ?, ?)", [id, valorFinal, p.forma_pagamento, rec, trc]);
+          await tx(`UPDATE fluxo_caixa SET ${col} = ${col} + ?, total_vendas = total_vendas + ? WHERE id = ?`, [valorFinal, valorFinal, cx.id]);
+          await tx("INSERT INTO pagamentos (pedido_id, valor, forma_pagamento, recebido, troco) VALUES (?, ?, ?, ?, ?)", [id, valorFinal, p.forma_pagamento, rec, trc]);
         }
 
-        // Atualiza o pedido: limpa o saldo e soma ao pago_parcial para consolidar o histórico
-        await query("UPDATE pedidos SET pago_parcial = pago_parcial + total, total = 0 WHERE id = ?", [id]);
+        await tx("UPDATE pedidos SET pago_parcial = pago_parcial + total, total = 0 WHERE id = ?", [id]);
       }
-    }
-    // Busca status anterior para controle de estoque e prevenção de redundâncias
-    const prevStatusRes = await query("SELECT status FROM pedidos WHERE id = ?", [id]);
-    const prevStatus = prevStatusRes.rows[0] ? prevStatusRes.rows[0].status : null;
 
-    if (prevStatus === status) {
+      if (status === 'entregue' || status === 'cancelado') {
+        const resetFlag = isPostgres ? 'FALSE' : '0';
+        await tx(`UPDATE pedidos SET status = ?, solicitou_fechamento = ${resetFlag}, notificado_atraso_fechamento = 1 WHERE id = ?`, [status, id]);
+      } else {
+        await tx('UPDATE pedidos SET status = ? WHERE id = ?', [status, id]);
+      }
+
+      if (status === 'cancelado' && prevStatus !== 'cancelado' && prevStatus !== 'rascunho') {
+        const itensRes = await tx("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id]);
+        for (const item of itensRes.rows) {
+          await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
+        }
+        await tx("UPDATE pedido_itens SET status = 'cancelado' WHERE pedido_id = ?", [id]);
+      }
+
+      return { code: 200, prevStatus };
+    });
+
+    if (txResult.error) {
+      return res.status(txResult.code).json({ error: txResult.error });
+    }
+    if (txResult.already) {
       console.log(`⚠️ Status do pedido ${id} já é '${status}'. Pulando atualização e notificações redundantes.`);
-      return res.json({ success: true });
+      return res.json({ success: true, already: true });
     }
-
-    if (status === 'entregue' || status === 'cancelado') {
-      const resetFlag = isPostgres ? 'FALSE' : '0';
-      await query(`UPDATE pedidos SET status = ?, solicitou_fechamento = ${resetFlag}, notificado_atraso_fechamento = 1 WHERE id = ?`, [status, id]);
-    } else {
-      await query('UPDATE pedidos SET status = ? WHERE id = ?', [status, id]);
-    }
-    
-    if (status === 'cancelado' && prevStatus !== 'cancelado' && prevStatus !== 'rascunho') {
-      const itens = (await query("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
-      for (const item of itens) {
-        await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
-      }
-      await query("UPDATE pedido_itens SET status = 'cancelado' WHERE pedido_id = ?", [id]);
-    }
+    const prevStatus = txResult.prevStatus;
     const pm = (await query("SELECT p.mesa_id, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
     const mesaNum = pm ? (pm.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : (pm.numero || 'BALCÃO')) : 'BALCÃO';
     const localStr = pm && pm.garcom_id === 'DELIVERY' ? `${mesaNum}` : `Mesa ${mesaNum}`;
@@ -5133,7 +5172,7 @@ app.delete('/api/garcons/:id', isAdmin, async (req, res) => {
 const mesasRouter = require('./routes/mesas')(query, ensureDbInitialized, safePusherTrigger, notifyStatus, checkAndNotifyDelayedOrders, isAdmin, isAuthenticated);
 app.use('/api/mesas', mesasRouter);
 
-app.get('/api/pedidos/mesa/:mesaId', async (req, res) => { 
+app.get('/api/pedidos/mesa/:mesaId', isAuthenticated, async (req, res) => { 
   try {
     res.json((await query(`SELECT * FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY created_at DESC LIMIT 1`, [req.params.mesaId])).rows[0] || null); 
   } catch (error) { res.status(500).json({ error: error.message }); }
@@ -6207,7 +6246,7 @@ app.get('/api/debug-fcm', isAdmin, async (req, res) => {
   }
 });
 
-app.get('/api/fcm/teste-motoboy-som', async (req, res) => {
+app.get('/api/fcm/teste-motoboy-som', isAdmin, async (req, res) => {
   try {
     const configRes = await query("SELECT chave, valor FROM sistema_config");
     const configMap = {};
@@ -6610,7 +6649,7 @@ app.post('/api/toast-config/testar', ensureDbInitialized, isAdmin, async (req, r
   }
 });
 
-app.post('/api/simular-atraso-churrasco', ensureDbInitialized, async (req, res) => {
+app.post('/api/simular-atraso-churrasco', ensureDbInitialized, isAdmin, async (req, res) => {
   try {
     const configRows = (await query("SELECT chave, valor FROM sistema_config WHERE chave = 'config_som_churrasco'")).rows;
     const activeSound = (configRows[0] && configRows[0].valor) ? configRows[0].valor : 'alerta_urgente';
@@ -7042,7 +7081,11 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Erro interno no servidor' });
 });
 
-app.listen(PORT, () => console.log(`Rodando na porta ${PORT}`));
+if (require.main === module) {
+  app.listen(PORT, () => console.log(`Rodando na porta ${PORT}`));
+}
+
+module.exports = app;
 
 
 
