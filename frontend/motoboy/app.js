@@ -201,7 +201,7 @@ const App = {
         }
         
         await this.checkCaixaStatus();
-        setInterval(() => this.checkCaixaStatus(), 30000);
+        // setInterval(() => this.checkCaixaStatus(), 30000); // Removido para evitar polling excessivo (agora usa apenas Pusher)
 
         this.loadPedidos();
 
