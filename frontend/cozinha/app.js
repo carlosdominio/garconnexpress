@@ -828,7 +828,7 @@ async function configurarPusher() {
 
         canal.bind('pedido-cancelado', (data) => {
             console.log('📢 Pedido cancelado recebido:', data);
-            const idParaCancelar = data.id || data.pedido_id;
+            const idParaCancelar = data.id || data.pedido_id || (data.pedido ? data.pedido.id : null);
             if (idParaCancelar) {
                 mostrarNotificacaoCancelamento(data.mensagem || `Pedido #${idParaCancelar} cancelado`, idParaCancelar);
             }

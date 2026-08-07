@@ -3472,13 +3472,14 @@ app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, isAuthenticated, a
     });
     if (pedidos.length === 0) return res.json([]);
 
-    const pedidoIds = pedidos.map(p => p.id).join(',');
+    const pedidoIds = pedidos.map(p => p.id);
+    const placeholders = pedidoIds.map(() => '?').join(',');
     const itensRes = await query(`
       SELECT pi.*, m.nome, COALESCE(pi.preco, m.preco) as preco, m.categoria, m.enviar_cozinha, m.imagem
       FROM pedido_itens pi
       JOIN menu m ON pi.menu_id = m.id
-      WHERE pi.pedido_id IN (${pedidoIds})
-    `);
+      WHERE pi.pedido_id IN (${placeholders})
+    `, pedidoIds);
 
     const itensMap = {};
     itensRes.rows.forEach(item => {
