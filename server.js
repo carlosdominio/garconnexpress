@@ -4206,7 +4206,7 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
       for (const item of itens) {
         await abaterEstoquePorFichaTecnica(item.menu_id, item.quantidade);
         const pMenu = (await query("SELECT preco FROM menu WHERE id = ?", [item.menu_id])).rows[0];
-        if (pMenu) novoSub += ((item.preco || pMenu.preco) * item.quantidade);
+        if (pMenu) novoSub += (parseFloat(pMenu.preco) * item.quantidade); // ANTIFRAUDE: usa sempre o preço do banco, ignora item.preco do cliente
       }
     }
     const pedido = (await query("SELECT cobrar_taxa FROM pedidos WHERE id = ?", [id])).rows[0];
