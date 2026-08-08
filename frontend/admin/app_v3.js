@@ -5358,10 +5358,19 @@ async function salvarAlteracoes() {
     });
     if (res.ok) {
       const data = await res.json();
-      const det = data.detalhes_edicao ? `\n(${data.detalhes_edicao})` : '';
-      mostrarToast(`✅ Pedido atualizado!${det}`);
       const idPed = pedidoEmEdicao.id;
       const idMesa = pedidoEmEdicao.mesa_id;
+      const mesaNum = pedidoEmEdicao.mesa_numero;
+      const pMesaStr = (pedidoEmEdicao.garcom_id === 'DELIVERY') ? `DELIVERY #${idPed}` : (mesaNum ? `Mesa ${mesaNum} (#${idPed})` : `Balcão (#${idPed})`);
+
+      if (data.detalhes_edicao && data.detalhes_edicao.includes('🔄')) {
+        const msgSubst = data.detalhes_edicao.replace('🔄', '🔄 ' + pMesaStr + ':');
+        exibirNotificacaoNativa('🔄 ITEM SUBSTITUÍDO', msgSubst, `subst-${idPed}`);
+        mostrarToast(msgSubst);
+      } else {
+        const det = data.detalhes_edicao ? `\n(${data.detalhes_edicao})` : '';
+        mostrarToast(`✅ Pedido atualizado!${det}`);
+      }
       
       fecharModal();
       await carregarPedidos(); // Atualiza a lista global de pedidos
