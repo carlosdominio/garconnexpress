@@ -774,9 +774,9 @@ if (isPostgres) {
         rejectUnauthorized: false, // Aceita certificados self-signed
         require: true 
       },
-      max: process.env.VERCEL ? 1 : 15, // Limitado a 1 no Vercel (evita estouro no Supabase) e 15 local
-      idleTimeoutMillis: process.env.VERCEL ? 1500 : 30000, // Tempo de 1.5s para fechar conexões ociosas no Vercel
-      connectionTimeoutMillis: process.env.VERCEL ? 8000 : 15000, // Timeout otimizado de 8s para conexões no Vercel
+      max: process.env.VERCEL ? 2 : 15, // Permite 2 conexões por lambda no Vercel (evita fila no pooler)
+      idleTimeoutMillis: process.env.VERCEL ? 3000 : 30000, 
+      connectionTimeoutMillis: 15000, // Timeout de 15s para garantir resposta do Supabase sob alta demanda
     });
     
     db.on('error', (err) => {
