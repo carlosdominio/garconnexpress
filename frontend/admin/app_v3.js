@@ -4107,6 +4107,32 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
       abrirModalMesaAguardando(window.mesaAguardandoIdAtual);
     }
   }
+let intervalModalAdminAutoRefresh = null;
+
+function iniciarAutoRefreshModalAdmin() {
+  if (intervalModalAdminAutoRefresh) return;
+  intervalModalAdminAutoRefresh = setInterval(() => {
+    const modalEdicao = document.getElementById('modal-edicao');
+    const modalOpcoes = document.getElementById('modal-opcoes');
+    const modalMesaAguardando = document.getElementById('modal-mesa-aguardando');
+
+    const isEdicaoAberto = modalEdicao && modalEdicao.style.display === 'flex';
+    const isOpcoesAberto = modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.style.display !== '';
+    const isAguardandoAberto = modalMesaAguardando && modalMesaAguardando.style.display === 'flex';
+
+    if (isEdicaoAberto || isOpcoesAberto || isAguardandoAberto) {
+      atualizarModaisAdminAbertosEmTempoReal();
+    } else {
+      pararAutoRefreshModalAdmin();
+    }
+  }, 2500);
+}
+
+function pararAutoRefreshModalAdmin() {
+  if (intervalModalAdminAutoRefresh) {
+    clearInterval(intervalModalAdminAutoRefresh);
+    intervalModalAdminAutoRefresh = null;
+  }
 }
 
 function atualizarContadorAtivos() {
@@ -5173,6 +5199,7 @@ function abrirModalEdicao(pedido, itens) {
   
   // TRAVA DE SCROLL: Congela o fundo
   document.body.classList.add('modal-open');
+  iniciarAutoRefreshModalAdmin();
 }
 
 function fecharModal() {
@@ -5184,6 +5211,7 @@ function fecharModal() {
   if (abaAtiva !== 'lancar' && abaAtiva !== 'ativos') {
       document.body.classList.remove('modal-open');
   }
+  pararAutoRefreshModalAdmin();
 }
 
 function renderizarItensEdicao() {
@@ -7848,6 +7876,7 @@ async function abrirModalOpcoes(pedidoId) {
   if (!pedido) return;
   
   pedidoEmOpcoes = pedido;
+  iniciarAutoRefreshModalAdmin();
   const isDelivery = (pedido.garcom_id === 'DELIVERY');
   const mesaNome = isDelivery ? '🛵 DELIVERY #' + pedido.id : (pedido.mesa_numero ? 'Mesa ' + pedido.mesa_numero : 'Balcão');
   const mesaId = pedido.mesa_id;
@@ -8110,6 +8139,7 @@ function fecharModalOpcoes() {
   if (abaAtiva !== 'lancar' && abaAtiva !== 'ativos') {
       document.body.classList.remove('modal-open');
   }
+  pararAutoRefreshModalAdmin();
 }
 
 async function acaoOpcoesMesa(acao) {
