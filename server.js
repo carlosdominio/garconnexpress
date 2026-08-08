@@ -957,7 +957,7 @@ async function safePusherTrigger(channel, event, data) {
             }
           }
         }
-        if (enviaCozinha === undefined) enviaCozinha = true;
+        if (enviaCozinha === undefined) enviaCozinha = false;
 
         let enviaChurrasco = data.para_churrasco;
         if (enviaChurrasco === undefined) {
@@ -2936,6 +2936,9 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
 async function checkTemItemCozinha(itensIds) {
   if (!itensIds || itensIds.length === 0) return false;
   
+  const configCozinha = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
+  const catsCozinha = configCozinha.rows[0]?.valor ? JSON.parse(configCozinha.rows[0].valor).map(c => String(c).trim().toUpperCase()) : [];
+
   const configC = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
   const catsChurrasco = configC.rows[0]?.valor ? JSON.parse(configC.rows[0].valor).map(c => String(c).trim().toUpperCase()) : [];
 
@@ -2944,16 +2947,21 @@ async function checkTemItemCozinha(itensIds) {
   
   for (const m of menuItemsRes.rows) {
     const envCozinha = m.enviar_cozinha;
+    const isExplicitNo = (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false');
+    if (isExplicitNo) continue;
+    
+    const isExplicitYes = (envCozinha === 1 || envCozinha === true || envCozinha === '1' || envCozinha === 'true');
     const categoria = String(m.categoria || '').trim().toUpperCase();
     
-    // Se explicitamente marcado como NÃO enviar para cozinha → ignora
-    if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') continue;
-    
-    // Se pertencer ao churrasco exclusivamente → ignora
     if (catsChurrasco.length > 0 && catsChurrasco.includes(categoria)) continue;
     
-    // Qualquer outro item (null, 1, true, ou categoria não-churrasco) → vai para a cozinha
-    return true;
+    if (isExplicitYes) return true;
+
+    if (catsCozinha.length > 0) {
+      if (catsCozinha.includes(categoria)) return true;
+    } else {
+      return true;
+    }
   }
   return false;
 }
