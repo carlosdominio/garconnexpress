@@ -4049,6 +4049,11 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
   // 1. Modal de Edição / Visualização do Pedido (#modal-edicao)
   const modalEdicao = document.getElementById('modal-edicao');
   if (modalEdicao && modalEdicao.style.display === 'flex' && pedidoEmEdicao) {
+    
+    // SE há itens locais sem ID (recém adicionados, ainda não salvos), NÃO sobrescreve
+    const temItensNaoSalvos = (itensEmEdicao || []).some(i => !i.id);
+    if (temItensNaoSalvos) return;
+
     const pedId = pedidoEmEdicao.id;
     try {
       const resItens = await fetch(`/api/pedidos/${pedId}/itens?t=` + Date.now());
