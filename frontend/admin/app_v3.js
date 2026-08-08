@@ -6751,9 +6751,9 @@ async function configurarPusher() {
       if (data.garcom_id === 'DELIVERY') {
         nMesa = `DELIVERY #${data.pedido_id || data.mesa_id}`;
       } else {
-        const mesaData = data.mesa_numero || data.mesa_id || 'X';
+        const mesaData = data.mesa_numero || data.mesa_id;
         const pIdStr = data.pedido_id ? ` (#${data.pedido_id})` : '';
-        if (mesaData === 'BALCÃO' || mesaData === 'Balcão') {
+        if (!mesaData || mesaData === 'X' || String(mesaData).toUpperCase().includes('BALCÃO') || String(mesaData).toUpperCase().includes('BALCAO')) {
           nMesa = `Balcão${pIdStr}`;
         } else {
           nMesa = isNaN(mesaData) ? `${mesaData}${pIdStr}` : `Mesa ${mesaData}${pIdStr}`;

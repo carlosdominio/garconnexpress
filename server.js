@@ -3349,7 +3349,7 @@ app.put('/api/pedidos/:id/taxa', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { cobrar_taxa } = req.body;
   try {
-    const pedidoOriginal = (await query("SELECT mesa_id FROM pedidos WHERE id = ?", [id])).rows[0];
+    const pedidoOriginal = (await query("SELECT p.mesa_id, p.garcom_id, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
     const todosItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
     const subtotal = todosItens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
     const taxaMultiplicador = await getTaxaServicoMultiplicador();
@@ -3358,10 +3358,14 @@ app.put('/api/pedidos/:id/taxa', isAuthenticated, async (req, res) => {
     const taxaBanco = isPostgres ? cobrar_taxa : (cobrar_taxa ? 1 : 0);
     await query("UPDATE pedidos SET total = ?, cobrar_taxa = ? WHERE id = ?", [total, taxaBanco, id]);
 
+    const mesaNum = pedidoOriginal ? (pedidoOriginal.mesa_numero || (!pedidoOriginal.mesa_id ? 'Balcão' : pedidoOriginal.mesa_id)) : 'Balcão';
+
     // Notifica garçom e admin em tempo real
     safePusherTrigger('garconnexpress', 'status-atualizado', {
       pedido_id: id,
       mesa_id: pedidoOriginal ? pedidoOriginal.mesa_id : null,
+      mesa_numero: mesaNum,
+      garcom_id: pedidoOriginal ? pedidoOriginal.garcom_id : null,
       cobrar_taxa: cobrar_taxa,
       subtotal: subtotal,
       total: total
