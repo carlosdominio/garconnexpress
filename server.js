@@ -1862,6 +1862,8 @@ async function checkAndNotifyDelayedOrders() {
           await safePusherTrigger('garconnexpress', eventName, {
             pedido_id: p.id,
             mesa_numero: p.mesa_numero,
+            mesa_id: p.mesa_id,
+            garcom_id: p.garcom_id,
             mensagem: pushMsg
           });
         }

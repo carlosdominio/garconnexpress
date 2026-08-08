@@ -221,10 +221,16 @@ async function registerNativePush() {
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 Notificação recebida:', notification);
       
-      // Se for um evento em tempo real já gerenciado pelo Pusher no foreground, ignore completamente o FCM no foreground
-      const eventosPusher = ['novo-pedido', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto', 'rascunho-recebido', 'solicitacao-fechamento-cliente', 'status-atualizado', 'status-caixa-atualizado', 'garcom-status-alterado'];
+      // Se for um evento em tempo real já gerenciado pelo Pusher/SSE no foreground, ignore completamente o FCM no foreground
+      const eventosPusher = [
+        'novo-pedido', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto',
+        'rascunho-recebido', 'solicitacao-fechamento-cliente', 'status-atualizado',
+        'status-caixa-atualizado', 'garcom-status-alterado', 'pedido-atrasado',
+        'pedido-atrasado-garcom', 'fechamento-atrasado', 'aguardando-cliente-atrasado',
+        'aguardando-cliente-registro-atrasado'
+      ];
       if (notification.data && eventosPusher.includes(notification.data.event)) {
-        console.log("Ignorando FCM foreground para evento '" + notification.data.event + "' (já tratado pelo Pusher).");
+        console.log("Ignorando FCM foreground para evento '" + notification.data.event + "' (já tratado pelo Pusher/SSE).");
         if (typeof carregarMesas === 'function') carregarMesas();
         return;
       }
@@ -1145,6 +1151,11 @@ async function configurarPusher() {
 
     channel.bind('pedido-atrasado-garcom', (data) => {
       console.log('📢 Evento: pedido-atrasado-garcom', data);
+      const mesaId = data ? (data.mesa_id || data.mesa_numero) : null;
+      const respGarcom = data ? data.garcom_id : null;
+      if (respGarcom && respGarcom === 'ADMIN') return;
+      if (isMesaDeOutroGarcom(mesaId) || (respGarcom && String(respGarcom).trim().toLowerCase() !== String(garcomLogado?.usuario).trim().toLowerCase())) return;
+
       if (deveTocarSom('pedido-atrasado-garcom')) tocarCampainha();
       dispararToastSistema('pedido-atrasado-garcom', { mesa: data.mesa_numero || 'Mesa', pedido_id: data.pedido_id }, data.mensagem, 'error');
     });

@@ -1153,6 +1153,11 @@ async function configurarPusher() {
 
     channel.bind('pedido-atrasado-garcom', (data) => {
       console.log('📢 Evento: pedido-atrasado-garcom', data);
+      const mesaId = data ? (data.mesa_id || data.mesa_numero) : null;
+      const respGarcom = data ? data.garcom_id : null;
+      if (respGarcom && respGarcom === 'ADMIN') return;
+      if (isMesaDeOutroGarcom(mesaId) || (respGarcom && String(respGarcom).trim().toLowerCase() !== String(garcomLogado?.usuario).trim().toLowerCase())) return;
+
       if (deveTocarSom('pedido-atrasado-garcom')) tocarCampainha();
       dispararToastSistema('pedido-atrasado-garcom', { mesa: data.mesa_numero || 'Mesa', pedido_id: data.pedido_id }, data.mensagem, 'error');
     });
