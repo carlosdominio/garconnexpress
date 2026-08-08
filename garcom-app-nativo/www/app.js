@@ -1254,6 +1254,20 @@ async function configurarPusher() {
         verItensDaMesa(false);
       }
 
+      const mesaId = data ? (data.mesa_id || data.mesa_numero) : null;
+      const respGarcom = data ? (data.garcom_id || (data.pedido && data.pedido.garcom_id)) : null;
+
+      // Se a mesa/pedido pertence ao ADMIN, DELIVERY ou a outro garçom, não exibe toast e ignora
+      const eMesaDoAdmin = (!data || respGarcom === 'ADMIN' || respGarcom === 'DELIVERY' || data.garcom_id === 'ADMIN' || data.garcom_id === 'DELIVERY' || (data.pedido && (data.pedido.garcom_id === 'ADMIN' || data.pedido.garcom_id === 'DELIVERY')));
+      const eMesaDeOutroGarcom = isMesaDeOutroGarcom(mesaId) || (respGarcom && !eMesaDoAdmin && String(respGarcom).trim().toLowerCase() !== String(garcomLogado?.usuario).trim().toLowerCase());
+
+      if (eMesaDoAdmin || eMesaDeOutroGarcom) {
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
+
+      // Mostra o toast da taxa de 10% APENAS se a mesa pertencer ao garçom logado
       if (data && data.cobrar_taxa !== undefined) {
         const nMesa = data.mesa_numero || data.mesa_id || 'X';
         let strMesa = nMesa.toString();
@@ -1261,30 +1275,7 @@ async function configurarPusher() {
         dispararToastSistema('taxa-atualizada', { mesa: strMesa }, `ℹ️ ${strMesa}: Taxa de 10% ${data.cobrar_taxa ? 'ativada' : 'desativada'} pelo Admin`, 'info');
       }
 
-      if (!data || (!data.cobrar_taxa && !data.garcom_id && !(data.pedido && data.pedido.garcom_id)) || data.garcom_id === 'DELIVERY' || (data.pedido && data.pedido.garcom_id === 'DELIVERY') || data.garcom_id === 'ADMIN' || (data.pedido && data.pedido.garcom_id === 'ADMIN')) {
-        clearTimeout(timeoutPusher);
-        timeoutPusher = setTimeout(() => carregarMesas(), 50);
-        return;
-      }
       console.log('📢 Status updated in waiter:', data);
-
-      const mesaId = data ? (data.mesa_id || data.mesa_numero) : null;
-      const respGarcom = data ? (data.garcom_id || (data.pedido && data.pedido.garcom_id)) : null;
-      
-      if (respGarcom && respGarcom !== 'ADMIN' && respGarcom !== 'DELIVERY' && 
-          String(respGarcom).trim().toLowerCase() !== String(garcomLogado.usuario).trim().toLowerCase()) {
-        console.log("Ignorando status-atualizado porque pertence a outro garçom:", respGarcom);
-        clearTimeout(timeoutPusher);
-        timeoutPusher = setTimeout(() => carregarMesas(), 50);
-        return;
-      }
-
-      if (isMesaDeOutroGarcom(mesaId)) {
-        console.log("Ignorando som/toast de status atualizado para mesa de outro garçom.");
-        clearTimeout(timeoutPusher);
-        timeoutPusher = setTimeout(() => carregarMesas(), 50);
-        return;
-      }
       
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => {
