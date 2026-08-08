@@ -6531,7 +6531,7 @@ let pedidoAtualizadoId = null;
 
 const realtimeEventDeduplicationMap = new Map();
 function isDuplicateRealtimeEvent(event, data) {
-  const dataKey = data ? (data.pedido_id || data.id || data.mesa_id || data.mesa_numero || JSON.stringify(data)) : '';
+  const dataKey = data ? (data.pedido_id || (data.pedido && data.pedido.id) || data.id || data.mesa_id || data.mesa_numero || JSON.stringify(data)) : '';
   const now = Date.now();
   const key = `${event}:${dataKey}`;
   const lastTime = realtimeEventDeduplicationMap.get(key) || 0;
@@ -6544,6 +6544,20 @@ function isDuplicateRealtimeEvent(event, data) {
       if (now - time > 10000) realtimeEventDeduplicationMap.delete(k);
     }
   }
+  return false;
+}
+
+const recentAdditionNotifiedMap = new Map();
+function markRecentAdditionNotified(pedidoId) {
+  if (!pedidoId) return;
+  recentAdditionNotifiedMap.set(String(pedidoId), Date.now());
+}
+function isRecentAdditionNotified(pedidoId) {
+  if (!pedidoId) return false;
+  const t = recentAdditionNotifiedMap.get(String(pedidoId));
+  if (!t) return false;
+  if (Date.now() - t < 5000) return true;
+  recentAdditionNotifiedMap.delete(String(pedidoId));
   return false;
 }
 
@@ -6701,6 +6715,7 @@ async function configurarPusher() {
       const mesaId = p ? p.mesa_id : 'geral';
 
       if (isAddition) {
+        markRecentAdditionNotified(p ? p.id : (data.pedido_id || data.id));
         exibirNotificacaoNativa('➕ ITEM ADICIONADO', `Novos itens adicionados na ${nomeExibicao}.`, `mesa-${mesaId}`);
         mostrarToast(`➕ ITEM ADICIONADO: ${nomeExibicao}`);
       } else {
@@ -6842,7 +6857,8 @@ async function configurarPusher() {
         const isPropriaEdicaoAdmin = (ultimoPedidoEditadoPeloAdmin !== null) && (
           String(data.pedido_id) === String(ultimoPedidoEditadoPeloAdmin)
         );
-        if (!isPropriaEdicaoAdmin) {
+        const isAdicaoRecente = isRecentAdditionNotified(data.pedido_id);
+        if (!isPropriaEdicaoAdmin && !isAdicaoRecente) {
           if (data.detalhes_edicao && data.detalhes_edicao.includes('🔄')) {
             mostrarToast(`${data.detalhes_edicao.replace('🔄', '🔄 ' + nMesa + ':')}`);
           } else {
