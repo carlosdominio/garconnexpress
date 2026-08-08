@@ -4085,10 +4085,8 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
         }));
 
         const numMesa = pedidoEmEdicao.mesa_numero ? 'Mesa ' + pedidoEmEdicao.mesa_numero : (pedidoEmEdicao.garcom_id === 'DELIVERY' ? `Delivery #${pedidoEmEdicao.id}` : 'Balcão');
-        const isTotalEntregue = (novosItens.length > 0 && novosItens.every(i => i.status === 'entregue')) || pedidoEmEdicao.status === 'servido' || pedidoEmEdicao.status === 'entregue';
-        const statusTexto = isTotalEntregue ? ' (✅ ENTREGUE)' : '';
         const tituloEl = document.getElementById('modal-titulo');
-        if (tituloEl) tituloEl.innerText = `Editar Pedido: ${numMesa}${statusTexto}`;
+        if (tituloEl) tituloEl.innerText = `Editar Pedido: ${numMesa}`;
 
         renderizarItensEdicao();
       }
