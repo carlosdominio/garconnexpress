@@ -1035,6 +1035,24 @@ function isMesaDeOutroGarcom(mesaIdOuNumero) {
   return false; // Pertence a mim ou está livre
 }
 
+const realtimeEventDeduplicationMap = new Map();
+function isDuplicateRealtimeEvent(event, data) {
+  const dataKey = data ? (data.pedido_id || data.id || data.mesa_id || data.mesa_numero || JSON.stringify(data)) : '';
+  const now = Date.now();
+  const key = `${event}:${dataKey}`;
+  const lastTime = realtimeEventDeduplicationMap.get(key) || 0;
+  if (now - lastTime < 3000) {
+    return true;
+  }
+  realtimeEventDeduplicationMap.set(key, now);
+  if (realtimeEventDeduplicationMap.size > 200) {
+    for (const [k, time] of realtimeEventDeduplicationMap.entries()) {
+      if (now - time > 10000) realtimeEventDeduplicationMap.delete(k);
+    }
+  }
+  return false;
+}
+
 let nativeSseGarcom = null;
 function initNativeSSEGarcom() {
   if (nativeSseGarcom) return;
@@ -1081,8 +1099,15 @@ async function configurarPusher() {
     window._channelBindCallbacks = window._channelBindCallbacks || {};
     const originalBind = channel.bind.bind(channel);
     channel.bind = function(event, callback) {
-      window._channelBindCallbacks[event] = callback;
-      return originalBind(event, callback);
+      const wrappedCallback = function(data) {
+        if (isDuplicateRealtimeEvent(event, data)) {
+          console.log(`⚡ [Deduplicador Garçom] Ignorando evento duplicado: ${event}`);
+          return;
+        }
+        return callback(data);
+      };
+      window._channelBindCallbacks[event] = wrappedCallback;
+      return originalBind(event, wrappedCallback);
     };
 
     initNativeSSEGarcom();

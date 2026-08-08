@@ -578,6 +578,22 @@
             setInterval(carregarMeusPedidos, 5000); 
         });
 
+        const realtimeEventDeduplicationMap = new Map();
+        function isDuplicateRealtimeEvent(event, data) {
+            const dataKey = data ? (data.pedido_id || data.id || data.mesa_id || data.mesa_numero || JSON.stringify(data)) : '';
+            const now = Date.now();
+            const key = `${event}:${dataKey}`;
+            const lastTime = realtimeEventDeduplicationMap.get(key) || 0;
+            if (now - lastTime < 3000) return true;
+            realtimeEventDeduplicationMap.set(key, now);
+            if (realtimeEventDeduplicationMap.size > 200) {
+                for (const [k, time] of realtimeEventDeduplicationMap.entries()) {
+                    if (now - time > 10000) realtimeEventDeduplicationMap.delete(k);
+                }
+            }
+            return false;
+        }
+
         let nativeSse = null;
         function initNativeSSE() {
             if (nativeSse) return;
@@ -601,6 +617,7 @@
 
         function processarEventoTempoReal(eventName, data) {
             if (isClosingSession) return;
+            if (isDuplicateRealtimeEvent(eventName, data)) return;
             
             if (eventName === 'status-caixa-atualizado' || eventName === 'cardapio-status-atualizado') {
                 verificarCaixa();

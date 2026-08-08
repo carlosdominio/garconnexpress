@@ -6481,6 +6481,24 @@ let timeoutPusher = null;
 let pusherInstancia = null;
 let pedidoAtualizadoId = null;
 
+const realtimeEventDeduplicationMap = new Map();
+function isDuplicateRealtimeEvent(event, data) {
+  const dataKey = data ? (data.pedido_id || data.id || data.mesa_id || data.mesa_numero || JSON.stringify(data)) : '';
+  const now = Date.now();
+  const key = `${event}:${dataKey}`;
+  const lastTime = realtimeEventDeduplicationMap.get(key) || 0;
+  if (now - lastTime < 3000) {
+    return true;
+  }
+  realtimeEventDeduplicationMap.set(key, now);
+  if (realtimeEventDeduplicationMap.size > 200) {
+    for (const [k, time] of realtimeEventDeduplicationMap.entries()) {
+      if (now - time > 10000) realtimeEventDeduplicationMap.delete(k);
+    }
+  }
+  return false;
+}
+
 let nativeSseAdmin = null;
 function initNativeSSEAdmin() {
   if (nativeSseAdmin) return;
@@ -6556,8 +6574,15 @@ async function configurarPusher() {
     window._adminChannelCallbacks = window._adminChannelCallbacks || {};
     const originalBindAdmin = channel.bind.bind(channel);
     channel.bind = function(event, callback) {
-      window._adminChannelCallbacks[event] = callback;
-      return originalBindAdmin(event, callback);
+      const wrappedCallback = function(data) {
+        if (isDuplicateRealtimeEvent(event, data)) {
+          console.log(`⚡ [Deduplicador] Ignorando evento duplicado em tempo real: ${event}`);
+          return;
+        }
+        return callback(data);
+      };
+      window._adminChannelCallbacks[event] = wrappedCallback;
+      return originalBindAdmin(event, wrappedCallback);
     };
 
     initNativeSSEAdmin();
