@@ -3322,7 +3322,23 @@ app.get(['/api/events', '/api/events/stream'], (req, res) => {
   res.write(`data: ${JSON.stringify({ event: 'connected', timestamp: Date.now() })}\n\n`);
   sseClients.add(res);
 
+  // No Vercel (arquitetura Serverless), a função possui um tempo limite máximo de execução.
+  // Para evitar que o Vercel cancele o processo abruptamente com "Runtime Timeout Error after 300 seconds",
+  // encerramos graciosamente a conexão aos 25 segundos no Vercel.
+  // O navegador (EventSource) se reconecta em 1 segundo de forma totalmente transparente.
+  let vercelTimer = null;
+  if (process.env.VERCEL) {
+    vercelTimer = setTimeout(() => {
+      sseClients.delete(res);
+      try {
+        res.write(`data: ${JSON.stringify({ event: 'reconnect', timestamp: Date.now() })}\n\n`);
+        res.end();
+      } catch (err) {}
+    }, 25000);
+  }
+
   req.on('close', () => {
+    if (vercelTimer) clearTimeout(vercelTimer);
     sseClients.delete(res);
   });
 });
