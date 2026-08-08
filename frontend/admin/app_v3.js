@@ -6478,10 +6478,10 @@ function solicitarPermissaoNotificacao() { if ("Notification" in window) Notific
 function exibirNotificacaoNativa(tit, msg, tagId = 'geral') { 
   const somWindows = localStorage.getItem('admin_som_windows') === 'true';
   
-  // Adiciona à nossa central de notificações geral
   let icone = '🔔';
   if (tit.includes('CHAMADO')) icone = '🛎️';
   else if (tit.includes('CONTA')) icone = '💰';
+  else if (tit.includes('DELIVERY')) icone = tit.includes('DESATIVADO') ? '🛑' : '🛵';
   else if (tit.includes('PEDIDO')) icone = '🚀';
   else if (tit.includes('PRONTO')) icone = '🍳';
   else if (tit.includes('ESTOQUE')) icone = '⚠️';
@@ -6492,6 +6492,8 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
   const uppercaseTit = tit.toUpperCase();
   const isRedundante = uppercaseTit.includes('🚀 NOVO PEDIDO') || 
                        uppercaseTit.includes('ITEM ADICIONADO') || 
+                       uppercaseTit.includes('DELIVERY ATIVADO') ||
+                       uppercaseTit.includes('DELIVERY DESATIVADO') ||
                        uppercaseTit.includes('PEDIDO ATUALIZADO') || 
                        uppercaseTit.includes('CANCELADO') || 
                        uppercaseTit.includes('CANCELADA') ||
@@ -6915,6 +6917,11 @@ async function configurarPusher() {
         check.checked = data.delivery_aberto;
         atualizarIconeDelivery(data.delivery_aberto);
       }
+      const enabled = !!data.delivery_aberto;
+      const tit = enabled ? "🛵 DELIVERY ATIVADO" : "🛑 DELIVERY DESATIVADO";
+      const msg = enabled ? "O sistema de delivery está aberto para novos pedidos." : "O sistema de delivery foi encerrado/pausado.";
+      exibirNotificacaoNativa(tit, msg, 'delivery-status');
+      mostrarToast(enabled ? "🛵 Delivery ATIVADO" : "🛑 Delivery DESATIVADO", enabled ? 'sucesso' : 'alerta');
     });
 
     channel.bind('estoque-baixo', (data) => {
@@ -8233,6 +8240,9 @@ async function alternarDelivery() {
     const data = await res.json();
     if (data.success) {
       atualizarIconeDelivery(enabled);
+      const tit = enabled ? "🛵 DELIVERY ATIVADO" : "🛑 DELIVERY DESATIVADO";
+      const msg = enabled ? "O sistema de delivery está aberto para novos pedidos." : "O sistema de delivery foi encerrado/pausado.";
+      exibirNotificacaoNativa(tit, msg, 'delivery-status');
       mostrarToast(enabled ? "🛵 Delivery ATIVADO" : "🛑 Delivery DESATIVADO", enabled ? 'sucesso' : 'alerta');
     } else {
       check.checked = !enabled;
