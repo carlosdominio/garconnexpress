@@ -8240,10 +8240,6 @@ async function alternarDelivery() {
     const data = await res.json();
     if (data.success) {
       atualizarIconeDelivery(enabled);
-      const tit = enabled ? "🛵 DELIVERY ATIVADO" : "🛑 DELIVERY DESATIVADO";
-      const msg = enabled ? "O sistema de delivery está aberto para novos pedidos." : "O sistema de delivery foi encerrado/pausado.";
-      exibirNotificacaoNativa(tit, msg, 'delivery-status');
-      mostrarToast(enabled ? "🛵 Delivery ATIVADO" : "🛑 Delivery DESATIVADO", enabled ? 'sucesso' : 'alerta');
     } else {
       check.checked = !enabled;
     }
