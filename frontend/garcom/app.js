@@ -393,10 +393,10 @@ function isItemParaCozinha(item) {
 function isItemParaChurrasco(item) {
     if (!item) return false;
     const cat = (item.categoria || '').trim().toUpperCase();
-    if (configChurrascoLoaded) {
+    if (configChurrascoLoaded && configChurrascoCategorias.length > 0) {
         return configChurrascoCategorias.includes(cat);
     }
-    return false;
+    return (cat.includes('CHURRASCO') || cat.includes('ESPET') || cat.includes('ESPETINHO') || cat.includes('CARNE') || cat.includes('GRELH'));
 }
 
 // --- SUPRESSÃO DE ERROS DE WEBSOCKET (Pusher/Socket.io) ---
@@ -2532,20 +2532,20 @@ async function marcarComoServido(idPedido) {
     const itens = await resItens.json();
     showLoading(false);
 
-    const emPreparoCozinha = itens.filter(i => i.status === 'pendente' && isItemParaCozinha(i));
-    const prontosOuForaCozinha = itens.filter(i => i.status === 'pronto' || (i.status === 'pendente' && !isItemParaCozinha(i)));
+    const emPreparoCozinha = itens.filter(i => i.status === 'pendente' && (isItemParaCozinha(i) || isItemParaChurrasco(i)));
+    const prontosOuForaCozinha = itens.filter(i => i.status === 'pronto' || (i.status === 'pendente' && !isItemParaCozinha(i) && !isItemParaChurrasco(i)));
 
     if (emPreparoCozinha.length > 0) {
-      // Se houver itens fora da cozinha ou prontos para entregar...
+      // Se houver itens fora da cozinha/churrasco ou prontos para entregar...
       if (prontosOuForaCozinha.length > 0) {
         const confirmParcial = await mostrarConfirmacao(
           `<div style="text-align: center;">
             <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🚚</div>
             <p style="font-weight: bold; color: #e67e22;">ENTREGA PARCIAL</p>
-            <p style="font-size: 0.95rem; margin-bottom: 10px;">Existem <strong>${emPreparoCozinha.length} itens</strong> ainda na cozinha. Deseja entregar apenas as bebidas e itens prontos agora?</p>
+            <p style="font-size: 0.95rem; margin-bottom: 10px;">Existem <strong>${emPreparoCozinha.length} itens</strong> ainda em preparo (Cozinha/Churrasco). Deseja entregar apenas as bebidas e itens prontos agora?</p>
             <p style="font-size: 0.8rem; color: #7f8c8d;">O cronômetro continuará rodando para os itens que ficarem.</p>
           </div>`,
-          "Cozinha em Andamento",
+          "Preparo em Andamento",
           "Sim, Entregar Prontos",
           "Não, Cancelar"
         );

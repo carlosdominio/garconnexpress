@@ -198,10 +198,10 @@ function isItemParaCozinha(item) {
 function isItemParaChurrasco(item) {
     if (!item) return false;
     const cat = (item.categoria || '').trim().toUpperCase();
-    if (configChurrascoLoaded) {
+    if (configChurrascoLoaded && configChurrascoCategorias.length > 0) {
         return configChurrascoCategorias.includes(cat);
     }
-    return false;
+    return (cat.includes('CHURRASCO') || cat.includes('ESPET') || cat.includes('ESPETINHO') || cat.includes('CARNE') || cat.includes('GRELH'));
 }
 
 async function carregarConfigCategoriasCozinha() {

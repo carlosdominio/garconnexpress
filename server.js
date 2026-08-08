@@ -3186,6 +3186,13 @@ async function getFilterChurrasco() {
   return "(UPPER(TRIM(m.categoria)) LIKE '%CHURRASCO%' OR UPPER(TRIM(m.categoria)) LIKE '%ESPET%')";
 }
 
+// Helper para combinar filtros de produção (Cozinha + Churrasco)
+async function getFilterPreparo() {
+  const filterCozinha = await getFilterCozinha();
+  const filterChurrasco = await getFilterChurrasco();
+  return `((${filterCozinha}) OR (${filterChurrasco}))`;
+}
+
 const marcarEntregueLocks = new Set();
 app.put('/api/pedidos/:id/marcar-entregue', statusLimiter, isAuthenticated, async (req, res) => {
   const { id } = req.params;
@@ -3193,32 +3200,31 @@ app.put('/api/pedidos/:id/marcar-entregue', statusLimiter, isAuthenticated, asyn
   if (marcarEntregueLocks.has(id)) return res.status(429).json({ error: 'Processando requisição anterior, aguarde...' });
   marcarEntregueLocks.add(id);
   try {
-    const filterCozinha = await getFilterCozinha();
+    const filterPreparo = await getFilterPreparo();
 
     if (apenasProntos) {
-      // Marca como entregue apenas os itens que já estão PRONTOS ou que NÃO vão para a cozinha (bebidas etc)
-      // Note que invertemos a lógica do filtro para pegar o que NÃO é cozinha
+      // Marca como entregue apenas os itens que já estão PRONTOS ou que NÃO são de preparo (bebidas etc)
       await query(`
         UPDATE pedido_itens 
         SET status = 'entregue' 
         WHERE pedido_id = ? 
-        AND (status = 'pronto' OR (status = 'pendente' AND menu_id IN (SELECT id FROM menu m WHERE NOT (${filterCozinha}))))
+        AND (status = 'pronto' OR (status = 'pendente' AND menu_id IN (SELECT id FROM menu m WHERE NOT (${filterPreparo}))))
       `, [id]);
     } else {
-      // BLOQUEIO SERVER-SIDE: Verifica se há itens SENDO FEITOS na cozinha
+      // BLOQUEIO SERVER-SIDE: Verifica se há itens SENDO FEITOS na cozinha ou no churrasqueiro
       const prep = await query(`
         SELECT pi.id 
         FROM pedido_itens pi 
         JOIN menu m ON pi.menu_id = m.id 
         WHERE pi.pedido_id = ? 
         AND pi.status = 'pendente' 
-        AND (${filterCozinha})
+        AND (${filterPreparo})
       `, [id]);
 
       if (prep.rows.length > 0) {
         return res.status(400).json({ 
           error: 'COZINHA_ATIVA', 
-          mensagem: `Não é possível entregar tudo! Existem ${prep.rows.length} itens ainda em preparo na cozinha.` 
+          mensagem: `Não é possível entregar tudo! Existem ${prep.rows.length} itens ainda em preparo (Cozinha/Churrasco).` 
         });
       }
 
