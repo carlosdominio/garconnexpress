@@ -868,7 +868,44 @@ async function runInTransaction(callback) {
   }
 }
 
+// --- CANAL DE EVENTOS NATIVO LOCAL VIA SSE (OPÇÃO A: ULTRA-RÁPIDO < 50ms) ---
+const sseClients = new Set();
+
+function broadcastSSE(channel, event, data) {
+  if (sseClients.size === 0) return;
+  try {
+    const payload = JSON.stringify({ channel, event, data, timestamp: Date.now() });
+    const message = `data: ${payload}\n\n`;
+    for (const clientRes of sseClients) {
+      try {
+        clientRes.write(message);
+        if (typeof clientRes.flush === 'function') clientRes.flush();
+      } catch (err) {
+        sseClients.delete(clientRes);
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao transmitir SSE:', err);
+  }
+}
+
+// Keep-alive heartbeat para manter conexões SSE ativas sem fechar por timeout
+setInterval(() => {
+  if (sseClients.size === 0) return;
+  for (const clientRes of sseClients) {
+    try {
+      clientRes.write(': ping\n\n');
+      if (typeof clientRes.flush === 'function') clientRes.flush();
+    } catch (err) {
+      sseClients.delete(clientRes);
+    }
+  }
+}, 15000);
+
 async function safePusherTrigger(channel, event, data) {
+  // Transmissão instantânea via SSE nativo direto da aplicação
+  broadcastSSE(channel, event, data);
+
   if (!pusher) {
     console.log(`⚠️ Pusher não configurado. Ignorando evento: ${event}`);
     return;
@@ -3273,6 +3310,23 @@ app.put('/api/itens/:id/pronto', isAuthenticated, async (req, res) => {
   }
 });
 
+// Endpoint de eventos em tempo real nativo (Server-Sent Events)
+app.get(['/api/events', '/api/events/stream'], (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('X-Accel-Buffering', 'no');
+  if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+  res.write(`data: ${JSON.stringify({ event: 'connected', timestamp: Date.now() })}\n\n`);
+  sseClients.add(res);
+
+  req.on('close', () => {
+    sseClients.delete(res);
+  });
+});
+
 app.put('/api/pedidos/:id/taxa', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { cobrar_taxa } = req.body;
@@ -3290,17 +3344,22 @@ app.put('/api/pedidos/:id/taxa', isAuthenticated, async (req, res) => {
     safePusherTrigger('garconnexpress', 'status-atualizado', {
       pedido_id: id,
       mesa_id: pedidoOriginal ? pedidoOriginal.mesa_id : null,
-      cobrar_taxa: cobrar_taxa
+      cobrar_taxa: cobrar_taxa,
+      subtotal: subtotal,
+      total: total
     }).catch(console.error);
 
     // Notifica o cardápio digital do cliente em tempo real
     if (pedidoOriginal && pedidoOriginal.mesa_id) {
       safePusherTrigger('garconnexpress', `taxa-atualizada-mesa-${pedidoOriginal.mesa_id}`, {
-        cobrar_taxa: cobrar_taxa
+        cobrar_taxa: cobrar_taxa,
+        subtotal: subtotal,
+        total: total,
+        pedido_id: id
       }).catch(console.error);
     }
 
-    res.json({ success: true });
+    res.json({ success: true, total: total, cobrar_taxa: cobrar_taxa });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 

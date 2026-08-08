@@ -6481,6 +6481,27 @@ let timeoutPusher = null;
 let pusherInstancia = null;
 let pedidoAtualizadoId = null;
 
+let nativeSseAdmin = null;
+function initNativeSSEAdmin() {
+  if (nativeSseAdmin) return;
+  try {
+    nativeSseAdmin = new EventSource('/api/events');
+    nativeSseAdmin.onmessage = function(e) {
+      try {
+        const payload = JSON.parse(e.data);
+        if (payload && payload.event && window._adminChannelCallbacks && window._adminChannelCallbacks[payload.event]) {
+          window._adminChannelCallbacks[payload.event](payload.data);
+        }
+      } catch(err) {}
+    };
+    nativeSseAdmin.onerror = function() {
+      console.warn('⚠️ SSE Admin reconectando...');
+    };
+  } catch(err) {
+    console.warn('SSE Admin não suportado:', err);
+  }
+}
+
 async function configurarPusher() {
   if (pusherInstancia) return;
 
@@ -6531,6 +6552,15 @@ async function configurarPusher() {
 
     const channel = pusherInstancia.subscribe('garconnexpress');
     console.log('📺 Admin inscrito no canal: garconnexpress');
+
+    window._adminChannelCallbacks = window._adminChannelCallbacks || {};
+    const originalBindAdmin = channel.bind.bind(channel);
+    channel.bind = function(event, callback) {
+      window._adminChannelCallbacks[event] = callback;
+      return originalBindAdmin(event, callback);
+    };
+
+    initNativeSSEAdmin();
 
     // EVENTO: CHAMADO DE CLIENTE (🛎️) - PRIORIDADE
     channel.bind('chamado-garcom', (data) => {

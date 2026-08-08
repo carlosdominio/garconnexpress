@@ -1027,6 +1027,27 @@ function isMesaDeOutroGarcom(mesaIdOuNumero) {
   return false; // Pertence a mim ou está livre
 }
 
+let nativeSseGarcom = null;
+function initNativeSSEGarcom() {
+  if (nativeSseGarcom) return;
+  try {
+    nativeSseGarcom = new EventSource('/api/events');
+    nativeSseGarcom.onmessage = function(e) {
+      try {
+        const payload = JSON.parse(e.data);
+        if (payload && payload.event && window._channelBindCallbacks && window._channelBindCallbacks[payload.event]) {
+          window._channelBindCallbacks[payload.event](payload.data);
+        }
+      } catch(err) {}
+    };
+    nativeSseGarcom.onerror = function() {
+      console.warn('⚠️ SSE garçom reconectando...');
+    };
+  } catch(err) {
+    console.warn('SSE garçom não suportado:', err);
+  }
+}
+
 async function configurarPusher() {
   try {
     const configRes = await fetch('/api/pusher-config');
@@ -1048,6 +1069,15 @@ async function configurarPusher() {
 
     const channel = pusher.subscribe('garconnexpress');
     console.log('📺 Inscrito no canal: garconnexpress');
+
+    window._channelBindCallbacks = window._channelBindCallbacks || {};
+    const originalBind = channel.bind.bind(channel);
+    channel.bind = function(event, callback) {
+      window._channelBindCallbacks[event] = callback;
+      return originalBind(event, callback);
+    };
+
+    initNativeSSEGarcom();
 
     channel.bind('toast-config-atualizado', () => {
       console.log('🔄 Configurações de Toasts atualizadas!');

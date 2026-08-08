@@ -557,6 +557,7 @@
 
             // 2. Continua inicialização independente do status (para manter sincronia)
             initPusher(); 
+            initNativeSSE();
             setInterval(verificarCaixa, 30000);
             
             if (!sessionMesa) { 
@@ -572,10 +573,89 @@
             if (!await validarSessaoAtiva()) { localStorage.removeItem('sessionMesa'); window.location.reload(); return; }
             showMainContent();
             
-            // Checagem de status inicial e periódica (Fallback do Pusher)
+            // Checagem de status inicial e periódica (Fallback do SSE/Pusher)
             carregarMeusPedidos();
-            setInterval(carregarMeusPedidos, 10000); 
+            setInterval(carregarMeusPedidos, 5000); 
         });
+
+        let nativeSse = null;
+        function initNativeSSE() {
+            if (nativeSse) return;
+            try {
+                nativeSse = new EventSource('/api/events');
+                nativeSse.onmessage = function(e) {
+                    try {
+                        const payload = JSON.parse(e.data);
+                        if (payload && payload.event) {
+                            processarEventoTempoReal(payload.event, payload.data);
+                        }
+                    } catch(err) {}
+                };
+                nativeSse.onerror = function() {
+                    console.warn("⚠️ Conexão SSE oscilou. Reconexão automática em andamento.");
+                };
+            } catch(err) {
+                console.warn("SSE não suportado:", err);
+            }
+        }
+
+        function processarEventoTempoReal(eventName, data) {
+            if (isClosingSession) return;
+            
+            if (eventName === 'status-caixa-atualizado' || eventName === 'cardapio-status-atualizado') {
+                verificarCaixa();
+                return;
+            }
+            
+            if (!sessionMesa) return;
+
+            if (eventName === `taxa-atualizada-mesa-${sessionMesa.mesa_id}`) {
+                if (data && data.cobrar_taxa !== undefined) {
+                    const rowTaxa = document.getElementById('pedidos-taxa-row');
+                    if (rowTaxa) rowTaxa.style.display = data.cobrar_taxa ? 'flex' : 'none';
+                    if (data.total !== undefined) {
+                        const elTotal = document.getElementById('pedidos-total');
+                        if (elTotal) elTotal.innerText = `R$ ${Number(data.total).toFixed(2)}`;
+                    }
+                }
+                carregarMeusPedidos();
+                if (typeof Swal !== 'undefined') {
+                    const msg = (data && data.cobrar_taxa === false) ? 'Taxa de 10% removida da conta.' : 'Os valores da sua conta foram atualizados.';
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'info',
+                        title: msg,
+                        showConfirmButton: false,
+                        timer: 3500
+                    });
+                }
+            } else if (eventName === `rascunho-processado-mesa-${sessionMesa.mesa_id}`) {
+                if (data && data.rejeitado) {
+                    Swal.fire({
+                        title: 'Pedido Recusado',
+                        text: data.mensagem || 'Seu rascunho de pedido foi recusado pelo garçom.',
+                        icon: 'warning',
+                        confirmButtonColor: '#ff4757'
+                    });
+                }
+                carregarMeusPedidos();
+            } else if (eventName === `rascunho-aceito-mesa-${sessionMesa.mesa_id}`) {
+                if (lastRascunhoCache) lastRascunhoCache.aceito = true;
+                carregarMeusPedidos();
+                Swal.fire({
+                    title: 'Pedido Aceito! 🎉',
+                    text: data ? data.mensagem : 'O garçom aceitou o seu pedido.',
+                    icon: 'success',
+                    timer: 3000,
+                    showConfirmButton: false
+                });
+            } else if (eventName === `fechamento-liberado-mesa-${sessionMesa.mesa_id}`) {
+                carregarMeusPedidos();
+            } else if (eventName === `item-removido-mesa-${sessionMesa.mesa_id}` || eventName === `itens-atualizados-mesa-${sessionMesa.mesa_id}`) {
+                carregarMeusPedidos();
+            }
+        }
 
         async function verificarCaixa() {
             try { 
