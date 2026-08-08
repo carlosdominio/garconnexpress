@@ -3246,6 +3246,14 @@ app.put('/api/pedidos/:id/marcar-entregue', statusLimiter, isAuthenticated, asyn
     const prevStatusRes = await query("SELECT status FROM pedidos WHERE id = ?", [id]);
     const prevStatus = prevStatusRes.rows[0] ? prevStatusRes.rows[0].status : null;
 
+    if (parseInt(pendentesCount) === 0 && prevStatus === 'servido' && !apenasProntos) {
+      marcarEntregueLocks.delete(id);
+      return res.status(409).json({ 
+        error: 'JA_ENTREGUE', 
+        mensagem: 'Este pedido já foi entregue pelo garçom no aplicativo.' 
+      });
+    }
+
     if (parseInt(pendentesCount) === 0) {
       if (prevStatus !== 'servido') {
         await query("UPDATE pedidos SET status = 'servido' WHERE id = ?", [id]);

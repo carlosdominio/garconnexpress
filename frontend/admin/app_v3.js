@@ -4927,6 +4927,26 @@ async function marcarPedidoEntregue(id) {
     const resItens = await fetch(`/api/pedidos/${id}/itens`);
     const itens = await resItens.json();
 
+    // VERIFICAÇÃO DE SEGURANÇA: Se todos os itens do pedido já tiverem sido entregues pelo garçom
+    const todosEntregues = Array.isArray(itens) && itens.length > 0 && itens.every(i => i.status === 'entregue' || i.status === 'cancelado');
+    if (todosEntregues) {
+      await mostrarAlerta(`
+        <div style="text-align: center;">
+          <div style="font-size: 3rem; margin-bottom: 0.5rem;">🍽️</div>
+          <p style="font-weight: bold; color: #27ae60; font-size: 1.2rem; margin-bottom: 10px;">PEDIDO JÁ ENTREGUE!</p>
+          <p style="color: #2c3e50; margin-bottom: 15px;">Este pedido já foi entregue pelo garçom no aplicativo.</p>
+          <p style="font-size: 0.85rem; color: #64748b;">O painel admin será atualizado com o status correto.</p>
+        </div>
+      `, "Pedido Já Entregue pelo Garçom", "🍽️");
+      
+      const modalEdit = document.getElementById('modal-editar-pedido');
+      if (modalEdit && modalEdit.style.display !== 'none' && modalEdit.style.display !== '') {
+        fecharModal();
+      }
+      carregarPedidos();
+      return;
+    }
+
     // Itens que ainda estão em produção (Pendente + Cozinha/Churrasco)
     const emPreparo = itens.filter(i => i.status === 'pendente' && (isItemParaCozinha(i) || isItemParaChurrasco(i)));
     // Itens que podem ser entregues agora (Prontos ou Bebidas/outros pendentes)
@@ -4993,6 +5013,24 @@ async function marcarPedidoEntregue(id) {
       if (res.ok) {
         mostrarToast(isDelivery ? "🛵 Enviado para entrega!" : "✅ Pedido entregue!");
         carregarPedidos();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 409 || (errData && (errData.error === 'JA_ENTREGUE' || errData.mensagem?.includes('entregue')))) {
+          await mostrarAlerta(`
+            <div style="text-align: center;">
+              <div style="font-size: 3rem; margin-bottom: 0.5rem;">🍽️</div>
+              <p style="font-weight: bold; color: #27ae60; font-size: 1.2rem; margin-bottom: 10px;">PEDIDO JÁ ENTREGUE!</p>
+              <p style="color: #2c3e50; margin-bottom: 15px;">Este pedido já foi entregue pelo garçom no aplicativo.</p>
+              <p style="font-size: 0.85rem; color: #64748b;">O painel admin será atualizado com o status correto.</p>
+            </div>
+          `, "Pedido Já Entregue pelo Garçom", "🍽️");
+          
+          const modalEdit = document.getElementById('modal-editar-pedido');
+          if (modalEdit && modalEdit.style.display !== 'none' && modalEdit.style.display !== '') {
+            fecharModal();
+          }
+          carregarPedidos();
+        }
       }
     }
   } catch (e) {
