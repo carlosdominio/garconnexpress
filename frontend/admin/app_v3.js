@@ -4107,6 +4107,8 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
       abrirModalMesaAguardando(window.mesaAguardandoIdAtual);
     }
   }
+}
+
 let intervalModalAdminAutoRefresh = null;
 
 function iniciarAutoRefreshModalAdmin() {
