@@ -1610,26 +1610,13 @@ button:hover { background-color: #2ecc71; }
 
 /* Ajustes Gerais para Modais no Mobile */
 
-#modal-resumo-mesa, #modal-fechamento-garcom {
-
-  display: flex;
-
-  flex-direction: column;
-
-}
-
-
-
 #lista-itens-mesa {
-
-  flex: 1;
-
+  max-height: 55vh;
+  max-height: calc(100dvh - 220px);
   overflow-y: auto !important;
-
+  -webkit-overflow-scrolling: touch;
   margin-bottom: 1rem;
-
   padding-right: 5px;
-
 }
 
 
