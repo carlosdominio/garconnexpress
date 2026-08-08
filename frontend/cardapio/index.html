@@ -608,7 +608,7 @@
                     } catch(err) {}
                 };
                 nativeSse.onerror = function() {
-                    console.warn("⚠️ Conexão SSE oscilou. Reconexão automática em andamento.");
+                    // Reconexão automática normal do navegador a cada ciclo do Vercel
                 };
             } catch(err) {
                 console.warn("SSE não suportado:", err);

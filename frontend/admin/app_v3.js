@@ -6513,7 +6513,7 @@ function initNativeSSEAdmin() {
       } catch(err) {}
     };
     nativeSseAdmin.onerror = function() {
-      console.warn('⚠️ SSE Admin reconectando...');
+      // Reconexão automática transparente do navegador
     };
   } catch(err) {
     console.warn('SSE Admin não suportado:', err);

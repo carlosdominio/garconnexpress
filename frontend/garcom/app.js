@@ -1067,7 +1067,7 @@ function initNativeSSEGarcom() {
       } catch(err) {}
     };
     nativeSseGarcom.onerror = function() {
-      console.warn('⚠️ SSE garçom reconectando...');
+      // Reconexão automática transparente do navegador
     };
   } catch(err) {
     console.warn('SSE garçom não suportado:', err);
