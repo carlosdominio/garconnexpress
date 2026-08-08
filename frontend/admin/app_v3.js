@@ -6860,9 +6860,12 @@ async function configurarPusher() {
         const isAdicaoRecente = isRecentAdditionNotified(data.pedido_id);
         if (!isPropriaEdicaoAdmin && !isAdicaoRecente) {
           if (data.detalhes_edicao && data.detalhes_edicao.includes('🔄')) {
-            mostrarToast(`${data.detalhes_edicao.replace('🔄', '🔄 ' + nMesa + ':')}`);
+            const msgSub = data.detalhes_edicao.replace('🔄', '🔄 ' + nMesa + ':');
+            exibirNotificacaoNativa('🔄 ITEM SUBSTITUÍDO', msgSub, `subst-${data.pedido_id}`);
+            mostrarToast(msgSub);
           } else {
             const det = data.detalhes_edicao ? `: ${data.detalhes_edicao}` : '';
+            exibirNotificacaoNativa('📝 ITENS ATUALIZADOS', `${nMesa}${det}`, `atualiz-${data.pedido_id}`);
             mostrarToast(`📝 ${nMesa}: Itens atualizados${det}`);
           }
         }
