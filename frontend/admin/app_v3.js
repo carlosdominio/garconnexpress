@@ -3147,6 +3147,14 @@ function renderizarListaMenuConfig(rebuildCategories = false) {
     optVencido.style.color = '#e74c3c';
     selectFiltroCat.appendChild(optVencido);
 
+    // Adiciona o filtro virtual de Itens em Promoção no Dropdown
+    const optPromo = document.createElement('option');
+    optPromo.value = 'EM_PROMOCAO';
+    optPromo.innerText = '🔥 Em Promoção';
+    optPromo.style.fontWeight = 'bold';
+    optPromo.style.color = '#d35400';
+    selectFiltroCat.appendChild(optPromo);
+
     // Adiciona o filtro virtual de Estoque Baixo no Dropdown
     const optEstoqueBaixo = document.createElement('option');
     optEstoqueBaixo.value = 'ESTOQUE_BAIXO';
@@ -3183,7 +3191,9 @@ function renderizarListaMenuConfig(rebuildCategories = false) {
     const matchBusca = m.nome.toLowerCase().includes(termoBusca) || (m.descricao && m.descricao.toLowerCase().includes(termoBusca));
     
     let matchCat = true;
-    if (catSelecionada === 'VENCIDOS') {
+    if (catSelecionada === 'EM_PROMOCAO') {
+       matchCat = (m.em_promocao === true || m.em_promocao === 1 || m.em_promocao === 'true');
+    } else if (catSelecionada === 'VENCIDOS') {
        if (!m.validade) return false;
        const dataVal = new Date(m.validade);
        dataVal.setHours(0,0,0,0);
