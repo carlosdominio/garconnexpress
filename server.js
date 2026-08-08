@@ -2862,6 +2862,7 @@ app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'a
 app.get('/cozinha', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'cozinha', 'index.html')));
 app.get('/motoboy', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'motoboy', 'index.html')));
 app.get('/delivery', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'delivery', 'index.html')));
+app.get(['/icon.png', '/icon-192.webp', '/cozinha/icon.png', '/cozinha/icons/icon-192.webp', '/churrasqueiro/icon.png', '/churrasqueiro/icons/icon-192.webp'], (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'icon-192.png')));
 app.get('/cardapio', (req, res) => res.sendFile(path.join(__dirname, 'frontend', 'cardapio', 'index.html')));
 
 // Middlewares de Autenticação JWT
