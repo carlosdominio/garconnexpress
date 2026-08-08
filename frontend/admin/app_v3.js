@@ -4039,7 +4039,74 @@ async function carregarPedidos() {
     atualizarContadorAtivos();
     
     exibirPedidos();
+    
+    // Atualização em Tempo Real para Modais Abertos no Painel Admin
+    atualizarModaisAdminAbertosEmTempoReal();
   } catch (error) { console.error(error); }
+}
+
+async function atualizarModaisAdminAbertosEmTempoReal() {
+  // 1. Modal de Edição / Visualização do Pedido (#modal-edicao)
+  const modalEdicao = document.getElementById('modal-edicao');
+  if (modalEdicao && modalEdicao.style.display === 'flex' && pedidoEmEdicao) {
+    const pedId = pedidoEmEdicao.id;
+    try {
+      const resItens = await fetch(`/api/pedidos/${pedId}/itens?t=` + Date.now());
+      if (resItens.ok) {
+        const novosItens = await resItens.json();
+        
+        const pAtualizado = pedidos.find(p => String(p.id) === String(pedId));
+        if (pAtualizado) {
+          pedidoEmEdicao = { ...pedidoEmEdicao, ...pAtualizado };
+        } else {
+          try {
+            const resP = await fetch(`/api/pedidos/${pedId}?t=` + Date.now());
+            if (resP.ok) {
+              const pSolo = await resP.json();
+              if (pSolo && pSolo.id) pedidoEmEdicao = { ...pedidoEmEdicao, ...pSolo };
+            }
+          } catch(e){}
+        }
+
+        // Mapeia seleções ativas dos checkboxes para não perder o que o usuário marcou
+        const selecoesAtuais = {};
+        (itensEmEdicao || []).forEach(i => {
+          if (i.id) selecoesAtuais[i.id] = i.selecionado;
+        });
+
+        itensEmEdicao = novosItens.map(i => ({
+          ...i,
+          selecionado: !!selecoesAtuais[i.id]
+        }));
+
+        const numMesa = pedidoEmEdicao.mesa_numero ? 'Mesa ' + pedidoEmEdicao.mesa_numero : (pedidoEmEdicao.garcom_id === 'DELIVERY' ? `Delivery #${pedidoEmEdicao.id}` : 'Balcão');
+        const isTotalEntregue = (novosItens.length > 0 && novosItens.every(i => i.status === 'entregue')) || pedidoEmEdicao.status === 'servido' || pedidoEmEdicao.status === 'entregue';
+        const statusTexto = isTotalEntregue ? ' (✅ ENTREGUE)' : '';
+        const tituloEl = document.getElementById('modal-titulo');
+        if (tituloEl) tituloEl.innerText = `Editar Pedido: ${numMesa}${statusTexto}`;
+
+        renderizarItensEdicao();
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar modal-edicao em tempo real:', err);
+    }
+  }
+
+  // 2. Modal de Opções do Pedido (#modal-opcoes)
+  const modalOpcoes = document.getElementById('modal-opcoes');
+  if (modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.style.display !== '' && typeof pedidoEmOpcoes !== 'undefined' && pedidoEmOpcoes) {
+    if (typeof abrirModalOpcoes === 'function') {
+      abrirModalOpcoes(pedidoEmOpcoes.id);
+    }
+  }
+
+  // 3. Modal de Mesa Aguardando Fechamento (#modal-mesa-aguardando)
+  const modalMesaAguardando = document.getElementById('modal-mesa-aguardando');
+  if (modalMesaAguardando && modalMesaAguardando.style.display === 'flex' && window.mesaAguardandoIdAtual) {
+    if (typeof abrirModalMesaAguardando === 'function') {
+      abrirModalMesaAguardando(window.mesaAguardandoIdAtual);
+    }
+  }
 }
 
 function atualizarContadorAtivos() {
