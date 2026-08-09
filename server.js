@@ -2581,7 +2581,7 @@ let dbInitError = null;
 
 async function initDb() {
   const tables = [
-    `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero INTEGER NOT NULL, status TEXT DEFAULT 'livre', garcom_id TEXT)`,
+    `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero TEXT NOT NULL, status TEXT DEFAULT 'livre', garcom_id TEXT)`,
     `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, preco_original REAL, descricao TEXT, imagem TEXT, estoque INTEGER DEFAULT -1, validade DATE, enviar_cozinha BOOLEAN DEFAULT TRUE, visivel BOOLEAN DEFAULT TRUE, em_promocao BOOLEAN DEFAULT FALSE)`,
     `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
@@ -2671,6 +2671,11 @@ async function initDb() {
     };
     
     // Migrações garantidas para todos os bancos
+    try {
+      if (isPostgres) {
+        await query("ALTER TABLE mesas ALTER COLUMN numero TYPE TEXT USING numero::TEXT");
+      }
+    } catch(e){}
     await addCol('pedido_itens', 'preco', 'REAL');
     await addCol('push_subscriptions', 'app_type', "TEXT DEFAULT 'garcom'");
     await addCol('push_subscriptions', 'is_native', 'INTEGER DEFAULT 0'); // 1 = token FCM nativo (Capacitor), 0 = Web Push
@@ -7011,7 +7016,7 @@ app.get('/api/diag', isAdmin, async (req, res) => {
   app.post('/api/init-db-force', isAdmin, async (req, res) => {
     try {
       const tables = [
-        `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero INTEGER NOT NULL, status TEXT DEFAULT 'livre', garcom_id TEXT)`,
+        `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero TEXT NOT NULL, status TEXT DEFAULT 'livre', garcom_id TEXT)`,
         `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, preco_original REAL, descricao TEXT, imagem TEXT, estoque INTEGER DEFAULT -1, validade DATE, enviar_cozinha BOOLEAN DEFAULT TRUE, visivel BOOLEAN DEFAULT TRUE, em_promocao BOOLEAN DEFAULT FALSE)`,
         `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
         `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,

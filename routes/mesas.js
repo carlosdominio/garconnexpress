@@ -51,7 +51,7 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT p.id FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.status = 'rascunho' AND m.status = 'livre')");
       await query("DELETE FROM pedidos WHERE status = 'rascunho' AND mesa_id IN (SELECT id FROM mesas WHERE status = 'livre')");
 
-      res.json((await query(`
+      const mesasResult = await query(`
         SELECT m.*,
           p.id as pedido_id,
           p.created_at as pedido_created_at,
@@ -85,8 +85,17 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
             GROUP BY mesa_id
           ) ca2 ON ca1.id = ca2.max_id
         ) ca ON ca.mesa_id = m.id
-        ORDER BY m.numero
-      `)).rows); 
+      `); 
+
+      const mesasRows = mesasResult.rows || [];
+      mesasRows.sort((a, b) => {
+        const numA = parseInt(a.numero);
+        const numB = parseInt(b.numero);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return String(a.numero || '').localeCompare(String(b.numero || ''));
+      });
+
+      res.json(mesasRows);
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
