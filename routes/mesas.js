@@ -20,11 +20,11 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     try { 
       const mesaId = req.params.id;
       await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [mesaId]); 
-      await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [mesaId]);
+      await query("UPDATE codigos_acesso SET status = 'expirado' WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status = 'ativo'", [mesaId]);
       
       // Limpa rascunhos antigos/órfãos da mesa liberada
-      await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho')", [mesaId]);
-      await query("DELETE FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesaId]);
+      await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT id FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status = 'rascunho')", [mesaId]);
+      await query("DELETE FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status = 'rascunho'", [mesaId]);
 
       // Notifica o cliente para encerrar o acesso
       await safePusherTrigger('garconnexpress', `deslogar-mesa-${mesaId}`, { 
@@ -48,8 +48,8 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     if (typeof checkAndNotifyDelayedOrders === 'function') checkAndNotifyDelayedOrders();
     try {
       // Limpa rascunhos antigos de mesas que já estão LIVRES
-      await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT p.id FROM pedidos p JOIN mesas m ON p.mesa_id = m.id WHERE p.status = 'rascunho' AND m.status = 'livre')");
-      await query("DELETE FROM pedidos WHERE status = 'rascunho' AND mesa_id IN (SELECT id FROM mesas WHERE status = 'livre')");
+      await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT p.id FROM pedidos p JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) WHERE p.status = 'rascunho' AND m.status = 'livre')");
+      await query("DELETE FROM pedidos WHERE status = 'rascunho' AND CAST(mesa_id AS TEXT) IN (SELECT CAST(id AS TEXT) FROM mesas WHERE status = 'livre')");
 
       const mesasResult = await query(`
         SELECT m.*,

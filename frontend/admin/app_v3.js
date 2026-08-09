@@ -1379,22 +1379,14 @@ let carrinhoLancar = [];
 async function prepararLancarPedido() {
   carrinhoLancar = [];
 
-  // Se já temos cache do cardápio e das mesas, renderiza imediatamente sem esperar a API
-  if (cardapio && cardapio.length > 0 && _mesasLancarCache) {
-    exibirCategoriasLancar();
-    exibirMenuLancar('todas');
-    renderizarCarrinhoLancar();
-    // Atualiza mesas em background sem bloquear a tela
-    carregarMesasLancar().catch(() => {});
-  } else {
-    // Primeira vez: carrega normalmente aguardando a resposta
-    await carregarMesasLancar();
-    exibirCategoriasLancar();
-    exibirMenuLancar('todas');
-    renderizarCarrinhoLancar();
+  if (!cardapio || cardapio.length === 0) {
+    await carregarCardapio();
   }
-  
-  // Garante que a seleção de mesa volte para "Selecione a Mesa" (padrão)
+
+  await carregarMesasLancar();
+  exibirCategoriasLancar();
+  exibirMenuLancar('todas');
+  renderizarCarrinhoLancar();
   resetarMesaLancar();
 }
 
