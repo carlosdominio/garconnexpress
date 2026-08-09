@@ -8,14 +8,8 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       const numOuNome = String(req.body.numero || '').trim();
       if (!numOuNome) return res.status(400).json({ error: 'Informe o número ou nome da mesa/comanda' });
 
-      let novaId = null;
-      if (isPostgres) {
-        const ins = await query('INSERT INTO mesas (numero) VALUES (?) RETURNING id', [numOuNome]);
-        novaId = ins.rows[0]?.id;
-      } else {
-        const ins = await query('INSERT INTO mesas (numero) VALUES (?)', [numOuNome]);
-        novaId = ins.insertId;
-      }
+      const ins = await query('INSERT INTO mesas (numero) VALUES (?)', [numOuNome]);
+      const novaId = ins.rows?.[0]?.id || ins.insertId || null;
 
       await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
       res.json({ success: true, id: novaId, numero: numOuNome }); 
