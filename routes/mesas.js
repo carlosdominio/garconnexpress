@@ -96,7 +96,10 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       });
 
       res.json(mesasRows);
-    } catch (error) { res.status(500).json({ error: error.message }); }
+    } catch (error) { 
+      console.error('❌ ERRO EM GET /api/mesas:', error);
+      res.status(500).json({ error: error.message }); 
+    }
   });
 
   return router;
