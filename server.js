@@ -1513,7 +1513,7 @@ async function checkAndNotifyDelayedOrders() {
     const activeOrdersRes = await query(`
       SELECT p.id, p.garcom_id, CAST(p.created_at AS TEXT) as created_str, m.numero as mesa_numero
       FROM pedidos p
-      LEFT JOIN mesas m ON p.mesa_id = m.id
+      LEFT JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT)
       WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho', 'servido', 'aguardando_fechamento')
         AND (p.notificado_atraso = 0 OR p.notificado_atraso IS NULL)
     `);
@@ -1548,7 +1548,7 @@ async function checkAndNotifyDelayedOrders() {
     const subs = subsRes.rows;
 
     // === NOVAS NOTIFICACOES: FECHAMENTO ATRASADO / AGUARDANDO CLIENTE ===
-    const delayedClosureRes = await query("SELECT p.id, p.garcom_id, (SELECT CAST(id AS TEXT) FROM garcons WHERE usuario = p.garcom_id OR CAST(id AS TEXT) = p.garcom_id LIMIT 1) as garcom_pk, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, p.solicitou_fechamento FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho') AND (p.status = 'aguardando_fechamento' OR p.solicitou_fechamento = TRUE OR p.solicitou_fechamento = 'true') AND p.fechamento_solicitado_em IS NOT NULL AND (p.notificado_atraso_fechamento = 0 OR p.notificado_atraso_fechamento IS NULL)");
+    const delayedClosureRes = await query("SELECT p.id, p.garcom_id, (SELECT CAST(id AS TEXT) FROM garcons WHERE usuario = p.garcom_id OR CAST(id AS TEXT) = p.garcom_id LIMIT 1) as garcom_pk, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, p.solicitou_fechamento FROM pedidos p LEFT JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho') AND (p.status = 'aguardando_fechamento' OR p.solicitou_fechamento = TRUE OR p.solicitou_fechamento = 'true') AND p.fechamento_solicitado_em IS NOT NULL AND (p.notificado_atraso_fechamento = 0 OR p.notificado_atraso_fechamento IS NULL)");
     const delayedClosures = delayedClosureRes.rows.filter(p => {
       // Força a string a ser tratada como UTC adicionando o Z, assim previne o driver pg de usar o fuso local da máquina na Vercel
       let dateStr = p.fechamento_str || '';
@@ -2424,7 +2424,7 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
 
     // Prioridade: Se temos o ID do pedido, buscamos os dados reais para evitar rotular Delivery como Balcão
     if (pedidoId) {
-      const res = await query("SELECT m.id as mesa_id, m.numero as mesa_numero, p.garcom_id FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [pedidoId]);
+      const res = await query("SELECT m.id as mesa_id, m.numero as mesa_numero, p.garcom_id FROM pedidos p LEFT JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) WHERE p.id = ?", [pedidoId]);
       if (res.rows[0]) {
         garcomId = res.rows[0].garcom_id;
         finalMesaId = finalMesaId || res.rows[0].mesa_id;
@@ -3084,7 +3084,7 @@ app.put('/api/pedidos/:id/cozinha-pronto', statusLimiter, isAuthenticated, async
     }
 
     // Notifica admin e garçom
-    const pedido = (await query("SELECT p.garcom_id, p.cliente_telefone, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
+    const pedido = (await query("SELECT p.garcom_id, p.cliente_telefone, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) WHERE p.id = ?", [id])).rows[0];
     let mesaExibicao = 'BALCÃO';
     if (pedido) {
       if (pedido.garcom_id === 'DELIVERY') mesaExibicao = `DELIVERY #${id}`;
@@ -3127,7 +3127,7 @@ app.put('/api/pedidos/:id/churrasco-pronto', statusLimiter, isAuthenticated, asy
     }
 
     // Notifica admin e garçom
-    const pedido = (await query("SELECT p.garcom_id, p.cliente_telefone, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
+    const pedido = (await query("SELECT p.garcom_id, p.cliente_telefone, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) WHERE p.id = ?", [id])).rows[0];
     let mesaExibicao = 'BALCÃO';
     if (pedido) {
       if (pedido.garcom_id === 'DELIVERY') mesaExibicao = `DELIVERY #${id}`;
@@ -3375,7 +3375,7 @@ app.put('/api/pedidos/:id/taxa', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { cobrar_taxa } = req.body;
   try {
-    const pedidoOriginal = (await query("SELECT p.mesa_id, p.garcom_id, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON p.mesa_id = m.id WHERE p.id = ?", [id])).rows[0];
+    const pedidoOriginal = (await query("SELECT p.mesa_id, p.garcom_id, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) WHERE p.id = ?", [id])).rows[0];
     const todosItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
     const subtotal = todosItens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
     const taxaMultiplicador = await getTaxaServicoMultiplicador();
