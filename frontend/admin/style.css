@@ -1325,6 +1325,9 @@ button.btn-entregue { background-color: #95a5a6; }
 }
 
 /* --- Barra de Filtros --- */
+#ativos-section .filters-bar {
+  margin-top: 20px;
+}
 .filters-bar {
   margin-bottom: 1.2rem;
   display: flex;
