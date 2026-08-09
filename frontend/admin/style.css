@@ -1227,7 +1227,7 @@ button.btn-entregue { background-color: #95a5a6; }
 .kanban-board {
   display: flex;
   gap: 1.2rem;
-  margin-top: 1rem;
+  margin-top: 5px;
   align-items: flex-start;
   height: auto; 
   overflow: visible; /* Não trava nada */
