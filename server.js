@@ -1664,13 +1664,13 @@ async function checkAndNotifyDelayedOrders() {
       SELECT ca.id, ca.mesa_id, ca.codigo, CAST(ca.criado_at AS TEXT) as criado_str, m.numero as mesa_numero, m.garcom_id,
              (SELECT CAST(id AS TEXT) FROM garcons WHERE usuario = m.garcom_id OR CAST(id AS TEXT) = m.garcom_id LIMIT 1) as garcom_pk
       FROM codigos_acesso ca
-      JOIN mesas m ON ca.mesa_id = m.id
+      JOIN mesas m ON CAST(ca.mesa_id AS TEXT) = CAST(m.id AS TEXT)
       WHERE ca.status = 'ativo' 
         AND m.status = 'ocupada'
         AND (ca.notificado_atraso_registro = 0 OR ca.notificado_atraso_registro IS NULL)
         AND NOT EXISTS (
           SELECT 1 FROM pedidos p 
-          WHERE p.mesa_id = ca.mesa_id 
+          WHERE CAST(p.mesa_id AS TEXT) = CAST(ca.mesa_id AS TEXT)
             AND p.status NOT IN ('entregue', 'cancelado', 'rascunho')
         )
     `);
@@ -3566,7 +3566,7 @@ app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, isAuthenticated, a
     const pedidosRes = await query(`
       SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, g.nome as garcom_nome 
       FROM pedidos p 
-      LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR p.mesa_id = m.numero)
+      LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
       LEFT JOIN garcons g ON p.garcom_id = g.usuario
       WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho')
       ORDER BY p.created_at DESC
@@ -3616,7 +3616,7 @@ app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, isAuthenticated, a
 app.get('/api/pedidos', ensureDbInitialized, isAuthenticated, async (req, res) => {
   checkAndNotifyDelayedOrders();
   try {
-    const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR p.mesa_id = m.numero) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`);
+    const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -3727,7 +3727,7 @@ app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, isAuthenticated
     const pedidosRes = await query(`
       SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome 
       FROM pedidos p 
-      LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR p.mesa_id = m.numero) 
+      LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
       LEFT JOIN garcons g ON p.garcom_id = g.usuario 
       WHERE p.status IN ('entregue', 'cancelado') 
       ORDER BY p.created_at DESC 
@@ -3772,7 +3772,7 @@ app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, isAuthenticated
 
 app.get('/api/pedidos/historico', isAuthenticated, async (req, res) => {
   try {
-    const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR p.mesa_id = m.numero) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status IN ('entregue', 'cancelado') ORDER BY p.created_at DESC LIMIT 50`);
+    const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status IN ('entregue', 'cancelado') ORDER BY p.created_at DESC LIMIT 50`);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -3812,7 +3812,7 @@ app.get('/api/pedidos/ativo-telefone/:telefone', ensureDbInitialized, isAuthenti
 
 app.get('/api/pedidos/:id', ensureDbInitialized, isAuthenticated, async (req, res) => {
   try {
-    const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR p.mesa_id = m.numero) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
+    const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Pedido não encontrado' });
     }
@@ -3846,7 +3846,7 @@ app.delete('/api/pedidos/itens/:id', isAuthenticated, async (req, res) => {
     await query("DELETE FROM pedido_itens WHERE id = ?", [id]);
     const itensRestantes = (await query("SELECT status FROM pedido_itens WHERE pedido_id = ?", [item.pedido_id])).rows;
     if (itensRestantes.length === 0) {
-      const pedido = (await query("SELECT mesa_id, m.numero, p.garcom_id FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR p.mesa_id = m.numero) WHERE p.id = ?", [item.pedido_id])).rows[0];
+      const pedido = (await query("SELECT mesa_id, m.numero, p.garcom_id FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [item.pedido_id])).rows[0];
       await query("DELETE FROM pedidos WHERE id = ?", [item.pedido_id]);
       if (pedido && pedido.mesa_id) {
         await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [pedido.mesa_id]);
@@ -3889,7 +3889,7 @@ app.delete('/api/pedidos/itens/:id', isAuthenticated, async (req, res) => {
 app.delete('/api/pedidos/:id', isAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    const pedido = (await query("SELECT p.mesa_id, p.garcom_id, p.status, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR p.mesa_id = m.numero) WHERE p.id = ?", [id])).rows[0];
+    const pedido = (await query("SELECT p.mesa_id, p.garcom_id, p.status, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
     const itens = (await query("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
     
     if (pedido && pedido.status !== 'cancelado' && pedido.status !== 'entregue') {
@@ -4347,7 +4347,7 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
         await query("UPDATE pedidos SET total = ?, status = ?, observacao = ? WHERE id = ?", [total, novoStatusPedido, observacao || '', id]);
       }
       
-      const resMesa = await query("SELECT m.numero FROM pedidos p JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR p.mesa_id = m.numero) WHERE p.id = ?", [id]);
+      const resMesa = await query("SELECT m.numero FROM pedidos p JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id]);
       const mesaNum = resMesa.rows[0] ? resMesa.rows[0].numero : 'BALCÃO';
       
       // Busca garcom_id para notificação
@@ -4439,7 +4439,7 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
     } else {
       await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', observacao = ? WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), observacao || '', id]);
     }
-    const pMesa = (await query("SELECT p.mesa_id, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR p.mesa_id = m.numero) WHERE p.id = ?", [id])).rows[0];
+    const pMesa = (await query("SELECT p.mesa_id, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
     if (pMesa && pMesa.mesa_id) {
       const mesaIdNum = pMesa.mesa_id;
       await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [mesaIdNum]);
@@ -4840,7 +4840,7 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
       return res.json({ success: true, already: true });
     }
     const prevStatus = txResult.prevStatus;
-    const pm = (await query("SELECT p.mesa_id, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR p.mesa_id = m.numero) WHERE p.id = ?", [id])).rows[0];
+    const pm = (await query("SELECT p.mesa_id, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
     const mesaNum = pm ? (pm.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : (pm.numero || 'BALCÃO')) : 'BALCÃO';
     const localStr = pm && pm.garcom_id === 'DELIVERY' ? `${mesaNum}` : `Mesa ${mesaNum}`;
 
@@ -6970,7 +6970,7 @@ app.get('/api/debug-migrate', async (req, res) => {
 app.get('/api/debug-fcm', ensureDbInitialized, async (req, res) => {
     try {
       const now = new Date();
-      const delayedClosureRes = await query("SELECT p.id, p.garcom_id, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, p.notificado_atraso_fechamento FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR p.mesa_id = m.numero) WHERE (p.status = 'aguardando_fechamento' OR p.solicitou_fechamento = TRUE OR p.solicitou_fechamento = 'true') AND p.fechamento_solicitado_em IS NOT NULL");
+      const delayedClosureRes = await query("SELECT p.id, p.garcom_id, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, p.notificado_atraso_fechamento FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE (p.status = 'aguardando_fechamento' OR p.solicitou_fechamento = TRUE OR p.solicitou_fechamento = 'true') AND p.fechamento_solicitado_em IS NOT NULL");
       
       const debugList = delayedClosureRes.rows.map(p => {
         let dateStr = p.fechamento_str || '';
