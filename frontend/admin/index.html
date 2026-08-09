@@ -342,8 +342,8 @@
     <!-- Seção Lançar Pedido (NOVO - Layout de Altura Fixa) -->
     <section id="lancar-section" class="hidden" style="height: calc(100dvh - 160px); display: flex; flex-direction: column; overflow: hidden; padding-bottom: 10px;">
       <div class="config-card" style="margin-bottom: 0.5rem; padding: 12px; flex-shrink: 0; background: white; border-radius: 12px; border: 1px solid #eee;">
-        <div style="display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: nowrap; overflow-x: auto; width: 100%;">
-          <div style="display: flex; gap: 0.5rem; align-items: center; flex-shrink: 0;">
+        <div style="display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; width: 100%;">
+          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
             <h3 style="margin:0; white-space: nowrap; font-size: 0.95rem; color: #1e293b;">📍 Iniciar em:</h3>
             <select id="lancar-mesa-select" style="display: none;">
               <option value="">Selecione a Mesa</option>
@@ -365,16 +365,18 @@
             </button>
           </div>
           
-          <!-- BARRA DE BUSCA EM TEMPO REAL -->
-          <div style="display: flex; align-items: center; background: #f1f5f9; border: 2px solid #cbd5e0; border-radius: 10px; padding: 0px 10px; height: 42px; flex: 1; max-width: 260px; margin: 0 4px;">
-            <span style="color: #64748b; margin-right: 6px; font-size: 0.85rem;">🔍</span>
-            <input type="text" id="lancar-busca-produto" placeholder="Buscar produto..." oninput="filtrarProdutosLancar()" style="border: none; background: transparent; font-size: 0.9rem; color: #2c3e50; outline: none; width: 100%;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <!-- BARRA DE BUSCA EM TEMPO REAL -->
+            <div style="display: flex; align-items: center; background: #f1f5f9; border: 2px solid #cbd5e0; border-radius: 10px; padding: 0px 10px; height: 42px; min-width: 200px;">
+              <span style="color: #64748b; margin-right: 6px; font-size: 0.85rem;">🔍</span>
+              <input type="text" id="lancar-busca-produto" placeholder="Buscar produto..." oninput="filtrarProdutosLancar()" style="border: none; background: transparent; font-size: 0.9rem; color: #2c3e50; outline: none; width: 100%;">
+            </div>
+    
+            <!-- BOTÃO LANÇAR PEDIDO AGORA -->
+            <button onclick="enviarPedidoLoteAdmin()" style="height: 42px; padding: 0 18px; background: #27ae60; color: white; font-size: 0.95rem; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 3px 0 #219150; display: flex; align-items: center; justify-content: center; white-space: nowrap;">
+              🚀 LANÇAR PEDIDO AGORA
+            </button>
           </div>
-  
-          <!-- BOTÃO LANÇAR PEDIDO AGORA -->
-          <button onclick="enviarPedidoLoteAdmin()" style="height: 42px; padding: 0 18px; background: #27ae60; color: white; font-size: 0.95rem; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 3px 0 #219150; display: flex; align-items: center; justify-content: center; white-space: nowrap; flex-shrink: 0;">
-            🚀 LANÇAR PEDIDO AGORA
-          </button>
         </div>
       </div>
 
@@ -391,7 +393,7 @@
           </div>
           
           <div style="flex-shrink: 0; background: #fff; padding-top: 10px; border-top: 2px solid #eee;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
               <div class="toggle-container" id="lancar-taxa-container">
                 <span id="lancar-taxa-label" style="font-size: 0.85rem; font-weight: bold; color: #64748b;">10%</span>
                 <label class="switch">
@@ -401,6 +403,11 @@
               </div>
               <div id="lancar-total" style="font-weight: 900; font-size: 1.5rem; color: #27ae60;">R$ 0,00</div>
             </div>
+
+            <!-- BOTÃO PRINCIPAL DE LANÇAMENTO COMPACTO E PROMINENTE -->
+            <button onclick="enviarPedidoLoteAdmin()" style="width: 100%; height: 48px; background: #27ae60; color: white; font-size: 1.05rem; font-weight: 900; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 0 #219150; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              🚀 LANÇAR PEDIDO AGORA
+            </button>
           </div>
         </div>
 
