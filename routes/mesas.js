@@ -3,7 +3,7 @@ const express = require('express');
 module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, checkAndNotifyDelayedOrders, isAdmin, isAuthenticated) => {
   const router = express.Router();
 
-  router.post('/', isAuthenticated, async (req, res) => { 
+  router.post('/', ensureDbInitialized, isAuthenticated, async (req, res) => { 
     try {
       const numOuNome = String(req.body.numero || '').trim();
       if (!numOuNome) return res.status(400).json({ error: 'Informe o número ou nome da mesa/comanda' });
@@ -13,10 +13,13 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
 
       await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
       res.json({ success: true, id: novaId, numero: numOuNome }); 
-    } catch (error) { res.status(500).json({ error: error.message }); }
+    } catch (error) { 
+      console.error('❌ ERRO EM POST /api/mesas:', error);
+      res.status(500).json({ error: error.message }); 
+    }
   });
 
-  router.put('/:id/liberar', isAuthenticated, async (req, res) => { 
+  router.put('/:id/liberar', ensureDbInitialized, isAuthenticated, async (req, res) => { 
     try { 
       const mesaId = req.params.id;
       await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [mesaId]); 
@@ -37,7 +40,7 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     } catch (error) { res.status(500).json({ error: error.message }); } 
   });
 
-  router.delete('/:id', isAdmin, async (req, res) => { 
+  router.delete('/:id', ensureDbInitialized, isAdmin, async (req, res) => { 
     try {
       await query('DELETE FROM mesas WHERE id = ?', [req.params.id]); 
       res.json({ success: true }); 

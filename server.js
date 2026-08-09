@@ -2677,7 +2677,9 @@ async function initDb() {
         await query("ALTER TABLE pedidos ALTER COLUMN mesa_id TYPE TEXT USING mesa_id::TEXT");
         await query("ALTER TABLE codigos_acesso ALTER COLUMN mesa_id TYPE TEXT USING mesa_id::TEXT");
       }
-    } catch(e){}
+    } catch(e){
+      console.error("❌ ERRO NA MIGRAÇÃO DE COLUNAS PARA TEXT NO POSTGRES:", e.message);
+    }
     await addCol('pedido_itens', 'preco', 'REAL');
     await addCol('push_subscriptions', 'app_type', "TEXT DEFAULT 'garcom'");
     await addCol('push_subscriptions', 'is_native', 'INTEGER DEFAULT 0'); // 1 = token FCM nativo (Capacitor), 0 = Web Push
@@ -6938,6 +6940,32 @@ app.post('/api/config/broadcast', ensureDbInitialized, isAdmin, async (req, res)
   }
 });
 
+app.get('/api/debug-migrate', async (req, res) => {
+    try {
+        const result = [];
+        if (isPostgres) {
+            try {
+                await query("ALTER TABLE mesas ALTER COLUMN numero TYPE TEXT USING numero::TEXT");
+                result.push("mesas.numero alterado com sucesso.");
+            } catch(e) { result.push("ERRO mesas.numero: " + e.message); }
+
+            try {
+                await query("ALTER TABLE pedidos ALTER COLUMN mesa_id TYPE TEXT USING mesa_id::TEXT");
+                result.push("pedidos.mesa_id alterado com sucesso.");
+            } catch(e) { result.push("ERRO pedidos.mesa_id: " + e.message); }
+
+            try {
+                await query("ALTER TABLE codigos_acesso ALTER COLUMN mesa_id TYPE TEXT USING mesa_id::TEXT");
+                result.push("codigos_acesso.mesa_id alterado com sucesso.");
+            } catch(e) { result.push("ERRO codigos_acesso.mesa_id: " + e.message); }
+        } else {
+            result.push("Não é Postgres.");
+        }
+        res.json({ result });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 
 app.get('/api/debug-fcm', ensureDbInitialized, async (req, res) => {
     try {
