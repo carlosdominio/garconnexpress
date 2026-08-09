@@ -1272,7 +1272,12 @@ async function configurarPusher() {
 
       // Se a mesa/pedido pertence ao ADMIN, DELIVERY ou a outro garçom, não exibe toast e ignora
       const eMesaDoAdmin = (!data || respGarcom === 'ADMIN' || respGarcom === 'DELIVERY' || data.garcom_id === 'ADMIN' || data.garcom_id === 'DELIVERY' || (data.pedido && (data.pedido.garcom_id === 'ADMIN' || data.pedido.garcom_id === 'DELIVERY')));
-      const eMesaDeOutroGarcom = isMesaDeOutroGarcom(mesaId) || (respGarcom && !eMesaDoAdmin && String(respGarcom).trim().toLowerCase() !== String(garcomLogado?.usuario).trim().toLowerCase());
+      let eMesaDeOutroGarcom = isMesaDeOutroGarcom(mesaId) || (respGarcom && !eMesaDoAdmin && String(respGarcom).trim().toLowerCase() !== String(garcomLogado?.usuario).trim().toLowerCase());
+
+      // Se a mesa acabou de ser transferida para ESTE garçom, não ignora
+      if (data && data.status === 'transferido' && respGarcom && String(respGarcom).trim().toLowerCase() === String(garcomLogado?.usuario).trim().toLowerCase()) {
+        eMesaDeOutroGarcom = false;
+      }
 
       if (eMesaDoAdmin || eMesaDeOutroGarcom) {
         clearTimeout(timeoutPusher);
@@ -1319,6 +1324,14 @@ async function configurarPusher() {
                 const det = data.detalhes_edicao ? `: ${data.detalhes_edicao}` : '';
                 mostrarToast(`📝 Pedido da ${strMesa} atualizado pelo Admin${det}`, 'info');
               }
+            }
+          } else if (data.status === 'transferido') {
+            tocarCampainha(true);
+            dispararToastSistema('mesa-transferida', { mesa: strMesa }, `🙋‍♂️ A ${strMesa} foi transferida para você!`, 'success');
+            // Animação na tela principal para chamar atenção
+            const mesaCard = document.getElementById(`mesa-${data.mesa_id || data.mesa_numero}`);
+            if (mesaCard) {
+              mesaCard.style.animation = 'pulse-green 1.5s 3';
             }
           }
 
