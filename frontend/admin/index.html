@@ -1678,7 +1678,15 @@
         
         <!-- Coluna da Direita: Cardápio para Adicionar -->
         <div class="edit-col-menu" style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">
-          <h3 style="flex-shrink: 0;">Adicionar Itens</h3>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-shrink: 0;">
+            <h3 style="margin: 0; font-size: 1.1rem; font-weight: bold; color: #1e293b;">Adicionar Itens</h3>
+          </div>
+          <!-- BARRA DE BUSCA NO CARDÁPIO DE EDIÇÃO -->
+          <div style="position: relative; flex-shrink: 0; margin-bottom: 8px;">
+            <input type="text" id="input-busca-menu-edicao" placeholder="🔍 Buscar produto no cardápio..." 
+                   oninput="filtrarMenuEdicao(this.value)" 
+                   style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e0; font-size: 0.85rem; background: #fff; outline: none; box-shadow: 0 1px 3px rgba(0,0,0,0.05); box-sizing: border-box;">
+          </div>
           <div id="edit-menu-grid" class="menu-grid-mini" style="flex: 1; overflow-y: auto; margin-bottom: 10px; display: grid; grid-auto-rows: max-content; align-content: start;"></div>
           <div style="display: flex; align-items: center; gap: 5px; margin-top: 0px; flex-shrink: 0; background: #f8fafc; padding: 5px; border-radius: 10px; border: 1px solid #e2e8f0;">
             <button onclick="scrollCategoriasEdicao(-150)" style="background: white; border: 1px solid #cbd5e0; border-radius: 8px; padding: 10px 5px; cursor: pointer; color: #3498db; font-weight: bold;">❮</button>

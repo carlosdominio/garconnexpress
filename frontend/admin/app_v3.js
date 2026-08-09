@@ -602,9 +602,18 @@ async function iniciarPainelAdmin() {
   }, 30000);
 }
 
+let temEdicoesLocaisNaoSalvas = false;
+let termoBuscaEdicao = '';
+
+function filtrarMenuEdicao(termo) {
+  termoBuscaEdicao = (termo || '').toLowerCase().trim();
+  renderizarMenuEdicao(categoriaEdicaoAtual);
+}
+
 async function mudarQtdItem(index, qtd) { 
   const novaQtd = parseInt(qtd);
   const itemNoPedido = itensEmEdicao[index];
+  if (!itemNoPedido) return;
   
   const itemNoMenu = cardapio.find(m => m.id === itemNoPedido.menu_id);
 
@@ -616,48 +625,47 @@ async function mudarQtdItem(index, qtd) {
     }
   }
 
-  if (novaQtd > 0) {
-    if (novaQtd > itemNoPedido.quantidade) {
-        // Se o item já foi entregue ou está pronto, não alteramos este item diretamente.
-        // Adicionamos a diferença como um novo item 'pendente'.
-        if (itemNoPedido.status === 'entregue' || itemNoPedido.status === 'pronto') {
-            const diferenca = novaQtd - itemNoPedido.quantidade;
-            const existPendente = itensEmEdicao.find(i => 
-                i.menu_id === itemNoPedido.menu_id && 
-                i.status === 'pendente' && 
-                (i.observacao || '') === (itemNoPedido.observacao || '')
-            );
-            if (existPendente) {
-                existPendente.quantidade += diferenca;
-            } else {
-                itensEmEdicao.push({
-                    ...itemNoPedido,
-                    id: undefined,
-                    quantidade: diferenca,
-                    status: 'pendente',
-                    selecionado: false
-                });
-            }
-            // Não alteramos a quantidade do item original aqui, pois ele mantém o que já foi entregue
-        } else {
-            // Se já era pendente, apenas aumenta a quantidade
-            itemNoPedido.quantidade = novaQtd;
-        }
+  temEdicoesLocaisNaoSalvas = true;
+
+  if (novaQtd <= 0) {
+    itensEmEdicao.splice(index, 1);
+  } else if (novaQtd > itemNoPedido.quantidade) {
+    // Se o item já foi entregue ou está pronto e estamos AUMENTANDO a quantidade,
+    // não alteramos a linha entregue diretamente, adicionamos a diferença como pendente.
+    if (itemNoPedido.status === 'entregue' || itemNoPedido.status === 'pronto') {
+      const diferenca = novaQtd - itemNoPedido.quantidade;
+      const existPendente = itensEmEdicao.find(i => 
+        i.menu_id === itemNoPedido.menu_id && 
+        i.status === 'pendente' && 
+        (i.observacao || '') === (itemNoPedido.observacao || '')
+      );
+      if (existPendente) {
+        existPendente.quantidade += diferenca;
+      } else {
+        itensEmEdicao.push({
+          ...itemNoPedido,
+          id: undefined,
+          quantidade: diferenca,
+          status: 'pendente',
+          selecionado: false
+        });
+      }
     } else {
-        // Redução de quantidade: diminui o item atual
-        itemNoPedido.quantidade = novaQtd;
+      itemNoPedido.quantidade = novaQtd;
     }
-    renderizarItensEdicao(); 
-    renderizarMenuEdicao(categoriaEdicaoAtual); // Re-renderiza cardápio para atualizar estoque disponível
+  } else {
+    // Redução de quantidade de qualquer item (inclusive entregue): reduz diretamente
+    itemNoPedido.quantidade = novaQtd;
   }
+  renderizarItensEdicao(); 
+  renderizarMenuEdicao(categoriaEdicaoAtual);
 }
 
 async function removerItemEdicao(index) { 
-  const item = itensEmEdicao[index];
-  
+  temEdicoesLocaisNaoSalvas = true;
   itensEmEdicao.splice(index, 1); 
   renderizarItensEdicao(); 
-  renderizarMenuEdicao(categoriaEdicaoAtual); // Re-renderiza cardápio para atualizar estoque disponível
+  renderizarMenuEdicao(categoriaEdicaoAtual);
 }
 
 let serverClockOffset = 0;
@@ -4050,7 +4058,8 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
   const modalEdicao = document.getElementById('modal-edicao');
   if (modalEdicao && modalEdicao.style.display === 'flex' && pedidoEmEdicao) {
     
-    // SE há itens locais sem ID (recém adicionados, ainda não salvos), NÃO sobrescreve
+    // SE o usuário fez alterações locais não salvas, NÃO sobrescreve!
+    if (temEdicoesLocaisNaoSalvas) return;
     const temItensNaoSalvos = (itensEmEdicao || []).some(i => !i.id);
     if (temItensNaoSalvos) return;
 
@@ -5197,6 +5206,10 @@ function abrirModalEdicao(pedido, itens) {
   pedidoEmEdicao = pedido;
   itensEmEdicao = itens.map(i => ({ ...i, selecionado: false }));
   categoriaEdicaoAtual = 'todas';
+  termoBuscaEdicao = '';
+  temEdicoesLocaisNaoSalvas = false;
+  const inputBusca = document.getElementById('input-busca-menu-edicao');
+  if (inputBusca) inputBusca.value = '';
   document.getElementById('modal-titulo').innerText = `Editar Pedido: ${pedido.mesa_numero ? 'Mesa ' + pedido.mesa_numero : 'Balcão'}`;
   renderizarItensEdicao();
   renderizarMenuEdicao(categoriaEdicaoAtual);
@@ -5211,6 +5224,10 @@ function fecharModal() {
   document.getElementById('modal-edicao').style.display = 'none';
   pedidoEmEdicao = null;
   itensEmEdicao = [];
+  termoBuscaEdicao = '';
+  temEdicoesLocaisNaoSalvas = false;
+  const inputBusca = document.getElementById('input-busca-menu-edicao');
+  if (inputBusca) inputBusca.value = '';
   
   // LIBERA O SCROLL APENAS se não estiver nas abas que exigem trava
   if (abaAtiva !== 'lancar' && abaAtiva !== 'ativos') {
@@ -5264,7 +5281,7 @@ function renderizarItensEdicao() {
         <input type="text" 
                placeholder="📝 Obs..." 
                value="${item.observacao || ''}" 
-               oninput="itensEmEdicao[${index}].observacao = this.value"
+               oninput="itensEmEdicao[${index}].observacao = this.value; temEdicoesLocaisNaoSalvas = true;"
                style="width: 100%; padding: 4px 8px; border-radius: 6px; border: 1px solid #edf2f7; font-size: 0.75rem; background: #f8fafc;">
       </div>
 
@@ -5344,7 +5361,19 @@ async function renderizarMenuEdicao(categoria = 'todas') {
     `;
   }).join('');
 
-  const itens = categoriaEdicaoAtual === 'todas' ? cardapioAtivo : cardapioAtivo.filter(i => i.categoria.trim().toLowerCase() === categoriaEdicaoAtual.trim().toLowerCase());
+  let itens = categoriaEdicaoAtual === 'todas' ? cardapioAtivo : cardapioAtivo.filter(i => i.categoria.trim().toLowerCase() === categoriaEdicaoAtual.trim().toLowerCase());
+
+  if (termoBuscaEdicao) {
+    itens = itens.filter(i => 
+      (i.nome || '').toLowerCase().includes(termoBuscaEdicao) || 
+      (i.categoria || '').toLowerCase().includes(termoBuscaEdicao)
+    );
+  }
+
+  if (itens.length === 0) {
+    container.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 25px 10px; color: #64748b; font-size: 0.9rem; font-weight: bold;">Nenhum produto encontrado.</div>`;
+    return;
+  }
   container.innerHTML = itens.map(item => {
     let estoqueNum = -1;
     if (item.estoque !== null && item.estoque !== undefined && item.estoque !== '') {
@@ -5389,6 +5418,7 @@ async function renderizarMenuEdicao(categoria = 'todas') {
 async function adicionarItemNaEdicao(itemId) {
   const menuItem = cardapio.find(m => m.id === itemId);
   if (!menuItem) return;
+  temEdicoesLocaisNaoSalvas = true;
 
   // Verifica se existem itens selecionados para substituição
   const selecionadosIndices = itensEmEdicao.map((item, index) => item.selecionado ? index : -1).filter(index => index !== -1);
@@ -5457,6 +5487,7 @@ async function salvarAlteracoes() {
       body: JSON.stringify({ itens: itensEmEdicao })
     });
     if (res.ok) {
+      temEdicoesLocaisNaoSalvas = false;
       const data = await res.json();
       const idPed = pedidoEmEdicao.id;
       const idMesa = pedidoEmEdicao.mesa_id;
