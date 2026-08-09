@@ -1406,7 +1406,11 @@ function renderizarMesasSelectLancar(mesas) {
   const optionsHtml = '<option value="">Selecione a Mesa</option>' + 
     '<option value="BALCAO" style="font-weight:bold; color:#27ae60;">🏪 BALCÃO / VENDA DIRETA</option>' +
     '<option value="DELIVERY" style="font-weight:bold; color:#e67e22;">🛵 DELIVERY</option>' +
-    mesas.map(m => `<option value="${m.id}">Mesa ${m.numero} (${m.status.toUpperCase()})</option>`).join('');
+    mesas.map(m => {
+      const isNum = /^\d+$/.test(String(m.numero || '').trim());
+      const label = isNum ? `Mesa ${m.numero}` : m.numero;
+      return `<option value="${m.id}">${label} (${m.status.toUpperCase()})</option>`;
+    }).join('');
   
   if (select.innerHTML !== optionsHtml) {
     select.innerHTML = optionsHtml;
@@ -1436,6 +1440,97 @@ function renderizarMesasSelectLancar(mesas) {
     });
     select.dataset.listenerAdded = 'true';
   }
+}
+
+async function abrirModalCriarComandaLancar() {
+  return new Promise(async (resolve) => {
+    let modalEl = document.getElementById('modal-criar-comanda-lancar');
+    if (!modalEl) {
+      modalEl = document.createElement('div');
+      modalEl.id = 'modal-criar-comanda-lancar';
+      modalEl.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 999999; display: flex; align-items: center; justify-content: center; padding: 15px;';
+      document.body.appendChild(modalEl);
+    }
+
+    modalEl.innerHTML = `
+      <div style="background: white; border-radius: 16px; max-width: 400px; width: 100%; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2); overflow: hidden; animation: popInModal 0.2s ease-out;">
+        <!-- CABEÇALHO COM BOTAO X -->
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #f1f5f9; background: #fff;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 1.3rem;">➕</span>
+            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #1e293b;">Criar Mesa / Comanda</h3>
+          </div>
+          <span id="close-modal-criar-comanda" style="font-size: 1.5rem; font-weight: bold; color: #000; cursor: pointer; line-height: 1; padding: 2px 6px; user-select: none;">&times;</span>
+        </div>
+
+        <!-- CORPO DO MODAL -->
+        <div style="padding: 20px; text-align: left;">
+          <label style="display: block; font-weight: bold; color: #334155; font-size: 0.9rem; margin-bottom: 6px;">Número ou Nome da Comanda/Mesa:</label>
+          <input type="text" id="input-nome-comanda-novo" placeholder="ex: 15, VIP, Comanda 05, João..." 
+                 style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 2px solid #cbd5e0; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc;">
+          <p style="font-size: 0.78rem; color: #64748b; margin: 8px 0 0 0;">Ela ficará disponível imediatamente para lançar pedidos no Admin e nos Garçons.</p>
+        </div>
+
+        <!-- RODAPÉ -->
+        <div style="padding: 0 20px 20px 20px; display: flex; gap: 10px;">
+          <button id="btn-cancelar-criar-comanda" style="flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #cbd5e0; background: #f1f5f9; color: #475569; font-weight: 700; cursor: pointer;">Cancelar</button>
+          <button id="btn-confirmar-criar-comanda" style="flex: 1; padding: 12px; border-radius: 10px; border: none; background: #2563eb; color: white; font-weight: 800; cursor: pointer; box-shadow: 0 2px 4px rgba(37,99,235,0.2);">Criar & Selecionar</button>
+        </div>
+      </div>
+    `;
+
+    modalEl.style.display = 'flex';
+    const inputTxt = document.getElementById('input-nome-comanda-novo');
+    if (inputTxt) setTimeout(() => inputTxt.focus(), 100);
+
+    const fechar = () => {
+      modalEl.style.display = 'none';
+    };
+
+    document.getElementById('close-modal-criar-comanda').onclick = fechar;
+    document.getElementById('btn-cancelar-criar-comanda').onclick = fechar;
+
+    const salvar = async () => {
+      const valor = (inputTxt ? inputTxt.value : '').trim();
+      if (!valor) return mostrarAlerta("Digite o número ou nome da mesa/comanda", "Atenção", "⚠️");
+
+      try {
+        const res = await fetch('/api/mesas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ numero: valor })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          fechar();
+          mostrarToast(`✅ Mesa/Comanda "${valor}" criada!`);
+          await carregarMesasLancar();
+          
+          // Seleciona a mesa recém criada no dropdown
+          const select = document.getElementById('lancar-mesa-select');
+          if (select && data.id) {
+            select.value = String(data.id);
+            select.dispatchEvent(new Event('change'));
+            if (typeof sincronizarFiltroCustomizadoLancar === 'function') {
+              sincronizarFiltroCustomizadoLancar();
+            }
+          }
+        } else {
+          const err = await res.json();
+          mostrarAlerta(err.error || "Erro ao criar comanda", "Erro", "❌");
+        }
+      } catch (e) {
+        mostrarAlerta("Erro de conexão ao criar comanda.");
+      }
+    };
+
+    document.getElementById('btn-confirmar-criar-comanda').onclick = salvar;
+    if (inputTxt) {
+      inputTxt.onkeydown = (e) => {
+        if (e.key === 'Enter') salvar();
+      };
+    }
+  });
 }
 
 async function carregarMesasLancar() {
@@ -2350,15 +2445,36 @@ async function exibirMesasConfig() {
   
   const container = document.getElementById('lista-mesas-config');
   if (!container) return;
-  container.innerHTML = mesas.map(m => `<div class="item-config"><span>Mesa ${m.numero}</span><button class="btn-excluir" onclick="excluirMesa(${m.id})">Excluir</button></div>`).join('');
+  container.innerHTML = mesas.map(m => {
+    const isNum = /^\d+$/.test(String(m.numero || '').trim());
+    const label = isNum ? `Mesa ${m.numero}` : m.numero;
+    return `<div class="item-config"><span>${label}</span><button class="btn-excluir" onclick="excluirMesa(${m.id})">Excluir</button></div>`;
+  }).join('');
 }
 
 async function adicionarMesa() {
-  const num = document.getElementById('nova-mesa-num').value;
-  if (!num) return;
-  await fetch('/api/mesas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ numero: num }) });
-  document.getElementById('nova-mesa-num').value = '';
-  exibirMesasConfig();
+  const inputEl = document.getElementById('nova-mesa-num');
+  const numOuNome = (inputEl ? inputEl.value : '').trim();
+  if (!numOuNome) return mostrarAlerta("Digite o número ou nome da mesa/comanda", "Atenção", "⚠️");
+
+  try {
+    const res = await fetch('/api/mesas', { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify({ numero: numOuNome }) 
+    });
+    if (res.ok) {
+      if (inputEl) inputEl.value = '';
+      mostrarToast(`✅ ${numOuNome} criada com sucesso!`);
+      await exibirMesasConfig();
+      await carregarMesasLancar();
+    } else {
+      const err = await res.json();
+      mostrarAlerta(err.error || "Erro ao adicionar mesa", "Erro", "❌");
+    }
+  } catch(e) {
+    mostrarAlerta("Erro de conexão ao adicionar mesa", "Erro", "❌");
+  }
 }
 
 async function excluirMesa(id) {

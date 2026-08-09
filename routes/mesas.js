@@ -3,10 +3,22 @@ const express = require('express');
 module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, checkAndNotifyDelayedOrders, isAdmin, isAuthenticated) => {
   const router = express.Router();
 
-  router.post('/', isAdmin, async (req, res) => { 
+  router.post('/', isAuthenticated, async (req, res) => { 
     try {
-      await query('INSERT INTO mesas (numero) VALUES (?)', [req.body.numero]); 
-      res.json({ success: true }); 
+      const numOuNome = String(req.body.numero || '').trim();
+      if (!numOuNome) return res.status(400).json({ error: 'Informe o número ou nome da mesa/comanda' });
+
+      let novaId = null;
+      if (isPostgres) {
+        const ins = await query('INSERT INTO mesas (numero) VALUES (?) RETURNING id', [numOuNome]);
+        novaId = ins.rows[0]?.id;
+      } else {
+        const ins = await query('INSERT INTO mesas (numero) VALUES (?)', [numOuNome]);
+        novaId = ins.insertId;
+      }
+
+      await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
+      res.json({ success: true, id: novaId, numero: numOuNome }); 
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
