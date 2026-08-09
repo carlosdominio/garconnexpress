@@ -5901,18 +5901,18 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   };
   document.getElementById('fechamento-divisao-pessoas').value = pedidoParaFecharAdmin.num_pessoas || 1;
   
-  // Reseta tipo de desconto para porcentagem ao abrir (Ativado por padrão)
-  tipoDescontoAdmin = 'porcentagem';
+  // Reseta tipo de desconto para R$ ao abrir (Desativado por padrão)
+  tipoDescontoAdmin = 'dinheiro';
   const checkTipo = document.getElementById('check-tipo-desconto');
-  if (checkTipo) checkTipo.checked = true;
+  if (checkTipo) checkTipo.checked = false;
   const spanTipo = document.getElementById('span-tipo-desconto');
-  if (spanTipo) spanTipo.textContent = '%';
+  if (spanTipo) spanTipo.textContent = 'R$';
   const labelDesconto = document.getElementById('label-desconto-admin');
-  if (labelDesconto) labelDesconto.textContent = 'Desconto (%):';
+  if (labelDesconto) labelDesconto.textContent = 'Desconto (R$):';
   const inputDesconto = document.getElementById('fechamento-desconto-admin');
   if (inputDesconto) {
-    inputDesconto.step = '1';
-    inputDesconto.placeholder = 'Valor em %';
+    inputDesconto.step = '0.50';
+    inputDesconto.placeholder = 'Valor em R$';
   }
 
   const pagoParcial = pedidoParaFecharAdmin.pago_parcial || 0;

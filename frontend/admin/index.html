@@ -13,6 +13,12 @@
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GarçonExpress - Admin</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2c3e50">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Admin">
+  <link rel="apple-touch-icon" href="../icon-192.png">
   <script>
     window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
   </script>
@@ -360,8 +366,8 @@
               </div>
             </div>
             <!-- BOTÃO CRIAR MESA / COMANDA RÁPIDA -->
-            <button type="button" onclick="abrirModalCriarComandaLancar()" style="height: 42px; padding: 0 10px; background: #2563eb; color: white; font-size: 0.82rem; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 4px; white-space: nowrap; box-shadow: 0 2px 4px rgba(37,99,235,0.2); flex-shrink: 0;">
-              <span>➕</span> Criar Mesa / Comanda
+            <button type="button" onclick="abrirModalCriarComandaLancar()" style="height: 42px; padding: 0 14px; background: #2c3e50; color: white; font-size: 0.85rem; font-weight: 800; border: 2px solid #1a252f; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; box-shadow: 0 3px 0 #1a252f; transition: transform 0.1s, box-shadow 0.1s; flex-shrink: 0;" onmousedown="this.style.transform='translateY(3px)'; this.style.boxShadow='none';" onmouseup="this.style.transform='translateY(0)'; this.style.boxShadow='0 3px 0 #1a252f';" onmouseleave="this.style.transform='translateY(0)'; this.style.boxShadow='0 3px 0 #1a252f';">
+              <span style="background: rgba(255,255,255,0.2); border-radius: 50%; padding: 2px 4px; font-size: 0.75rem;">➕</span> Nova Comanda
             </button>
           </div>
           
@@ -1769,7 +1775,7 @@
                   <div style="display: flex; justify-content: space-between;">
                     <label id="label-desconto-admin" style="font-size: 0.75rem; font-weight: bold; color: #64748b;">Desconto (%):</label>
                     <label class="switch" style="transform: scale(0.7); margin-top: -5px;">
-                      <input type="checkbox" id="check-tipo-desconto" checked onchange="toggleTipoDesconto(this.checked)">
+                      <input type="checkbox" id="check-tipo-desconto" onchange="toggleTipoDesconto(this.checked)">
                       <span class="slider round"></span>
                     </label>
                   </div>
@@ -2522,6 +2528,17 @@
       animation: wa-pulse 1.8s infinite;
     }
   </style>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').then(registration => {
+          console.log('ServiceWorker registration successful with scope: ', registration.scope);
+        }).catch(err => {
+          console.log('ServiceWorker registration failed: ', err);
+        });
+      });
+    }
+  </script>
 </body>
 </html>
 
