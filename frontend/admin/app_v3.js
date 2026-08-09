@@ -4170,14 +4170,76 @@ async function carregarPedidos() {
 }
 
 async function atualizarModaisAdminAbertosEmTempoReal() {
-  // Nota: O modal-edicao não deve sofrer re-renderização de DOM em segundo plano enquanto estiver aberto,
-  // pois isso destrói o foco dos inputs de texto, rolagens e interações de edição do Administrador.
+  // 1. Modal de Edição / Visualização do Pedido (#modal-edicao)
+  const modalEdicao = document.getElementById('modal-edicao');
+  if (modalEdicao && modalEdicao.style.display === 'flex' && pedidoEmEdicao) {
+    const pedId = pedidoEmEdicao.id;
+    try {
+      const resItens = await fetch(`/api/pedidos/${pedId}/itens?t=` + Date.now());
+      if (resItens.ok) {
+        const novosItens = await resItens.json();
+        
+        let houveMudancaStatus = false;
+        novosItens.forEach(novoItem => {
+          const itemExistente = (itensEmEdicao || []).find(i => i.id === novoItem.id);
+          if (itemExistente) {
+            if (itemExistente.status !== novoItem.status) {
+              itemExistente.status = novoItem.status;
+              houveMudancaStatus = true;
+            }
+          } else {
+            houveMudancaStatus = true;
+          }
+        });
+
+        const pAtualizado = pedidos.find(p => String(p.id) === String(pedId));
+        if (pAtualizado && pAtualizado.status !== pedidoEmEdicao.status) {
+          pedidoEmEdicao.status = pAtualizado.status;
+          houveMudancaStatus = true;
+        }
+
+        // Se o garçom entregou o pedido ou algum item mudou de status:
+        if (houveMudancaStatus) {
+          const numMesa = pedidoEmEdicao.mesa_numero ? 'Mesa ' + pedidoEmEdicao.mesa_numero : (pedidoEmEdicao.garcom_id === 'DELIVERY' ? `Delivery #${pedidoEmEdicao.id}` : 'Balcão');
+          const isTotalEntregue = (novosItens.length > 0 && novosItens.every(i => i.status === 'entregue')) || pedidoEmEdicao.status === 'servido' || pedidoEmEdicao.status === 'entregue';
+          const statusTexto = isTotalEntregue ? ' (✅ ENTREGUE)' : '';
+          const tituloEl = document.getElementById('modal-titulo');
+          if (tituloEl) tituloEl.innerText = `Editar Pedido: ${numMesa}${statusTexto}`;
+
+          // Mapeia seleções ativas dos checkboxes para não perder o que o usuário marcou
+          const selecoesAtuais = {};
+          (itensEmEdicao || []).forEach(i => {
+            if (i.id) selecoesAtuais[i.id] = i.selecionado;
+          });
+
+          // Atualiza itens mantendo seleções e preservando o foco se estiver digitando
+          const activeEl = document.activeElement;
+          const estaDigitando = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+
+          if (!estaDigitando) {
+            itensEmEdicao = novosItens.map(i => ({
+              ...i,
+              selecionado: !!selecoesAtuais[i.id]
+            }));
+            renderizarItensEdicao();
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar modal-edicao em tempo real:', err);
+    }
+  }
 
   // 2. Modal de Opções do Pedido (#modal-opcoes)
   const modalOpcoes = document.getElementById('modal-opcoes');
   if (modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.style.display !== '' && typeof pedidoEmOpcoes !== 'undefined' && pedidoEmOpcoes) {
     if (typeof abrirModalOpcoes === 'function') {
-      abrirModalOpcoes(pedidoEmOpcoes.id);
+      try {
+        const pAtual = pedidos.find(p => String(p.id) === String(pedidoEmOpcoes.id));
+        if (pAtual && pAtual.status !== pedidoEmOpcoes.status) {
+          abrirModalOpcoes(pAtual.id);
+        }
+      } catch(e){}
     }
   }
 
