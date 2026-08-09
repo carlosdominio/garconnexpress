@@ -1605,7 +1605,7 @@ input:checked + .slider:before {
 
 #lista-finalizados .pedido-card.minimized,
 #lista-cancelados .pedido-card.minimized {
-  height: 60px; /* Exact height for uniformity */
+  height: 80px; /* Aumentado de 60px para 80px */
   padding: 0 15px;
   display: flex;
   align-items: center;
@@ -1643,7 +1643,7 @@ input:checked + .slider:before {
 
 #lista-finalizados .pedido-card.minimized h3,
 #lista-cancelados .pedido-card.minimized h3 {
-  font-size: 1rem;
+  font-size: 1.2rem;
   margin: 0;
   text-align: left;
   display: block !important;
@@ -1651,7 +1651,7 @@ input:checked + .slider:before {
 
 #lista-finalizados .pedido-card.minimized .pedido-valor,
 #lista-cancelados .pedido-card.minimized .pedido-valor {
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   margin: 0;
   font-weight: 900;
   display: block !important;
