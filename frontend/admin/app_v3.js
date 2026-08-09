@@ -4054,55 +4054,8 @@ async function carregarPedidos() {
 }
 
 async function atualizarModaisAdminAbertosEmTempoReal() {
-  // 1. Modal de Edição / Visualização do Pedido (#modal-edicao)
-  const modalEdicao = document.getElementById('modal-edicao');
-  if (modalEdicao && modalEdicao.style.display === 'flex' && pedidoEmEdicao) {
-    
-    // SE o usuário fez alterações locais não salvas, NÃO sobrescreve!
-    if (temEdicoesLocaisNaoSalvas) return;
-    const temItensNaoSalvos = (itensEmEdicao || []).some(i => !i.id);
-    if (temItensNaoSalvos) return;
-
-    const pedId = pedidoEmEdicao.id;
-    try {
-      const resItens = await fetch(`/api/pedidos/${pedId}/itens?t=` + Date.now());
-      if (resItens.ok) {
-        const novosItens = await resItens.json();
-        
-        const pAtualizado = pedidos.find(p => String(p.id) === String(pedId));
-        if (pAtualizado) {
-          pedidoEmEdicao = { ...pedidoEmEdicao, ...pAtualizado };
-        } else {
-          try {
-            const resP = await fetch(`/api/pedidos/${pedId}?t=` + Date.now());
-            if (resP.ok) {
-              const pSolo = await resP.json();
-              if (pSolo && pSolo.id) pedidoEmEdicao = { ...pedidoEmEdicao, ...pSolo };
-            }
-          } catch(e){}
-        }
-
-        // Mapeia seleções ativas dos checkboxes para não perder o que o usuário marcou
-        const selecoesAtuais = {};
-        (itensEmEdicao || []).forEach(i => {
-          if (i.id) selecoesAtuais[i.id] = i.selecionado;
-        });
-
-        itensEmEdicao = novosItens.map(i => ({
-          ...i,
-          selecionado: !!selecoesAtuais[i.id]
-        }));
-
-        const numMesa = pedidoEmEdicao.mesa_numero ? 'Mesa ' + pedidoEmEdicao.mesa_numero : (pedidoEmEdicao.garcom_id === 'DELIVERY' ? `Delivery #${pedidoEmEdicao.id}` : 'Balcão');
-        const tituloEl = document.getElementById('modal-titulo');
-        if (tituloEl) tituloEl.innerText = `Editar Pedido: ${numMesa}`;
-
-        renderizarItensEdicao();
-      }
-    } catch (err) {
-      console.error('Erro ao atualizar modal-edicao em tempo real:', err);
-    }
-  }
+  // Nota: O modal-edicao não deve sofrer re-renderização de DOM em segundo plano enquanto estiver aberto,
+  // pois isso destrói o foco dos inputs de texto, rolagens e interações de edição do Administrador.
 
   // 2. Modal de Opções do Pedido (#modal-opcoes)
   const modalOpcoes = document.getElementById('modal-opcoes');
