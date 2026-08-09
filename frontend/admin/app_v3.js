@@ -5026,6 +5026,79 @@ async function confirmarEntregaDelivery(id) {
   }
 }
 
+function mostrarModalOpcoesEntregaAdmin(pedido, emPreparo, prontosOuForaCozinha, isDelivery) {
+  return new Promise((resolve) => {
+    let modalEl = document.getElementById('modal-opcao-entrega-admin');
+    if (!modalEl) {
+      modalEl = document.createElement('div');
+      modalEl.id = 'modal-opcao-entrega-admin';
+      modalEl.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 999999; display: flex; align-items: center; justify-content: center; padding: 15px;';
+      document.body.appendChild(modalEl);
+    }
+
+    const listaHtml = emPreparo.map(i => `<div style="font-weight: 600; color: #334155; margin-bottom: 2px;">• ${i.quantidade}x ${i.nome}</div>`).join('');
+    const temOutros = prontosOuForaCozinha.length > 0;
+
+    modalEl.innerHTML = `
+      <div style="background: white; border-radius: 16px; max-width: 440px; width: 100%; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2), 0 10px 10px -5px rgba(0,0,0,0.04); overflow: hidden; animation: popInModal 0.25s ease-out;">
+        <!-- CABEÇALHO COM BOTAO X DISCRETO -->
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #f1f5f9; background: #fff;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 1.3rem;">🚚</span>
+            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #1e293b;">Itens em Preparo</h3>
+          </div>
+          <span id="close-modal-opcao-admin" style="font-size: 1.5rem; font-weight: bold; color: #000; cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 4px; user-select: none;">&times;</span>
+        </div>
+
+        <!-- CORPO DO MODAL -->
+        <div style="padding: 18px; text-align: left;">
+          <p style="margin: 0 0 10px 0; font-size: 0.9rem; color: #475569; line-height: 1.4;">
+            Existem <strong>${emPreparo.length} item(ns)</strong> aguardando finalização da Cozinha ou Churrasqueiro:
+          </p>
+          <div style="background: #fff5f5; border: 1px solid #fed7d7; border-radius: 10px; padding: 10px 12px; font-size: 0.85rem; max-height: 120px; overflow-y: auto; margin-bottom: 16px;">
+            ${listaHtml}
+          </div>
+          <p style="margin: 0; font-size: 0.82rem; color: #64748b; text-align: center;">
+            Escolha uma ação como Administrador:
+          </p>
+        </div>
+
+        <!-- RODAPÉ COM 2 BOTÕES APENAS -->
+        <div style="padding: 0 18px 18px 18px; display: flex; flex-direction: column; gap: 10px;">
+          ${temOutros ? `
+            <button id="btn-entregar-parcial-admin" style="width: 100%; padding: 12px; border-radius: 10px; border: none; background: #27ae60; color: white; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 2px 4px rgba(39,174,96,0.2);">
+              <span>🚚</span> Entregar Apenas Prontos / Bebidas
+            </button>
+          ` : ''}
+          <button id="btn-forcar-admin" style="width: 100%; padding: 12px; border-radius: 10px; border: none; background: #e67e22; color: white; font-weight: 800; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 2px 4px rgba(230,126,34,0.2);">
+            <span>⚡</span> Forçar Entrega de Tudo (Admin)
+          </button>
+        </div>
+      </div>
+    `;
+
+    modalEl.style.display = 'flex';
+
+    const fechar = (opcao) => {
+      modalEl.style.display = 'none';
+      resolve(opcao);
+    };
+
+    const btnX = document.getElementById('close-modal-opcao-admin');
+    if (btnX) btnX.onclick = () => fechar('cancelar');
+
+    const btnParcial = document.getElementById('btn-entregar-parcial-admin');
+    if (btnParcial) btnParcial.onclick = () => fechar('parcial');
+
+    const btnForcar = document.getElementById('btn-forcar-admin');
+    if (btnForcar) btnForcar.onclick = () => fechar('forcar');
+
+    modalEl.onclick = (e) => {
+      if (e.target === modalEl) fechar('cancelar');
+    };
+  });
+}
+
 async function marcarPedidoEntregue(id) {
   try {
     const pedido = pedidos.find(p => p.id == id);
@@ -5059,50 +5132,39 @@ async function marcarPedidoEntregue(id) {
     // Itens que podem ser entregues agora (Prontos ou Bebidas/outros pendentes)
     const prontosOuForaCozinha = itens.filter(i => i.status === 'pronto' || (i.status === 'pendente' && !isItemParaCozinha(i) && !isItemParaChurrasco(i)));
 
-    // CASO 1: Existem itens na cozinha sendo feitos
+    // CASO 1: Existem itens na cozinha/churrasqueira sendo feitos
     if (emPreparo.length > 0) {
-      if (prontosOuForaCozinha.length > 0) {
-        // PERGUNTA SE QUER ENTREGA PARCIAL (Bebidas/Prontos)
-        const confirm = await mostrarConfirmacao(
-          `<div style="text-align: center;">
-            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🚚</div>
-            <p style="font-weight: bold; color: #e67e22; font-size: 1.1rem;">ENTREGA PARCIAL</p>
-            <p style="color: #2c3e50; margin-bottom: 10px;">Existem <strong>${emPreparo.length} itens</strong> na cozinha. Deseja entregar apenas as bebidas e itens prontos?</p>
-            <p style="font-size: 0.8rem; color: #7f8c8d;">${isDelivery ? "O delivery continuará ativo para os itens que ficarem." : "A mesa continuará ativa para os itens que ficarem."}</p>
-          </div>`,
-          "Cozinha em Andamento",
-          "Sim, Entregar Prontos",
-          "Não, Cancelar"
-        );
-
-        if (!confirm) return;
-
+      const opcao = await mostrarModalOpcoesEntregaAdmin(pedido, emPreparo, prontosOuForaCozinha, isDelivery);
+      
+      if (opcao === 'parcial') {
         const res = await fetch(`/api/pedidos/${id}/marcar-entregue`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ apenasProntos: true }),
           showLoadingTitle: isDelivery ? "Despachando Delivery..." : "Confirmando Entrega...",
-          showLoadingMsg: isDelivery ? "Registrando que o pedido saiu para entrega com o motoboy, aguarde por favor..." : "Registrando a entrega dos itens e atualizando o consumo, aguarde por favor..."
+          showLoadingMsg: "Registrando a entrega dos itens prontos, aguarde por favor..."
         });
 
         if (res.ok) {
           mostrarToast(isDelivery ? "🛵 Enviado para entrega!" : "✅ Itens prontos entregues!");
           carregarPedidos();
         }
-      } else {
-        // BLOQUEIO TOTAL (SÓ TEM COZINHA PENDENTE)
-        const listaHtml = emPreparo.map(i => `• ${i.quantidade}x ${i.nome}`).join('<br>');
-        await mostrarAlerta(`
-          <div style="text-align: center;">
-            <div style="font-size: 3rem; margin-bottom: 1rem;">🍳</div>
-            <p style="font-weight: bold; color: #e74c3c; font-size: 1.1rem; margin-bottom: 10px;">PEDIDO EM PREPARO NA COZINHA!</p>
-            <p style="color: #2c3e50; margin-bottom: 15px;">Este pedido não pode ser marcado como entregue enquanto a cozinha não finalizar os seguintes itens:</p>
-            <div style="background: #fff5f5; padding: 10px; border-radius: 8px; border: 1px solid #feb2b2; text-align: left; font-size: 0.9rem; max-height: 100px; overflow-y: auto;">
-              ${listaHtml}
-            </div>
-            <p style="font-size: 0.8rem; color: #666; margin-top: 15px;">Aguarde a cozinha finalizar para confirmar a entrega.</p>
-          </div>
-        `, "Cozinha Ativa", "🍳");
+      } else if (opcao === 'forcar') {
+        const res = await fetch(`/api/pedidos/${id}/marcar-entregue`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apenasProntos: false, forcarAdmin: true }),
+          showLoadingTitle: isDelivery ? "Despachando Delivery..." : "Confirmando Entrega...",
+          showLoadingMsg: "Forçando confirmação de entrega como Admin, aguarde por favor..."
+        });
+
+        if (res.ok) {
+          mostrarToast("⚡ Entrega total confirmada pelo Administrador!");
+          carregarPedidos();
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          mostrarAlerta(errData.mensagem || "Erro ao entregar pedido", "Erro", "❌");
+        }
       }
       return;
     }

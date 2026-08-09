@@ -3197,7 +3197,7 @@ async function getFilterPreparo() {
 const marcarEntregueLocks = new Set();
 app.put('/api/pedidos/:id/marcar-entregue', statusLimiter, isAuthenticated, async (req, res) => {
   const { id } = req.params;
-  const { apenasProntos } = req.body;
+  const { apenasProntos, forcarAdmin } = req.body;
   if (marcarEntregueLocks.has(id)) return res.status(429).json({ error: 'Processando requisição anterior, aguarde...' });
   marcarEntregueLocks.add(id);
   try {
@@ -3212,21 +3212,23 @@ app.put('/api/pedidos/:id/marcar-entregue', statusLimiter, isAuthenticated, asyn
         AND (status = 'pronto' OR (status = 'pendente' AND menu_id IN (SELECT id FROM menu m WHERE NOT (${filterPreparo}))))
       `, [id]);
     } else {
-      // BLOQUEIO SERVER-SIDE: Verifica se há itens SENDO FEITOS na cozinha ou no churrasqueiro
-      const prep = await query(`
-        SELECT pi.id 
-        FROM pedido_itens pi 
-        JOIN menu m ON pi.menu_id = m.id 
-        WHERE pi.pedido_id = ? 
-        AND pi.status = 'pendente' 
-        AND (${filterPreparo})
-      `, [id]);
+      // BLOQUEIO SERVER-SIDE: Verifica se há itens SENDO FEITOS na cozinha ou no churrasqueiro (a menos que seja forçar como Admin)
+      if (!forcarAdmin) {
+        const prep = await query(`
+          SELECT pi.id 
+          FROM pedido_itens pi 
+          JOIN menu m ON pi.menu_id = m.id 
+          WHERE pi.pedido_id = ? 
+          AND pi.status = 'pendente' 
+          AND (${filterPreparo})
+        `, [id]);
 
-      if (prep.rows.length > 0) {
-        return res.status(400).json({ 
-          error: 'COZINHA_ATIVA', 
-          mensagem: `Não é possível entregar tudo! Existem ${prep.rows.length} itens ainda em preparo (Cozinha/Churrasco).` 
-        });
+        if (prep.rows.length > 0) {
+          return res.status(400).json({ 
+            error: 'COZINHA_ATIVA', 
+            mensagem: `Não é possível entregar tudo! Existem ${prep.rows.length} itens ainda em preparo (Cozinha/Churrasco).` 
+          });
+        }
       }
 
       await query("UPDATE pedido_itens SET status = 'entregue' WHERE pedido_id = ?", [id]);
