@@ -2488,6 +2488,39 @@ async function excluirMesa(id) {
   if (await mostrarConfirmacao("Remover mesa?", "Configuração", "Confirmar", "Cancelar", "🗑️")) { await fetch(`/api/mesas/${id}`, { method: 'DELETE' }); exibirMesasConfig(); }
 }
 
+window.editarNomeMesa = async function(id, nomeAtual) {
+  const { value: novoNome } = await Swal.fire({
+    title: 'Editar Nome da Mesa/Comanda',
+    input: 'text',
+    inputValue: nomeAtual,
+    showCancelButton: true,
+    confirmButtonText: 'Salvar',
+    cancelButtonText: 'Cancelar',
+    inputValidator: (value) => {
+      if (!value) return 'O nome não pode ficar vazio!';
+    }
+  });
+
+  if (novoNome && novoNome.trim() !== nomeAtual) {
+    try {
+      const res = await fetch(`/api/mesas/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numero: novoNome.trim() })
+      });
+      if (res.ok) {
+        mostrarToast('Nome da mesa atualizado!');
+        await exibirMesasConfig();
+        if (typeof carregarMesasLancar === 'function') await carregarMesasLancar();
+      } else {
+        mostrarAlerta('Erro ao editar a mesa');
+      }
+    } catch (e) {
+      mostrarAlerta('Erro de conexão');
+    }
+  }
+}
+
 // GARÇONS
 let idGarcomEdicao = null;
 
