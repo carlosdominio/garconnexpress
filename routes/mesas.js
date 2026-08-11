@@ -6,13 +6,14 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
   router.post('/', ensureDbInitialized, isAuthenticated, async (req, res) => { 
     try {
       const numOuNome = String(req.body.numero || '').trim();
+      const tipo = String(req.body.tipo || 'mesa').trim();
       if (!numOuNome) return res.status(400).json({ error: 'Informe o número ou nome da mesa/comanda' });
 
-      const ins = await query('INSERT INTO mesas (numero) VALUES (?)', [numOuNome]);
+      const ins = await query('INSERT INTO mesas (numero, tipo) VALUES (?, ?)', [numOuNome, tipo]);
       const novaId = ins.rows?.[0]?.id || ins.insertId || null;
 
       await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
-      res.json({ success: true, id: novaId, numero: numOuNome }); 
+      res.json({ success: true, id: novaId, numero: numOuNome, tipo: tipo }); 
     } catch (error) { 
       console.error('❌ ERRO EM POST /api/mesas:', error);
       res.status(500).json({ error: error.message }); 
@@ -44,6 +45,17 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     try {
       await query('DELETE FROM mesas WHERE id = ?', [req.params.id]); 
       res.json({ success: true }); 
+    } catch (error) { res.status(500).json({ error: error.message }); }
+  });
+
+  router.put('/:id', ensureDbInitialized, isAdmin, async (req, res) => {
+    try {
+      const mesaId = req.params.id;
+      const novoNome = String(req.body.numero || '').trim();
+      if (!novoNome) return res.status(400).json({ error: 'Nome inválido' });
+      await query('UPDATE mesas SET numero = ? WHERE id = ?', [novoNome, mesaId]);
+      await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
+      res.json({ success: true });
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 

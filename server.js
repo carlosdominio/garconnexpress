@@ -2684,6 +2684,7 @@ async function initDb() {
     await addCol('push_subscriptions', 'app_type', "TEXT DEFAULT 'garcom'");
     await addCol('push_subscriptions', 'is_native', 'INTEGER DEFAULT 0'); // 1 = token FCM nativo (Capacitor), 0 = Web Push
     await addCol('mesas', 'garcom_id', 'TEXT');
+    await addCol('mesas', 'tipo', "TEXT DEFAULT 'mesa'");
     await addCol('pedidos', 'forma_pagamento', 'TEXT');
     await addCol('pedidos', 'notificado_atraso', 'INTEGER DEFAULT 0');
     await addCol('pedidos', 'notificado_atraso_fechamento', 'INTEGER DEFAULT 0');
@@ -3564,7 +3565,7 @@ app.get('/api/caixa/:id/movimentacoes', isAdmin, async (req, res) => {
 app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, isAuthenticated, async (req, res) => {
   try {
     const pedidosRes = await query(`
-      SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, g.nome as garcom_nome 
+      SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, m.tipo as mesa_tipo, g.nome as garcom_nome 
       FROM pedidos p 
       LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
       LEFT JOIN garcons g ON p.garcom_id = g.usuario

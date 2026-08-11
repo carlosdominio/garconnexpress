@@ -1401,7 +1401,8 @@ function renderizarMesasSelectLancar(mesas) {
     mesas.map(m => {
       const isNum = /^\d+$/.test(String(m.numero || '').trim());
       const label = isNum ? `Mesa ${m.numero}` : m.numero;
-      return `<option value="${m.id}">${label} (${m.status.toUpperCase()})</option>`;
+      const badge = m.tipo === 'balcao' ? ' 🏪 (Balcão)' : '';
+      return `<option value="${m.id}">${label}${badge} (${m.status.toUpperCase()})</option>`;
     }).join('');
   
   if (select.innerHTML !== optionsHtml) {
@@ -1459,8 +1460,15 @@ async function abrirModalCriarComandaLancar() {
         <div style="padding: 20px; text-align: left;">
           <label style="display: block; font-weight: bold; color: #334155; font-size: 0.9rem; margin-bottom: 6px;">Número ou Nome da Comanda/Mesa:</label>
           <input type="text" id="input-nome-comanda-novo" placeholder="ex: 15, VIP, Comanda 05, João..." 
-                 style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 2px solid #cbd5e0; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc;">
-          <p style="font-size: 0.78rem; color: #64748b; margin: 8px 0 0 0;">Ela ficará disponível imediatamente para lançar pedidos no Admin e nos Garçons.</p>
+                 style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 2px solid #cbd5e0; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc; margin-bottom: 12px;">
+          
+          <label style="display: block; font-weight: bold; color: #334155; font-size: 0.9rem; margin-bottom: 6px;">Direcionar para:</label>
+          <select id="select-tipo-comanda-novo" style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 2px solid #cbd5e0; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc;">
+            <option value="mesa">🍽️ Mesas</option>
+            <option value="balcao">🏪 Balcão</option>
+          </select>
+
+          <p style="font-size: 0.78rem; color: #64748b; margin: 12px 0 0 0;">Ela ficará disponível imediatamente para lançar pedidos no Admin e nos Garçons.</p>
         </div>
 
         <!-- RODAPÉ -->
@@ -1484,13 +1492,14 @@ async function abrirModalCriarComandaLancar() {
 
     const salvar = async () => {
       const valor = (inputTxt ? inputTxt.value : '').trim();
+      const tipo = document.getElementById('select-tipo-comanda-novo') ? document.getElementById('select-tipo-comanda-novo').value : 'mesa';
       if (!valor) return mostrarAlerta("Digite o número ou nome da mesa/comanda", "Atenção", "⚠️");
 
       try {
         const res = await fetch('/api/mesas', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ numero: valor })
+          body: JSON.stringify({ numero: valor, tipo: tipo })
         });
         if (res.ok) {
           const data = await res.json();
@@ -2440,7 +2449,13 @@ async function exibirMesasConfig() {
   container.innerHTML = mesas.map(m => {
     const isNum = /^\d+$/.test(String(m.numero || '').trim());
     const label = isNum ? `Mesa ${m.numero}` : m.numero;
-    return `<div class="item-config"><span>${label}</span><button class="btn-excluir" onclick="excluirMesa(${m.id})">Excluir</button></div>`;
+    return `<div class="item-config">
+      <span>${label} ${m.tipo === 'balcao' ? '<small style="color:#27ae60;font-weight:bold;">(Balcão)</small>' : ''}</span>
+      <div>
+        <button class="btn-editar" onclick="editarNomeMesa(${m.id}, '${String(m.numero).replace(/'/g, "\\'")}')" style="background:#f39c12; color:white; border:none; border-radius:5px; padding:5px 10px; cursor:pointer; margin-right:5px; font-weight:bold; font-size:0.8rem;">Editar</button>
+        <button class="btn-excluir" onclick="excluirMesa(${m.id})">Excluir</button>
+      </div>
+    </div>`;
   }).join('');
 }
 
@@ -2453,7 +2468,7 @@ async function adicionarMesa() {
     const res = await fetch('/api/mesas', { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify({ numero: numOuNome }) 
+      body: JSON.stringify({ numero: numOuNome, tipo: 'mesa' }) 
     });
     if (res.ok) {
       if (inputEl) inputEl.value = '';
@@ -4493,7 +4508,7 @@ function atualizarSelectMesasAtivas() {
   // Filtra os pedidos baseado na aba ativa (Garçom, Balcão ou Delivery)
   const pedidosFiltrados = pedidos.filter(p => {
     const isDelivery = (p.garcom_id === 'DELIVERY');
-    const isMesa = (p.mesa_id !== null && p.mesa_id !== undefined && p.mesa_id !== '');
+    const isMesa = (p.mesa_id !== null && p.mesa_id !== undefined && p.mesa_id !== '') && (p.mesa_tipo !== 'balcao');
 
     if (subAbaAtiva === 'delivery') return isDelivery;
     if (subAbaAtiva === 'garcom') return isMesa && !isDelivery;
@@ -4502,6 +4517,7 @@ function atualizarSelectMesasAtivas() {
 
   const nomesMesas = [...new Set(pedidosFiltrados.map(p => {
     if (p.garcom_id === 'DELIVERY') return `🛵 DELIVERY #${p.id}`;
+    if (p.mesa_tipo === 'balcao') return `🏪 BALCÃO: ${p.mesa_numero}`;
     return p.mesa_numero ? `Mesa ${p.mesa_numero}` : `BALCÃO #${p.id}`;
   }))].sort((a, b) => {
     if (a.startsWith('BALCÃO') || a.startsWith('Pedido')) return -1;
@@ -4741,7 +4757,7 @@ async function exibirPedidos() {
           </div>
         </div>`;
       
-      const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '');
+      const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '') && (pedido.mesa_tipo !== 'balcao');
       const group = isDelivery ? 'delivery' : (isMesa ? 'garcom' : 'balcao');
       let targetCol = 'pendentes';
       if (isAguardando) targetCol = 'fechamento';
@@ -4941,7 +4957,7 @@ function verificarAlertasSubTabs() {
 
   (pedidos || []).forEach(pedido => {
     const isDelivery = (pedido.garcom_id === 'DELIVERY');
-    const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '');
+    const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '') && (pedido.mesa_tipo !== 'balcao');
     const isAguardando = (pedido.status === 'aguardando_fechamento');
 
     const group = isDelivery ? 'delivery' : (isMesa ? 'garcom' : 'balcao');
@@ -8255,8 +8271,8 @@ async function abrirModalOpcoes(pedidoId) {
           </button>
         `;
       } else {
-        const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '');
-        const isBalcao = (pedido.garcom_id === 'ADMIN' && !isMesa);
+        const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '') && (pedido.mesa_tipo !== 'balcao');
+        const isBalcao = (pedido.mesa_tipo === 'balcao') || (pedido.garcom_id === 'ADMIN' && !isMesa);
         htmlFooter = `
           <button onclick="fecharModalOpcoes(); marcarPedidoEntregue(${pedidoId})" style="background:${isBalcao ? '#e74c3c' : '#e67e22'}; color:white; border:none; padding: 1.2rem; width: 100%; font-weight: 900; border-radius:12px; font-size: 1.1rem; box-shadow:0 5px 0 ${isBalcao ? '#c0392b' : '#d35400'}; cursor:pointer;">
             🚚 ENTREGAR TUDO AGORA
