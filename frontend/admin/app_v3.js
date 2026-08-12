@@ -4818,7 +4818,7 @@ async function exibirPedidos() {
         if (card.className !== newClassName) card.className = newClassName;
         if (card.dataset.mesa !== mesaNomeExibicao) card.dataset.mesa = mesaNomeExibicao;
         const currentSig = card.getAttribute('data-content-signature');
-        const newSig = `${newClassName}_${itens.length}_${itensPendentes.length}_${itensProntos.length}_${itensEntregues.length}_${totalExibicao}_${pedido.status}_${pedido.forma_pagamento}_${minutosCronometro}`;
+        const newSig = `${newClassName}_${mesaNomeExibicao}_${itens.length}_${itensPendentes.length}_${itensProntos.length}_${itensEntregues.length}_${totalExibicao}_${pedido.status}_${pedido.forma_pagamento}_${minutosCronometro}`;
         if (currentSig !== newSig) {
           card.innerHTML = cardInnerHTML;
           card.setAttribute('data-content-signature', newSig);
