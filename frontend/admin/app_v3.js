@@ -1539,7 +1539,7 @@ async function carregarMesasLancar() {
     renderizarMesasSelectLancar(_mesasLancarCache);
   }
   try {
-    const res = await fetch('/api/mesas');
+    const res = await fetch('/api/mesas?t=' + Date.now());
     const mesas = await res.json();
     renderizarMesasSelectLancar(mesas);
   } catch (e) {
@@ -2439,7 +2439,7 @@ async function salvarConfigCategoriasChurrasco() {
 
 // MESAS
 async function exibirMesasConfig() {
-  const res = await fetch('/api/mesas');
+  const res = await fetch('/api/mesas?t=' + Date.now());
   if (!res.ok) return; // Proteção contra 401
   const mesas = await res.json();
   if (!Array.isArray(mesas)) return; // Garante que é array antes de mapear
@@ -2512,6 +2512,7 @@ window.editarNomeMesa = async function(id, nomeAtual) {
         mostrarToast('Nome da mesa atualizado!');
         await exibirMesasConfig();
         if (typeof carregarMesasLancar === 'function') await carregarMesasLancar();
+        if (typeof carregarPedidos === 'function') carregarPedidos();
       } else {
         mostrarAlerta('Erro ao editar a mesa');
       }
@@ -4188,8 +4189,8 @@ async function imprimirResumoDiario() {
 async function carregarPedidos() {
   try {
     const [resPedidos, resMesas] = await Promise.all([
-      fetch('/api/pedidos/ativos-detalhado'),
-      fetch('/api/mesas')
+      fetch('/api/pedidos/ativos-detalhado?t=' + Date.now()),
+      fetch('/api/mesas?t=' + Date.now())
     ]);
     
     if (resPedidos.ok) pedidos = await resPedidos.json();
