@@ -3921,7 +3921,12 @@ app.delete('/api/pedidos/:id', isAdmin, async (req, res) => {
     
     if (pedido) {
       if (pedido.status !== 'entregue' && pedido.status !== 'cancelado' && pedido.mesa_id) {
-        await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [pedido.mesa_id]);
+        const checkAtivos = await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho')", [pedido.mesa_id]);
+        if (checkAtivos.rows.length === 0) {
+            await query("DELETE FROM mesas WHERE id = ?", [pedido.mesa_id]);
+        } else {
+            await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [pedido.mesa_id]);
+        }
         await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [pedido.mesa_id]);
 
         // Notifica o cliente para encerrar o acesso
@@ -4863,9 +4868,14 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
     const mesaNum = pm ? (pm.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : (pm.numero || 'BALCÃO')) : 'BALCÃO';
     const localStr = pm && pm.garcom_id === 'DELIVERY' ? `${mesaNum}` : `Mesa ${mesaNum}`;
 
-    // Se o status for cancelado ou entregue, libera a mesa e o código
+    // Se o status for cancelado ou entregue, libera a mesa e o código, e deleta a mesa se estiver vazia
     if ((status === 'cancelado' || status === 'entregue') && pm && pm.mesa_id) {
-        await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [pm.mesa_id]);
+        const checkAtivos = await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND id != ?", [pm.mesa_id, id]);
+        if (checkAtivos.rows.length === 0) {
+            await query("DELETE FROM mesas WHERE id = ?", [pm.mesa_id]);
+        } else {
+            await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [pm.mesa_id]);
+        }
         await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [pm.mesa_id]);
 
         // Notifica o cliente logado para encerrar o acesso

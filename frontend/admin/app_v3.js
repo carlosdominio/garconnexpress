@@ -4550,7 +4550,7 @@ function atualizarSelectMesasAtivas() {
 
   const nomesMesas = [...new Set(pedidosFiltrados.map(p => {
     if (p.garcom_id === 'DELIVERY') return `🛵 DELIVERY #${p.id}`;
-    if (p.mesa_tipo === 'balcao') return `🏪 BALCÃO: ${p.mesa_numero}`;
+    if (p.mesa_tipo === 'balcao') return `🏪 Balcão ${p.mesa_numero}`;
     return p.mesa_numero ? `Mesa ${p.mesa_numero}` : `BALCÃO #${p.id}`;
   }))].sort((a, b) => {
     if (a.startsWith('BALCÃO') || a.startsWith('Pedido')) return -1;
