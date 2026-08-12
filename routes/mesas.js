@@ -54,7 +54,7 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       const novoNome = String(req.body.numero || '').trim();
       if (!novoNome) return res.status(400).json({ error: 'Nome inválido' });
       await query('UPDATE mesas SET numero = ? WHERE id = ?', [novoNome, mesaId]);
-      await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
+      safePusherTrigger('garconnexpress', 'menu-atualizado', {}).catch(e=>console.error(e));
       res.json({ success: true });
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
