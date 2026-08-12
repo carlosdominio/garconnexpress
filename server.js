@@ -3564,14 +3564,32 @@ app.get('/api/caixa/:id/movimentacoes', isAdmin, async (req, res) => {
 
 app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, isAuthenticated, async (req, res) => {
   try {
-    const pedidosRes = await query(`
-      SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, m.tipo as mesa_tipo, g.nome as garcom_nome 
-      FROM pedidos p 
-      LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
-      LEFT JOIN garcons g ON p.garcom_id = g.usuario
-      WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho')
-      ORDER BY p.created_at DESC
+    let pedidosRes;
+    try {
+      pedidosRes = await query(`
+        SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, m.tipo as mesa_tipo, g.nome as garcom_nome 
+        FROM pedidos p 
+        LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
+        LEFT JOIN garcons g ON p.garcom_id = g.usuario
+        WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho')
+        ORDER BY p.created_at DESC
       `);
+    } catch (e) {
+      console.warn("Query com m.tipo falhou, fazendo fallback e tentando migração novamente", e.message);
+      // Tentativa de migração de emergência
+      try {
+        if (isPostgres) await query("ALTER TABLE mesas ADD COLUMN IF NOT EXISTS tipo TEXT DEFAULT 'mesa'");
+      } catch (migErr) {}
+      
+      pedidosRes = await query(`
+        SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, 'mesa' as mesa_tipo, g.nome as garcom_nome 
+        FROM pedidos p 
+        LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
+        LEFT JOIN garcons g ON p.garcom_id = g.usuario
+        WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho')
+        ORDER BY p.created_at DESC
+      `);
+    }
     
     const pedidos = pedidosRes.rows.map(p => {
       if (p.created_str) {
