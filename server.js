@@ -3798,7 +3798,10 @@ app.get('/api/pedidos/:id/pagamentos', isAuthenticated, async (req, res) => {
 app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, isAuthenticated, async (req, res) => {
   try {
     const pedidosRes = await query(`
-      SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome 
+      SELECT p.*, 
+        COALESCE(m.numero, p.mesa_numero, CAST(p.mesa_id AS TEXT)) as mesa_numero, 
+        COALESCE(m.is_comanda, p.is_comanda, 0) as is_comanda, 
+        g.nome as garcom_nome 
       FROM pedidos p 
       LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
       LEFT JOIN garcons g ON p.garcom_id = g.usuario 
@@ -3845,7 +3848,7 @@ app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, isAuthenticated
 
 app.get('/api/pedidos/historico', isAuthenticated, async (req, res) => {
   try {
-    const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status IN ('entregue', 'cancelado') ORDER BY p.created_at DESC LIMIT 50`);
+    const result = await query(`SELECT p.*, COALESCE(m.numero, p.mesa_numero, CAST(p.mesa_id AS TEXT)) as mesa_numero, COALESCE(m.is_comanda, p.is_comanda, 0) as is_comanda, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status IN ('entregue', 'cancelado') ORDER BY p.created_at DESC LIMIT 50`);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -3885,7 +3888,7 @@ app.get('/api/pedidos/ativo-telefone/:telefone', ensureDbInitialized, isAuthenti
 
 app.get('/api/pedidos/:id', ensureDbInitialized, isAuthenticated, async (req, res) => {
   try {
-    const result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
+    const result = await query(`SELECT p.*, COALESCE(m.numero, p.mesa_numero, CAST(p.mesa_id AS TEXT)) as mesa_numero, COALESCE(m.is_comanda, p.is_comanda, 0) as is_comanda, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Pedido não encontrado' });
     }
@@ -4925,6 +4928,7 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
     if ((status === 'cancelado' || status === 'entregue') && pm && pm.mesa_id) {
         const checkAtivos = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND id != ?", [pm.mesa_id, pm.numero, id]);
         if (checkAtivos.rows.length === 0) {
+            await query("UPDATE pedidos SET mesa_numero = ?, is_comanda = ? WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT))", [mesaNum, isCom, pm.mesa_id, pm.numero]).catch(() => {});
             await query("DELETE FROM mesas WHERE (id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)) AND COALESCE(is_comanda, 0) = 1", [pm.mesa_id, pm.numero]);
             await query("UPDATE mesas SET status = 'livre' WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [pm.mesa_id, pm.numero]);
         }
