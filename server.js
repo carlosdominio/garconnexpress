@@ -3922,7 +3922,7 @@ app.delete('/api/pedidos/itens/:id', isAuthenticated, async (req, res) => {
 app.delete('/api/pedidos/:id', isAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    const pedido = (await query("SELECT p.mesa_id, p.garcom_id, p.status, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
+    const pedido = (await query("SELECT m.id as mesa_id, p.garcom_id, p.status, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
     const itens = (await query("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
     
     if (pedido && pedido.status !== 'cancelado' && pedido.status !== 'entregue') {
@@ -3935,7 +3935,7 @@ app.delete('/api/pedidos/:id', isAdmin, async (req, res) => {
     
     if (pedido) {
       if (pedido.status !== 'entregue' && pedido.status !== 'cancelado' && pedido.mesa_id) {
-        const checkAtivos = await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho')", [pedido.mesa_id]);
+        const checkAtivos = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado', 'rascunho')", [pedido.mesa_id, pedido.numero]);
         if (checkAtivos.rows.length === 0) {
             await query("DELETE FROM mesas WHERE id = ? AND COALESCE(is_comanda, 0) = 1", [pedido.mesa_id]);
         } else {
@@ -4878,13 +4878,13 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
       return res.json({ success: true, already: true });
     }
     const prevStatus = txResult.prevStatus;
-    const pm = (await query("SELECT p.mesa_id, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
+    const pm = (await query("SELECT m.id as mesa_id, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
     const mesaNum = pm ? (pm.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : (pm.numero || 'BALCÃO')) : 'BALCÃO';
     const localStr = pm && pm.garcom_id === 'DELIVERY' ? `${mesaNum}` : `Mesa ${mesaNum}`;
 
     // Se o status for cancelado ou entregue, libera a mesa e o código, e deleta a mesa se estiver vazia
     if ((status === 'cancelado' || status === 'entregue') && pm && pm.mesa_id) {
-        const checkAtivos = await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND id != ?", [pm.mesa_id, id]);
+        const checkAtivos = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND id != ?", [pm.mesa_id, pm.numero, id]);
         if (checkAtivos.rows.length === 0) {
             await query("DELETE FROM mesas WHERE id = ? AND COALESCE(is_comanda, 0) = 1", [pm.mesa_id]);
         } else {
