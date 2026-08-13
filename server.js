@@ -3799,8 +3799,8 @@ app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, isAuthenticated
   try {
     const pedidosRes = await query(`
       SELECT p.*, 
-        COALESCE(m.numero, p.mesa_numero, CAST(p.mesa_id AS TEXT)) as mesa_numero, 
-        COALESCE(m.is_comanda, p.is_comanda, 0) as is_comanda, 
+        m.numero as mesa_numero, 
+        m.is_comanda as is_comanda, 
         g.nome as garcom_nome 
       FROM pedidos p 
       LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
@@ -3848,7 +3848,7 @@ app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, isAuthenticated
 
 app.get('/api/pedidos/historico', isAuthenticated, async (req, res) => {
   try {
-    const result = await query(`SELECT p.*, COALESCE(m.numero, p.mesa_numero, CAST(p.mesa_id AS TEXT)) as mesa_numero, COALESCE(m.is_comanda, p.is_comanda, 0) as is_comanda, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status IN ('entregue', 'cancelado') ORDER BY p.created_at DESC LIMIT 50`);
+    const result = await query(`SELECT p.*, m.numero as mesa_numero, m.is_comanda as is_comanda, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status IN ('entregue', 'cancelado') ORDER BY p.created_at DESC LIMIT 50`);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -3888,7 +3888,7 @@ app.get('/api/pedidos/ativo-telefone/:telefone', ensureDbInitialized, isAuthenti
 
 app.get('/api/pedidos/:id', ensureDbInitialized, isAuthenticated, async (req, res) => {
   try {
-    const result = await query(`SELECT p.*, COALESCE(m.numero, p.mesa_numero, CAST(p.mesa_id AS TEXT)) as mesa_numero, COALESCE(m.is_comanda, p.is_comanda, 0) as is_comanda, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
+    const result = await query(`SELECT p.*, m.numero as mesa_numero, m.is_comanda as is_comanda, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Pedido não encontrado' });
     }
