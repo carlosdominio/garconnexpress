@@ -7087,14 +7087,19 @@ async function configurarPusher() {
 
 function formatarNomeMesaNotificacao(numero, isComanda) {
   if (!numero) return 'Balcão';
-  const str = String(numero).trim();
+  let str = String(numero).trim();
   if (!str || str === 'X') return 'Balcão';
-  if (/^(mesa|comanda|delivery|balcão|balcao)\b/i.test(str)) {
+  const isCom = (isComanda == 1 || isComanda === true);
+  if (/^mesa\b/i.test(str)) {
+    if (isCom) str = str.replace(/^mesa\b/i, 'Comanda');
+    return str;
+  }
+  if (/^(comanda|delivery|balcão|balcao)\b/i.test(str)) {
     return str;
   }
   const isNum = /^\d+$/.test(str);
   if (isNum) {
-    return (isComanda == 1 || isComanda === true) ? `Comanda ${str}` : `Mesa ${str}`;
+    return isCom ? `Comanda ${str}` : `Mesa ${str}`;
   }
   return str;
 }

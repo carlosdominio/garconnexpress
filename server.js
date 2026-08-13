@@ -2463,10 +2463,20 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
     // Fallback final
     if (!mesaNum) mesaNum = 'BALCÃO';
     
+    let isComandaFlag = 0;
+    if (pedidoId) {
+      const cRes = await query("SELECT m.is_comanda FROM pedidos p JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [pedidoId]);
+      if (cRes.rows[0]) isComandaFlag = cRes.rows[0].is_comanda ? 1 : 0;
+    } else if (finalMesaId) {
+      const cRes = await query("SELECT is_comanda FROM mesas WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [finalMesaId, finalMesaId]);
+      if (cRes.rows[0]) isComandaFlag = cRes.rows[0].is_comanda ? 1 : 0;
+    }
+
     const payload = { 
       pedido_id: pedidoId, 
       mesa_id: finalMesaId, 
       mesa_numero: mesaNum, 
+      is_comanda: isComandaFlag,
       status: status, 
       garcom_id: garcomId,
       detalhes_edicao: detalhesEdicao 
@@ -4593,15 +4603,17 @@ app.post('/api/cliente/solicitar-conta', async (req, res) => {
     await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [mesaId]); 
 
     // 2. Busca número da mesa para a notificação
-    const mesaRes = await query("SELECT numero FROM mesas WHERE id = ?", [mesaId]);
-    const mesaNum = mesaRes.rows[0]?.numero || '??';
+    const mesaRes = await query("SELECT numero, is_comanda FROM mesas WHERE id = ?", [mesaId]);
+    const isCom = mesaRes.rows[0]?.is_comanda;
+    const mesaNum = formatarNomeMesaOuComanda(mesaRes.rows[0]?.numero, isCom);
 
     // 3. Notifica Garçom e Admin via Pusher (Som + Modal + Visual Pulsante)
     await safePusherTrigger('garconnexpress', 'solicitacao-fechamento-cliente', {
       pedido_id: pedido.id,
       mesa_id: mesaId,
       mesa_numero: mesaNum,
-      mensagem: `🙋‍♂️ MESA ${mesaNum} solicitou o fechamento da conta!`
+      is_comanda: isCom,
+      mensagem: `🙋‍♂️ ${mesaNum} solicitou o fechamento da conta!`
     });
 
     res.json({ success: true });
@@ -4640,11 +4652,7 @@ app.put('/api/pedidos/:id/solicitar-fechamento', isAuthenticated, async (req, re
     if (mesa_id) await query("UPDATE mesas SET status = 'fechando' WHERE id = ?", [mesa_id]);
     
     // Notifica o garçom e admin em tempo real sobre a atualização do pedido/mesa
-    safePusherTrigger('garconnexpress', 'status-atualizado', {
-        pedido_id: id,
-        mesa_id: mesa_id,
-        status: 'aguardando_fechamento'
-    }).catch(console.error);
+    await notifyStatus(id, mesa_id, 'aguardando_fechamento');
 
     // Notifica o cliente no cardápio digital em tempo real
     if (mesa_id) {
