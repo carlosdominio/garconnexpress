@@ -536,6 +536,8 @@ async function iniciarPainelAdmin() {
   carregarConfiguracoesToasts();
   configurarPusher();
   window.addEventListener('focus', () => pararPiscarTitulo());
+  document.addEventListener('click', () => pararPiscarTitulo());
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pararPiscarTitulo(); });
   
   // Listener para imprimir cupom parcial direto do modal de edição
   const btnImprimir = document.getElementById('btn-imprimir-edicao');
