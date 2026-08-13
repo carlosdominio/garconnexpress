@@ -28,28 +28,55 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
 
   router.put('/:id/liberar', ensureDbInitialized, isAuthenticated, async (req, res) => { 
     try { 
-      const mesaId = req.params.id;
-      await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [mesaId]); 
-      await query("UPDATE codigos_acesso SET status = 'expirado' WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status = 'ativo'", [mesaId]);
-      
-      // Limpa rascunhos antigos/órfãos da mesa liberada
-      await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT id FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status = 'rascunho')", [mesaId]);
-      await query("DELETE FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status = 'rascunho'", [mesaId]);
+      const paramId = req.params.id;
+      const mRes = await query("SELECT id, numero, is_comanda FROM mesas WHERE CAST(id AS TEXT) = CAST(? AS TEXT) OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [paramId, paramId]);
+      const m = mRes.rows[0];
 
-      // Notifica o cliente para encerrar o acesso
-      await safePusherTrigger('garconnexpress', `deslogar-mesa-${mesaId}`, { 
-        status: 'cancelado',
-        mensagem: "Mesa liberada pelo estabelecimento. Seu acesso foi encerrado." 
-      });
+      if (m) {
+        if (Number(m.is_comanda) === 1) {
+          await query("DELETE FROM mesas WHERE id = ?", [m.id]);
+        } else {
+          await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [m.id]);
+        }
+        await query("UPDATE codigos_acesso SET status = 'expirado' WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'ativo'", [m.id, m.numero, paramId]);
+        
+        // Limpa rascunhos antigos/órfãos da mesa liberada
+        await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'rascunho')", [m.id, m.numero]);
+        await query("DELETE FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'rascunho'", [m.id, m.numero]);
 
-      await notifyStatus(null, mesaId, 'liberada'); 
+        // Notifica o cliente para encerrar o acesso
+        await safePusherTrigger('garconnexpress', `deslogar-mesa-${m.id}`, { 
+          status: 'cancelado',
+          mensagem: "Mesa liberada pelo estabelecimento. Seu acesso foi encerrado." 
+        });
+        if (m.numero != m.id) {
+          await safePusherTrigger('garconnexpress', `deslogar-mesa-${m.numero}`, { 
+            status: 'cancelado',
+            mensagem: "Mesa liberada pelo estabelecimento. Seu acesso foi encerrado." 
+          });
+        }
+        if (paramId != m.id && paramId != m.numero) {
+          await safePusherTrigger('garconnexpress', `deslogar-mesa-${paramId}`, { 
+            status: 'cancelado',
+            mensagem: "Mesa liberada pelo estabelecimento. Seu acesso foi encerrado." 
+          });
+        }
+
+        await notifyStatus(null, m.id, 'liberada'); 
+      } else {
+        await query("UPDATE codigos_acesso SET status = 'expirado' WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status = 'ativo'", [paramId]);
+      }
+
+      await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
       res.json({ success: true }); 
     } catch (error) { res.status(500).json({ error: error.message }); } 
   });
 
   router.delete('/:id', ensureDbInitialized, isAdmin, async (req, res) => { 
     try {
-      await query('DELETE FROM mesas WHERE id = ?', [req.params.id]); 
+      const paramId = req.params.id;
+      await query('DELETE FROM mesas WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)', [paramId, paramId]); 
+      await query("UPDATE codigos_acesso SET status = 'expirado' WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status = 'ativo'", [paramId]);
       res.json({ success: true }); 
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
@@ -69,8 +96,50 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     if (typeof checkAndNotifyDelayedOrders === 'function') checkAndNotifyDelayedOrders();
     try {
       // Limpa rascunhos antigos de mesas que já estão LIVRES
-      await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT p.id FROM pedidos p JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) WHERE p.status = 'rascunho' AND m.status = 'livre')");
-      await query("DELETE FROM pedidos WHERE status = 'rascunho' AND CAST(mesa_id AS TEXT) IN (SELECT CAST(id AS TEXT) FROM mesas WHERE status = 'livre')");
+      await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT p.id FROM pedidos p JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.status = 'rascunho' AND m.status = 'livre')");
+      await query("DELETE FROM pedidos WHERE status = 'rascunho' AND (CAST(mesa_id AS TEXT) IN (SELECT CAST(id AS TEXT) FROM mesas WHERE status = 'livre') OR CAST(mesa_id AS TEXT) IN (SELECT CAST(numero AS TEXT) FROM mesas WHERE status = 'livre'))");
+
+      // Auto-limpeza de comandas (is_comanda = 1) que ficaram órfãs sem pedidos ativos e sem código ativo
+      try {
+        await query(`
+          DELETE FROM mesas 
+          WHERE COALESCE(is_comanda, 0) = 1 
+          AND id NOT IN (
+            SELECT DISTINCT m.id 
+            FROM mesas m 
+            JOIN pedidos p ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
+            WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho')
+          )
+          AND id NOT IN (
+            SELECT DISTINCT m.id 
+            FROM mesas m 
+            JOIN codigos_acesso ca ON (CAST(ca.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(ca.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
+            WHERE ca.status = 'ativo'
+          )
+        `);
+
+        // Auto-liberação de mesas fixas que ficaram com status 'ocupada' mas não possuem pedidos ativos nem código ativo
+        await query(`
+          UPDATE mesas 
+          SET status = 'livre' 
+          WHERE COALESCE(is_comanda, 0) = 0 
+          AND status != 'livre'
+          AND id NOT IN (
+            SELECT DISTINCT m.id 
+            FROM mesas m 
+            JOIN pedidos p ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
+            WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho')
+          )
+          AND id NOT IN (
+            SELECT DISTINCT m.id 
+            FROM mesas m 
+            JOIN codigos_acesso ca ON (CAST(ca.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(ca.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
+            WHERE ca.status = 'ativo'
+          )
+        `);
+      } catch (cleanupErr) {
+        console.warn('⚠️ [GET /api/mesas] Erro na auto-limpeza de mesas órfãs:', cleanupErr.message);
+      }
 
       const mesasResult = await query(`
         SELECT m.*,
@@ -84,7 +153,7 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
           p.forma_pagamento as forma_pagamento,
           ca.codigo as codigo_acesso,
           ca.criado_at as codigo_criado_at,
-          (CASE WHEN m.status != 'livre' AND (SELECT COUNT(id) FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(m.id AS TEXT) AND status = 'rascunho') > 0 THEN 1 ELSE 0 END) as tem_rascunho
+          (CASE WHEN m.status != 'livre' AND (SELECT COUNT(id) FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(m.numero AS TEXT)) AND status = 'rascunho') > 0 THEN 1 ELSE 0 END) as tem_rascunho
         FROM mesas m
         LEFT JOIN (
           SELECT p1.*
@@ -95,7 +164,7 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
             WHERE status NOT IN ('entregue', 'cancelado', 'rascunho')
             GROUP BY CAST(mesa_id AS TEXT)
           ) p2 ON p1.id = p2.max_id
-        ) p ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT)
+        ) p ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
         LEFT JOIN (
           SELECT ca1.*
           FROM codigos_acesso ca1
@@ -105,7 +174,7 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
             WHERE status = 'ativo'
             GROUP BY CAST(mesa_id AS TEXT)
           ) ca2 ON ca1.id = ca2.max_id
-        ) ca ON CAST(ca.mesa_id AS TEXT) = CAST(m.id AS TEXT)
+        ) ca ON (CAST(ca.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(ca.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
       `); 
 
       const mesasRows = mesasResult.rows || [];

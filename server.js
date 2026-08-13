@@ -3937,11 +3937,10 @@ app.delete('/api/pedidos/:id', isAdmin, async (req, res) => {
       if (pedido.status !== 'entregue' && pedido.status !== 'cancelado' && pedido.mesa_id) {
         const checkAtivos = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado', 'rascunho')", [pedido.mesa_id, pedido.numero]);
         if (checkAtivos.rows.length === 0) {
-            await query("DELETE FROM mesas WHERE id = ? AND COALESCE(is_comanda, 0) = 1", [pedido.mesa_id]);
-        } else {
-            await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [pedido.mesa_id]);
+            await query("DELETE FROM mesas WHERE (id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)) AND COALESCE(is_comanda, 0) = 1", [pedido.mesa_id, pedido.numero]);
+            await query("UPDATE mesas SET status = 'livre' WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [pedido.mesa_id, pedido.numero]);
         }
-        await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [pedido.mesa_id]);
+        await query("UPDATE codigos_acesso SET status = 'expirado' WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'ativo'", [pedido.mesa_id, pedido.numero]);
 
         // Notifica o cliente para encerrar o acesso
         await safePusherTrigger('garconnexpress', `deslogar-mesa-${pedido.mesa_id}`, { 
@@ -4886,11 +4885,10 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
     if ((status === 'cancelado' || status === 'entregue') && pm && pm.mesa_id) {
         const checkAtivos = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND id != ?", [pm.mesa_id, pm.numero, id]);
         if (checkAtivos.rows.length === 0) {
-            await query("DELETE FROM mesas WHERE id = ? AND COALESCE(is_comanda, 0) = 1", [pm.mesa_id]);
-        } else {
-            await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [pm.mesa_id]);
+            await query("DELETE FROM mesas WHERE (id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)) AND COALESCE(is_comanda, 0) = 1", [pm.mesa_id, pm.numero]);
+            await query("UPDATE mesas SET status = 'livre' WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [pm.mesa_id, pm.numero]);
         }
-        await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [pm.mesa_id]);
+        await query("UPDATE codigos_acesso SET status = 'expirado' WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'ativo'", [pm.mesa_id, pm.numero]);
 
         // Notifica o cliente logado para encerrar o acesso
         const msgLogout = status === 'entregue' ? "Sua conta foi finalizada. Obrigado pela preferência!" : "Este pedido foi cancelado pelo estabelecimento. Seu acesso foi encerrado.";
@@ -5624,24 +5622,42 @@ app.post('/api/acesso/cancelar', isAuthenticated, async (req, res) => {
   if (!mesa_id) return res.status(400).json({ error: 'Mesa é obrigatória' });
 
   try {
-    // 1. Invalida os códigos ativos da mesa
-    await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [mesa_id]);
+    const mRes = await query("SELECT id, numero, is_comanda FROM mesas WHERE CAST(id AS TEXT) = CAST(? AS TEXT) OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [mesa_id, mesa_id]);
+    const m = mRes.rows[0];
 
-    // 2. Libera a mesa no sistema
-    await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [mesa_id]);
+    if (m) {
+      if (Number(m.is_comanda) === 1) {
+        await query("DELETE FROM mesas WHERE id = ?", [m.id]);
+      } else {
+        await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [m.id]);
+      }
+      await query("UPDATE codigos_acesso SET status = 'expirado' WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'ativo'", [m.id, m.numero, mesa_id]);
 
-    // 3. Notifica o cliente para deslogar (via Pusher)
-    await safePusherTrigger('garconnexpress', `deslogar-mesa-${mesa_id}`, { 
-      status: 'cancelado',
-      mensagem: "Este acesso foi cancelado pelo garçom." 
-    });
+      await safePusherTrigger('garconnexpress', `deslogar-mesa-${m.id}`, { 
+        status: 'cancelado',
+        mensagem: "Este acesso foi cancelado pelo garçom." 
+      });
+      if (m.numero != m.id) {
+        await safePusherTrigger('garconnexpress', `deslogar-mesa-${m.numero}`, { 
+          status: 'cancelado',
+          mensagem: "Este acesso foi cancelado pelo garçom." 
+        });
+      }
+      if (mesa_id != m.id && mesa_id != m.numero) {
+        await safePusherTrigger('garconnexpress', `deslogar-mesa-${mesa_id}`, { 
+          status: 'cancelado',
+          mensagem: "Este acesso foi cancelado pelo garçom." 
+        });
+      }
 
-    // 4. Notifica todos os garçons/admin para atualizar o grid de mesas
-    await safePusherTrigger('garconnexpress', 'status-atualizado', { 
-      mesa_id, 
-      status: 'liberada',
-      origem: 'acesso_cancelado'
-    });
+      await safePusherTrigger('garconnexpress', 'status-atualizado', { 
+        mesa_id: m.id, 
+        status: 'liberada',
+        origem: 'acesso_cancelado'
+      });
+    } else {
+      await query("UPDATE codigos_acesso SET status = 'expirado' WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status = 'ativo'", [mesa_id]);
+    }
 
     res.json({ success: true });
   } catch (error) {
