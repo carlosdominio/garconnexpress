@@ -2581,7 +2581,7 @@ let dbInitError = null;
 
 async function initDb() {
   const tables = [
-    `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero TEXT NOT NULL, status TEXT DEFAULT 'livre', garcom_id TEXT)`,
+    `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero TEXT NOT NULL, status TEXT DEFAULT 'livre', garcom_id TEXT, is_comanda INTEGER DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, preco_original REAL, descricao TEXT, imagem TEXT, estoque INTEGER DEFAULT -1, validade DATE, enviar_cozinha BOOLEAN DEFAULT TRUE, visivel BOOLEAN DEFAULT TRUE, em_promocao BOOLEAN DEFAULT FALSE)`,
     `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
@@ -2634,6 +2634,20 @@ async function initDb() {
         }
       }
     } catch (e) {}
+
+    // Migração da coluna is_comanda na tabela mesas de forma segura
+    try {
+      if (isPostgres) {
+        await query("ALTER TABLE mesas ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0");
+      } else {
+        const columns = await query("PRAGMA table_info(mesas)");
+        if (!columns.rows.find(c => c.name === 'is_comanda')) {
+          await query("ALTER TABLE mesas ADD COLUMN is_comanda INTEGER DEFAULT 0");
+        }
+      }
+    } catch (e) {
+      console.error('Erro na migração de is_comanda:', e.message);
+    }
 
     // LIMPEZA E REGISTRO DO NÃšMERO DE WHATSAPP (CONSOLIDADO)
     const notificationNumbers = '558293157048'; 
