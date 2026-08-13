@@ -10,11 +10,6 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       const isComanda = req.body.is_comanda ? 1 : 0;
       if (!numOuNome) return res.status(400).json({ error: 'Informe o número ou nome da mesa/comanda' });
 
-      // Garante que a coluna is_comanda existe (migração silenciosa)
-      try {
-        await query("ALTER TABLE mesas ADD COLUMN is_comanda INTEGER DEFAULT 0");
-      } catch(e) { /* coluna já existe, ignorar */ }
-
       let ins;
       try {
         ins = await query('INSERT INTO mesas (numero, tipo, is_comanda) VALUES (?, ?, ?) RETURNING id', [numOuNome, tipo, isComanda]);
