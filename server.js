@@ -5486,6 +5486,96 @@ app.delete('/api/garcons/:id', isAdmin, async (req, res) => {
 const mesasRouter = require('./routes/mesas')(query, ensureDbInitialized, safePusherTrigger, notifyStatus, checkAndNotifyDelayedOrders, isAdmin, isAuthenticated);
 app.use('/api/mesas', mesasRouter);
 
+// Contexto compartilhado para todos os novos routers
+const routerCtx = {
+  query,
+  runInTransaction,
+  ensureDbInitialized,
+  isAuthenticated,
+  isAdmin,
+  statusLimiter: typeof statusLimiter !== 'undefined' ? statusLimiter : ((req, res, next) => next()),
+  orderLimiter: typeof orderLimiter !== 'undefined' ? orderLimiter : ((req, res, next) => next()),
+  loginLimiter: typeof loginLimiter !== 'undefined' ? loginLimiter : ((req, res, next) => next()),
+  safePusherTrigger,
+  notifyStatus,
+  checkAndNotifyDelayedOrders,
+  sendPushToGarcons,
+  notifyDeliveryStatusToBot,
+  formatarNomeMesaOuComanda,
+  getTaxaServicoMultiplicador,
+  abaterEstoquePorFichaTecnica,
+  retornarEstoquePorFichaTecnica,
+  verificarEstoqueDisponivel,
+  checkTemItemCozinha,
+  checkTemItemChurrasco,
+  getFilterCozinha,
+  getFilterChurrasco,
+  getFilterPreparo,
+  sendWhatsAppMessage,
+  isPostgres,
+  bcrypt,
+  saltRounds,
+  jwt,
+  JWT_SECRET,
+  BOT_SECRET,
+  admin,
+  VAPID_PUBLIC_KEY,
+  clientesEmAtendimento,
+  getWhatsappSocket: () => (typeof whatsappSocket !== 'undefined' ? whatsappSocket : null),
+  getWhatsappState: () => ({
+    whatsappRealStatus: typeof whatsappRealStatus !== 'undefined' ? whatsappRealStatus : 'DESCONECTADO',
+    whatsappSocket: typeof whatsappSocket !== 'undefined' ? whatsappSocket : null,
+    botUrlFinal: typeof botUrlFinal !== 'undefined' ? botUrlFinal : null
+  }),
+  cachedOrdemCategorias: null
+};
+
+// 1. Caixa
+const caixaRouter = require('./routes/caixa')(routerCtx);
+app.use('/api/caixa', caixaRouter);
+
+// 2. Garçons
+const garconsRouter = require('./routes/garcons')(routerCtx);
+app.use('/api', garconsRouter);
+
+// 3. Menu
+const menuRouter = require('./routes/menu')(routerCtx);
+app.use('/api/menu', menuRouter);
+
+// 4. Estoque & Relatórios
+const estoqueRouter = require('./routes/estoque')(routerCtx);
+app.use('/api', estoqueRouter);
+
+// 5. Autenticação & Acesso
+const authRouter = require('./routes/auth')(routerCtx);
+app.use('/api', authRouter);
+
+// 6. Cliente (Cardápio Digital)
+const clienteRouter = require('./routes/cliente')(routerCtx);
+app.use('/api/cliente', clienteRouter);
+
+// 7. Configurações Globais, Versões, Som e APK
+const configsRouter = require('./routes/configs')(routerCtx);
+app.use('/api', configsRouter);
+
+// 8. WhatsApp Bot & Status
+const whatsappRouter = require('./routes/whatsapp')(routerCtx);
+app.use('/api', whatsappRouter);
+
+// 9. Notificações (Web Push, FCM e Toasts)
+const notificacoesRouter = require('./routes/notificacoes')(routerCtx);
+app.use('/api', notificacoesRouter);
+
+// 10. Pedidos (Ciclo de Vida, Cozinha, Churrasco, Pagamentos)
+const pedidosRouter = require('./routes/pedidos')(routerCtx);
+app.use('/api/pedidos', pedidosRouter);
+
+// 11. Itens individuais
+const itensRouter = require('./routes/itens')(routerCtx);
+app.use('/api/itens', itensRouter);
+
+
+
 app.get('/api/pedidos/mesa/:mesaId', isAuthenticated, async (req, res) => { 
   try {
     res.json((await query(`SELECT * FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY created_at DESC LIMIT 1`, [req.params.mesaId])).rows[0] || null); 
