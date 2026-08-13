@@ -3571,16 +3571,34 @@ function formatarNomeMesaHistorico(p) {
   if (p.garcom_id === 'DELIVERY') return 'DELIVERY';
   const numRaw = p.mesa_numero || (p.mesa_id && String(p.mesa_id).toLowerCase() !== 'null' ? String(p.mesa_id) : '');
   if (!numRaw) return `BALCÃO #${p.id}`;
-  const str = String(numRaw).trim();
+  let str = String(numRaw).trim();
   if (!str) return `BALCÃO #${p.id}`;
-  if (/^(mesa|comanda|delivery|balcão|balcao)\b/i.test(str)) {
+
+  const isCom = (p.is_comanda == 1 || p.is_comanda === true || (p.mesa_tipo && p.mesa_tipo.includes('comanda')));
+
+  if (/^mesa\b/i.test(str)) {
+    const numOnly = str.replace(/^mesa\s*/i, '').trim();
+    const isNum = /^\d+$/.test(numOnly);
+    const numVal = isNum ? parseInt(numOnly, 10) : 0;
+    if (isCom || (isNum && numVal >= 12) || !isNum) {
+      return isNum ? `COMANDA ${numOnly}` : str.toUpperCase();
+    }
     return str.toUpperCase();
   }
+
+  if (/^comanda\b/i.test(str)) {
+    return str.toUpperCase();
+  }
+
   const isNum = /^\d+$/.test(str);
   if (isNum) {
-    const isComanda = (p.is_comanda == 1 || p.is_comanda === true || (p.mesa_tipo && p.mesa_tipo.includes('comanda')));
-    return isComanda ? `COMANDA ${str}` : `MESA ${str}`;
+    const numVal = parseInt(str, 10);
+    if (isCom || numVal >= 12) {
+      return `COMANDA ${str}`;
+    }
+    return `MESA ${str}`;
   }
+
   return str.toUpperCase();
 }
 
@@ -3835,9 +3853,10 @@ function abrirModalDetalheHistorico(p) {
   const financeiro = document.getElementById('modal-historico-financeiro');
   const btnReimprimir = document.getElementById('btn-reimprimir-historico');
 
+  const mesaLabel = formatarNomeMesaHistorico(p);
   if (header) header.style.background = p.status === 'cancelado' ? '#e74c3c' : '#27ae60';
-  if (titulo) titulo.innerText = `Pedido #${p.id || '---'}`;
-  if (info) info.innerText = `${(p.tipo || 'Pedido').toUpperCase()} - ${formatarNomeMesaHistorico(p)}`;
+  if (titulo) titulo.innerText = `${mesaLabel} (#${p.id || '---'})`;
+  if (info) info.innerText = `STATUS: ${(p.status || 'FINALIZADO').toUpperCase()} - ID #${p.id}`;
   
   // Horários Inteligentes
   let encerramentoRaw = p.data_hora_fechamento;
@@ -6581,7 +6600,7 @@ function imprimirCupomParcialFracao(pedido, itens, valorPago, saldoRestante, pes
   const taxa = cobrarTaxa ? (isDelivery ? 3.00 : subtotal * 0.10) : 0;
   const totalMesa = subtotal + taxa;
   const numPessoasTotal = (pessoasRestantes + 1);
-  const mesaNomeCupom = pedido.mesa_tipo === 'balcao' ? `BALCÃO ${pedido.mesa_numero}` : (pedido.mesa_numero ? `MESA ${pedido.mesa_numero}` : `PEDIDO #${pedido.id}`);
+  const mesaNomeCupom = isDelivery ? `DELIVERY #${pedido.id}` : `${formatarNomeMesaHistorico(pedido)} (#${pedido.id})`;
 
   const html = `
     <div class="cupom-header">
@@ -6647,7 +6666,7 @@ function imprimirCupomParcialItens(pedido, itensPagos, totalPago, cobrarTaxa) {
     <div class="cupom-header">
       <h2 style="margin:0; font-size: 12pt; font-weight: 900;">GuGA Bebidas</h2>
       <p style="margin:2px 0; font-weight: 900; font-size: 10pt;">*** PAGAMENTO DE ITENS ***</p>
-      <p style="margin:2px 0; font-weight: 900; font-size: 11pt;">${pedido.mesa_tipo === 'balcao' ? `BALCÃO ${pedido.mesa_numero}` : (pedido.mesa_numero ? `MESA ${pedido.mesa_numero}` : `PEDIDO #${pedido.id}`)}</p>
+      <p style="margin:2px 0; font-weight: 900; font-size: 11pt;">${isDelivery ? `DELIVERY #${pedido.id}` : `${formatarNomeMesaHistorico(pedido)} (#${pedido.id})`}</p>
       <p style="margin:2px 0; font-size: 9pt;"><strong>ABERTURA:</strong> ${formatarData(pedido.created_at)}</p>
       <p style="margin:2px 0; font-size: 8pt;"><strong>EMISSÃO:</strong> ${new Date().toLocaleString('pt-BR')}</p>
     </div>
@@ -7875,7 +7894,7 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false) {
   }
 
   const isDelivery = (pedido.garcom_id === 'DELIVERY');
-  const nomeExibicaoCupom = isDelivery ? `🛵 PEDIDO DELIVERY #${pedido.id}` : (pedido.mesa_tipo === 'balcao' ? `BALCÃO ${pedido.mesa_numero}` : (pedido.mesa_numero ? `MESA ${pedido.mesa_numero}` : `PEDIDO #${pedido.id}`));
+  const nomeExibicaoCupom = isDelivery ? `🛵 PEDIDO DELIVERY #${pedido.id}` : `${formatarNomeMesaHistorico(pedido)} (#${pedido.id})`;
 
   let dadosDeliveryHtml = '';
   if (isDelivery && pedido.observacao) {
