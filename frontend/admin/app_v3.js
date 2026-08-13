@@ -7085,6 +7085,20 @@ async function configurarPusher() {
       }, 100);
     });
 
+function formatarNomeMesaNotificacao(numero, isComanda) {
+  if (!numero) return 'Balcão';
+  const str = String(numero).trim();
+  if (!str || str === 'X') return 'Balcão';
+  if (/^(mesa|comanda|delivery|balcão|balcao)\b/i.test(str)) {
+    return str;
+  }
+  const isNum = /^\d+$/.test(str);
+  if (isNum) {
+    return (isComanda == 1 || isComanda === true) ? `Comanda ${str}` : `Mesa ${str}`;
+  }
+  return str;
+}
+
     // EVENTO: NOVO PEDIDO
     channel.bind('novo-pedido', (data) => {
       console.log('📢 Admin: Novo pedido recebido!', data);
@@ -7108,7 +7122,7 @@ async function configurarPusher() {
       
       if (p) {
         if (isDelivery) nomeExibicao = `DELIVERY #${p.id}`;
-        else if (p.mesa_numero) nomeExibicao = `Mesa ${p.mesa_numero} (#${p.id})`;
+        else if (p.mesa_numero) nomeExibicao = `${formatarNomeMesaNotificacao(p.mesa_numero, p.is_comanda)} (#${p.id})`;
         else nomeExibicao = `Balcão (#${p.id})`;
       }
 
@@ -7142,10 +7156,8 @@ async function configurarPusher() {
         labelMesa = mesa;
       } else if (mesa === 'BALCÃO' || mesa === 'Balcão') {
         labelMesa = `Balcão (#${data.pedido_id})`;
-      } else if (mesa.startsWith('Mesa')) {
-        labelMesa = `${mesa} (#${data.pedido_id})`;
       } else {
-        labelMesa = `Mesa ${mesa} (#${data.pedido_id})`;
+        labelMesa = `${formatarNomeMesaNotificacao(mesa, data.is_comanda)} (#${data.pedido_id})`;
       }
       const msgSimples = `${labelMesa} está pronto!`;
       
@@ -7209,7 +7221,7 @@ async function configurarPusher() {
         if (!mesaData || mesaData === 'X' || String(mesaData).toUpperCase().includes('BALCÃO') || String(mesaData).toUpperCase().includes('BALCAO')) {
           nMesa = `Balcão${pIdStr}`;
         } else {
-          nMesa = isNaN(mesaData) ? `${mesaData}${pIdStr}` : `Mesa ${mesaData}${pIdStr}`;
+          nMesa = formatarNomeMesaNotificacao(mesaData, data.is_comanda) + pIdStr;
         }
       }
       

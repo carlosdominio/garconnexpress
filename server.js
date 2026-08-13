@@ -4907,9 +4907,9 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
       return res.json({ success: true, already: true });
     }
     const prevStatus = txResult.prevStatus;
-    const pm = (await query("SELECT m.id as mesa_id, p.garcom_id, m.numero, m.is_comanda, p.mesa_numero, p.is_comanda as ped_is_comanda FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
-    const numRaw = pm ? (pm.numero || pm.mesa_numero || 'BALCÃO') : 'BALCÃO';
-    const isCom = pm ? (pm.is_comanda ?? pm.ped_is_comanda ?? 0) : 0;
+    const pm = (await query("SELECT m.id as mesa_id, p.garcom_id, m.numero, m.is_comanda FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
+    const numRaw = pm ? (pm.numero || 'BALCÃO') : 'BALCÃO';
+    const isCom = pm ? (pm.is_comanda ? 1 : 0) : 0;
     const mesaNum = pm ? (pm.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : formatarNomeMesaOuComanda(numRaw, isCom)) : 'BALCÃO';
     const localStr = mesaNum;
 
