@@ -3566,6 +3566,24 @@ async function confirmarRenomearCategoria() {
   }
 }
 
+function formatarNomeMesaHistorico(p) {
+  if (!p) return 'BALCÃO';
+  if (p.garcom_id === 'DELIVERY') return 'DELIVERY';
+  const numRaw = p.mesa_numero || (p.mesa_id && String(p.mesa_id).toLowerCase() !== 'null' ? String(p.mesa_id) : '');
+  if (!numRaw) return `BALCÃO #${p.id}`;
+  const str = String(numRaw).trim();
+  if (!str) return `BALCÃO #${p.id}`;
+  if (/^(mesa|comanda|delivery|balcão|balcao)\b/i.test(str)) {
+    return str.toUpperCase();
+  }
+  const isNum = /^\d+$/.test(str);
+  if (isNum) {
+    const isComanda = (p.is_comanda == 1 || p.is_comanda === true || (p.mesa_tipo && p.mesa_tipo.includes('comanda')));
+    return isComanda ? `COMANDA ${str}` : `MESA ${str}`;
+  }
+  return str.toUpperCase();
+}
+
 async function carregarHistorico() {
   const res = await fetch('/api/pedidos/historico-detalhado');
   if (!res.ok) return;
@@ -3589,7 +3607,7 @@ async function exibirHistorico() {
   
   if (filtroMesa || buscaTexto) {
     pedidosFiltrados = historico.filter(p => {
-      const mesaIdentificador = p.garcom_id === 'DELIVERY' ? 'DELIVERY' : (p.mesa_numero ? `Mesa ${p.mesa_numero}` : `BALCÃO`);
+      const mesaIdentificador = formatarNomeMesaHistorico(p);
       const garcom = (p.garcom_nome || '').toLowerCase();
       const idPedido = String(p.id);
       
@@ -3616,14 +3634,7 @@ async function exibirHistorico() {
   historico.forEach(p => {
     const valorConsolidado = (p.total || 0) + (p.pago_parcial || 0);
     if (p.status === 'entregue') faturamentoTotal += valorConsolidado;
-    
-    if (p.garcom_id === 'DELIVERY') {
-      opcoesFiltro.add('DELIVERY');
-    } else if (p.mesa_numero) {
-      opcoesFiltro.add(`Mesa ${p.mesa_numero}`);
-    } else {
-      opcoesFiltro.add(`BALCÃO`);
-    }
+    opcoesFiltro.add(formatarNomeMesaHistorico(p));
     if (p.garcom_nome) opcoesFiltro.add(p.garcom_nome);
   });
   
@@ -3687,7 +3698,9 @@ function renderizarColunaHistorico(tipo, lista, pagina, container) {
     card.style.justifyContent = 'center';
     card.style.minHeight = '65px';
     
-    const mesaNome = p.garcom_id === 'DELIVERY' ? '🚚 DELIVERY' : (p.mesa_numero ? `🪑 MESA ${p.mesa_numero}` : `🛍️ BALCÃO #${p.id}`);
+    const rawMesa = formatarNomeMesaHistorico(p);
+    const mesaIcon = p.garcom_id === 'DELIVERY' ? '🚚' : (rawMesa.includes('BALCÃO') ? '🛍️' : '🪑');
+    const mesaNome = `${mesaIcon} ${rawMesa}`;
     const valor = (p.total || 0) + (p.pago_parcial || 0);
 
     card.innerHTML = `
@@ -3824,7 +3837,7 @@ function abrirModalDetalheHistorico(p) {
 
   if (header) header.style.background = p.status === 'cancelado' ? '#e74c3c' : '#27ae60';
   if (titulo) titulo.innerText = `Pedido #${p.id || '---'}`;
-  if (info) info.innerText = `${(p.tipo || 'Pedido').toUpperCase()} - ${(p.mesa_numero ? 'MESA ' + p.mesa_numero : (p.garcom_id === 'DELIVERY' ? 'DELIVERY' : 'BALCÃO'))}`;
+  if (info) info.innerText = `${(p.tipo || 'Pedido').toUpperCase()} - ${formatarNomeMesaHistorico(p)}`;
   
   // Horários Inteligentes
   let encerramentoRaw = p.data_hora_fechamento;
@@ -7685,7 +7698,7 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false) {
     pagoAgora = totalGeralMesa - pagoAnterior;
   }
 
-  const mesaNomeCupom = pedido.mesa_tipo === 'balcao' ? `BALCÃO ${pedido.mesa_numero}` : (pedido.mesa_numero ? `MESA ${pedido.mesa_numero}` : `PEDIDO #${pedido.id}`);
+  const mesaNomeCupom = formatarNomeMesaHistorico(pedido);
   
   const numPessoasNoPedido = pedido.num_pessoas || 1;
   

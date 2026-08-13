@@ -2629,6 +2629,22 @@ async function initDb() {
       else db.exec(tableSql.replace(/SERIAL PRIMARY KEY/g, 'INTEGER PRIMARY KEY AUTOINCREMENT'));
     }
 
+    // Migração das colunas mesa_numero e is_comanda na tabela pedidos
+    try {
+      if (isPostgres) {
+        await query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS mesa_numero TEXT");
+        await query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0");
+      } else {
+        const columns = await query("PRAGMA table_info(pedidos)");
+        if (!columns.rows.find(c => c.name === 'mesa_numero')) {
+          await query("ALTER TABLE pedidos ADD COLUMN mesa_numero TEXT");
+        }
+        if (!columns.rows.find(c => c.name === 'is_comanda')) {
+          await query("ALTER TABLE pedidos ADD COLUMN is_comanda INTEGER DEFAULT 0");
+        }
+      }
+    } catch (e) {}
+
     // GARANTE QUE SISTEMA_CONFIG EXISTA (Caso tenha sido adicionada depois)
     const sqlConfig = `CREATE TABLE IF NOT EXISTS sistema_config (chave TEXT PRIMARY KEY, valor TEXT)`;
     if (isPostgres) await db.query(sqlConfig);
@@ -4891,9 +4907,11 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
       return res.json({ success: true, already: true });
     }
     const prevStatus = txResult.prevStatus;
-    const pm = (await query("SELECT m.id as mesa_id, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
-    const mesaNum = pm ? (pm.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : (pm.numero || 'BALCÃO')) : 'BALCÃO';
-    const localStr = pm && pm.garcom_id === 'DELIVERY' ? `${mesaNum}` : `Mesa ${mesaNum}`;
+    const pm = (await query("SELECT m.id as mesa_id, p.garcom_id, m.numero, m.is_comanda, p.mesa_numero, p.is_comanda as ped_is_comanda FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
+    const numRaw = pm ? (pm.numero || pm.mesa_numero || 'BALCÃO') : 'BALCÃO';
+    const isCom = pm ? (pm.is_comanda ?? pm.ped_is_comanda ?? 0) : 0;
+    const mesaNum = pm ? (pm.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : formatarNomeMesaOuComanda(numRaw, isCom)) : 'BALCÃO';
+    const localStr = mesaNum;
 
     // Se o status for cancelado ou entregue, libera a mesa e o código, e deleta a mesa se estiver vazia
     if ((status === 'cancelado' || status === 'entregue') && pm && pm.mesa_id) {
@@ -4925,7 +4943,7 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
     }
     
     // Sempre notifica a alteração de status (inclusive cancelado, para o painel admin atualizar a tela)
-    await notifyStatus(id, null, status);
+    await notifyStatus(id, pm ? pm.mesa_id : null, status, mesaNum);
     
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
     res.json({ success: true });
