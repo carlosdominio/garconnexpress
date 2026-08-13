@@ -99,11 +99,16 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT p.id FROM pedidos p JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.status = 'rascunho' AND m.status = 'livre')");
       await query("DELETE FROM pedidos WHERE status = 'rascunho' AND (CAST(mesa_id AS TEXT) IN (SELECT CAST(id AS TEXT) FROM mesas WHERE status = 'livre') OR CAST(mesa_id AS TEXT) IN (SELECT CAST(numero AS TEXT) FROM mesas WHERE status = 'livre'))");
 
-      // Auto-limpeza de comandas (is_comanda = 1) que ficaram órfãs sem pedidos ativos e sem código ativo
+      // Auto-limpeza de comandas (is_comanda = 1) que já tiveram pedidos, mas cujos pedidos foram todos finalizados/cancelados
       try {
         await query(`
           DELETE FROM mesas 
           WHERE COALESCE(is_comanda, 0) = 1 
+          AND id IN (
+            SELECT DISTINCT m.id 
+            FROM mesas m 
+            JOIN pedidos p ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
+          )
           AND id NOT IN (
             SELECT DISTINCT m.id 
             FROM mesas m 
