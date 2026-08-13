@@ -2770,6 +2770,8 @@ async function initDb() {
     await addCol('pedidos', 'distancia_km', 'REAL DEFAULT 0');
     await addCol('pedidos', 'pagamentos_detalhados', 'TEXT');
     await addCol('pedidos', 'balcao_imediato', 'INTEGER DEFAULT 0');
+    await addCol('pedidos', 'mesa_numero', 'TEXT');
+    await addCol('pedidos', 'is_comanda', 'INTEGER DEFAULT 0');
     
     // Garante que a tabela pagamentos tenha as colunas necessárias
     await addCol('pagamentos', 'recebido', 'REAL DEFAULT 0');
@@ -2839,6 +2841,11 @@ async function lazyInitDb() {
         }, 3, 1000);
       } else {
         console.log('⚡ Tabelas já existentes. DDL ignorado para acelerar cold start.');
+        if (isPostgres) {
+          try {
+            await db.query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS mesa_numero TEXT; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0;");
+          } catch(e) {}
+        }
       }
 
       dbInitialized = true;
@@ -3629,20 +3636,32 @@ app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, isAuthenticated, a
         ORDER BY p.created_at DESC
       `);
     } catch (e) {
-      console.warn("Query com m.tipo falhou, fazendo fallback e tentando migração novamente", e.message);
-      // Tentativa de migração de emergência
+      console.warn("Query com fallback em ativos-detalhado:", e.message);
       try {
-        if (isPostgres) await query("ALTER TABLE mesas ADD COLUMN IF NOT EXISTS tipo TEXT DEFAULT 'mesa'");
+        if (isPostgres) {
+          await query("ALTER TABLE mesas ADD COLUMN IF NOT EXISTS tipo TEXT DEFAULT 'mesa'; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS mesa_numero TEXT; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0;");
+        }
       } catch (migErr) {}
       
-      pedidosRes = await query(`
-        SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, COALESCE(p.mesa_numero, m.numero) as mesa_numero, 'mesa' as mesa_tipo, g.nome as garcom_nome 
-        FROM pedidos p 
-        LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
-        LEFT JOIN garcons g ON p.garcom_id = g.usuario
-        WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho')
-        ORDER BY p.created_at DESC
-      `);
+      try {
+        pedidosRes = await query(`
+          SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, 'mesa' as mesa_tipo, g.nome as garcom_nome 
+          FROM pedidos p 
+          LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
+          LEFT JOIN garcons g ON p.garcom_id = g.usuario
+          WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho')
+          ORDER BY p.created_at DESC
+        `);
+      } catch (finalErr) {
+        pedidosRes = await query(`
+          SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, g.nome as garcom_nome 
+          FROM pedidos p 
+          LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
+          LEFT JOIN garcons g ON p.garcom_id = g.usuario
+          WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho')
+          ORDER BY p.created_at DESC
+        `);
+      }
     }
     
     const pedidos = pedidosRes.rows.map(p => {
@@ -3689,7 +3708,12 @@ app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, isAuthenticated, a
 app.get('/api/pedidos', ensureDbInitialized, isAuthenticated, async (req, res) => {
   checkAndNotifyDelayedOrders();
   try {
-    const result = await query(`SELECT p.*, COALESCE(p.mesa_numero, m.numero) as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`);
+    let result;
+    try {
+      result = await query(`SELECT p.*, COALESCE(p.mesa_numero, m.numero) as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`);
+    } catch(e) {
+      result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`);
+    }
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -3797,18 +3821,39 @@ app.get('/api/pedidos/:id/pagamentos', isAuthenticated, async (req, res) => {
 
 app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, isAuthenticated, async (req, res) => {
   try {
-    const pedidosRes = await query(`
-      SELECT p.*, 
-        COALESCE(p.mesa_numero, m.numero) as mesa_numero, 
-        COALESCE(p.is_comanda, m.is_comanda) as is_comanda, 
-        g.nome as garcom_nome 
-      FROM pedidos p 
-      LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
-      LEFT JOIN garcons g ON p.garcom_id = g.usuario 
-      WHERE p.status IN ('entregue', 'cancelado') 
-      ORDER BY p.created_at DESC 
-      LIMIT 50
-    `);
+    let pedidosRes;
+    try {
+      pedidosRes = await query(`
+        SELECT p.*, 
+          COALESCE(p.mesa_numero, m.numero) as mesa_numero, 
+          COALESCE(p.is_comanda, m.is_comanda) as is_comanda, 
+          g.nome as garcom_nome 
+        FROM pedidos p 
+        LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
+        LEFT JOIN garcons g ON p.garcom_id = g.usuario 
+        WHERE p.status IN ('entregue', 'cancelado') 
+        ORDER BY p.created_at DESC 
+        LIMIT 50
+      `);
+    } catch (errCol) {
+      if (isPostgres) {
+        try {
+          await query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS mesa_numero TEXT; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0;");
+        } catch(e) {}
+      }
+      pedidosRes = await query(`
+        SELECT p.*, 
+          m.numero as mesa_numero, 
+          m.is_comanda as is_comanda, 
+          g.nome as garcom_nome 
+        FROM pedidos p 
+        LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
+        LEFT JOIN garcons g ON p.garcom_id = g.usuario 
+        WHERE p.status IN ('entregue', 'cancelado') 
+        ORDER BY p.created_at DESC 
+        LIMIT 50
+      `);
+    }
     
     const pedidos = pedidosRes.rows;
     if (pedidos.length === 0) return res.json([]);
@@ -3848,7 +3893,12 @@ app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, isAuthenticated
 
 app.get('/api/pedidos/historico', isAuthenticated, async (req, res) => {
   try {
-    const result = await query(`SELECT p.*, COALESCE(p.mesa_numero, m.numero) as mesa_numero, COALESCE(p.is_comanda, m.is_comanda) as is_comanda, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status IN ('entregue', 'cancelado') ORDER BY p.created_at DESC LIMIT 50`);
+    let result;
+    try {
+      result = await query(`SELECT p.*, COALESCE(p.mesa_numero, m.numero) as mesa_numero, COALESCE(p.is_comanda, m.is_comanda) as is_comanda, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status IN ('entregue', 'cancelado') ORDER BY p.created_at DESC LIMIT 50`);
+    } catch(e) {
+      result = await query(`SELECT p.*, m.numero as mesa_numero, m.is_comanda as is_comanda, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status IN ('entregue', 'cancelado') ORDER BY p.created_at DESC LIMIT 50`);
+    }
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -3888,7 +3938,12 @@ app.get('/api/pedidos/ativo-telefone/:telefone', ensureDbInitialized, isAuthenti
 
 app.get('/api/pedidos/:id', ensureDbInitialized, isAuthenticated, async (req, res) => {
   try {
-    const result = await query(`SELECT p.*, COALESCE(p.mesa_numero, m.numero) as mesa_numero, COALESCE(p.is_comanda, m.is_comanda) as is_comanda, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
+    let result;
+    try {
+      result = await query(`SELECT p.*, COALESCE(p.mesa_numero, m.numero) as mesa_numero, COALESCE(p.is_comanda, m.is_comanda) as is_comanda, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
+    } catch(e) {
+      result = await query(`SELECT p.*, m.numero as mesa_numero, m.is_comanda as is_comanda, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
+    }
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Pedido não encontrado' });
     }
