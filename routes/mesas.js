@@ -117,18 +117,18 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
           AND id IN (
             SELECT DISTINCT m.id 
             FROM mesas m 
-            JOIN pedidos p ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
+            JOIN pedidos p ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT)
           )
           AND id NOT IN (
             SELECT DISTINCT m.id 
             FROM mesas m 
-            JOIN pedidos p ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
+            JOIN pedidos p ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT)
             WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho')
           )
           AND id NOT IN (
             SELECT DISTINCT m.id 
             FROM mesas m 
-            JOIN codigos_acesso ca ON (CAST(ca.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(ca.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
+            JOIN codigos_acesso ca ON CAST(ca.mesa_id AS TEXT) = CAST(m.id AS TEXT)
             WHERE ca.status = 'ativo'
           )
         `);
