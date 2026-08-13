@@ -1511,9 +1511,17 @@ async function abrirModalCriarComandaLancar() {
           
           // Seleciona a mesa recém criada no dropdown
           const select = document.getElementById('lancar-mesa-select');
-          if (select && data.id) {
-            select.value = String(data.id);
-            select.dispatchEvent(new Event('change'));
+          if (select) {
+            const targetId = String(data.id || '');
+            const targetNum = String(valor).trim().toLowerCase();
+            const optToSelect = Array.from(select.options).find(o => 
+              (targetId && o.value === targetId) || 
+              (targetNum && o.innerText.toLowerCase().includes(targetNum))
+            );
+            if (optToSelect) {
+              select.value = optToSelect.value;
+              select.dispatchEvent(new Event('change'));
+            }
             if (typeof sincronizarFiltroCustomizadoLancar === 'function') {
               sincronizarFiltroCustomizadoLancar();
             }

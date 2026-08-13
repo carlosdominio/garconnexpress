@@ -15,8 +15,18 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
         await query("ALTER TABLE mesas ADD COLUMN is_comanda INTEGER DEFAULT 0");
       } catch(e) { /* coluna já existe, ignorar */ }
 
-      const ins = await query('INSERT INTO mesas (numero, tipo, is_comanda) VALUES (?, ?, ?)', [numOuNome, tipo, isComanda]);
-      const novaId = ins.rows?.[0]?.id || ins.insertId || null;
+      let ins;
+      try {
+        ins = await query('INSERT INTO mesas (numero, tipo, is_comanda) VALUES (?, ?, ?) RETURNING id', [numOuNome, tipo, isComanda]);
+      } catch (e) {
+        ins = await query('INSERT INTO mesas (numero, tipo, is_comanda) VALUES (?, ?, ?)', [numOuNome, tipo, isComanda]);
+      }
+
+      let novaId = ins.rows?.[0]?.id || ins.insertId || null;
+      if (!novaId) {
+        const fetchRes = await query("SELECT id FROM mesas WHERE numero = ? ORDER BY id DESC LIMIT 1", [numOuNome]);
+        novaId = fetchRes.rows?.[0]?.id || null;
+      }
 
       await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
       res.json({ success: true, id: novaId, numero: numOuNome, tipo: tipo, is_comanda: isComanda }); 
