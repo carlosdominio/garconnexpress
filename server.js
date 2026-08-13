@@ -2416,6 +2416,20 @@ async function sendPushToGarcons(title, body, event = 'geral', dataExtra = {}, t
   }
 }
 
+function formatarNomeMesaOuComanda(numero, isComanda = 0) {
+  if (!numero) return 'BALCÃO';
+  const str = String(numero).trim();
+  if (!str) return 'BALCÃO';
+  if (/^(mesa|comanda|delivery|balcão|balcao)\b/i.test(str)) {
+    return str;
+  }
+  const isNum = /^\d+$/.test(str);
+  if (isNum) {
+    return Number(isComanda) === 1 ? `Comanda ${str}` : `Mesa ${str}`;
+  }
+  return str;
+}
+
 async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null, detalhesEdicao = null) {
   try {
     let mesaNum = mesaNumPredefined;
@@ -2424,25 +2438,25 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
 
     // Prioridade: Se temos o ID do pedido, buscamos os dados reais para evitar rotular Delivery como Balcão
     if (pedidoId) {
-      const res = await query("SELECT m.id as mesa_id, m.numero as mesa_numero, p.garcom_id FROM pedidos p LEFT JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) WHERE p.id = ?", [pedidoId]);
+      const res = await query("SELECT m.id as mesa_id, m.numero as mesa_numero, m.is_comanda, p.garcom_id FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [pedidoId]);
       if (res.rows[0]) {
         garcomId = res.rows[0].garcom_id;
         finalMesaId = finalMesaId || res.rows[0].mesa_id;
         
         if (garcomId === 'DELIVERY') {
           mesaNum = `DELIVERY #${pedidoId}`;
-        } else if (!mesaNum) {
-          mesaNum = res.rows[0].mesa_numero ? `Mesa ${res.rows[0].mesa_numero}` : 'BALCÃO';
+        } else if (!mesaNum || mesaNum === 'BALCÃO' || mesaNum.startsWith('Mesa ')) {
+          mesaNum = formatarNomeMesaOuComanda(res.rows[0].mesa_numero, res.rows[0].is_comanda);
         }
       }
     }
 
     // Caso não tenha pedidoId ou a busca falhou, tenta buscar pela mesaDbId
-    if (!mesaNum && finalMesaId) {
-      const res = await query("SELECT numero, garcom_id FROM mesas WHERE id = ?", [finalMesaId]);
+    if ((!mesaNum || mesaNum === 'BALCÃO') && finalMesaId) {
+      const res = await query("SELECT numero, is_comanda, garcom_id FROM mesas WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [finalMesaId, finalMesaId]);
       if (res.rows[0]) {
         garcomId = res.rows[0].garcom_id;
-        if (!mesaNum) mesaNum = `Mesa ${res.rows[0].numero}`;
+        mesaNum = formatarNomeMesaOuComanda(res.rows[0].numero, res.rows[0].is_comanda);
       }
     }
 
@@ -2502,8 +2516,6 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
     // Notificação WhatsApp em paralelo/background para o ADMIN para qualquer mudança de status
     let adminMsg = null;
     if (status === 'recebido') {
-      // Ignora o envio genérico do status "recebido" no WhatsApp porque o fluxo de criação do pedido
-      // já envia a notificação detalhada com a lista completa de itens e o valor total.
       adminMsg = null;
     } else if (status === 'preparando') {
       adminMsg = `🍳 *PEDIDO EM PREPARO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n👨‍🍳 A cozinha iniciou o preparo.`;
@@ -2523,13 +2535,15 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
       } else {
         const pDb = pedidoId ? (await query("SELECT balcao_imediato FROM pedidos WHERE id = ?", [pedidoId])).rows[0] : null;
         if (pDb && pDb.balcao_imediato === 1) {
-          adminMsg = null; // Ignora a mensagem de solicitação de conta para vendas rápidas de balcão
+          adminMsg = null;
         } else {
           adminMsg = `🛎️ *SOLICITAÇÃO DE FECHAMENTO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O cliente solicitou a conta.`;
         }
       }
     } else if (status === 'cancelado') {
-      adminMsg = `❌ *PEDIDO CANCELADO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n🗑️ O pedido foi cancelado no sistema.`;
+      adminMsg = `❌ *PEDIDO CANCELADO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId || 'N/A'}\n🗑️ O pedido/comanda foi cancelado no sistema.`;
+    } else if (status === 'liberada' || status === 'acesso_cancelado') {
+      adminMsg = `🚫 *MESA / COMANDA CANCELADA*\n📍 Local: ${mesaNum}\nℹ️ O acesso foi encerrado e a comanda cancelada pelo estabelecimento.`;
     } else if (status === 'itens_atualizados') {
       adminMsg = `📝 *PEDIDO ATUALIZADO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n🛠️ Alterações: ${detalhesEdicao || 'Itens ou observações atualizados'}`;
     } else if (status === 'entregue') {
@@ -2565,7 +2579,7 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
                      `💰 *Total Geral:* R$ ${calcTotal.toFixed(2)}\n\n` +
                      `✓ O pagamento foi registrado e a venda concluída.`;
         } else {
-          adminMsg = `✅ *PEDIDO FINALIZADO (PAGO)*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O pagamento foi registrado e o pedido fechado.`;
+          adminMsg = `✅ *FINALIZADO (PAGO)*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId || 'N/A'}\n💰 O pagamento foi registrado e o pedido/comanda fechado.`;
         }
       }
     }
@@ -5655,6 +5669,7 @@ app.post('/api/acesso/cancelar', isAuthenticated, async (req, res) => {
         status: 'liberada',
         origem: 'acesso_cancelado'
       });
+      await notifyStatus(null, m.id, 'acesso_cancelado');
     } else {
       await query("UPDATE codigos_acesso SET status = 'expirado' WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status = 'ativo'", [mesa_id]);
     }
