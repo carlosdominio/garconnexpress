@@ -7,13 +7,19 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     try {
       const numOuNome = String(req.body.numero || '').trim();
       const tipo = String(req.body.tipo || 'mesa').trim();
+      const isComanda = req.body.is_comanda ? 1 : 0;
       if (!numOuNome) return res.status(400).json({ error: 'Informe o número ou nome da mesa/comanda' });
 
-      const ins = await query('INSERT INTO mesas (numero, tipo) VALUES (?, ?)', [numOuNome, tipo]);
+      // Garante que a coluna is_comanda existe (migração silenciosa)
+      try {
+        await query("ALTER TABLE mesas ADD COLUMN is_comanda INTEGER DEFAULT 0");
+      } catch(e) { /* coluna já existe, ignorar */ }
+
+      const ins = await query('INSERT INTO mesas (numero, tipo, is_comanda) VALUES (?, ?, ?)', [numOuNome, tipo, isComanda]);
       const novaId = ins.rows?.[0]?.id || ins.insertId || null;
 
       await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
-      res.json({ success: true, id: novaId, numero: numOuNome, tipo: tipo }); 
+      res.json({ success: true, id: novaId, numero: numOuNome, tipo: tipo, is_comanda: isComanda }); 
     } catch (error) { 
       console.error('❌ ERRO EM POST /api/mesas:', error);
       res.status(500).json({ error: error.message }); 

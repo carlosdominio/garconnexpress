@@ -1501,7 +1501,7 @@ async function abrirModalCriarComandaLancar() {
         const res = await fetch('/api/mesas', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ numero: valor, tipo: tipo })
+          body: JSON.stringify({ numero: valor, tipo: tipo, is_comanda: 1 })
         });
         if (res.ok) {
           const data = await res.json();

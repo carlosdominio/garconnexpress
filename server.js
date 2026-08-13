@@ -3923,7 +3923,7 @@ app.delete('/api/pedidos/:id', isAdmin, async (req, res) => {
       if (pedido.status !== 'entregue' && pedido.status !== 'cancelado' && pedido.mesa_id) {
         const checkAtivos = await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho')", [pedido.mesa_id]);
         if (checkAtivos.rows.length === 0) {
-            await query("DELETE FROM mesas WHERE id = ?", [pedido.mesa_id]);
+            await query("DELETE FROM mesas WHERE id = ? AND COALESCE(is_comanda, 0) = 1", [pedido.mesa_id]);
         } else {
             await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [pedido.mesa_id]);
         }
@@ -4872,7 +4872,7 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
     if ((status === 'cancelado' || status === 'entregue') && pm && pm.mesa_id) {
         const checkAtivos = await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND id != ?", [pm.mesa_id, id]);
         if (checkAtivos.rows.length === 0) {
-            await query("DELETE FROM mesas WHERE id = ?", [pm.mesa_id]);
+            await query("DELETE FROM mesas WHERE id = ? AND COALESCE(is_comanda, 0) = 1", [pm.mesa_id]);
         } else {
             await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [pm.mesa_id]);
         }
