@@ -2944,8 +2944,8 @@ async function processarAcaoMenu() {
   const estoque = parseInt(document.getElementById('menu-estoque').value);
   const validade = document.getElementById('menu-validade').value;
   const imagem = document.getElementById('menu-img').value || 'https://placehold.co/100';
-  const enviar_cozinha = document.getElementById('menu-enviar-cozinha').checked;
-  const enviar_churrasco = document.getElementById('menu-enviar-churrasco') ? document.getElementById('menu-enviar-churrasco').checked : false;
+  const checkCozinhaVal = document.getElementById('menu-enviar-cozinha').checked;
+  const checkChurrascoVal = document.getElementById('menu-enviar-churrasco') ? document.getElementById('menu-enviar-churrasco').checked : false;
   const visivel = document.getElementById('menu-visivel').checked;
   const em_promocao = document.getElementById('menu-promocao').checked;
 
@@ -2955,6 +2955,24 @@ async function processarAcaoMenu() {
 
   const preco_custo = parseFloat(document.getElementById('menu-preco-custo')?.value) || 0;
   const unidade = document.getElementById('menu-unidade')?.value || 'un';
+
+  const catNorm = (categoria || '').trim().toUpperCase();
+  let defaultChurrasco = false;
+  if (configChurrascoLoaded && configChurrascoCategorias.length > 0) {
+    defaultChurrasco = configChurrascoCategorias.includes(catNorm);
+  } else {
+    defaultChurrasco = (catNorm.includes('CHURRASCO') || catNorm.includes('ESPET') || catNorm.includes('ESPETINHO') || catNorm.includes('CARNE') || catNorm.includes('GRELH'));
+  }
+
+  let defaultCozinha = true;
+  if (defaultChurrasco) {
+    defaultCozinha = false;
+  } else if (configCozinhaLoaded) {
+    defaultCozinha = configCozinhaCategorias.includes(catNorm);
+  }
+
+  const enviar_cozinha = (checkCozinhaVal === defaultCozinha) ? null : checkCozinhaVal;
+  const enviar_churrasco = (checkChurrascoVal === defaultChurrasco) ? null : checkChurrascoVal;
 
   const payload = { nome, descricao, categoria: categoria.toUpperCase(), preco, preco_original, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, em_promocao, preco_custo, unidade };
   const method = idItemEdicaoMenu ? 'PUT' : 'POST';

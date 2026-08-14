@@ -6200,6 +6200,10 @@ app.post('/api/config/categorias-churrasco', isAdmin, async (req, res) => {
       await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('categorias_churrasco', ?)", [valor]);
     }
 
+    // SINCRONIZAÇÃO COMPLETA:
+    // Define todos os itens como NULL para que passem a seguir a nova regra de categorias do churrasqueiro.
+    await query("UPDATE menu SET enviar_churrasco = NULL");
+
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }

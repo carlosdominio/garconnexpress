@@ -178,8 +178,8 @@ module.exports = (ctx) => {
     const custo = parseFloat(preco_custo) || 0;
     if (valPreco < 0 || valPrecoOriginal < 0 || custo < 0) return res.status(400).json({ error: 'Preço, preço original ou custo não podem ser negativos.' });
     const dataValidade = validade && validade.trim() !== "" ? validade : null;
-    const envCozinha = enviar_cozinha !== undefined ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
-    const envChurrasco = enviar_churrasco !== undefined ? (isPostgres ? enviar_churrasco : (enviar_churrasco ? 1 : 0)) : 0;
+    const envCozinha = enviar_cozinha !== undefined && enviar_cozinha !== null ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
+    const envChurrasco = enviar_churrasco !== undefined && enviar_churrasco !== null ? (isPostgres ? enviar_churrasco : (enviar_churrasco ? 1 : 0)) : null;
     const isVisivel = visivel !== undefined ? (isPostgres ? visivel : (visivel ? 1 : 0)) : (isPostgres ? true : 1);
     const emPromocao = em_promocao !== undefined ? (isPostgres ? em_promocao : (em_promocao ? 1 : 0)) : (isPostgres ? false : 0);
     const und = unidade || 'un';
@@ -212,8 +212,8 @@ module.exports = (ctx) => {
     const valPrecoOriginal = parseFloat(preco_original) || 0;
     const custo = parseFloat(preco_custo) || 0;
     if (valPreco < 0 || valPrecoOriginal < 0 || custo < 0) return res.status(400).json({ error: 'Preço, preço original ou custo não podem ser negativos.' });
-    const envCozinha = enviar_cozinha !== undefined ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
-    const envChurrasco = enviar_churrasco !== undefined ? (isPostgres ? enviar_churrasco : (enviar_churrasco ? 1 : 0)) : (isPostgres ? false : 0);
+    const envCozinha = enviar_cozinha !== undefined && enviar_cozinha !== null ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
+    const envChurrasco = enviar_churrasco !== undefined && enviar_churrasco !== null ? (isPostgres ? enviar_churrasco : (enviar_churrasco ? 1 : 0)) : null;
     const isVisivel = visivel !== undefined ? (isPostgres ? visivel : (visivel ? 1 : 0)) : (isPostgres ? true : 1);
     const emPromocao = em_promocao !== undefined ? (isPostgres ? em_promocao : (em_promocao ? 1 : 0)) : (isPostgres ? false : 0);
     const und = unidade || 'un';
