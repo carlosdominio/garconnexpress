@@ -2717,27 +2717,29 @@ let idItemEdicaoMenu = null;
 function alternarNovaCategoria(valor) {
   const inputNovo = document.getElementById('menu-cat-novo');
   const checkCozinha = document.getElementById('menu-enviar-cozinha');
+  const checkChurrasco = document.getElementById('menu-enviar-churrasco');
   
   const valNorm = (valor || "").trim().toUpperCase();
   console.log("🔍 [AUTO-CHECK] Selecionado:", valNorm);
-  console.log("📋 [AUTO-CHECK] Categorias da Cozinha:", configCozinhaCategorias);
 
   if (valor === 'NOVA_CATEGORIA') {
     inputNovo.classList.remove('hidden');
     inputNovo.focus();
-    if (checkCozinha) checkCozinha.checked = false; // Reset para nova categoria
+    if (checkCozinha) checkCozinha.checked = false;
+    if (checkChurrasco) checkChurrasco.checked = false;
   } else {
     inputNovo.classList.add('hidden');
     
-    // AUTO-CHECK: Se a categoria selecionada estiver na lista da cozinha, marca o checkbox
-    if (checkCozinha && valor) {
-        if (configCozinhaCategorias.includes(valNorm)) {
-            console.log("✅ [AUTO-CHECK] Match encontrado! Marcando...");
-            checkCozinha.checked = true;
-        } else {
-            console.log("ℹ️ [AUTO-CHECK] Sem match.");
-            checkCozinha.checked = false;
-        }
+    if (valor) {
+      let isChurr = configChurrascoCategorias.includes(valNorm);
+      if (!isChurr && (!configChurrascoLoaded || configChurrascoCategorias.length === 0)) {
+        isChurr = (valNorm.includes('CHURRASCO') || valNorm.includes('ESPET') || valNorm.includes('ESPETINHO') || valNorm.includes('CARNE') || valNorm.includes('GRELH'));
+      }
+      
+      if (checkChurrasco) checkChurrasco.checked = isChurr;
+      if (checkCozinha) {
+        checkCozinha.checked = isChurr ? false : configCozinhaCategorias.includes(valNorm);
+      }
     }
   }
 }
@@ -2750,8 +2752,18 @@ document.addEventListener('DOMContentLoaded', () => {
         inputNovo.addEventListener('input', (e) => {
             const valor = e.target.value.trim().toUpperCase();
             const checkCozinha = document.getElementById('menu-enviar-cozinha');
-            if (checkCozinha && valor && configCozinhaCategorias.includes(valor)) {
-                checkCozinha.checked = true;
+            const checkChurrasco = document.getElementById('menu-enviar-churrasco');
+            
+            if (valor) {
+                let isChurr = configChurrascoCategorias.includes(valor);
+                if (!isChurr && (!configChurrascoLoaded || configChurrascoCategorias.length === 0)) {
+                    isChurr = (valor.includes('CHURRASCO') || valor.includes('ESPET') || valor.includes('ESPETINHO') || valor.includes('CARNE') || valor.includes('GRELH'));
+                }
+                
+                if (checkChurrasco) checkChurrasco.checked = isChurr;
+                if (checkCozinha) {
+                    checkCozinha.checked = isChurr ? false : configCozinhaCategorias.includes(valor);
+                }
             }
         });
     }
