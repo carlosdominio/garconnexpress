@@ -197,6 +197,12 @@ function isItemParaCozinha(item) {
 
 function isItemParaChurrasco(item) {
     if (!item) return false;
+    if (item.enviar_churrasco === 1 || item.enviar_churrasco === true || item.enviar_churrasco === '1' || item.enviar_churrasco === 'true') {
+        return true;
+    }
+    if (item.enviar_churrasco === 0 || item.enviar_churrasco === false || item.enviar_churrasco === '0' || item.enviar_churrasco === 'false') {
+        return false;
+    }
     const cat = (item.categoria || '').trim().toUpperCase();
     if (configChurrascoLoaded && configChurrascoCategorias.length > 0) {
         return configChurrascoCategorias.includes(cat);
@@ -2806,6 +2812,9 @@ async function abrirModalItemMenu(item = null) {
     if (document.getElementById('menu-enviar-cozinha')) {
         document.getElementById('menu-enviar-cozinha').checked = isItemParaCozinha(item);
     }
+    if (document.getElementById('menu-enviar-churrasco')) {
+        document.getElementById('menu-enviar-churrasco').checked = isItemParaChurrasco(item);
+    }
     if (document.getElementById('menu-visivel')) document.getElementById('menu-visivel').checked = (item.visivel === true || item.visivel === 1 || item.visivel === null || item.visivel === undefined);
     if (document.getElementById('menu-promocao')) document.getElementById('menu-promocao').checked = (item.em_promocao === true || item.em_promocao === 1);
 
@@ -2839,6 +2848,7 @@ async function abrirModalItemMenu(item = null) {
     if (document.getElementById('menu-estoque')) document.getElementById('menu-estoque').value = '-1';
     if (document.getElementById('menu-unidade')) document.getElementById('menu-unidade').value = 'un';
     if (document.getElementById('menu-enviar-cozinha')) document.getElementById('menu-enviar-cozinha').checked = true;
+    if (document.getElementById('menu-enviar-churrasco')) document.getElementById('menu-enviar-churrasco').checked = false;
     if (document.getElementById('menu-visivel')) document.getElementById('menu-visivel').checked = true;
     if (document.getElementById('menu-promocao')) document.getElementById('menu-promocao').checked = false;
     if (selectCat) selectCat.value = '';
@@ -2922,6 +2932,7 @@ async function processarAcaoMenu() {
   const validade = document.getElementById('menu-validade').value;
   const imagem = document.getElementById('menu-img').value || 'https://placehold.co/100';
   const enviar_cozinha = document.getElementById('menu-enviar-cozinha').checked;
+  const enviar_churrasco = document.getElementById('menu-enviar-churrasco') ? document.getElementById('menu-enviar-churrasco').checked : false;
   const visivel = document.getElementById('menu-visivel').checked;
   const em_promocao = document.getElementById('menu-promocao').checked;
 
@@ -2932,7 +2943,7 @@ async function processarAcaoMenu() {
   const preco_custo = parseFloat(document.getElementById('menu-preco-custo')?.value) || 0;
   const unidade = document.getElementById('menu-unidade')?.value || 'un';
 
-  const payload = { nome, descricao, categoria: categoria.toUpperCase(), preco, preco_original, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, preco_custo, unidade };
+  const payload = { nome, descricao, categoria: categoria.toUpperCase(), preco, preco_original, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, em_promocao, preco_custo, unidade };
   const method = idItemEdicaoMenu ? 'PUT' : 'POST';
   const url = idItemEdicaoMenu ? `/api/menu/${idItemEdicaoMenu}` : '/api/menu';
 

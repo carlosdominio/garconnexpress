@@ -1612,18 +1612,22 @@
           <input type="text" id="menu-img" placeholder="https://...">
         </div>
 
-        <div style="display: flex; gap: 10px; margin-top: 10px;">
-          <div class="modal-form-group" style="flex: 1; display: flex; align-items: center; gap: 8px; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;">
-            <input type="checkbox" id="menu-enviar-cozinha" style="width: 20px; height: 20px; cursor: pointer;" checked>
-            <label for="menu-enviar-cozinha" style="margin: 0; cursor: pointer; font-weight: bold; color: #2c3e50;">👨‍🍳 Enviar p/ Cozinha</label>
+        <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: nowrap; overflow-x: auto;">
+          <div class="modal-form-group" style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; background: #f8fafc; padding: 8px 6px; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <input type="checkbox" id="menu-enviar-cozinha" style="width: 18px; height: 18px; cursor: pointer; flex-shrink: 0;" checked>
+            <label for="menu-enviar-cozinha" style="margin: 0; cursor: pointer; font-weight: bold; font-size: 0.78rem; color: #2c3e50; white-space: nowrap;">👨‍🍳 Cozinha</label>
           </div>
-          <div class="modal-form-group" style="flex: 1; display: flex; align-items: center; gap: 8px; background: #f0fdf4; padding: 10px; border-radius: 8px; border: 1px solid #dcfce7;">
-            <input type="checkbox" id="menu-visivel" style="width: 20px; height: 20px; cursor: pointer;" checked>
-            <label for="menu-visivel" style="margin: 0; cursor: pointer; font-weight: bold; color: #166534;">👁️ Visível no Cardápio</label>
+          <div class="modal-form-group" style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; background: #fff7ed; padding: 8px 6px; border-radius: 8px; border: 1px solid #fed7aa;">
+            <input type="checkbox" id="menu-enviar-churrasco" style="width: 18px; height: 18px; cursor: pointer; flex-shrink: 0;">
+            <label for="menu-enviar-churrasco" style="margin: 0; cursor: pointer; font-weight: bold; font-size: 0.78rem; color: #9a3412; white-space: nowrap;">🍢 Churrasco</label>
           </div>
-          <div class="modal-form-group" style="flex: 1; display: flex; align-items: center; gap: 8px; background: #fff1f2; padding: 10px; border-radius: 8px; border: 1px solid #fecdd3;">
-            <input type="checkbox" id="menu-promocao" style="width: 20px; height: 20px; cursor: pointer;">
-            <label for="menu-promocao" style="margin: 0; cursor: pointer; font-weight: bold; color: #be123c;">🏷️ Em Promoção</label>
+          <div class="modal-form-group" style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; background: #f0fdf4; padding: 8px 6px; border-radius: 8px; border: 1px solid #dcfce7;">
+            <input type="checkbox" id="menu-visivel" style="width: 18px; height: 18px; cursor: pointer; flex-shrink: 0;" checked>
+            <label for="menu-visivel" style="margin: 0; cursor: pointer; font-weight: bold; font-size: 0.78rem; color: #166534; white-space: nowrap;">👁️ Visível</label>
+          </div>
+          <div class="modal-form-group" style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; background: #fff1f2; padding: 8px 6px; border-radius: 8px; border: 1px solid #fecdd3;">
+            <input type="checkbox" id="menu-promocao" style="width: 18px; height: 18px; cursor: pointer; flex-shrink: 0;">
+            <label for="menu-promocao" style="margin: 0; cursor: pointer; font-weight: bold; font-size: 0.78rem; color: #be123c; white-space: nowrap;">🏷️ Promo</label>
           </div>
         </div>
 

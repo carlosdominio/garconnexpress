@@ -172,18 +172,34 @@ module.exports = (ctx) => {
 
   // PUT /api/menu/:id
   router.put('/:id', isAdmin, async (req, res) => {
-    const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, unidade, preco_custo } = req.body;
+    const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, em_promocao, unidade, preco_custo } = req.body;
     const valPreco = parseFloat(preco) || 0;
     const valPrecoOriginal = parseFloat(preco_original) || 0;
     const custo = parseFloat(preco_custo) || 0;
     if (valPreco < 0 || valPrecoOriginal < 0 || custo < 0) return res.status(400).json({ error: 'Preço, preço original ou custo não podem ser negativos.' });
     const dataValidade = validade && validade.trim() !== "" ? validade : null;
     const envCozinha = enviar_cozinha !== undefined ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
+    const envChurrasco = enviar_churrasco !== undefined ? (isPostgres ? enviar_churrasco : (enviar_churrasco ? 1 : 0)) : 0;
     const isVisivel = visivel !== undefined ? (isPostgres ? visivel : (visivel ? 1 : 0)) : (isPostgres ? true : 1);
     const emPromocao = em_promocao !== undefined ? (isPostgres ? em_promocao : (em_promocao ? 1 : 0)) : (isPostgres ? false : 0);
     const und = unidade || 'un';
     try {
-      await query('UPDATE menu SET nome = ?, categoria = ?, preco = ?, preco_original = ?, descricao = ?, imagem = ?, estoque = ?, validade = ?, enviar_cozinha = ?, visivel = ?, em_promocao = ?, unidade = ?, preco_custo = ? WHERE id = ?', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque, dataValidade, envCozinha, isVisivel, emPromocao, und, custo, req.params.id]);
+      try {
+        await query('UPDATE menu SET nome = ?, categoria = ?, preco = ?, preco_original = ?, descricao = ?, imagem = ?, estoque = ?, validade = ?, enviar_cozinha = ?, enviar_churrasco = ?, visivel = ?, em_promocao = ?, unidade = ?, preco_custo = ? WHERE id = ?', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque, dataValidade, envCozinha, envChurrasco, isVisivel, emPromocao, und, custo, req.params.id]);
+      } catch (errCol) {
+        if (errCol.message && (errCol.message.includes('enviar_churrasco') || errCol.message.includes('no column'))) {
+          try {
+            if (isPostgres) {
+              await query("ALTER TABLE menu ADD COLUMN IF NOT EXISTS enviar_churrasco BOOLEAN DEFAULT FALSE;");
+            } else {
+              await query("ALTER TABLE menu ADD COLUMN enviar_churrasco BOOLEAN DEFAULT FALSE;");
+            }
+          } catch(e){}
+          await query('UPDATE menu SET nome = ?, categoria = ?, preco = ?, preco_original = ?, descricao = ?, imagem = ?, estoque = ?, validade = ?, enviar_cozinha = ?, enviar_churrasco = ?, visivel = ?, em_promocao = ?, unidade = ?, preco_custo = ? WHERE id = ?', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque, dataValidade, envCozinha, envChurrasco, isVisivel, emPromocao, und, custo, req.params.id]);
+        } else {
+          throw errCol;
+        }
+      }
       await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
       res.json({ success: true });
     } catch (error) { res.status(500).json({ error: error.message }); }
@@ -191,24 +207,45 @@ module.exports = (ctx) => {
 
   // POST /api/menu
   router.post('/', isAdmin, async (req, res) => {
-    const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, unidade, preco_custo } = req.body;
+    const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, em_promocao, unidade, preco_custo } = req.body;
     const valPreco = parseFloat(preco) || 0;
     const valPrecoOriginal = parseFloat(preco_original) || 0;
     const custo = parseFloat(preco_custo) || 0;
     if (valPreco < 0 || valPrecoOriginal < 0 || custo < 0) return res.status(400).json({ error: 'Preço, preço original ou custo não podem ser negativos.' });
     const envCozinha = enviar_cozinha !== undefined ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
+    const envChurrasco = enviar_churrasco !== undefined ? (isPostgres ? enviar_churrasco : (enviar_churrasco ? 1 : 0)) : (isPostgres ? false : 0);
     const isVisivel = visivel !== undefined ? (isPostgres ? visivel : (visivel ? 1 : 0)) : (isPostgres ? true : 1);
     const emPromocao = em_promocao !== undefined ? (isPostgres ? em_promocao : (em_promocao ? 1 : 0)) : (isPostgres ? false : 0);
     const und = unidade || 'un';
     try {
       let newId = null;
-      if (isPostgres) {
-        const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, unidade, preco_custo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque || -1, validade || null, envCozinha, isVisivel, emPromocao, und, custo]);
-        newId = result.rows && result.rows[0] ? result.rows[0].id : null;
-      } else {
-        const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, visivel, em_promocao, unidade, preco_custo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque || -1, validade || null, envCozinha, isVisivel, emPromocao, und, custo]);
-        newId = result.lastInsertRowid || result.lastID || null;
+      const doInsert = async () => {
+        if (isPostgres) {
+          const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, em_promocao, unidade, preco_custo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque || -1, validade || null, envCozinha, envChurrasco, isVisivel, emPromocao, und, custo]);
+          return result.rows && result.rows[0] ? result.rows[0].id : null;
+        } else {
+          const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, em_promocao, unidade, preco_custo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque || -1, validade || null, envCozinha, envChurrasco, isVisivel, emPromocao, und, custo]);
+          return result.lastInsertRowid || result.lastID || null;
+        }
+      };
+
+      try {
+        newId = await doInsert();
+      } catch (errCol) {
+        if (errCol.message && (errCol.message.includes('enviar_churrasco') || errCol.message.includes('no column'))) {
+          try {
+            if (isPostgres) {
+              await query("ALTER TABLE menu ADD COLUMN IF NOT EXISTS enviar_churrasco BOOLEAN DEFAULT FALSE;");
+            } else {
+              await query("ALTER TABLE menu ADD COLUMN enviar_churrasco BOOLEAN DEFAULT FALSE;");
+            }
+          } catch(e){}
+          newId = await doInsert();
+        } else {
+          throw errCol;
+        }
       }
+
       await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
       res.json({ success: true, id: newId });
     } catch (error) { res.status(500).json({ error: error.message }); }
