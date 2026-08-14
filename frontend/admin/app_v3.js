@@ -4269,6 +4269,26 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
             if (itemExistente.status !== novoItem.status) {
               itemExistente.status = novoItem.status;
               houveMudancaStatus = true;
+
+              // ATUALIZAÇÃO DIRETA NO DOM EM TEMPO REAL (SEM PISCAR A TELA)
+              const cardEl = document.getElementById(`card-item-edicao-${novoItem.id}`);
+              const badgeEl = document.getElementById(`badge-item-status-${novoItem.id}`);
+              if (cardEl && badgeEl) {
+                const isEntregue = novoItem.status === 'entregue';
+                const isPronto = novoItem.status === 'pronto';
+                
+                badgeEl.style.background = isEntregue ? '#dcfce7' : (isPronto ? '#e8f8f5' : '#fef3c7');
+                badgeEl.style.color = isEntregue ? '#166534' : (isPronto ? '#27ae60' : '#92400e');
+                badgeEl.innerHTML = isEntregue ? '✅ Entregue' : (isPronto ? '🔥 Pronto' : '⏳ Pendente');
+                
+                cardEl.style.background = isEntregue ? '#f0fff4' : (isPronto ? '#e8f8f5' : '#ffffff');
+                cardEl.style.borderLeft = isEntregue ? '3px solid #27ae60' : (isPronto ? '3px solid #2ecc71' : '3px solid #e67e22');
+                
+                if (isEntregue) {
+                  cardEl.style.boxShadow = '0 0 10px rgba(39, 174, 96, 0.4)';
+                  setTimeout(() => { if (cardEl) cardEl.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'; }, 2000);
+                }
+              }
             }
           } else {
             houveMudancaStatus = true;
@@ -5532,7 +5552,7 @@ function renderizarItensEdicao() {
     const urlImagem = infoMenu.imagem || 'https://placehold.co/50';
 
     return `
-    <div class="item-edicao" style="${isEntregue ? 'background: #f0fff4; border-left: 3px solid #27ae60;' : (item.status === 'pronto' ? 'background: #e8f8f5; border-left: 3px solid #2ecc71;' : 'border-left: 3px solid #e67e22;')} padding: 6px 10px; margin-bottom: 6px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #edf2f7; display: flex; flex-direction: column; gap: 4px;">
+    <div id="card-item-edicao-${item.id || index}" class="item-edicao" style="${isEntregue ? 'background: #f0fff4; border-left: 3px solid #27ae60;' : (item.status === 'pronto' ? 'background: #e8f8f5; border-left: 3px solid #2ecc71;' : 'border-left: 3px solid #e67e22;')} padding: 6px 10px; margin-bottom: 6px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #edf2f7; display: flex; flex-direction: column; gap: 4px; transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;">
 
       <!-- LINHA 1: CHECKBOX + IMAGEM + NOME + STATUS -->
       <div style="display: flex; align-items: flex-start; gap: 8px;">
@@ -5548,7 +5568,7 @@ function renderizarItensEdicao() {
             <button onclick="removerItemEdicao(${index})" 
                     style="background: #fef2f2; color: #ef4444; border: none; width: 22px; height: 22px; border-radius: 5px; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.7rem;">✕</button>
           </div>
-          <span style="display: inline-block; padding: 0px 5px; border-radius: 3px; font-size: 0.6rem; font-weight: 900; text-transform: uppercase; background: ${isEntregue ? '#dcfce7' : (item.status === 'pronto' ? '#e8f8f5' : '#fef3c7')}; color: ${isEntregue ? '#166534' : (item.status === 'pronto' ? '#27ae60' : '#92400e')};">
+          <span id="badge-item-status-${item.id || index}" style="display: inline-block; padding: 0px 5px; border-radius: 3px; font-size: 0.6rem; font-weight: 900; text-transform: uppercase; background: ${isEntregue ? '#dcfce7' : (item.status === 'pronto' ? '#e8f8f5' : '#fef3c7')}; color: ${isEntregue ? '#166534' : (item.status === 'pronto' ? '#27ae60' : '#92400e')}; transition: all 0.3s ease;">
             ${isEntregue ? '✅ Entregue' : (item.status === 'pronto' ? '🔥 Pronto' : '⏳ Pendente')}
           </span>
         </div>
@@ -7311,7 +7331,9 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       timeoutPusher = setTimeout(() => {
         carregarPedidos();
         carregarHistorico();
+        atualizarModaisAdminAbertosEmTempoReal();
       }, 100);
+      atualizarModaisAdminAbertosEmTempoReal();
     });
 
     // EVENTO: CAIXA ATUALIZADO
