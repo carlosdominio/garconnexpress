@@ -175,13 +175,14 @@ let mensagensNaoLidasWhatsapp = 0; // Controle local do badge do WhatsApp
 
 function isItemParaCozinha(item) {
     if (!item) return false;
-    const envCozinha = item.enviar_cozinha;
-    const cat = (item.categoria || '').trim().toUpperCase();
     
-    // Se pertencer ao churrasco, nunca vai para a cozinha
-    if (configChurrascoLoaded && configChurrascoCategorias.includes(cat)) {
+    // Se estiver explicitamente ou por categoria no churrasco, nunca vai para a cozinha
+    if (isItemParaChurrasco(item)) {
         return false;
     }
+
+    const envCozinha = item.enviar_cozinha;
+    const cat = (item.categoria || '').trim().toUpperCase();
     
     if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') {
         return false;

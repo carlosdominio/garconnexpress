@@ -367,13 +367,14 @@ function atualizarBloqueioScroll() {
 // Helper para verificar se um item deve ir para a cozinha (Sincronizado com Backend)
 function isItemParaCozinha(item) {
     if (!item) return false;
-    const envCozinha = item.enviar_cozinha;
-    const cat = (item.categoria || '').trim().toUpperCase();
-
-    // Se pertencer ao churrasco, nunca vai para a cozinha
-    if (configChurrascoLoaded && configChurrascoCategorias.includes(cat)) {
+    
+    // Se estiver explicitamente ou por categoria no churrasco, nunca vai para a cozinha
+    if (isItemParaChurrasco(item)) {
         return false;
     }
+
+    const envCozinha = item.enviar_cozinha;
+    const cat = (item.categoria || '').trim().toUpperCase();
 
     // 1. Override Manual: Se for explicitamente 0/false ou 1/true, esse valor manda.
     if (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false') return false;
@@ -390,6 +391,12 @@ function isItemParaCozinha(item) {
 
 function isItemParaChurrasco(item) {
     if (!item) return false;
+    if (item.enviar_churrasco === 1 || item.enviar_churrasco === true || item.enviar_churrasco === '1' || item.enviar_churrasco === 'true') {
+        return true;
+    }
+    if (item.enviar_churrasco === 0 || item.enviar_churrasco === false || item.enviar_churrasco === '0' || item.enviar_churrasco === 'false') {
+        return false;
+    }
     const cat = (item.categoria || '').trim().toUpperCase();
     if (configChurrascoLoaded && configChurrascoCategorias.length > 0) {
         return configChurrascoCategorias.includes(cat);
