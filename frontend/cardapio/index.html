@@ -573,9 +573,11 @@
             if (!await validarSessaoAtiva()) { localStorage.removeItem('sessionMesa'); window.location.reload(); return; }
             showMainContent();
             
-            // Checagem de status inicial e periódica (Fallback do SSE/Pusher)
+            // Checagem de status inicial — atualizações subsequentes via Pusher/SSE
             carregarMeusPedidos();
-            setInterval(carregarMeusPedidos, 5000); 
+            // FUNC-004: Polling de 5s removido — o status é atualizado em tempo real
+            // pelos eventos Pusher (pedido-status-atualizado, item-entregue, etc.)
+            // Manter o polling causava ~240 req/min desnecessárias com 20 clientes simultâneos.
         });
 
         const realtimeEventDeduplicationMap = new Map();

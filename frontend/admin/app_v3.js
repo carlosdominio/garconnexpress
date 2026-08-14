@@ -5588,8 +5588,9 @@ function renderizarItensEdicao() {
     const infoMenu = cardapio.find(m => m.id === item.menu_id) || {};
     const urlImagem = infoMenu.imagem || 'https://placehold.co/50';
 
+    const uniqueId = item.id ? 'db-' + item.id : 'new-' + index;
     return `
-    <div id="card-item-edicao-${item.id || index}" class="item-edicao" style="${isEntregue ? 'background: #f0fff4; border-left: 3px solid #27ae60;' : (item.status === 'pronto' ? 'background: #e8f8f5; border-left: 3px solid #2ecc71;' : 'border-left: 3px solid #e67e22;')} padding: 6px 10px; margin-bottom: 6px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #edf2f7; display: flex; flex-direction: column; gap: 4px; transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;">
+    <div id="card-item-edicao-${uniqueId}" class="item-edicao" style="${isEntregue ? 'background: #f0fff4; border-left: 3px solid #27ae60;' : (item.status === 'pronto' ? 'background: #e8f8f5; border-left: 3px solid #2ecc71;' : 'border-left: 3px solid #e67e22;')} padding: 6px 10px; margin-bottom: 6px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #edf2f7; display: flex; flex-direction: column; gap: 4px; transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;">
 
       <!-- LINHA 1: CHECKBOX + IMAGEM + NOME + STATUS -->
       <div style="display: flex; align-items: flex-start; gap: 8px;">
@@ -5605,7 +5606,7 @@ function renderizarItensEdicao() {
             <button onclick="removerItemEdicao(${index})" 
                     style="background: #fef2f2; color: #ef4444; border: none; width: 22px; height: 22px; border-radius: 5px; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.7rem;">✕</button>
           </div>
-          <span id="badge-item-status-${item.id || index}" style="display: inline-block; padding: 0px 5px; border-radius: 3px; font-size: 0.6rem; font-weight: 900; text-transform: uppercase; background: ${isEntregue ? '#dcfce7' : (item.status === 'pronto' ? '#e8f8f5' : '#fef3c7')}; color: ${isEntregue ? '#166534' : (item.status === 'pronto' ? '#27ae60' : '#92400e')}; transition: all 0.3s ease;">
+          <span id="badge-item-status-${uniqueId}" style="display: inline-block; padding: 0px 5px; border-radius: 3px; font-size: 0.6rem; font-weight: 900; text-transform: uppercase; background: ${isEntregue ? '#dcfce7' : (item.status === 'pronto' ? '#e8f8f5' : '#fef3c7')}; color: ${isEntregue ? '#166534' : (item.status === 'pronto' ? '#27ae60' : '#92400e')}; transition: all 0.3s ease;">
             ${isEntregue ? '✅ Entregue' : (item.status === 'pronto' ? '🔥 Pronto' : '⏳ Pendente')}
           </span>
         </div>

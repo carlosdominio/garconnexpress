@@ -52,15 +52,20 @@ module.exports = (ctx) => {
       const p = (await query('SELECT estoque, nome FROM menu WHERE id = ?', [menuId])).rows[0];
       if (!p) return res.status(404).json({ error: 'Produto não encontrado' });
       if (p.estoque !== -1) {
+        // FUNC-002: Operação atômica — o banco calcula o novo saldo diretamente,
+        // evitando race conditions quando dois admins operam simultaneamente.
         const fator = tipo === 'entrada' ? 1 : -1;
-        const novoEstoque = Math.max(0, p.estoque + (qtd * fator));
-        await query('UPDATE menu SET estoque = ? WHERE id = ?', [novoEstoque, menuId]);
+        await query(
+          'UPDATE menu SET estoque = GREATEST(0, estoque + ?) WHERE id = ? AND estoque != -1',
+          [qtd * fator, menuId]
+        );
       }
       await query('INSERT INTO estoque_movimentacoes (menu_id, quantidade, tipo, motivo) VALUES (?, ?, ?, ?)', [menuId, qtd, tipo, motivo || (tipo === 'entrada' ? 'Entrada manual' : 'Perda manual')]);
       await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
       res.json({ success: true });
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
+
 
   // POST /api/estoque/resetar-movimentacoes
   router.post('/estoque/resetar-movimentacoes', isAdmin, async (req, res) => {
