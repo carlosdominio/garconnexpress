@@ -4333,14 +4333,22 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
     }
   }
 
-  // 2. Modal de Opções do Pedido (#modal-opcoes)
-  const modalOpcoes = document.getElementById('modal-opcoes');
-  if (modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.style.display !== '' && typeof pedidoEmOpcoes !== 'undefined' && pedidoEmOpcoes) {
+  // 2. Modal de Opções do Pedido (#modal-opcoes-mesa)
+  const modalOpcoes = document.getElementById('modal-opcoes-mesa');
+  if (modalOpcoes && (modalOpcoes.style.display === 'flex' || modalOpcoes.style.display === 'block') && typeof pedidoEmOpcoes !== 'undefined' && pedidoEmOpcoes) {
     if (typeof abrirModalOpcoes === 'function') {
       try {
         const pAtual = pedidos.find(p => String(p.id) === String(pedidoEmOpcoes.id));
-        if (pAtual && pAtual.status !== pedidoEmOpcoes.status) {
-          abrirModalOpcoes(pAtual.id);
+        if (pAtual) {
+          const resItens = await fetch(`/api/pedidos/${pAtual.id}/itens?t=` + Date.now());
+          if (resItens.ok) {
+            const novosItens = await resItens.json();
+            const statusMudou = JSON.stringify(novosItens.map(i => ({ id: i.id, status: i.status }))) !== JSON.stringify((pedidoEmOpcoes.itens || []).map(i => ({ id: i.id, status: i.status })));
+            if (statusMudou || pAtual.status !== pedidoEmOpcoes.status) {
+              pAtual.itens = novosItens;
+              abrirModalOpcoes(pAtual.id);
+            }
+          }
         }
       } catch(e){}
     }
@@ -4361,11 +4369,11 @@ function iniciarAutoRefreshModalAdmin() {
   if (intervalModalAdminAutoRefresh) return;
   intervalModalAdminAutoRefresh = setInterval(() => {
     const modalEdicao = document.getElementById('modal-edicao');
-    const modalOpcoes = document.getElementById('modal-opcoes');
+    const modalOpcoes = document.getElementById('modal-opcoes-mesa');
     const modalMesaAguardando = document.getElementById('modal-mesa-aguardando');
 
     const isEdicaoAberto = modalEdicao && modalEdicao.style.display === 'flex';
-    const isOpcoesAberto = modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.style.display !== '';
+    const isOpcoesAberto = modalOpcoes && (modalOpcoes.style.display === 'flex' || modalOpcoes.style.display === 'block');
     const isAguardandoAberto = modalMesaAguardando && modalMesaAguardando.style.display === 'flex';
 
     if (isEdicaoAberto || isOpcoesAberto || isAguardandoAberto) {
