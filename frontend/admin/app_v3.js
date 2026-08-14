@@ -4303,11 +4303,9 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
 
         // Se o garçom entregou o pedido ou algum item mudou de status:
         if (houveMudancaStatus) {
-          const numMesa = pedidoEmEdicao.mesa_numero ? 'Mesa ' + pedidoEmEdicao.mesa_numero : (pedidoEmEdicao.garcom_id === 'DELIVERY' ? `Delivery #${pedidoEmEdicao.id}` : 'Balcão');
-          const isTotalEntregue = (novosItens.length > 0 && novosItens.every(i => i.status === 'entregue')) || pedidoEmEdicao.status === 'servido' || pedidoEmEdicao.status === 'entregue';
-          const statusTexto = isTotalEntregue ? ' (✅ ENTREGUE)' : '';
+          const numMesa = pedidoEmEdicao.mesa_tipo === 'balcao' ? 'Balcão ' + pedidoEmEdicao.mesa_numero : (pedidoEmEdicao.mesa_numero ? 'Mesa ' + pedidoEmEdicao.mesa_numero : (pedidoEmEdicao.garcom_id === 'DELIVERY' ? `Delivery #${pedidoEmEdicao.id}` : 'Balcão'));
           const tituloEl = document.getElementById('modal-titulo');
-          if (tituloEl) tituloEl.innerText = `Editar Pedido: ${numMesa}${statusTexto}`;
+          if (tituloEl) tituloEl.innerText = `Editar Pedido: ${numMesa}`;
 
           // Mapeia seleções ativas dos checkboxes para não perder o que o usuário marcou
           const selecoesAtuais = {};
