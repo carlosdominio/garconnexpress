@@ -2606,7 +2606,7 @@ let dbInitError = null;
 async function initDb() {
   const tables = [
     `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero TEXT NOT NULL, status TEXT DEFAULT 'livre', garcom_id TEXT, is_comanda INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, preco_original REAL, descricao TEXT, imagem TEXT, estoque INTEGER DEFAULT -1, validade DATE, enviar_cozinha BOOLEAN DEFAULT TRUE, visivel BOOLEAN DEFAULT TRUE, em_promocao BOOLEAN DEFAULT FALSE)`,
+    `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, preco_original REAL, descricao TEXT, imagem TEXT, estoque INTEGER DEFAULT -1, validade DATE, enviar_cozinha BOOLEAN DEFAULT TRUE, enviar_churrasco BOOLEAN DEFAULT FALSE, visivel BOOLEAN DEFAULT TRUE, em_promocao BOOLEAN DEFAULT FALSE)`,
     `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
     `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
@@ -2755,6 +2755,7 @@ async function initDb() {
     await addCol('menu', 'estoque', 'INTEGER DEFAULT -1');
     await addCol('menu', 'validade', 'DATE');
     await addCol('menu', 'enviar_cozinha', 'BOOLEAN DEFAULT NULL');
+    await addCol('menu', 'enviar_churrasco', 'BOOLEAN DEFAULT FALSE');
     await addCol('menu', 'visivel', 'BOOLEAN DEFAULT TRUE');
     await addCol('menu', 'em_promocao', 'BOOLEAN DEFAULT FALSE');
     await addCol('menu', 'preco_original', 'REAL');
