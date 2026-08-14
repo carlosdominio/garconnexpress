@@ -1589,11 +1589,12 @@ function exibirCategoriasLancar() {
 }
 
 function alternarCategoriaLancar(cat) {
+  const buscaInput = document.getElementById('lancar-busca-produto');
+  if (buscaInput) buscaInput.value = '';
   document.querySelectorAll('#lancar-menu-categorias .cat-mini').forEach(c => c.classList.remove('ativa'));
   const el = document.getElementById(`cat-lancar-${cat}`);
   if (el) el.classList.add('ativa');
-  const queryText = (document.getElementById('lancar-busca-produto')?.value || '').trim().toLowerCase();
-  exibirMenuLancar(cat, queryText);
+  exibirMenuLancar(cat, '');
 }
 
 function obterCategoriaLancarAtiva() {
@@ -1601,10 +1602,28 @@ function obterCategoriaLancarAtiva() {
   return ativa ? ativa.id.replace('cat-lancar-', '') : 'todas';
 }
 
+let debounceBuscaLancar = null;
 function filtrarProdutosLancar() {
-  const queryText = (document.getElementById('lancar-busca-produto')?.value || '').trim().toLowerCase();
-  const categoria = obterCategoriaLancarAtiva();
-  exibirMenuLancar(categoria, queryText);
+  const buscaInput = document.getElementById('lancar-busca-produto');
+  const queryText = (buscaInput?.value || '').trim().toLowerCase();
+  
+  if (queryText) {
+    // Quando há busca ativa, desmarca qualquer categoria selecionada
+    document.querySelectorAll('#lancar-menu-categorias .cat-mini').forEach(c => c.classList.remove('ativa'));
+  } else {
+    // Quando a busca é limpa, reativa a categoria 'todas'
+    const temAtiva = document.querySelector('#lancar-menu-categorias .cat-mini.ativa');
+    if (!temAtiva) {
+      const elTodas = document.getElementById('cat-lancar-todas');
+      if (elTodas) elTodas.classList.add('ativa');
+    }
+  }
+
+  if (debounceBuscaLancar) clearTimeout(debounceBuscaLancar);
+  debounceBuscaLancar = setTimeout(() => {
+    const categoria = queryText ? 'todas' : obterCategoriaLancarAtiva();
+    exibirMenuLancar(categoria, queryText);
+  }, 100);
 }
 
 function exibirMenuLancar(categoria, queryTexto = '') {
@@ -5647,6 +5666,13 @@ function removerItensSelecionados() {
   renderizarItensEdicao();
 }
 
+function selecionarCategoriaEdicao(cat) {
+  termoBuscaEdicao = '';
+  const inputBusca = document.getElementById('input-busca-menu-edicao');
+  if (inputBusca) inputBusca.value = '';
+  renderizarMenuEdicao(cat);
+}
+
 async function renderizarMenuEdicao(categoria = 'todas') {
   categoriaEdicaoAtual = categoria;
   const container = document.getElementById('edit-menu-grid');
@@ -5667,10 +5693,10 @@ async function renderizarMenuEdicao(categoria = 'todas') {
   
   catContainer.innerHTML = categorias.map(cat => {
     const nomeExibicao = cat === 'todas' ? 'Todos' : cat.charAt(0).toUpperCase() + cat.slice(1);
-    const isAtiva = cat.trim().toLowerCase() === categoriaEdicaoAtual.trim().toLowerCase();
+    const isAtiva = !termoBuscaEdicao && (cat.trim().toLowerCase() === categoriaEdicaoAtual.trim().toLowerCase());
     return `
       <div class="cat-mini ${isAtiva ? 'ativa' : ''}" 
-           onclick="renderizarMenuEdicao('${cat}')">
+           onclick="selecionarCategoriaEdicao('${cat}')">
         ${nomeExibicao}
       </div>
     `;
