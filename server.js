@@ -2862,6 +2862,21 @@ async function lazyInitDb() {
           try {
             await db.query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS mesa_numero TEXT; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0;");
           } catch(e) {}
+          
+          try {
+            await db.query("ALTER TABLE menu ADD COLUMN IF NOT EXISTS enviar_churrasco BOOLEAN DEFAULT NULL;");
+          } catch(e) {}
+          
+          try {
+            const migCheck = await query("SELECT valor FROM sistema_config WHERE chave = 'mig_churrasco_clean'");
+            if (migCheck.rows.length === 0) {
+              await query("UPDATE menu SET enviar_churrasco = NULL WHERE enviar_churrasco = FALSE");
+              await query("INSERT INTO sistema_config (chave, valor) VALUES ('mig_churrasco_clean', 'done') ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor");
+              console.log("✅ Migração 'mig_churrasco_clean' executada com sucesso no Postgres (lazy)!");
+            }
+          } catch(e) {
+            console.error("Erro ao rodar migracao churrasco no Postgres lazy loading:", e.message);
+          }
         }
       }
 
