@@ -5822,8 +5822,17 @@ async function adicionarItemNaEdicao(itemId) {
 let ultimoPedidoEditadoPeloAdmin = null;
 let timerIgnoreEdit = null;
 
+let isSalvandoAlteracoesAdmin = false;
 async function salvarAlteracoes() {
-  if (!pedidoEmEdicao) return;
+  if (!pedidoEmEdicao || isSalvandoAlteracoesAdmin) return;
+  isSalvandoAlteracoesAdmin = true;
+  const btnSalvar = document.querySelector("button[onclick='salvarAlteracoes()']");
+  if (btnSalvar) {
+    btnSalvar.disabled = true;
+    btnSalvar.innerText = "⏳ SALVANDO...";
+    btnSalvar.style.opacity = "0.6";
+  }
+
   const idEditado = pedidoEmEdicao.id;
   ultimoPedidoEditadoPeloAdmin = idEditado;
   if (timerIgnoreEdit) clearTimeout(timerIgnoreEdit);
@@ -5873,6 +5882,13 @@ async function salvarAlteracoes() {
     }
   } catch (e) {
     mostrarAlerta("Erro de rede");
+  } finally {
+    isSalvandoAlteracoesAdmin = false;
+    if (btnSalvar) {
+      btnSalvar.disabled = false;
+      btnSalvar.innerText = "💾 SALVAR ALTERAÇÕES";
+      btnSalvar.style.opacity = "1";
+    }
   }
 }
 

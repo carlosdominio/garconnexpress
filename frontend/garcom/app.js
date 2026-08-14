@@ -2474,8 +2474,16 @@ function descartarAlteracoesGarcom() {
   renderizarItensMesaGarcom();
 }
 
+let isSalvandoAlteracoesGarcom = false;
 async function salvarAlteracoesGarcom() {
-  if (!pedidoAbertoNaMesa) return;
+  if (!pedidoAbertoNaMesa || isSalvandoAlteracoesGarcom) return;
+  isSalvandoAlteracoesGarcom = true;
+  const btnSalvar = document.querySelector("button[onclick='salvarAlteracoesGarcom()']");
+  if (btnSalvar) {
+    btnSalvar.disabled = true;
+    btnSalvar.innerText = "⏳ Salvando...";
+    btnSalvar.style.opacity = "0.6";
+  }
   showLoading(true, 'Salvando alterações...');
   try {
     const idPedido = pedidoAbertoNaMesa.id;
@@ -2512,6 +2520,13 @@ async function salvarAlteracoesGarcom() {
   } catch (error) {
     showLoading(false);
     await mostrarAlerta("Erro de rede ao salvar alterações.", "Erro", "❌");
+  } finally {
+    isSalvandoAlteracoesGarcom = false;
+    if (btnSalvar) {
+      btnSalvar.disabled = false;
+      btnSalvar.innerText = "💾 Salvar Alterações";
+      btnSalvar.style.opacity = "1";
+    }
   }
 }
 
