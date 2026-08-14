@@ -607,9 +607,13 @@ async function iniciarPainelAdmin() {
 let temEdicoesLocaisNaoSalvas = false;
 let termoBuscaEdicao = '';
 
+let debounceBuscaEdicao = null;
 function filtrarMenuEdicao(termo) {
   termoBuscaEdicao = (termo || '').toLowerCase().trim();
-  renderizarMenuEdicao(categoriaEdicaoAtual);
+  if (debounceBuscaEdicao) clearTimeout(debounceBuscaEdicao);
+  debounceBuscaEdicao = setTimeout(() => {
+    renderizarMenuEdicao(categoriaEdicaoAtual);
+  }, 100);
 }
 
 async function mudarQtdItem(index, qtd) { 
@@ -660,14 +664,20 @@ async function mudarQtdItem(index, qtd) {
     itemNoPedido.quantidade = novaQtd;
   }
   renderizarItensEdicao(); 
-  renderizarMenuEdicao(categoriaEdicaoAtual);
+  if (itemNoMenu && itemNoMenu.estoque !== -1) {
+    renderizarMenuEdicao(categoriaEdicaoAtual);
+  }
 }
 
 async function removerItemEdicao(index) { 
   temEdicoesLocaisNaoSalvas = true;
+  const itemRemovido = itensEmEdicao[index];
   itensEmEdicao.splice(index, 1); 
   renderizarItensEdicao(); 
-  renderizarMenuEdicao(categoriaEdicaoAtual);
+  const itemNoMenu = itemRemovido ? cardapio.find(m => m.id === itemRemovido.menu_id) : null;
+  if (itemNoMenu && itemNoMenu.estoque !== -1) {
+    renderizarMenuEdicao(categoriaEdicaoAtual);
+  }
 }
 
 let serverClockOffset = 0;
@@ -4255,16 +4265,17 @@ async function carregarPedidos() {
 async function atualizarModaisAdminAbertosEmTempoReal() {
   // 1. Modal de Edição / Visualização do Pedido (#modal-edicao)
   const modalEdicao = document.getElementById('modal-edicao');
-  if (modalEdicao && modalEdicao.style.display === 'flex' && pedidoEmEdicao) {
+  if (modalEdicao && modalEdicao.style.display === 'flex' && pedidoEmEdicao && pedidoEmEdicao.id) {
     const pedId = pedidoEmEdicao.id;
     try {
       const resItens = await fetch(`/api/pedidos/${pedId}/itens?t=` + Date.now());
       if (resItens.ok) {
-        const novosItens = await resItens.json();
+        const novosItens = (await resItens.json()) || [];
         
         let houveMudancaStatus = false;
-        novosItens.forEach(novoItem => {
-          const itemExistente = (itensEmEdicao || []).find(i => i.id === novoItem.id);
+        (Array.isArray(novosItens) ? novosItens : []).forEach(novoItem => {
+          if (!novoItem || !novoItem.id) return;
+          const itemExistente = (itensEmEdicao || []).find(i => i && i.id === novoItem.id);
           if (itemExistente) {
             if (itemExistente.status !== novoItem.status) {
               itemExistente.status = novoItem.status;
@@ -4295,14 +4306,14 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
           }
         });
 
-        const pAtualizado = pedidos.find(p => String(p.id) === String(pedId));
-        if (pAtualizado && pAtualizado.status !== pedidoEmEdicao.status) {
+        const pAtualizado = Array.isArray(pedidos) ? pedidos.find(p => p && String(p.id) === String(pedId)) : null;
+        if (pAtualizado && pedidoEmEdicao && pAtualizado.status && pedidoEmEdicao.status && pAtualizado.status !== pedidoEmEdicao.status) {
           pedidoEmEdicao.status = pAtualizado.status;
           houveMudancaStatus = true;
         }
 
         // Se o garçom entregou o pedido ou algum item mudou de status:
-        if (houveMudancaStatus) {
+        if (houveMudancaStatus && pedidoEmEdicao) {
           const numMesa = pedidoEmEdicao.mesa_tipo === 'balcao' ? 'Balcão ' + pedidoEmEdicao.mesa_numero : (pedidoEmEdicao.mesa_numero ? 'Mesa ' + pedidoEmEdicao.mesa_numero : (pedidoEmEdicao.garcom_id === 'DELIVERY' ? `Delivery #${pedidoEmEdicao.id}` : 'Balcão'));
           const tituloEl = document.getElementById('modal-titulo');
           if (tituloEl) tituloEl.innerText = `Editar Pedido: ${numMesa}`;
@@ -4310,7 +4321,7 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
           // Mapeia seleções ativas dos checkboxes para não perder o que o usuário marcou
           const selecoesAtuais = {};
           (itensEmEdicao || []).forEach(i => {
-            if (i.id) selecoesAtuais[i.id] = i.selecionado;
+            if (i && i.id) selecoesAtuais[i.id] = i.selecionado;
           });
 
           // Atualiza itens mantendo seleções e preservando o foco se estiver digitando
@@ -4320,7 +4331,7 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
           if (!estaDigitando) {
             itensEmEdicao = novosItens.map(i => ({
               ...i,
-              selecionado: !!selecoesAtuais[i.id]
+              selecionado: !!(i && i.id && selecoesAtuais[i.id])
             }));
             renderizarItensEdicao();
           }
@@ -4333,16 +4344,17 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
 
   // 2. Modal de Opções do Pedido (#modal-opcoes-mesa)
   const modalOpcoes = document.getElementById('modal-opcoes-mesa');
-  if (modalOpcoes && (modalOpcoes.style.display === 'flex' || modalOpcoes.style.display === 'block') && typeof pedidoEmOpcoes !== 'undefined' && pedidoEmOpcoes) {
+  if (modalOpcoes && (modalOpcoes.style.display === 'flex' || modalOpcoes.style.display === 'block') && typeof pedidoEmOpcoes !== 'undefined' && pedidoEmOpcoes && pedidoEmOpcoes.id) {
     if (typeof abrirModalOpcoes === 'function') {
       try {
-        const pAtual = pedidos.find(p => String(p.id) === String(pedidoEmOpcoes.id));
+        const pAtual = Array.isArray(pedidos) ? pedidos.find(p => p && String(p.id) === String(pedidoEmOpcoes.id)) : null;
         if (pAtual) {
           const resItens = await fetch(`/api/pedidos/${pAtual.id}/itens?t=` + Date.now());
           if (resItens.ok) {
-            const novosItens = await resItens.json();
-            const statusMudou = JSON.stringify(novosItens.map(i => ({ id: i.id, status: i.status }))) !== JSON.stringify((pedidoEmOpcoes.itens || []).map(i => ({ id: i.id, status: i.status })));
-            if (statusMudou || pAtual.status !== pedidoEmOpcoes.status) {
+            const novosItens = (await resItens.json()) || [];
+            const itensAnteriores = Array.isArray(pedidoEmOpcoes.itens) ? pedidoEmOpcoes.itens : [];
+            const statusMudou = JSON.stringify(novosItens.filter(Boolean).map(i => ({ id: i.id, status: i.status || '' }))) !== JSON.stringify(itensAnteriores.filter(Boolean).map(i => ({ id: i.id, status: i.status || '' })));
+            if (statusMudou || (pAtual.status && pedidoEmOpcoes.status && pAtual.status !== pedidoEmOpcoes.status)) {
               pAtual.itens = novosItens;
               abrirModalOpcoes(pAtual.id);
             }
@@ -5664,13 +5676,18 @@ async function renderizarMenuEdicao(categoria = 'todas') {
     `;
   }).join('');
 
-  let itens = categoriaEdicaoAtual === 'todas' ? cardapioAtivo : cardapioAtivo.filter(i => i.categoria.trim().toLowerCase() === categoriaEdicaoAtual.trim().toLowerCase());
-
+  let itens;
   if (termoBuscaEdicao) {
-    itens = itens.filter(i => 
+    // Quando há busca, procura em todo o cardápio (todas as categorias)
+    itens = cardapioAtivo.filter(i => 
       (i.nome || '').toLowerCase().includes(termoBuscaEdicao) || 
       (i.categoria || '').toLowerCase().includes(termoBuscaEdicao)
     );
+  } else {
+    // Quando não há busca, filtra pela categoria selecionada
+    itens = (categoriaEdicaoAtual === 'todas')
+      ? cardapioAtivo
+      : cardapioAtivo.filter(i => i.categoria.trim().toLowerCase() === categoriaEdicaoAtual.trim().toLowerCase());
   }
 
   if (itens.length === 0) {
@@ -5710,7 +5727,7 @@ async function renderizarMenuEdicao(categoria = 'todas') {
         ${isItemParaChurrasco(item) ? `<div style="background: #e67e22; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 900; font-size: 0.75rem; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">🍢 Churrasco</div>` : ''}
       </div>
 
-      <img src="${item.imagem}" alt="${item.nome}" style="filter: ${estoqueDisponivel === 0 ? 'grayscale(1)' : 'none'}; height: 110px !important; width: 100%; object-fit: cover; display: block; border-bottom: 1px solid #f0f0f0;">
+      <img src="${item.imagem}" loading="lazy" decoding="async" alt="${item.nome}" style="filter: ${estoqueDisponivel === 0 ? 'grayscale(1)' : 'none'}; height: 110px !important; width: 100%; object-fit: cover; display: block; border-bottom: 1px solid #f0f0f0;">
       <div style="padding: 4px 8px !important; display: flex; flex-direction: column; flex-grow: 1; justify-content: flex-start;">
         <h4 style="margin: 0 !important; font-size: 0.85rem !important; color: #2c3e50 !important; line-height: 1.1 !important; font-weight: 700 !important; white-space: normal !important; text-align: left !important;">${item.nome}</h4>
       </div>
@@ -5770,7 +5787,9 @@ async function adicionarItemNaEdicao(itemId) {
     });
   }
   renderizarItensEdicao();
-  renderizarMenuEdicao(categoriaEdicaoAtual); // ATUALIZAÇÃO EM TEMPO REAL DO ESTOQUE NO CARDÁPIO
+  if (menuItem.estoque !== -1) {
+    renderizarMenuEdicao(categoriaEdicaoAtual);
+  }
 }
 
 let ultimoPedidoEditadoPeloAdmin = null;
