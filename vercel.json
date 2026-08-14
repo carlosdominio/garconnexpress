@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "regions": ["gru1"],
   "builds": [
     {
       "src": "server.js",
@@ -10,7 +11,8 @@
           "motoboy-app-nativo/www/**",
           "cozinha-app-nativo/www/**",
           "garcom-app-nativo/www/**",
-          "churrasqueiro-app-nativo/www/**"
+          "churrasqueiro-app-nativo/www/**",
+          "routes/**"
         ]
       }
     },
@@ -21,7 +23,7 @@
   ],
   "headers": [
     {
-      "source": "/(garcom-v1.1.0-portrait.apk|cozinha-v1.1.0-portrait.apk|motoboy-v2.0.0-portrait.apk)",
+      "source": "/(garcom-v1.1.0-portrait.apk|cozinha-v1.1.0-portrait.apk|motoboy-v2.0.0-portrait.apk|churrasqueiro-final.apk)",
       "headers": [
         {
           "key": "Content-Disposition",
@@ -30,6 +32,15 @@
         {
           "key": "Content-Type",
           "value": "application/vnd.android.package-archive"
+        }
+      ]
+    },
+    {
+      "source": "/(.*\\.(?:mp3|wav|png|jpg|webp|svg|ico|woff2))",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, stale-while-revalidate=604800"
         }
       ]
     }
