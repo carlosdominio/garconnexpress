@@ -317,6 +317,7 @@ module.exports = (ctx) => {
         onBeforeGenerateToken: async (pathname, clientPayload) => {
           return {
             allowedContentTypes: ['application/vnd.android.package-archive', 'application/octet-stream'],
+            addRandomSuffix: true,
             tokenPayload: JSON.stringify({}),
           };
         },
