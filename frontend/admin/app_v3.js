@@ -10274,11 +10274,15 @@ async function uploadGofile(file, appTipo, input) {
   });
 
   try {
-    const serverRes = await fetch('https://api.gofile.io/getServer');
+    const serverRes = await fetch('https://api.gofile.io/servers');
     if (!serverRes.ok) throw new Error('Falha ao contactar servidor Gofile.');
     const serverData = await serverRes.json();
-    if (serverData.status !== 'success') throw new Error('Gofile offline.');
-    const server = serverData.data.server;
+    if (serverData.status !== 'ok' && serverData.status !== 'success') throw new Error('Gofile offline.');
+    
+    // Pega o primeiro servidor disponível na lista
+    const servers = serverData.data.servers;
+    if (!servers || servers.length === 0) throw new Error('Nenhum servidor Gofile disponível no momento.');
+    const server = servers[0].name;
 
     const formData = new FormData();
     formData.append('file', file);
@@ -10290,9 +10294,9 @@ async function uploadGofile(file, appTipo, input) {
 
     if (!uploadRes.ok) throw new Error('Falha de rede no upload.');
     const uploadData = await uploadRes.json();
-    if (uploadData.status !== 'success') throw new Error('Erro no processamento do Gofile.');
+    if (uploadData.status !== 'ok' && uploadData.status !== 'success') throw new Error('Erro no processamento do Gofile.');
 
-    const fileLink = uploadData.data.directLink || uploadData.data.downloadPage;
+    const fileLink = uploadData.data.downloadPage;
     const urlInput = document.getElementById(`config-${appTipo}-apk-url`);
     if (urlInput) {
       urlInput.value = fileLink;
