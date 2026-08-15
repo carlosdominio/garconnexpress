@@ -779,7 +779,7 @@ async function configurarPusher() {
         canal.bind('versao-app-atualizada', (data) => {
             console.log('🔄 Versão do código atualizada pelo Admin!', data);
             if (isNativeApp) {
-                verificarAtualizacaoApk('cozinha');
+                verificarAtualizacaoApk('cozinha', true);
             } else {
                 exibirTelaCarregamentoSistema('⚡ Atualizando Cozinha', 'O administrador aplicou novas configurações. Atualizando sistema...');
                 setTimeout(() => location.reload(true), 1500);
@@ -1288,7 +1288,7 @@ setInterval(atualizarCronometros, 1000);
 // Recarregar lista completa a cada minuto para garantir sincronia
 setInterval(carregarPedidos, 60000);
 
-async function verificarAtualizacaoApk(appTipo) {
+async function verificarAtualizacaoApk(appTipo, isFromPusher = false) {
   const ua = navigator.userAgent;
   let currentVersion = null;
   let userAgentKey = '';
@@ -1318,12 +1318,17 @@ async function verificarAtualizacaoApk(appTipo) {
 
     // Se o Admin voltou a versão para a mesma instalada (ou se o app já está atualizado)
     if (serverVersion === currentVersion) {
-      console.log(`[APK Update] Aplicativo ${appTipo} já está na versão correta (${currentVersion}).`);
+      console.log(`[APK Update] Aplicativo ${appTipo} já está com o APK atualizado (${currentVersion}).`);
       if (typeof Swal !== 'undefined' && Swal.isVisible()) {
         Swal.close();
       }
-      if (typeof ocultarTelaCarregamentoSistema === 'function') {
-        ocultarTelaCarregamentoSistema();
+      if (isFromPusher) {
+        exibirTelaCarregamentoSistema('⚡ Atualizando Cozinha', 'O administrador aplicou novas configurações. Atualizando sistema...');
+        setTimeout(() => location.reload(true), 1500);
+      } else {
+        if (typeof ocultarTelaCarregamentoSistema === 'function') {
+          ocultarTelaCarregamentoSistema();
+        }
       }
       return;
     }

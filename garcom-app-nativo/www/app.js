@@ -121,7 +121,7 @@ function ocultarTelaCarregamentoSistema() {
   if (modal) modal.style.display = 'none';
 }
 
-async function verificarAtualizacaoApk(appTipo) {
+async function verificarAtualizacaoApk(appTipo, isFromPusher = false) {
   const ua = navigator.userAgent;
   let currentVersion = null;
   let userAgentKey = '';
@@ -151,12 +151,17 @@ async function verificarAtualizacaoApk(appTipo) {
 
     // Se o Admin voltou a versão para a mesma instalada (ou se o app já está atualizado)
     if (serverVersion === currentVersion) {
-      console.log(`[APK Update] Aplicativo ${appTipo} já está na versão correta (${currentVersion}).`);
+      console.log(`[APK Update] Aplicativo ${appTipo} já está com o APK atualizado (${currentVersion}).`);
       if (typeof Swal !== 'undefined' && Swal.isVisible()) {
         Swal.close();
       }
-      if (typeof ocultarTelaCarregamentoSistema === 'function') {
-        ocultarTelaCarregamentoSistema();
+      if (isFromPusher) {
+        exibirTelaCarregamentoSistema('⚡ Atualizando GarçomExpress', 'O administrador aplicou novas configurações. Atualizando sistema...');
+        setTimeout(() => location.reload(true), 1500);
+      } else {
+        if (typeof ocultarTelaCarregamentoSistema === 'function') {
+          ocultarTelaCarregamentoSistema();
+        }
       }
       return;
     }
@@ -1611,7 +1616,7 @@ async function configurarPusher() {
     channel.bind('versao-app-atualizada', (data) => {
       console.log('🔄 Versão do código atualizada pelo Admin!', data);
       if (isNativeApp) {
-        verificarAtualizacaoApk('garcom');
+        verificarAtualizacaoApk('garcom', true);
       } else {
         exibirTelaCarregamentoSistema('⚡ Atualizando GarçomExpress', 'O administrador aplicou novas configurações. Atualizando sistema...');
         setTimeout(() => location.reload(true), 1500);
