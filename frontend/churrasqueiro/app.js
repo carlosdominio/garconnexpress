@@ -38,6 +38,7 @@ function ocultarTelaCarregamentoSistema() {
 
 let isNativeApp = (window.Capacitor && window.Capacitor.isNativePlatform()) || 
                   navigator.userAgent.includes('Capacitor') || 
+                  navigator.userAgent.includes('GarconnExpress') || 
                   window.location.protocol === 'capacitor:' || 
                   (window.location.hostname === 'localhost' && (window.location.protocol === 'http:' || window.location.protocol === 'https:') && !window.location.port);
 

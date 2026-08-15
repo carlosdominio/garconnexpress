@@ -103,6 +103,7 @@ const NOTIFICATION_CHANNEL_ID = 'pedidos';
 
 const isNativeApp = (window.Capacitor && window.Capacitor.isNativePlatform()) || 
                     navigator.userAgent.includes('Capacitor') || 
+                    navigator.userAgent.includes('GarconnExpress') || 
                     window.location.protocol === 'file:';
 
 if (isNativeApp && 'serviceWorker' in navigator) {
