@@ -1503,8 +1503,8 @@ async function abrirModalCriarComandaLancar() {
 
         <!-- CORPO DO MODAL -->
         <div style="padding: 20px; text-align: left;">
-          <label style="display: block; font-weight: bold; color: #334155; font-size: 0.9rem; margin-bottom: 6px;">Número ou Nome da Comanda/Mesa:</label>
-          <input type="text" id="input-nome-comanda-novo" placeholder="ex: 15, VIP, Comanda 05, João..." maxlength="30"
+          <label style="display: block; font-weight: bold; color: #334155; font-size: 0.9rem; margin-bottom: 6px;">Número ou Nome da Comanda/Mesa (máx 13 letras):</label>
+          <input type="text" id="input-nome-comanda-novo" placeholder="ex: 15, VIP, Comanda 05..." maxlength="13"
                  style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 2px solid #cbd5e0; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc; margin-bottom: 12px;">
           
           <label style="display: block; font-weight: bold; color: #334155; font-size: 0.9rem; margin-bottom: 6px;">Direcionar para:</label>
@@ -2566,11 +2566,15 @@ window.editarNomeMesa = async function(id, nomeAtual) {
     title: 'Editar Nome da Mesa/Comanda',
     input: 'text',
     inputValue: nomeAtual,
+    inputAttributes: {
+      maxlength: '13'
+    },
     showCancelButton: true,
     confirmButtonText: 'Salvar',
     cancelButtonText: 'Cancelar',
     inputValidator: (value) => {
       if (!value) return 'O nome não pode ficar vazio!';
+      if (value.length > 13) return 'Máximo de 13 caracteres!';
     }
   });
 
