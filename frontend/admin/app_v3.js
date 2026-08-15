@@ -205,7 +205,7 @@ function isItemParaChurrasco(item) {
         return false;
     }
     const cat = (item.categoria || '').trim().toUpperCase();
-    if (configChurrascoLoaded && configChurrascoCategorias.length > 0) {
+    if (configChurrascoLoaded) {
         return configChurrascoCategorias.includes(cat);
     }
     return (cat.includes('CHURRASCO') || cat.includes('ESPET') || cat.includes('ESPETINHO') || cat.includes('CARNE') || cat.includes('GRELH'));
@@ -216,8 +216,12 @@ async function carregarConfigCategoriasCozinha() {
     const resConfig = await fetch('/api/config/categorias-cozinha');
     if (resConfig.ok) {
       const configuradas = await resConfig.json();
-      configCozinhaCategorias = (configuradas || []).map(c => String(c).trim().toUpperCase());
-      configCozinhaLoaded = true;
+      if (configuradas !== null) {
+        configCozinhaCategorias = configuradas.map(c => String(c).trim().toUpperCase());
+        configCozinhaLoaded = true;
+      } else {
+        configCozinhaLoaded = false;
+      }
     }
   } catch (e) {
     console.error('Erro ao buscar config de cozinha:', e);
@@ -229,8 +233,12 @@ async function carregarConfigCategoriasChurrasco() {
     const resConfig = await fetch('/api/config/categorias-churrasco');
     if (resConfig.ok) {
       const configuradas = await resConfig.json();
-      configChurrascoCategorias = (configuradas || []).map(c => String(c).trim().toUpperCase());
-      configChurrascoLoaded = true;
+      if (configuradas !== null) {
+        configChurrascoCategorias = configuradas.map(c => String(c).trim().toUpperCase());
+        configChurrascoLoaded = true;
+      } else {
+        configChurrascoLoaded = false;
+      }
     }
   } catch (e) {
     console.error('Erro ao buscar config de churrasco:', e);

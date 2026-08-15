@@ -400,7 +400,7 @@ function isItemParaChurrasco(item) {
         return false;
     }
     const cat = (item.categoria || '').trim().toUpperCase();
-    if (configChurrascoLoaded && configChurrascoCategorias.length > 0) {
+    if (configChurrascoLoaded) {
         return configChurrascoCategorias.includes(cat);
     }
     return (cat.includes('CHURRASCO') || cat.includes('ESPET') || cat.includes('ESPETINHO') || cat.includes('CARNE') || cat.includes('GRELH'));
@@ -840,9 +840,13 @@ async function carregarConfigCozinha() {
         const res = await fetch('/api/config/categorias-cozinha');
         if (res.ok) {
             const cats = await res.json();
-            configCozinhaCategorias = cats.map(c => c.trim().toUpperCase());
-            configCozinhaLoaded = true;
-            console.log("🍳 Configurações de cozinha carregadas:", configCozinhaCategorias);
+            if (cats !== null) {
+                configCozinhaCategorias = cats.map(c => c.trim().toUpperCase());
+                configCozinhaLoaded = true;
+                console.log("🍳 Configurações de cozinha carregadas:", configCozinhaCategorias);
+            } else {
+                configCozinhaLoaded = false;
+            }
         }
     } catch (e) { console.error("Erro ao carregar configs cozinha:", e); }
 }
@@ -852,9 +856,13 @@ async function carregarConfigChurrasco() {
         const res = await fetch('/api/config/categorias-churrasco');
         if (res.ok) {
             const cats = await res.json();
-            configChurrascoCategorias = cats.map(c => c.trim().toUpperCase());
-            configChurrascoLoaded = true;
-            console.log("🍢 Configurações de churrasco carregadas:", configChurrascoCategorias);
+            if (cats !== null) {
+                configChurrascoCategorias = cats.map(c => c.trim().toUpperCase());
+                configChurrascoLoaded = true;
+                console.log("🍢 Configurações de churrasco carregadas:", configChurrascoCategorias);
+            } else {
+                configChurrascoLoaded = false;
+            }
         }
     } catch (e) { console.error("Erro ao carregar configs churrasco:", e); }
 }

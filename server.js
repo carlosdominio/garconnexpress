@@ -3244,26 +3244,36 @@ app.put('/api/pedidos/:id/churrasco-pronto', statusLimiter, isAuthenticated, asy
 // Helper para gerar a cláusula WHERE de itens da cozinha de forma consistente
 async function getFilterCozinha() {
   const config = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
-  const categoriasCozinha = config.rows[0]?.valor ? JSON.parse(config.rows[0].valor) : [];
+  const hasCozinhaConfig = config.rows && config.rows[0] && config.rows[0].valor !== null;
+  const categoriasCozinha = hasCozinhaConfig ? JSON.parse(config.rows[0].valor) : null;
   
   const configChurr = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
-  const categoriasChurrasco = configChurr.rows[0]?.valor ? JSON.parse(configChurr.rows[0].valor) : [];
+  const hasChurrConfig = configChurr.rows && configChurr.rows[0] && configChurr.rows[0].valor !== null;
+  const categoriasChurrasco = hasChurrConfig ? JSON.parse(configChurr.rows[0].valor) : null;
   
   const sqlTrue = isPostgres ? 'TRUE' : '1';
   const sqlFalse = isPostgres ? 'FALSE' : '0';
 
   let matchCozinhaCat = '0';
-  if (categoriasCozinha.length > 0) {
-    const catList = categoriasCozinha.map(c => `'${c.trim().toUpperCase().replace(/'/g, "''")}'`).join(',');
-    matchCozinhaCat = `UPPER(TRIM(m.categoria)) IN (${catList})`;
+  if (hasCozinhaConfig && Array.isArray(categoriasCozinha)) {
+    if (categoriasCozinha.length > 0) {
+      const catList = categoriasCozinha.map(c => `'${c.trim().toUpperCase().replace(/'/g, "''")}'`).join(',');
+      matchCozinhaCat = `UPPER(TRIM(m.categoria)) IN (${catList})`;
+    } else {
+      matchCozinhaCat = '0'; // Se configurado e vazio, não envia nada da cozinha por categoria
+    }
   } else {
-    matchCozinhaCat = '1';
+    matchCozinhaCat = '1'; // Se não configurado, assume Sim por padrão
   }
 
   let isChurrascoCat = '0';
-  if (categoriasChurrasco.length > 0) {
-    const churrCatList = categoriasChurrasco.map(c => `'${c.trim().toUpperCase().replace(/'/g, "''")}'`).join(',');
-    isChurrascoCat = `UPPER(TRIM(m.categoria)) IN (${churrCatList})`;
+  if (hasChurrConfig && Array.isArray(categoriasChurrasco)) {
+    if (categoriasChurrasco.length > 0) {
+      const churrCatList = categoriasChurrasco.map(c => `'${c.trim().toUpperCase().replace(/'/g, "''")}'`).join(',');
+      isChurrascoCat = `UPPER(TRIM(m.categoria)) IN (${churrCatList})`;
+    } else {
+      isChurrascoCat = '0'; // Se configurado e vazio, nenhuma categoria é churrasco
+    }
   } else {
     isChurrascoCat = "(UPPER(TRIM(m.categoria)) LIKE '%CHURRASCO%' OR UPPER(TRIM(m.categoria)) LIKE '%ESPET%')";
   }
@@ -3284,15 +3294,20 @@ async function getFilterCozinha() {
 async function getFilterChurrasco() {
   try {
     const config = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
-    const categoriasChurrasco = config.rows[0]?.valor ? JSON.parse(config.rows[0].valor) : [];
+    const hasConfig = config.rows && config.rows[0] && config.rows[0].valor !== null;
+    const categoriasChurrasco = hasConfig ? JSON.parse(config.rows[0].valor) : null;
     
     const sqlTrue = isPostgres ? 'TRUE' : '1';
     const sqlFalse = isPostgres ? 'FALSE' : '0';
 
     let fallbackCheck = '';
-    if (categoriasChurrasco.length > 0) {
-      const catList = categoriasChurrasco.map(c => `'${c.trim().toUpperCase().replace(/'/g, "''")}'`).join(',');
-      fallbackCheck = `UPPER(TRIM(m.categoria)) IN (${catList})`;
+    if (hasConfig && Array.isArray(categoriasChurrasco)) {
+      if (categoriasChurrasco.length > 0) {
+        const catList = categoriasChurrasco.map(c => `'${c.trim().toUpperCase().replace(/'/g, "''")}'`).join(',');
+        fallbackCheck = `UPPER(TRIM(m.categoria)) IN (${catList})`;
+      } else {
+        fallbackCheck = '0'; // Se configurado e vazio, não envia nada ao churrasqueiro por categoria
+      }
     } else {
       fallbackCheck = "(UPPER(TRIM(m.categoria)) LIKE '%CHURRASCO%' OR UPPER(TRIM(m.categoria)) LIKE '%ESPET%')";
     }
@@ -6159,7 +6174,11 @@ app.post('/api/whatsapp-number', isAdmin, async (req, res) => {
 app.get('/api/config/categorias-cozinha', async (req, res) => {
   try {
     const config = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_cozinha'");
-    res.json(config.rows[0]?.valor ? JSON.parse(config.rows[0].valor) : []);
+    if (config.rows && config.rows[0] && config.rows[0].valor !== null) {
+      res.json(JSON.parse(config.rows[0].valor));
+    } else {
+      res.json(null);
+    }
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
@@ -6186,7 +6205,11 @@ app.post('/api/config/categorias-cozinha', isAdmin, async (req, res) => {
 app.get('/api/config/categorias-churrasco', async (req, res) => {
   try {
     const config = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
-    res.json(config.rows[0]?.valor ? JSON.parse(config.rows[0].valor) : []);
+    if (config.rows && config.rows[0] && config.rows[0].valor !== null) {
+      res.json(JSON.parse(config.rows[0].valor));
+    } else {
+      res.json(null);
+    }
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
