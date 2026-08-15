@@ -10070,21 +10070,46 @@ async function carregarVersaoApp() {
   }
 }
 
+function converterParaLinkDireto(url) {
+  if (!url) return '';
+  url = url.trim();
+
+  // 1. Google Drive (Ex: https://drive.google.com/file/d/ID/view?usp=sharing)
+  const driveRegex = /\/file\/d\/([a-zA-Z0-9_-]+)/;
+  const driveMatch = url.match(driveRegex);
+  if (driveMatch && driveMatch[1]) {
+    return `https://drive.google.com/uc?export=download&id=${driveMatch[1]}`;
+  }
+  
+  const driveQueryRegex = /[?&]id=([a-zA-Z0-9_-]+)/;
+  const driveQueryMatch = url.match(driveQueryRegex);
+  if (url.includes('drive.google.com') && driveQueryMatch && driveQueryMatch[1]) {
+    return `https://drive.google.com/uc?export=download&id=${driveQueryMatch[1]}`;
+  }
+
+  // 2. Dropbox (Ex: https://www.dropbox.com/s/abcdef/file.apk?dl=0)
+  if (url.includes('dropbox.com')) {
+    return url.replace('?dl=0', '?raw=1').replace('&dl=0', '&raw=1');
+  }
+
+  return url;
+}
+
 /** Salva as configurações de versão (Web/APK) no servidor e dispara Pusher */
 async function salvarVersaoApp() {
   const web_version = document.getElementById('config-web-version')?.value || '1.0.0';
   
   const garcom_apk_version = document.getElementById('config-garcom-apk-version')?.value || '2.0.0';
-  const garcom_apk_url = document.getElementById('config-garcom-apk-url')?.value || '/garcom-v1.1.0-portrait.apk';
+  const garcom_apk_url = converterParaLinkDireto(document.getElementById('config-garcom-apk-url')?.value || '/garcom-v1.1.0-portrait.apk');
   
   const cozinha_apk_version = document.getElementById('config-cozinha-apk-version')?.value || '2.0.0';
-  const cozinha_apk_url = document.getElementById('config-cozinha-apk-url')?.value || '/cozinha-v1.1.0-portrait.apk';
+  const cozinha_apk_url = converterParaLinkDireto(document.getElementById('config-cozinha-apk-url')?.value || '/cozinha-v1.1.0-portrait.apk');
   
   const motoboy_apk_version = document.getElementById('config-motoboy-apk-version')?.value || '2.0.0';
-  const motoboy_apk_url = document.getElementById('config-motoboy-apk-url')?.value || '/motoboy-v2.0.0-portrait.apk';
+  const motoboy_apk_url = converterParaLinkDireto(document.getElementById('config-motoboy-apk-url')?.value || '/motoboy-v2.0.0-portrait.apk');
 
   const churrasqueiro_apk_version = document.getElementById('config-churrasqueiro-apk-version')?.value || '1.0.0';
-  const churrasqueiro_apk_url = document.getElementById('config-churrasqueiro-apk-url')?.value || '/churrasqueiro-v1.0.0-portrait.apk';
+  const churrasqueiro_apk_url = converterParaLinkDireto(document.getElementById('config-churrasqueiro-apk-url')?.value || '/churrasqueiro-v1.0.0-portrait.apk');
 
   try {
     const res = await fetch('/api/config/versao-app', {
