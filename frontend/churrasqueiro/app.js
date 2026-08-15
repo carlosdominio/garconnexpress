@@ -1303,15 +1303,15 @@ async function verificarAtualizacaoApk(appTipo) {
       
       if (typeof Swal !== 'undefined') {
         Swal.fire({
-          title: 'Atualização do Aplicativo',
-          text: `Uma nova versão do aplicativo (${serverVersion}) está disponível. Deseja baixar o instalador agora?`,
-          icon: 'download',
-          showCancelButton: true,
-          confirmButtonText: 'Baixar Agora',
-          cancelButtonText: 'Mais Tarde',
-          confirmButtonColor: '#3085d6',
-          cancelButtonColor: '#d33',
-          allowOutsideClick: false
+          title: '⚠️ Atualização Obrigatória',
+          text: `Uma nova versão do aplicativo (${serverVersion}) está disponível. Você precisa atualizar para continuar utilizando o sistema.`,
+          icon: 'warning',
+          showCancelButton: false,
+          confirmButtonText: 'Baixar e Instalar Agora',
+          confirmButtonColor: '#27ae60',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          allowEnterKey: false
         }).then((result) => {
           if (result.isConfirmed) {
             // Abre o link do APK usando o browser do Capacitor ou o do sistema
@@ -1320,6 +1320,9 @@ async function verificarAtualizacaoApk(appTipo) {
             } else {
               window.open(apkUrl, '_system');
             }
+            
+            // Bloqueia a tela de forma persistente
+            exibirTelaCarregamentoSistema('⚡ Aplicativo Bloqueado', 'Baixando nova versão do sistema. Instale o APK para poder voltar a utilizar o ChurrasqueiroExpress.');
           }
         });
       }
