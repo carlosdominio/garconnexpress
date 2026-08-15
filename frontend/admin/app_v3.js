@@ -10157,6 +10157,8 @@ async function handleApkUpload(input, appTipo) {
     return;
   }
 
+  let isUploading = true; // Controla se o upload ainda está ativo para evitar updates pós-fechamento
+
   Swal.fire({
     title: 'Enviando APK para o Vercel Blob...',
     text: `Carregando "${file.name}" diretamente do seu computador. Por favor, não feche esta página até a confirmação.`,
@@ -10182,12 +10184,15 @@ async function handleApkUpload(input, appTipo) {
         'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '')
       },
       onUploadProgress: (progressEvent) => {
+        if (!isUploading) return;
         const percentage = Math.round(progressEvent.percentage || 0);
         Swal.update({
           text: `Enviando "${file.name}": ${percentage}% concluído.`
         });
       }
     });
+
+    isUploading = false; // Desativa updates antes de abrir o modal de conclusão
 
     const directUrl = blobResult.url;
     
@@ -10203,6 +10208,7 @@ async function handleApkUpload(input, appTipo) {
       confirmButtonColor: '#10b981'
     });
   } catch (err) {
+    isUploading = false; // Desativa updates antes de abrir o modal de erro
     console.error('Erro no upload Vercel Blob:', err);
     Swal.fire('Erro no Upload', 'Ocorreu um erro ao enviar para a Vercel: ' + err.message, 'error');
   } finally {
