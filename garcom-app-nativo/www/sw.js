@@ -1,10 +1,9 @@
-const CACHE_NAME = 'garcom-cache-v8_2'; // Incrementado para forçar atualização
+const CACHE_NAME = 'garcom-cache-v11'; // Incrementado para forçar atualização
 const urlsToCache = [
   'index.html',
   'style.css',
   'app.js',
-  'favicon.svg',
-  '../notificacao.mp3'
+  'favicon.svg'
 ];
 
 self.addEventListener('install', event => {
@@ -15,22 +14,6 @@ self.addEventListener('install', event => {
   );
 });
 
-self.addEventListener('fetch', event => {
-  // ESTRATÉGIA: Network First para arquivos da API, Cache First para estáticos
-  if (event.request.url.includes('/api/')) {
-    event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match(event.request).then(res => res || new Response('{"error": "Offline"}', { status: 503, headers: {'Content-Type':'application/json'} }));
-      })
-    );
-    return;
-  }
-
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => response || fetch(event.request).catch(() => new Response("Offline", { status: 503, statusText: "Offline" })))
-  );
-});
 
 // Limpar caches antigos e assumir abas abertas
 self.addEventListener('activate', event => {
@@ -88,7 +71,20 @@ self.addEventListener('push', event => {
   }
 
   event.waitUntil(
-    self.registration.showNotification(data.title || '🚨 GarçomExpress', options)
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      let isVisible = false;
+      for (let i = 0; i < windowClients.length; i++) {
+        if (windowClients[i].visibilityState === 'visible') {
+          isVisible = true;
+          break;
+        }
+      }
+      if (isVisible) {
+        console.log("Ignorando notificação Push no foreground (PWA) para evitar som duplo.");
+        return;
+      }
+      return self.registration.showNotification(data.title || '🚨 GarçomExpress', options);
+    })
   );
 });
 
@@ -107,6 +103,31 @@ self.addEventListener('notificationclick', event => {
       if (clients.openWindow) {
         return clients.openWindow(event.notification.data.url);
       }
+    })
+  );
+});
+
+// Interceptor de requisições para Cache PWA
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET' || event.request.url.includes('/api/') || event.request.url.includes('pusher')) {
+    return;
+  }
+
+  // Estratégia Network-First para a página principal (garante última versão online)
+  if (event.request.mode === 'navigate' || event.request.url.includes('index.html')) {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.match(event.request).then(res => res || new Response("", { status: 200, statusText: "OK" }));
+      })
+    );
+    return;
+  }
+  
+  // Estratégia Cache-First para os assets estáticos (CSS, JS, Favicon)
+  event.respondWith(
+    caches.match(event.request).then(response => {
+      if (response) return response;
+      return fetch(event.request).catch(() => new Response("", { status: 200, statusText: "OK" }));
     })
   );
 });

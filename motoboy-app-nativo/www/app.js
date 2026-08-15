@@ -39,11 +39,74 @@ function ocultarTelaCarregamentoSistema() {
   if (modal) modal.style.display = 'none';
 }
 
+async function verificarAtualizacaoApk(appTipo) {
+  const ua = navigator.userAgent;
+  let currentVersion = null;
+  let userAgentKey = '';
+
+  if (appTipo === 'garcom') userAgentKey = 'GarconnExpressGarcom/';
+  else if (appTipo === 'cozinha') userAgentKey = 'GarconnExpressCozinha/';
+  else if (appTipo === 'motoboy') userAgentKey = 'GarconnExpressMotoboy/';
+  else if (appTipo === 'churrasqueiro') userAgentKey = 'GarconnExpressChurrasqueiro/';
+
+  if (ua.includes(userAgentKey)) {
+    currentVersion = ua.split(userAgentKey)[1].split(' ')[0];
+  } else {
+    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+      currentVersion = '1.0.0'; // Fallback se rodar no Capacitor nativo sem UA injetado
+    } else {
+      return; // Se não for app nativo, não verifica APK
+    }
+  }
+
+  try {
+    const res = await fetch('/api/config/versao-app');
+    const data = await res.json();
+    if (!data.success) return;
+
+    const serverVersion = data[`${appTipo}_apk_version`];
+    const apkUrl = data[`${appTipo}_apk_url`];
+
+    if (serverVersion && apkUrl && serverVersion !== currentVersion) {
+      console.log(`[APK Update] Nova versão detectada para ${appTipo}: ${serverVersion} (Atual: ${currentVersion})`);
+      
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({
+          title: '⚠️ Atualização Obrigatória',
+          text: `Uma nova versão do aplicativo (${serverVersion}) está disponível. Você precisa atualizar para continuar utilizando o sistema.`,
+          icon: 'warning',
+          showCancelButton: false,
+          confirmButtonText: 'Baixar e Instalar Agora',
+          confirmButtonColor: '#27ae60',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          allowEnterKey: false
+        }).then((result) => {
+          if (result.isConfirmed) {
+            // Abre o link do APK usando o browser do Capacitor ou o do sistema
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+              window.Capacitor.Plugins.Browser.open({ url: apkUrl });
+            } else {
+              window.open(apkUrl, '_system');
+            }
+            
+            // Bloqueia a tela de forma persistente
+            exibirTelaCarregamentoSistema('⚡ Aplicativo Bloqueado', 'Baixando nova versão do sistema. Instale o APK para poder voltar a utilizar o MotoboyExpress.');
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[APK Update] Falha ao verificar atualização do APK:', err);
+  }
+}
+
 const API_BASE_URL = '';
 const NOTIFICATION_CHANNEL_ID = 'pedidos';
 
 const isNativeApp = (window.Capacitor && window.Capacitor.isNativePlatform()) || 
                     navigator.userAgent.includes('Capacitor') || 
+                    navigator.userAgent.includes('GarconnExpress') || 
                     window.location.protocol === 'file:';
 
 if (isNativeApp && 'serviceWorker' in navigator) {
@@ -201,7 +264,7 @@ const App = {
         }
         
         await this.checkCaixaStatus();
-        setInterval(() => this.checkCaixaStatus(), 30000);
+        // setInterval(() => this.checkCaixaStatus(), 30000); // Removido para evitar polling excessivo (agora usa apenas Pusher)
 
         this.loadPedidos();
 
@@ -210,6 +273,10 @@ const App = {
 
         this.verificarVersaoSistema();
         setInterval(() => this.verificarVersaoSistema(), 60 * 1000);
+
+        if (isNativeApp) {
+            verificarAtualizacaoApk('motoboy');
+        }
 
         setTimeout(() => {
             ocultarTelaCarregamentoSistema();
@@ -670,8 +737,12 @@ const App = {
 
                 this.channel.bind('versao-app-atualizada', (data) => {
                     console.log('🔄 Versão do código atualizada pelo Admin!', data);
-                    exibirTelaCarregamentoSistema('🛵 Atualizando Entregas', 'O administrador aplicou novas configurações. Atualizando sistema...');
-                    setTimeout(() => location.reload(true), 1500);
+                    if (isNativeApp) {
+                        verificarAtualizacaoApk('motoboy');
+                    } else {
+                        exibirTelaCarregamentoSistema('🛵 Atualizando Entregas', 'O administrador aplicou novas configurações. Atualizando sistema...');
+                        setTimeout(() => location.reload(true), 1500);
+                    }
                 });
 
                 this.channel.bind('som-global-atualizado', async (data) => {

@@ -9,6 +9,7 @@ let configChurrascoCategorias = []; // Estado global das categorias do churrasco
 // --- INTEGRAÇÃO CAPACITOR NATIVA ---
 let isNativeApp = (window.Capacitor && window.Capacitor.isNativePlatform()) || 
                   navigator.userAgent.includes('Capacitor') || 
+                  navigator.userAgent.includes('GarconnExpress') || 
                   window.location.protocol === 'capacitor:' || 
                   (window.location.hostname === 'localhost' && (window.location.protocol === 'http:' || window.location.protocol === 'https:') && !window.location.port);
 
@@ -39,11 +40,19 @@ document.addEventListener('DOMContentLoaded', async () => {
          if (BatteryOptimization) {
              const { enabled } = await BatteryOptimization.isBatteryOptimizationEnabled();
              if (enabled) {
-                 await mostrarAlerta("Para não perder pedidos com a tela desligada, o aplicativo pedirá permissão para rodar sem limites de bateria. Pressione Fechar e depois escolha 'Permitir' na janela do celular.", "Atenção à Bateria", "🔋");
-                 try {
-                     await BatteryOptimization.requestIgnoreBatteryOptimization();
-                 } catch(e) {
-                     await BatteryOptimization.openBatteryOptimizationSettings();
+                 const aceitou = await mostrarConfirmacao(
+                     "Para não perder avisos de pedidos quando a tela estiver desligada, permita que o aplicativo funcione sem restrições de bateria.",
+                     "Otimização de Bateria",
+                     "Permitir",
+                     "Agora não",
+                     "🔋"
+                 );
+                 if (aceitou) {
+                     try {
+                         await BatteryOptimization.requestIgnoreBatteryOptimization();
+                     } catch(e) {
+                         console.warn('Aviso ao solicitar ignore battery optimization:', e);
+                     }
                  }
              }
          }
@@ -69,6 +78,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Verifica versão do sistema contra descompasso de deploy
   verificarVersaoSistema();
   setInterval(verificarVersaoSistema, 60 * 1000);
+
+  // Verifica atualização do APK nativo
+  if (isNativeApp) {
+    verificarAtualizacaoApk('garcom');
+  }
 });
 
 function exibirTelaCarregamentoSistema(titulo = 'Carregando...', mensagem = 'Aguarde um instante enquanto preparamos o aplicativo.') {
@@ -105,6 +119,68 @@ function exibirTelaCarregamentoSistema(titulo = 'Carregando...', mensagem = 'Agu
 function ocultarTelaCarregamentoSistema() {
   const modal = document.getElementById('screen-loading-overlay');
   if (modal) modal.style.display = 'none';
+}
+
+async function verificarAtualizacaoApk(appTipo) {
+  const ua = navigator.userAgent;
+  let currentVersion = null;
+  let userAgentKey = '';
+
+  if (appTipo === 'garcom') userAgentKey = 'GarconnExpressGarcom/';
+  else if (appTipo === 'cozinha') userAgentKey = 'GarconnExpressCozinha/';
+  else if (appTipo === 'motoboy') userAgentKey = 'GarconnExpressMotoboy/';
+  else if (appTipo === 'churrasqueiro') userAgentKey = 'GarconnExpressChurrasqueiro/';
+
+  if (ua.includes(userAgentKey)) {
+    currentVersion = ua.split(userAgentKey)[1].split(' ')[0];
+  } else {
+    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+      currentVersion = '1.0.0'; // Fallback se rodar no Capacitor nativo sem UA injetado
+    } else {
+      return; // Se não for app nativo, não verifica APK
+    }
+  }
+
+  try {
+    const res = await fetch('/api/config/versao-app');
+    const data = await res.json();
+    if (!data.success) return;
+
+    const serverVersion = data[`${appTipo}_apk_version`];
+    const apkUrl = data[`${appTipo}_apk_url`];
+
+    if (serverVersion && apkUrl && serverVersion !== currentVersion) {
+      console.log(`[APK Update] Nova versão detectada para ${appTipo}: ${serverVersion} (Atual: ${currentVersion})`);
+      
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({
+          title: '⚠️ Atualização Obrigatória',
+          text: `Uma nova versão do aplicativo (${serverVersion}) está disponível. Você precisa atualizar para continuar utilizando o sistema.`,
+          icon: 'warning',
+          showCancelButton: false,
+          confirmButtonText: 'Baixar e Instalar Agora',
+          confirmButtonColor: '#27ae60',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          allowEnterKey: false
+        }).then((result) => {
+          if (result.isConfirmed) {
+            // Abre o link do APK usando o browser do Capacitor ou o do sistema
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+              window.Capacitor.Plugins.Browser.open({ url: apkUrl });
+            } else {
+              window.open(apkUrl, '_system');
+            }
+            
+            // Bloqueia a tela de forma persistente
+            exibirTelaCarregamentoSistema('⚡ Aplicativo Bloqueado', 'Baixando nova versão do sistema. Instale o APK para poder voltar a utilizar o GarçomExpress.');
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[APK Update] Falha ao verificar atualização do APK:', err);
+  }
 }
 
 const CLIENT_VERSION = '1.3.1';
@@ -221,16 +297,10 @@ async function registerNativePush() {
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 Notificação recebida:', notification);
       
-      // Se for um evento em tempo real já gerenciado pelo Pusher/SSE no foreground, ignore completamente o FCM no foreground
-      const eventosPusher = [
-        'novo-pedido', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto',
-        'rascunho-recebido', 'solicitacao-fechamento-cliente', 'status-atualizado',
-        'status-caixa-atualizado', 'garcom-status-alterado', 'pedido-atrasado',
-        'pedido-atrasado-garcom', 'fechamento-atrasado', 'aguardando-cliente-atrasado',
-        'aguardando-cliente-registro-atrasado'
-      ];
+      // Se for um evento em tempo real já gerenciado pelo Pusher no foreground, ignore completamente o FCM no foreground
+      const eventosPusher = ['novo-pedido', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto', 'rascunho-recebido', 'solicitacao-fechamento-cliente', 'status-atualizado', 'status-caixa-atualizado', 'garcom-status-alterado'];
       if (notification.data && eventosPusher.includes(notification.data.event)) {
-        console.log("Ignorando FCM foreground para evento '" + notification.data.event + "' (já tratado pelo Pusher/SSE).");
+        console.log("Ignorando FCM foreground para evento '" + notification.data.event + "' (já tratado pelo Pusher).");
         if (typeof carregarMesas === 'function') carregarMesas();
         return;
       }
@@ -1285,7 +1355,12 @@ async function configurarPusher() {
 
       // Se a mesa/pedido pertence ao ADMIN, DELIVERY ou a outro garçom, não exibe toast e ignora
       const eMesaDoAdmin = (!data || respGarcom === 'ADMIN' || respGarcom === 'DELIVERY' || data.garcom_id === 'ADMIN' || data.garcom_id === 'DELIVERY' || (data.pedido && (data.pedido.garcom_id === 'ADMIN' || data.pedido.garcom_id === 'DELIVERY')));
-      const eMesaDeOutroGarcom = isMesaDeOutroGarcom(mesaId) || (respGarcom && !eMesaDoAdmin && String(respGarcom).trim().toLowerCase() !== String(garcomLogado?.usuario).trim().toLowerCase());
+      let eMesaDeOutroGarcom = isMesaDeOutroGarcom(mesaId) || (respGarcom && !eMesaDoAdmin && String(respGarcom).trim().toLowerCase() !== String(garcomLogado?.usuario).trim().toLowerCase());
+
+      // Se a mesa acabou de ser transferida para ESTE garçom, não ignora
+      if (data && data.status === 'transferido' && respGarcom && String(respGarcom).trim().toLowerCase() === String(garcomLogado?.usuario).trim().toLowerCase()) {
+        eMesaDeOutroGarcom = false;
+      }
 
       if (eMesaDoAdmin || eMesaDeOutroGarcom) {
         clearTimeout(timeoutPusher);
@@ -1332,6 +1407,14 @@ async function configurarPusher() {
                 const det = data.detalhes_edicao ? `: ${data.detalhes_edicao}` : '';
                 mostrarToast(`📝 Pedido da ${strMesa} atualizado pelo Admin${det}`, 'info');
               }
+            }
+          } else if (data.status === 'transferido') {
+            tocarCampainha(true);
+            dispararToastSistema('mesa-transferida', { mesa: strMesa }, `🙋‍♂️ A ${strMesa} foi transferida para você!`, 'success');
+            // Animação na tela principal para chamar atenção
+            const mesaCard = document.getElementById(`mesa-${data.mesa_id || data.mesa_numero}`);
+            if (mesaCard) {
+              mesaCard.style.animation = 'pulse-green 1.5s 3';
             }
           }
 
@@ -1501,8 +1584,12 @@ async function configurarPusher() {
 
     channel.bind('versao-app-atualizada', (data) => {
       console.log('🔄 Versão do código atualizada pelo Admin!', data);
-      exibirTelaCarregamentoSistema('⚡ Atualizando GarçomExpress', 'O administrador aplicou novas configurações. Atualizando sistema...');
-      setTimeout(() => location.reload(true), 1500);
+      if (isNativeApp) {
+        verificarAtualizacaoApk('garcom');
+      } else {
+        exibirTelaCarregamentoSistema('⚡ Atualizando GarçomExpress', 'O administrador aplicou novas configurações. Atualizando sistema...');
+        setTimeout(() => location.reload(true), 1500);
+      }
     });
 
     // Desbloqueia áudio no primeiro clique do usuário
@@ -2474,8 +2561,16 @@ function descartarAlteracoesGarcom() {
   renderizarItensMesaGarcom();
 }
 
+let isSalvandoAlteracoesGarcom = false;
 async function salvarAlteracoesGarcom() {
-  if (!pedidoAbertoNaMesa) return;
+  if (!pedidoAbertoNaMesa || isSalvandoAlteracoesGarcom) return;
+  isSalvandoAlteracoesGarcom = true;
+  const btnSalvar = document.querySelector("button[onclick='salvarAlteracoesGarcom()']");
+  if (btnSalvar) {
+    btnSalvar.disabled = true;
+    btnSalvar.innerText = "⏳ Salvando...";
+    btnSalvar.style.opacity = "0.6";
+  }
   showLoading(true, 'Salvando alterações...');
   try {
     const idPedido = pedidoAbertoNaMesa.id;
@@ -2512,6 +2607,13 @@ async function salvarAlteracoesGarcom() {
   } catch (error) {
     showLoading(false);
     await mostrarAlerta("Erro de rede ao salvar alterações.", "Erro", "❌");
+  } finally {
+    isSalvandoAlteracoesGarcom = false;
+    if (btnSalvar) {
+      btnSalvar.disabled = false;
+      btnSalvar.innerText = "💾 Salvar Alterações";
+      btnSalvar.style.opacity = "1";
+    }
   }
 }
 
