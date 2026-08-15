@@ -247,6 +247,37 @@ module.exports = (ctx) => {
       churrasqueiro_apk_version, churrasqueiro_apk_url
     } = req.body;
     try {
+      // 1. Busca as URLs antigas no banco antes de atualizar
+      const oldUrlsRows = (await query("SELECT chave, valor FROM sistema_config WHERE chave IN (" +
+        "'config_garcom_apk_url', 'config_cozinha_apk_url', 'config_motoboy_apk_url', 'config_churrasqueiro_apk_url'" +
+        ")")).rows || [];
+      
+      const oldUrls = {};
+      for (const r of oldUrlsRows) {
+        oldUrls[r.chave] = r.valor;
+      }
+
+      // 2. Compara e apaga os blobs antigos do Vercel Storage que foram substituídos
+      const { del } = require('@vercel/blob');
+      const urlMappings = [
+        { chave: 'config_garcom_apk_url', nova: garcom_apk_url },
+        { chave: 'config_cozinha_apk_url', nova: cozinha_apk_url },
+        { chave: 'config_motoboy_apk_url', nova: motoboy_apk_url },
+        { chave: 'config_churrasqueiro_apk_url', nova: churrasqueiro_apk_url }
+      ];
+
+      for (const mapping of urlMappings) {
+        const antiga = oldUrls[mapping.chave];
+        if (antiga && antiga !== mapping.nova && antiga.includes('vercel-storage.com')) {
+          try {
+            await del(antiga);
+            console.log(`🗑️ Vercel Blob antigo deletado com sucesso: ${antiga}`);
+          } catch (delErr) {
+            console.error(`⚠️ Falha ao deletar Vercel Blob antigo (${antiga}):`, delErr);
+          }
+        }
+      }
+
       const configs = [
         { chave: 'config_web_version', valor: web_version || '1.0.0' },
         { chave: 'config_garcom_apk_version', valor: garcom_apk_version || '2.0.0' },
