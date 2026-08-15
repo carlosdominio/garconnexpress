@@ -307,6 +307,30 @@ module.exports = (ctx) => {
     }
   });
 
+  // POST /api/config/upload-apk-vercel
+  router.post('/config/upload-apk-vercel', ensureDbInitialized, isAdmin, async (req, res) => {
+    try {
+      const { handleUpload } = require('@vercel/blob/client');
+      const jsonResponse = await handleUpload({
+        body: req.body,
+        request: req,
+        onBeforeGenerateToken: async (pathname, clientPayload) => {
+          return {
+            allowedContentTypes: ['application/vnd.android.package-archive', 'application/octet-stream'],
+            tokenPayload: JSON.stringify({}),
+          };
+        },
+        onUploadCompleted: async ({ blob, tokenPayload }) => {
+          console.log('✅ Upload concluído no Vercel Blob:', blob.url);
+        },
+      });
+      return res.json(jsonResponse);
+    } catch (error) {
+      console.error('❌ Erro no handleUpload do Vercel Blob:', error);
+      return res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   // GET /api/config/som-global
   router.get('/config/som-global', ensureDbInitialized, async (req, res) => {
     try {

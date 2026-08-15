@@ -10144,8 +10144,8 @@ function triggerApkUpload(appTipo) {
   if (input) input.click();
 }
 
-/** Lida com o upload do arquivo APK utilizando o Cloudinary */
-function handleApkUpload(input, appTipo) {
+/** Lida com o upload do arquivo APK utilizando o Vercel Blob */
+async function handleApkUpload(input, appTipo) {
   const file = input.files[0];
   if (!file) return;
 
@@ -10156,8 +10156,8 @@ function handleApkUpload(input, appTipo) {
   }
 
   Swal.fire({
-    title: 'Enviando APK para o Cloudinary...',
-    text: `Conectando e enviando "${file.name}": 0% concluído.`,
+    title: 'Enviando APK para o Vercel Blob...',
+    text: `Conectando e preparando upload de "${file.name}"...`,
     icon: 'info',
     allowOutsideClick: false,
     showConfirmButton: false,
@@ -10166,62 +10166,45 @@ function handleApkUpload(input, appTipo) {
     }
   });
 
-  const xhr = new XMLHttpRequest();
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', 'ml_default');
-
-  xhr.open('POST', 'https://api.cloudinary.com/v1_1/er5vtmwo/raw/upload', true);
-
-  // Monitora o progresso do upload em tempo real
-  xhr.upload.onprogress = (event) => {
-    if (event.lengthComputable) {
-      const progress = Math.round((event.loaded / event.total) * 100);
-      Swal.update({
-        text: `Enviando "${file.name}": ${progress}% concluído.`
-      });
-    }
-  };
-
-  xhr.onload = () => {
-    if (xhr.status === 200) {
-      try {
-        const response = JSON.parse(xhr.responseText);
-        const directUrl = response.secure_url;
-        
-        const urlInput = document.getElementById(`config-${appTipo}-apk-url`);
-        if (urlInput) {
-          urlInput.value = directUrl;
-        }
-
-        Swal.fire({
-          title: 'Upload Concluído!',
-          text: `O APK foi carregado com sucesso no Cloudinary! Lembre-se de clicar em "Salvar Configurações de APKs" para aplicar.`,
-          icon: 'success',
-          confirmButtonColor: '#10b981'
+  try {
+    // Importa o módulo do Vercel Blob dinamicamente de forma segura
+    const blobSdk = await import('https://esm.sh/@vercel/blob/client');
+    
+    // Faz o upload direto do navegador para o Vercel Blob
+    const blobResult = await blobSdk.upload(file.name, file, {
+      access: 'public',
+      handleUploadUrl: '/api/config/upload-apk-vercel',
+      headers: {
+        // Envia o token do admin para o nosso backend validar que quem está solicitando o upload é admin
+        'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '')
+      },
+      onUploadProgress: (progressEvent) => {
+        const percentage = Math.round(progressEvent.percentage);
+        Swal.update({
+          text: `Enviando "${file.name}": ${percentage}% concluído.`
         });
-      } catch (err) {
-        Swal.fire('Erro ao Processar', 'Falha ao ler resposta do servidor: ' + err.message, 'error');
       }
-    } else {
-      let errMsg = 'Erro desconhecido';
-      try {
-        const errObj = JSON.parse(xhr.responseText);
-        if (errObj && errObj.error && errObj.error.message) {
-          errMsg = errObj.error.message;
-        }
-      } catch (e) {}
-      Swal.fire('Erro no Upload', 'O Cloudinary retornou um erro: ' + errMsg, 'error');
+    });
+
+    const directUrl = blobResult.url;
+    
+    const urlInput = document.getElementById(`config-${appTipo}-apk-url`);
+    if (urlInput) {
+      urlInput.value = directUrl;
     }
-    input.value = '';
-  };
 
-  xhr.onerror = () => {
-    Swal.fire('Falha de Rede', 'Não foi possível conectar ao servidor do Cloudinary.', 'error');
+    Swal.fire({
+      title: 'Upload Concluído!',
+      text: `O APK foi carregado com sucesso no Vercel Blob! Lembre-se de clicar em "Salvar Configurações de APKs" para aplicar.`,
+      icon: 'success',
+      confirmButtonColor: '#10b981'
+    });
+  } catch (err) {
+    console.error('Erro no upload Vercel Blob:', err);
+    Swal.fire('Erro no Upload', 'Ocorreu um erro ao enviar para a Vercel: ' + err.message, 'error');
+  } finally {
     input.value = '';
-  };
-
-  xhr.send(formData);
+  }
 }
 
 // --- MOVIMENTAÇÕES DE CAIXA (SANGRIA / SUPRIMENTO) ---

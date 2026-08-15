@@ -9,6 +9,7 @@
     "vercel-build": "echo 'Build completed'"
   },
   "dependencies": {
+    "@vercel/blob": "^2.8.0",
     "axios": "^1.13.6",
     "bcrypt": "^6.0.0",
     "compression": "^1.8.1",
