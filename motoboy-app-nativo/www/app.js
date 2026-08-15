@@ -734,14 +734,15 @@ const App = {
             }
         },
         toggleSoundManual() {
-            App.state.soundEnabled = !App.state.soundEnabled;
+            const check = document.getElementById('check-som');
+            App.state.soundEnabled = check ? check.checked : !App.state.soundEnabled;
             localStorage.setItem('motoboy_sound', App.state.soundEnabled);
             App.ui.updateSoundIcon();
             if (App.state.soundEnabled) {
                 this.playAlert();
-                App.ui.showToast("Som ativado!", "success");
+                App.ui.showToast("🔔 Som ativado!", "success");
             } else {
-                App.ui.showToast("Som silenciado.", "warning");
+                App.ui.showToast("🔕 Som silenciado.", "warning");
             }
         }
     },
@@ -900,19 +901,16 @@ const App = {
     // --- UI ---
     ui: {
         updateSoundIcon() {
-            const icone = document.getElementById('icone-som');
-            const btn = document.getElementById('btn-som');
-            if (icone) {
-                icone.className = App.state.soundEnabled ? 'fas fa-volume-up' : 'fas fa-volume-mute';
+            const check = document.getElementById('check-som');
+            const label = document.getElementById('label-som');
+            if (check) check.checked = App.state.soundEnabled;
+            if (label) {
+                label.innerText = App.state.soundEnabled ? '🔔 SOM' : '🔕 MUDO';
+                label.style.color = App.state.soundEnabled ? '#2ecc71' : '#bdc3c7';
             }
-            if (btn) {
-                if (App.state.soundEnabled) {
-                    btn.style.background = 'rgba(255,255,255,1)';
-                    btn.style.color = '#e67e22';
-                } else {
-                    btn.style.background = 'rgba(255,255,255,0.2)';
-                    btn.style.color = 'white';
-                }
+            for (const som in App.notifications.audiosNotificacao) {
+                const aud = App.notifications.audiosNotificacao[som];
+                if (aud) aud.muted = !App.state.soundEnabled;
             }
         },
         adicionarNotificacaoPainel(mensagem, titulo, tipo) {
