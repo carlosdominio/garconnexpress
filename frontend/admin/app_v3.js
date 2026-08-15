@@ -10115,7 +10115,29 @@ function triggerApkUpload(appTipo) {
   if (input) input.click();
 }
 
-/** Lida com o upload do arquivo APK binário em lote para o servidor */
+let firebaseInitialized = false;
+
+function initFirebaseClient() {
+  if (firebaseInitialized) return;
+  
+  const firebaseConfig = {
+    apiKey: "AIzaSyBTGPpj6nEFW0RmbguRiS7mTfBgIMM3JXA",
+    authDomain: "garcomexpress-304f0.firebaseapp.com",
+    projectId: "garcomexpress-304f0",
+    storageBucket: "garcomexpress-304f0.firebasestorage.app",
+    messagingSenderId: "90033469871",
+    appId: "1:90033469871:android:8cb2dbb5599c6942cf175a"
+  };
+
+  if (typeof firebase !== 'undefined') {
+    if (firebase.apps.length === 0) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    firebaseInitialized = true;
+  }
+}
+
+/** Lida com o upload do arquivo APK binário diretamente para o Firebase Storage */
 function handleApkUpload(input, appTipo) {
   const file = input.files[0];
   if (!file) return;
@@ -10126,9 +10148,18 @@ function handleApkUpload(input, appTipo) {
     return;
   }
 
+  // Inicializa Firebase se necessário
+  initFirebaseClient();
+
+  if (!firebaseInitialized || typeof firebase === 'undefined') {
+    Swal.fire('Erro de Inicialização', 'O SDK do Firebase não pôde ser carregado. Tente recarregar a página.', 'error');
+    input.value = '';
+    return;
+  }
+
   Swal.fire({
-    title: 'Enviando APK...',
-    text: `Carregando o arquivo "${file.name}" para o servidor. Por favor, aguarde.`,
+    title: 'Enviando APK para o Firebase...',
+    text: `Preparando upload de "${file.name}"...`,
     icon: 'info',
     allowOutsideClick: false,
     showConfirmButton: false,
@@ -10137,48 +10168,55 @@ function handleApkUpload(input, appTipo) {
     }
   });
 
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    try {
-      const buffer = e.target.result;
-      const res = await fetch(`/api/config/upload-apk?filename=${encodeURIComponent(file.name)}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/octet-stream',
-          'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '')
-        },
-        body: buffer
-      });
+  try {
+    const storageRef = firebase.storage().ref();
+    const filePath = `apks/${appTipo}/${file.name}`;
+    const fileRef = storageRef.child(filePath);
 
-      const data = await res.json();
-      if (data.success) {
-        const urlInput = document.getElementById(`config-${appTipo}-apk-url`);
-        if (urlInput) {
-          urlInput.value = data.url;
-        }
-        Swal.fire({
-          title: 'Upload Concluído!',
-          text: `O APK foi carregado com sucesso! Lembre-se de clicar em "Salvar Configurações de APKs" para aplicar.`,
-          icon: 'success',
-          confirmButtonColor: '#10b981'
+    // Inicia a tarefa de upload direto pelo navegador
+    const uploadTask = fileRef.put(file);
+
+    uploadTask.on('state_changed', 
+      (snapshot) => {
+        const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+        Swal.update({
+          text: `Enviando "${file.name}": ${progress}% concluído.`
         });
-      } else {
-        throw new Error(data.error || 'Falha no processamento do arquivo.');
+      }, 
+      (error) => {
+        console.error("Erro no upload do Firebase Storage:", error);
+        let msg = error.message;
+        if (error.code === 'storage/unauthorized') {
+          msg = "Permissão negada. Lembre-se de configurar as regras de segurança (Rules) no console do Firebase Storage para permitir uploads públicos na pasta /apks/.";
+        }
+        Swal.fire('Erro de Upload', 'Não foi possível enviar para o Firebase Storage: ' + msg, 'error');
+        input.value = '';
+      }, 
+      async () => {
+        try {
+          const downloadURL = await fileRef.getDownloadURL();
+          const urlInput = document.getElementById(`config-${appTipo}-apk-url`);
+          if (urlInput) {
+            urlInput.value = downloadURL;
+          }
+          Swal.fire({
+            title: 'Upload Concluído!',
+            text: `O APK foi carregado com sucesso no Firebase Storage! Lembre-se de clicar em "Salvar Configurações de APKs" para aplicar.`,
+            icon: 'success',
+            confirmButtonColor: '#10b981'
+          });
+        } catch (urlErr) {
+          Swal.fire('Erro ao obter link', 'O upload deu certo, mas falhou ao gerar o link: ' + urlErr.message, 'error');
+        } finally {
+          input.value = '';
+        }
       }
-    } catch (err) {
-      console.error(err);
-      Swal.fire('Erro de Upload', 'Não foi possível enviar o APK: ' + err.message, 'error');
-    } finally {
-      input.value = '';
-    }
-  };
-
-  reader.onerror = () => {
-    Swal.fire('Erro de Leitura', 'Não foi possível ler o arquivo do seu computador.', 'error');
+    );
+  } catch (err) {
+    console.error(err);
+    Swal.fire('Erro', 'Erro ao iniciar upload do Firebase: ' + err.message, 'error');
     input.value = '';
-  };
-
-  reader.readAsArrayBuffer(file);
+  }
 }
 
 // --- MOVIMENTAÇÕES DE CAIXA (SANGRIA / SUPRIMENTO) ---
