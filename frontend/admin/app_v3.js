@@ -10119,7 +10119,7 @@ function triggerApkUpload(appTipo) {
   if (input) input.click();
 }
 
-/** Lida com o upload do arquivo APK utilizando o servidor alternativo */
+/** Lida com o upload do arquivo APK utilizando o Cloudinary */
 function handleApkUpload(input, appTipo) {
   const file = input.files[0];
   if (!file) return;
@@ -10130,13 +10130,9 @@ function handleApkUpload(input, appTipo) {
     return;
   }
 
-  uploadGofile(file, appTipo, input);
-}
-
-async function uploadGofile(file, appTipo, input) {
   Swal.fire({
-    title: 'Enviando para o Servidor Alternativo...',
-    text: `Conectando ao Gofile e enviando "${file.name}"...`,
+    title: 'Enviando APK para o Cloudinary...',
+    text: `Conectando e enviando "${file.name}": 0% concluído.`,
     icon: 'info',
     allowOutsideClick: false,
     showConfirmButton: false,
@@ -10145,47 +10141,62 @@ async function uploadGofile(file, appTipo, input) {
     }
   });
 
-  try {
-    const serverRes = await fetch('https://api.gofile.io/servers');
-    if (!serverRes.ok) throw new Error('Falha ao contactar servidor Gofile.');
-    const serverData = await serverRes.json();
-    if (serverData.status !== 'ok' && serverData.status !== 'success') throw new Error('Gofile offline.');
-    
-    // Pega o primeiro servidor disponível na lista
-    const servers = serverData.data.servers;
-    if (!servers || servers.length === 0) throw new Error('Nenhum servidor Gofile disponível no momento.');
-    const server = servers[0].name;
+  const xhr = new XMLHttpRequest();
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', 'ml_default');
 
-    const formData = new FormData();
-    formData.append('file', file);
+  xhr.open('POST', 'https://api.cloudinary.com/v1_1/er5vtmwo/raw/upload', true);
 
-    const uploadRes = await fetch(`https://${server}.gofile.io/uploadFile`, {
-      method: 'POST',
-      body: formData
-    });
-
-    if (!uploadRes.ok) throw new Error('Falha de rede no upload.');
-    const uploadData = await uploadRes.json();
-    if (uploadData.status !== 'ok' && uploadData.status !== 'success') throw new Error('Erro no processamento do Gofile.');
-
-    const fileLink = uploadData.data.downloadPage;
-    const urlInput = document.getElementById(`config-${appTipo}-apk-url`);
-    if (urlInput) {
-      urlInput.value = fileLink;
+  // Monitora o progresso do upload em tempo real
+  xhr.upload.onprogress = (event) => {
+    if (event.lengthComputable) {
+      const progress = Math.round((event.loaded / event.total) * 100);
+      Swal.update({
+        text: `Enviando "${file.name}": ${progress}% concluído.`
+      });
     }
+  };
 
-    Swal.fire({
-      title: 'Upload Concluído!',
-      text: `O APK foi carregado com sucesso no Gofile! Clique em "Salvar Configurações de APKs" para aplicar.`,
-      icon: 'success',
-      confirmButtonColor: '#10b981'
-    });
-  } catch (err) {
-    console.error(err);
-    Swal.fire('Erro de Upload', 'Erro no servidor alternativo: ' + err.message, 'error');
-  } finally {
+  xhr.onload = () => {
+    if (xhr.status === 200) {
+      try {
+        const response = JSON.parse(xhr.responseText);
+        const directUrl = response.secure_url;
+        
+        const urlInput = document.getElementById(`config-${appTipo}-apk-url`);
+        if (urlInput) {
+          urlInput.value = directUrl;
+        }
+
+        Swal.fire({
+          title: 'Upload Concluído!',
+          text: `O APK foi carregado com sucesso no Cloudinary! Lembre-se de clicar em "Salvar Configurações de APKs" para aplicar.`,
+          icon: 'success',
+          confirmButtonColor: '#10b981'
+        });
+      } catch (err) {
+        Swal.fire('Erro ao Processar', 'Falha ao ler resposta do servidor: ' + err.message, 'error');
+      }
+    } else {
+      let errMsg = 'Erro desconhecido';
+      try {
+        const errObj = JSON.parse(xhr.responseText);
+        if (errObj && errObj.error && errObj.error.message) {
+          errMsg = errObj.error.message;
+        }
+      } catch (e) {}
+      Swal.fire('Erro no Upload', 'O Cloudinary retornou um erro: ' + errMsg, 'error');
+    }
     input.value = '';
-  }
+  };
+
+  xhr.onerror = () => {
+    Swal.fire('Falha de Rede', 'Não foi possível conectar ao servidor do Cloudinary.', 'error');
+    input.value = '';
+  };
+
+  xhr.send(formData);
 }
 
 // --- MOVIMENTAÇÕES DE CAIXA (SANGRIA / SUPRIMENTO) ---
