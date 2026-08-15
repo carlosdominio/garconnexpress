@@ -67,7 +67,8 @@ window.onerror = function(msg, url, line) {
           !urlStr.includes('/api/chats/') &&
           !urlStr.includes('/toggle-human') &&
           !urlStr.includes('/api/config/upload-apk-vercel') &&
-          !urlStr.includes('vercel-storage.com')
+          !urlStr.includes('vercel-storage.com') &&
+          !urlStr.includes('vercel.com/api/blob')
         )
       );
 
