@@ -10137,7 +10137,7 @@ function initFirebaseClient() {
   }
 }
 
-/** Lida com o upload do arquivo APK binário diretamente para o Firebase Storage */
+/** Lida com o upload do arquivo APK selecionando o servidor */
 function handleApkUpload(input, appTipo) {
   const file = input.files[0];
   if (!file) return;
@@ -10148,17 +10148,49 @@ function handleApkUpload(input, appTipo) {
     return;
   }
 
-  // Inicializa Firebase se necessário
+  Swal.fire({
+    title: 'Escolha o Servidor de Upload',
+    text: `Como deseja hospedar o arquivo "${file.name}"?`,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: '🔥 Firebase Storage (Estável)',
+    cancelButtonText: '☁️ Servidor Gratuito (Gofile)',
+    confirmButtonColor: '#e67e22',
+    cancelButtonColor: '#3b82f6',
+  }).then(async (result) => {
+    if (result.isConfirmed) {
+      uploadFirebase(file, appTipo, input);
+    } else if (result.dismiss === Swal.DismissReason.cancel) {
+      uploadGofile(file, appTipo, input);
+    } else {
+      input.value = '';
+    }
+  });
+}
+
+function uploadFirebase(file, appTipo, input) {
   initFirebaseClient();
 
   if (!firebaseInitialized || typeof firebase === 'undefined') {
-    Swal.fire('Erro de Inicialização', 'O SDK do Firebase não pôde ser carregado. Tente recarregar a página.', 'error');
-    input.value = '';
+    Swal.fire({
+      title: 'Firebase não carregado',
+      text: 'O SDK do Firebase não pôde ser iniciado. Deseja tentar pelo Servidor Alternativo (Gofile)?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sim, usar Gofile',
+      cancelButtonText: 'Cancelar'
+    }).then((res) => {
+      if (res.isConfirmed) {
+        uploadGofile(file, appTipo, input);
+      } else {
+        input.value = '';
+      }
+    });
     return;
   }
 
   Swal.fire({
-    title: 'Enviando APK para o Firebase...',
+    title: 'Enviando para o Firebase...',
     text: `Preparando upload de "${file.name}"...`,
     icon: 'info',
     allowOutsideClick: false,
@@ -10172,8 +10204,6 @@ function handleApkUpload(input, appTipo) {
     const storageRef = firebase.storage().ref();
     const filePath = `apks/${appTipo}/${file.name}`;
     const fileRef = storageRef.child(filePath);
-
-    // Inicia a tarefa de upload direto pelo navegador
     const uploadTask = fileRef.put(file);
 
     uploadTask.on('state_changed', 
@@ -10184,13 +10214,25 @@ function handleApkUpload(input, appTipo) {
         });
       }, 
       (error) => {
-        console.error("Erro no upload do Firebase Storage:", error);
+        console.error("Erro no Firebase Storage:", error);
         let msg = error.message;
         if (error.code === 'storage/unauthorized') {
-          msg = "Permissão negada. Lembre-se de configurar as regras de segurança (Rules) no console do Firebase Storage para permitir uploads públicos na pasta /apks/.";
+          msg = "Permissão negada. É necessário ativar a pasta /apks/ nas regras de segurança do seu Firebase Storage.";
         }
-        Swal.fire('Erro de Upload', 'Não foi possível enviar para o Firebase Storage: ' + msg, 'error');
-        input.value = '';
+        Swal.fire({
+          title: 'Erro no Firebase',
+          text: `${msg}\n\nDeseja fazer o upload pelo Servidor Alternativo (Gofile) que funciona na hora?`,
+          icon: 'error',
+          showCancelButton: true,
+          confirmButtonText: 'Sim, enviar pelo Gofile',
+          cancelButtonText: 'Cancelar'
+        }).then((res) => {
+          if (res.isConfirmed) {
+            uploadGofile(file, appTipo, input);
+          } else {
+            input.value = '';
+          }
+        });
       }, 
       async () => {
         try {
@@ -10201,12 +10243,12 @@ function handleApkUpload(input, appTipo) {
           }
           Swal.fire({
             title: 'Upload Concluído!',
-            text: `O APK foi carregado com sucesso no Firebase Storage! Lembre-se de clicar em "Salvar Configurações de APKs" para aplicar.`,
+            text: `APK carregado com sucesso no Firebase! Lembre-se de clicar em "Salvar Configurações de APKs".`,
             icon: 'success',
             confirmButtonColor: '#10b981'
           });
         } catch (urlErr) {
-          Swal.fire('Erro ao obter link', 'O upload deu certo, mas falhou ao gerar o link: ' + urlErr.message, 'error');
+          Swal.fire('Erro ao obter link', urlErr.message, 'error');
         } finally {
           input.value = '';
         }
@@ -10214,7 +10256,58 @@ function handleApkUpload(input, appTipo) {
     );
   } catch (err) {
     console.error(err);
-    Swal.fire('Erro', 'Erro ao iniciar upload do Firebase: ' + err.message, 'error');
+    Swal.fire('Erro', err.message, 'error');
+    input.value = '';
+  }
+}
+
+async function uploadGofile(file, appTipo, input) {
+  Swal.fire({
+    title: 'Enviando para o Servidor Alternativo...',
+    text: `Conectando ao Gofile e enviando "${file.name}"...`,
+    icon: 'info',
+    allowOutsideClick: false,
+    showConfirmButton: false,
+    didOpen: () => {
+      Swal.showLoading();
+    }
+  });
+
+  try {
+    const serverRes = await fetch('https://api.gofile.io/getServer');
+    if (!serverRes.ok) throw new Error('Falha ao contactar servidor Gofile.');
+    const serverData = await serverRes.json();
+    if (serverData.status !== 'success') throw new Error('Gofile offline.');
+    const server = serverData.data.server;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const uploadRes = await fetch(`https://${server}.gofile.io/uploadFile`, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!uploadRes.ok) throw new Error('Falha de rede no upload.');
+    const uploadData = await uploadRes.json();
+    if (uploadData.status !== 'success') throw new Error('Erro no processamento do Gofile.');
+
+    const fileLink = uploadData.data.directLink || uploadData.data.downloadPage;
+    const urlInput = document.getElementById(`config-${appTipo}-apk-url`);
+    if (urlInput) {
+      urlInput.value = fileLink;
+    }
+
+    Swal.fire({
+      title: 'Upload Concluído!',
+      text: `O APK foi carregado com sucesso no Gofile! Clique em "Salvar Configurações de APKs" para aplicar.`,
+      icon: 'success',
+      confirmButtonColor: '#10b981'
+    });
+  } catch (err) {
+    console.error(err);
+    Swal.fire('Erro de Upload', 'Erro no servidor alternativo: ' + err.message, 'error');
+  } finally {
     input.value = '';
   }
 }
