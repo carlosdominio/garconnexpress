@@ -25,12 +25,17 @@ window.onerror = function(msg, url, line) {
   // Interceptador global para redirecionar ao login se a sessão expirar e exibir loading
   const originalFetch = window.fetch;
   window.fetch = async (...args) => {
-    // Adiciona token ao header Authorization se existir no localStorage
-    const token = localStorage.getItem('admin_token');
-    if (token) {
-      if (!args[1]) args[1] = {};
-      if (!args[1].headers) args[1].headers = {};
-      args[1].headers['Authorization'] = `Bearer ${token}`;
+    const urlStr = String(args[0] || '');
+    const isLocal = !urlStr.startsWith('http://') && !urlStr.startsWith('https://') || urlStr.includes(window.location.host);
+
+    // Adiciona token ao header Authorization se existir no localStorage apenas para rotas locais
+    if (isLocal) {
+      const token = localStorage.getItem('admin_token');
+      if (token) {
+        if (!args[1]) args[1] = {};
+        if (!args[1].headers) args[1].headers = {};
+        args[1].headers['Authorization'] = `Bearer ${token}`;
+      }
     }
 
     const url = args[0];
