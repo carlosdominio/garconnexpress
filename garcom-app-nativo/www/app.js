@@ -3291,6 +3291,7 @@ function exibirResumoPedido() {
         <input type="text" 
                class="obs-input" 
                placeholder="Alguma observação? (ex: sem cebola)" 
+               maxlength="150"
                value="${item.observacao}" 
                oninput="pedidoAtual[${index}].observacao = this.value">
       </div>

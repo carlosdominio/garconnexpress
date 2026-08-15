@@ -1504,7 +1504,7 @@ async function abrirModalCriarComandaLancar() {
         <!-- CORPO DO MODAL -->
         <div style="padding: 20px; text-align: left;">
           <label style="display: block; font-weight: bold; color: #334155; font-size: 0.9rem; margin-bottom: 6px;">Número ou Nome da Comanda/Mesa:</label>
-          <input type="text" id="input-nome-comanda-novo" placeholder="ex: 15, VIP, Comanda 05, João..." 
+          <input type="text" id="input-nome-comanda-novo" placeholder="ex: 15, VIP, Comanda 05, João..." maxlength="30"
                  style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 2px solid #cbd5e0; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc; margin-bottom: 12px;">
           
           <label style="display: block; font-weight: bold; color: #334155; font-size: 0.9rem; margin-bottom: 6px;">Direcionar para:</label>
@@ -1773,6 +1773,7 @@ function renderizarCarrinhoLancar() {
         <div style="margin: 2px 0;">
           <input type="text" 
                  placeholder="📝 Observação..." 
+                 maxlength="150"
                  value="${item.observacao || ''}" 
                  oninput="carrinhoLancar[${index}].observacao = this.value"
                  style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid #edf2f7; font-size: 0.8rem; background: #fdfdfd;">
@@ -5683,6 +5684,7 @@ function renderizarItensEdicao() {
       <div style="margin: 0;">
         <input type="text" 
                placeholder="📝 Obs..." 
+               maxlength="150"
                value="${item.observacao || ''}" 
                oninput="itensEmEdicao[${index}].observacao = this.value; temEdicoesLocaisNaoSalvas = true;"
                style="width: 100%; padding: 4px 8px; border-radius: 6px; border: 1px solid #edf2f7; font-size: 0.75rem; background: #f8fafc;">
