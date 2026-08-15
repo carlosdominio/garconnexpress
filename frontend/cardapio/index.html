@@ -557,7 +557,7 @@
 
             // 2. Continua inicialização independente do status (para manter sincronia)
             initPusher(); 
-            initNativeSSE();
+            // initNativeSSE(); // Desativado para economizar Fluid CPU na Vercel (Pusher ativo)
             setInterval(verificarCaixa, 30000);
             
             if (!sessionMesa) { 

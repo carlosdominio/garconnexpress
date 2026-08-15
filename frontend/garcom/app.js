@@ -1224,7 +1224,7 @@ async function configurarPusher() {
       return originalBind(event, wrappedCallback);
     };
 
-    initNativeSSEGarcom();
+    // initNativeSSEGarcom(); // Desativado para economizar Fluid CPU na Vercel (Pusher ativo)
 
     channel.bind('toast-config-atualizado', () => {
       console.log('🔄 Configurações de Toasts atualizadas!');

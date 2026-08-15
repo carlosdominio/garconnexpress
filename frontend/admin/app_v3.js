@@ -7222,7 +7222,7 @@ async function configurarPusher() {
       return originalBindAdmin(event, wrappedCallback);
     };
 
-    initNativeSSEAdmin();
+    // initNativeSSEAdmin(); // Desativado para economizar Fluid CPU na Vercel (Pusher ativo)
 
     // EVENTO: CHAMADO DE CLIENTE (🛎️) - PRIORIDADE
     channel.bind('chamado-garcom', (data) => {
