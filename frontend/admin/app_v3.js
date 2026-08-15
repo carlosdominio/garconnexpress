@@ -10157,7 +10157,7 @@ async function handleApkUpload(input, appTipo) {
 
   Swal.fire({
     title: 'Enviando APK para o Vercel Blob...',
-    text: `Conectando e preparando upload de "${file.name}"...`,
+    text: `Carregando "${file.name}" diretamente do seu computador. Por favor, não feche esta página até a confirmação.`,
     icon: 'info',
     allowOutsideClick: false,
     showConfirmButton: false,
@@ -10178,12 +10178,6 @@ async function handleApkUpload(input, appTipo) {
       headers: {
         // Envia o token do admin para o nosso backend validar que quem está solicitando o upload é admin
         'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '')
-      },
-      onUploadProgress: (progressEvent) => {
-        const percentage = Math.round(progressEvent.percentage);
-        Swal.update({
-          text: `Enviando "${file.name}": ${percentage}% concluído.`
-        });
       }
     });
 
