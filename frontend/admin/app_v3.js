@@ -54,7 +54,9 @@ window.onerror = function(msg, url, line) {
           !urlStr.includes('/api/whatsapp-status') &&
           !urlStr.includes('/api/send-message') &&
           !urlStr.includes('/api/chats/') &&
-          !urlStr.includes('/toggle-human')
+          !urlStr.includes('/toggle-human') &&
+          !urlStr.includes('/api/config/upload-apk-vercel') &&
+          !urlStr.includes('vercel-storage.com')
         )
       );
 
@@ -10178,6 +10180,12 @@ async function handleApkUpload(input, appTipo) {
       headers: {
         // Envia o token do admin para o nosso backend validar que quem está solicitando o upload é admin
         'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '')
+      },
+      onUploadProgress: (progressEvent) => {
+        const percentage = Math.round(progressEvent.percentage || 0);
+        Swal.update({
+          text: `Enviando "${file.name}": ${percentage}% concluído.`
+        });
       }
     });
 
