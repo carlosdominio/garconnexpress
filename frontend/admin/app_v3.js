@@ -10174,6 +10174,7 @@ async function handleApkUpload(input, appTipo) {
     const blobResult = await blobSdk.upload(file.name, file, {
       access: 'public',
       handleUploadUrl: '/api/config/upload-apk-vercel',
+      multipart: true, // Habilita upload em partes para arquivos muito grandes
       headers: {
         // Envia o token do admin para o nosso backend validar que quem está solicitando o upload é admin
         'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '')
