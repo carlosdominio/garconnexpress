@@ -743,8 +743,12 @@ async function configurarPusher() {
 
         canal.bind('versao-app-atualizada', (data) => {
             console.log('🔄 Versão do código atualizada pelo Admin!', data);
-            exibirTelaCarregamentoSistema('⚡ Atualizando Churrasqueiro', 'O administrador aplicou novas configurações. Atualizando sistema...');
-            setTimeout(() => location.reload(true), 1500);
+            if (isNativeApp) {
+                verificarAtualizacaoApk('churrasqueiro');
+            } else {
+                exibirTelaCarregamentoSistema('⚡ Atualizando Churrasqueiro', 'O administrador aplicou novas configurações. Atualizando sistema...');
+                setTimeout(() => location.reload(true), 1500);
+            }
         });
 
         canal.bind('som-global-atualizado', (data) => {
@@ -1110,6 +1114,7 @@ async function iniciarApp() {
     if (isNativeApp) {
         limparNotificacoesNativas();
         registerNativePush();
+        verificarAtualizacaoApk('churrasqueiro');
     }
     ocultarTelaCarregamentoSistema();
 }
@@ -1263,6 +1268,65 @@ document.addEventListener('visibilitychange', () => {
 
 setInterval(atualizarCronometros, 1000);
 setInterval(carregarPedidos, 60000);
+
+async function verificarAtualizacaoApk(appTipo) {
+  const ua = navigator.userAgent;
+  let currentVersion = null;
+  let userAgentKey = '';
+
+  if (appTipo === 'garcom') userAgentKey = 'GarconnExpressGarcom/';
+  else if (appTipo === 'cozinha') userAgentKey = 'GarconnExpressCozinha/';
+  else if (appTipo === 'motoboy') userAgentKey = 'GarconnExpressMotoboy/';
+  else if (appTipo === 'churrasqueiro') userAgentKey = 'GarconnExpressChurrasqueiro/';
+
+  if (ua.includes(userAgentKey)) {
+    currentVersion = ua.split(userAgentKey)[1].split(' ')[0];
+  } else {
+    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+      currentVersion = '1.0.0'; // Fallback se rodar no Capacitor nativo sem UA injetado
+    } else {
+      return; // Se não for app nativo, não verifica APK
+    }
+  }
+
+  try {
+    const res = await fetch('/api/config/versao-app');
+    const data = await res.json();
+    if (!data.success) return;
+
+    const serverVersion = data[`${appTipo}_apk_version`];
+    const apkUrl = data[`${appTipo}_apk_url`];
+
+    if (serverVersion && apkUrl && serverVersion !== currentVersion) {
+      console.log(`[APK Update] Nova versão detectada para ${appTipo}: ${serverVersion} (Atual: ${currentVersion})`);
+      
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({
+          title: 'Atualização do Aplicativo',
+          text: `Uma nova versão do aplicativo (${serverVersion}) está disponível. Deseja baixar o instalador agora?`,
+          icon: 'download',
+          showCancelButton: true,
+          confirmButtonText: 'Baixar Agora',
+          cancelButtonText: 'Mais Tarde',
+          confirmButtonColor: '#3085d6',
+          cancelButtonColor: '#d33',
+          allowOutsideClick: false
+        }).then((result) => {
+          if (result.isConfirmed) {
+            // Abre o link do APK usando o browser do Capacitor ou o do sistema
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+              window.Capacitor.Plugins.Browser.open({ url: apkUrl });
+            } else {
+              window.open(apkUrl, '_system');
+            }
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[APK Update] Falha ao verificar atualização do APK:', err);
+  }
+}
 
 const CLIENT_VERSION = '1.3.1';
 async function verificarVersaoSistema() {
