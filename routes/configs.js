@@ -363,6 +363,35 @@ module.exports = (ctx) => {
     }
   });
 
+  // GET /api/config/download-apk/:tipo
+  router.get('/config/download-apk/:tipo', ensureDbInitialized, async (req, res) => {
+    const { tipo } = req.params;
+    const key = `config_${tipo}_apk_url`;
+    try {
+      const row = (await query("SELECT valor FROM sistema_config WHERE chave = ?", [key])).rows[0];
+      let apkUrl = row ? row.valor : null;
+      if (!apkUrl) {
+        return res.status(404).send('APK não configurado.');
+      }
+      
+      // Se for URL externa (ex: Vercel Blob ou Dropbox)
+      if (apkUrl.startsWith('http')) {
+        return res.redirect(apkUrl);
+      }
+      
+      const localPath = path.join(__dirname, '..', apkUrl.replace(/^\//, ''));
+      if (fs.existsSync(localPath)) {
+        res.setHeader('Content-Disposition', `attachment; filename="${tipo}-update.apk"`);
+        res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+        return res.sendFile(localPath);
+      }
+      
+      return res.redirect(apkUrl);
+    } catch (error) {
+      res.status(500).send('Erro ao obter APK: ' + error.message);
+    }
+  });
+
   // GET /api/config/som-global
   router.get('/config/som-global', ensureDbInitialized, async (req, res) => {
     try {

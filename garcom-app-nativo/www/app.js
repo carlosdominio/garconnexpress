@@ -142,16 +142,31 @@ async function verificarAtualizacaoApk(appTipo) {
   }
 
   try {
-    const res = await fetch('/api/config/versao-app');
+    const res = await fetch('/api/config/versao-app?_t=' + Date.now());
     const data = await res.json();
     if (!data.success) return;
 
     const serverVersion = data[`${appTipo}_apk_version`];
     const apkUrl = data[`${appTipo}_apk_url`];
 
+    // Se o Admin voltou a versão para a mesma instalada (ou se o app já está atualizado)
+    if (serverVersion === currentVersion) {
+      console.log(`[APK Update] Aplicativo ${appTipo} já está na versão correta (${currentVersion}).`);
+      if (typeof Swal !== 'undefined' && Swal.isVisible()) {
+        Swal.close();
+      }
+      if (typeof ocultarTelaCarregamentoSistema === 'function') {
+        ocultarTelaCarregamentoSistema();
+      }
+      return;
+    }
+
     if (serverVersion && apkUrl && serverVersion !== currentVersion) {
       console.log(`[APK Update] Nova versão detectada para ${appTipo}: ${serverVersion} (Atual: ${currentVersion})`);
       
+      const downloadEndpoint = `/api/config/download-apk/${appTipo}`;
+      const finalDownloadUrl = apkUrl.startsWith('http') ? apkUrl : downloadEndpoint;
+
       if (typeof Swal !== 'undefined') {
         Swal.fire({
           title: '⚠️ Atualização Obrigatória',
@@ -165,15 +180,26 @@ async function verificarAtualizacaoApk(appTipo) {
           allowEnterKey: false
         }).then((result) => {
           if (result.isConfirmed) {
-            // Abre o link do APK usando o browser do Capacitor ou o do sistema
+            // Abre o link do APK usando o browser do Capacitor ou window.open
             if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
-              window.Capacitor.Plugins.Browser.open({ url: apkUrl });
+              window.Capacitor.Plugins.Browser.open({ url: finalDownloadUrl });
             } else {
-              window.open(apkUrl, '_system');
+              window.open(finalDownloadUrl, '_system');
             }
             
+            // Cria elemento <a> com atributo download para garantir o disparo
+            const a = document.createElement('a');
+            a.href = finalDownloadUrl;
+            a.target = '_system';
+            a.download = `${appTipo}-v${serverVersion}.apk`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
             // Bloqueia a tela de forma persistente
-            exibirTelaCarregamentoSistema('⚡ Aplicativo Bloqueado', 'Baixando nova versão do sistema. Instale o APK para poder voltar a utilizar o GarçomExpress.');
+            if (typeof exibirTelaCarregamentoSistema === 'function') {
+              exibirTelaCarregamentoSistema('⚡ Aplicativo Bloqueado', 'Baixando nova versão do sistema. Instale o APK baixado para poder voltar a utilizar o GarçomExpress.');
+            }
           }
         });
       }
