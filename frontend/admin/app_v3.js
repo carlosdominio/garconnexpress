@@ -7764,6 +7764,9 @@ function mostrarLoading(titulo = "Aguarde...", mensagem = "Processando requisiç
 }
 
 function ocultarLoading() {
+  if (window.bloqueiaOcultarLoading) {
+    return; // Protege modais persistentes customizados (como o progresso do APK)
+  }
   if (typeof Swal !== 'undefined') {
     Swal.close();
   } else {
@@ -10169,6 +10172,7 @@ async function handleApkUpload(input, appTipo) {
   }
 
   let isUploading = true; // Controla se o upload ainda está ativo para evitar updates pós-fechamento
+  window.bloqueiaOcultarLoading = true; // Impede requisições em segundo plano de fechar este modal
 
   Swal.fire({
     title: 'Enviando APK para o Vercel Blob...',
@@ -10204,6 +10208,7 @@ async function handleApkUpload(input, appTipo) {
     });
 
     isUploading = false; // Desativa updates antes de abrir o modal de conclusão
+    window.bloqueiaOcultarLoading = false; // Libera fechamento de modais
 
     const directUrl = blobResult.url;
     
@@ -10220,10 +10225,12 @@ async function handleApkUpload(input, appTipo) {
     });
   } catch (err) {
     isUploading = false; // Desativa updates antes de abrir o modal de erro
+    window.bloqueiaOcultarLoading = false; // Libera fechamento de modais
     console.error('Erro no upload Vercel Blob:', err);
     Swal.fire('Erro no Upload', 'Ocorreu um erro ao enviar para a Vercel: ' + err.message, 'error');
   } finally {
     input.value = '';
+    window.bloqueiaOcultarLoading = false; // Garante que será liberado em qualquer cenário
   }
 }
 
