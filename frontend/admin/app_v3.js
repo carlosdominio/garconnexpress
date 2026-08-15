@@ -41,7 +41,6 @@ window.onerror = function(msg, url, line) {
     const url = args[0];
     const options = args[1] || {};
     const method = (options.method || 'GET').toUpperCase();
-    const urlStr = String(url);
     
     // Determina se devemos exibir o loading para esta requisição
     const shouldShowLoading = 
