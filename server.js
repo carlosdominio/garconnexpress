@@ -4448,8 +4448,13 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
 
 app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) => {
   const { id } = req.params;
-  const { itens, observacao } = req.body;
+  const { itens: rawItens, observacao } = req.body;
   try {
+    // Filtra para manter apenas itens com quantidade > 0 (itens zerados são tratados como excluídos pelo usuário)
+    const itens = (rawItens || [])
+      .filter(i => i && Number(i.quantidade) > 0)
+      .map(i => ({ ...i, quantidade: parseInt(i.quantidade, 10) }));
+
     const itensAtuais = (await query("SELECT id, menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
     
     // Calcula as alterações detalhadas da edição realizada

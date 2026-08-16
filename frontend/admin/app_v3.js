@@ -5913,10 +5913,11 @@ async function salvarAlteracoes() {
   timerIgnoreEdit = setTimeout(() => { ultimoPedidoEditadoPeloAdmin = null; }, 5000);
 
   try {
+    const itensValidos = (itensEmEdicao || []).filter(i => i && Number(i.quantidade) > 0);
     const res = await fetch(`/api/pedidos/${pedidoEmEdicao.id}/atualizar-itens`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itens: itensEmEdicao })
+      body: JSON.stringify({ itens: itensValidos })
     });
     if (res.ok) {
       temEdicoesLocaisNaoSalvas = false;

@@ -2613,12 +2613,14 @@ async function salvarAlteracoesGarcom() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
-        itens: itensEmEdicaoGarcom.map(i => ({
-          menu_id: i.menu_id,
-          quantidade: i.quantidade,
-          status: i.status,
-          observacao: i.observacao || ''
-        }))
+        itens: (itensEmEdicaoGarcom || [])
+          .filter(i => i && Number(i.quantidade) > 0)
+          .map(i => ({
+            menu_id: i.menu_id,
+            quantidade: parseInt(i.quantidade, 10),
+            status: i.status,
+            observacao: i.observacao || ''
+          }))
       })
     });
     showLoading(false);

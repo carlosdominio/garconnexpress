@@ -803,8 +803,13 @@ module.exports = (ctx) => {
 
   router.put('/:id/atualizar-itens', isAuthenticated, async (req, res) => {
     const { id } = req.params;
-    const { itens, observacao } = req.body;
+    const { itens: rawItens, observacao } = req.body;
     try {
+      // Filtra para manter apenas itens com quantidade > 0 (itens zerados são tratados como excluídos pelo usuário)
+      const itens = (rawItens || [])
+        .filter(i => i && Number(i.quantidade) > 0)
+        .map(i => ({ ...i, quantidade: parseInt(i.quantidade, 10) }));
+
       const itensAtuais = (await query("SELECT id, menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
       const menuItems = (await query("SELECT id, nome FROM menu")).rows;
       const menuMap = {};
