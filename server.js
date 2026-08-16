@@ -4598,13 +4598,16 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
     // Se já estava em 'recebido', mantém o original.
     if (temPendente) {
       if (statusAnterior !== 'recebido') {
-        await query("UPDATE pedidos SET total = ?, status = ?, created_at = ?, observacao = ? WHERE id = ?", [total, novoStatusPedido, agora, observacao || '', id]);
+        await query("UPDATE pedidos SET total = ?, status = ?, created_at = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = 0, notificado_atraso_fechamento = 0 WHERE id = ?", [total, novoStatusPedido, agora, observacao || '', id]);
       } else {
-        await query("UPDATE pedidos SET total = ?, status = ?, observacao = ? WHERE id = ?", [total, novoStatusPedido, observacao || '', id]);
+        await query("UPDATE pedidos SET total = ?, status = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = 0, notificado_atraso_fechamento = 0 WHERE id = ?", [total, novoStatusPedido, observacao || '', id]);
       }
       
-      const resMesa = await query("SELECT m.numero FROM pedidos p JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id]);
+      const resMesa = await query("SELECT m.id, m.numero FROM pedidos p JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id]);
       const mesaNum = resMesa.rows[0] ? resMesa.rows[0].numero : 'BALCÃO';
+      if (resMesa.rows[0] && resMesa.rows[0].id) {
+        await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [resMesa.rows[0].id]);
+      }
       
       // Busca garcom_id para notificação
       const pMesa = (await query("SELECT garcom_id FROM pedidos WHERE id = ?", [id])).rows[0];
@@ -4691,9 +4694,9 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
     // Se está voltando para 'recebido' vindo de um status diferente, reinicia o cronômetro (novo ciclo de preparo)
     // Se já estava em 'recebido', mantém o original.
     if (statusAnterior !== 'recebido') {
-      await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, observacao = ? WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id]);
+      await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = 0, notificado_atraso_fechamento = 0 WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id]);
     } else {
-      await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', observacao = ? WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), observacao || '', id]);
+      await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = 0, notificado_atraso_fechamento = 0 WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), observacao || '', id]);
     }
     const pMesa = (await query("SELECT p.mesa_id, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
     if (pMesa && pMesa.mesa_id) {
