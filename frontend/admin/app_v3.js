@@ -7116,6 +7116,7 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
   if (tit.includes('CHAMADO')) icone = '🛎️';
   else if (tit.includes('CONTA')) icone = '💰';
   else if (tit.includes('DELIVERY')) icone = tit.includes('DESATIVADO') ? '🛑' : '🛵';
+  else if (tit.includes('ADICIONADO') || tit.includes('ATUALIZADO')) icone = '➕';
   else if (tit.includes('PEDIDO')) icone = '🚀';
   else if (tit.includes('PRONTO')) icone = '🍳';
   else if (tit.includes('ESTOQUE')) icone = '⚠️';
@@ -7368,8 +7369,9 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
 
       if (isAddition) {
         markRecentAdditionNotified(p ? p.id : (data.pedido_id || data.id));
-        exibirNotificacaoNativa('➕ ITEM ADICIONADO', `Novos itens adicionados na ${nomeExibicao}.`, `mesa-${mesaId}`);
-        mostrarToast(`➕ Item Adicionado: ${nomeExibicao}`);
+        const descTexto = data.detalhes_edicao ? `${nomeExibicao} — ${data.detalhes_edicao}` : `Novos itens adicionados na ${nomeExibicao}.`;
+        exibirNotificacaoNativa('➕ ITEM ADICIONADO', descTexto, `mesa-${mesaId}`);
+        mostrarToast(`➕ Item Adicionado: ${data.detalhes_edicao ? `${nomeExibicao} (${data.detalhes_edicao})` : nomeExibicao}`);
       } else {
         exibirNotificacaoNativa('🚀 NOVO PEDIDO', `${nomeExibicao} acabou de fazer um pedido.`, `mesa-${mesaId}`);
         mostrarToast(`🚀 Novo Pedido: ${nomeExibicao}`);

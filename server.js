@@ -4623,6 +4623,7 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
           para_cozinha: temItemCozinha,
           para_churrasco: temItemChurrasco,
           is_addition: true,
+          detalhes_edicao: detalhesEdicao,
           pedido: { id: id, mesa_numero: mesaNum, status: 'recebido', garcom_id: pMesa ? pMesa.garcom_id : null } 
         })
       ]);
@@ -4738,6 +4739,7 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
         para_cozinha: temItemCozinha,
         para_churrasco: temItemChurrasco,
         is_addition: true,
+        detalhes_edicao: detalhesEdicao,
         // garcom_id real do pedido: null = sem garçom atribuído (lançado pelo admin), ADMIN = admin direto
         garcom_id: pMesa ? (pMesa.garcom_id || 'ADMIN') : 'ADMIN',
         pedido: { id: id, mesa_numero: mesaNum, status: 'recebido', garcom_id: pMesa ? (pMesa.garcom_id || 'ADMIN') : 'ADMIN' } 

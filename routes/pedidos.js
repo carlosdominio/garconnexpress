@@ -935,6 +935,7 @@ module.exports = (ctx) => {
             para_cozinha: temItemCozinha,
             para_churrasco: temItemChurrasco,
             is_addition: true,
+            detalhes_edicao: detalhesEdicao,
             pedido: { id: id, mesa_numero: mesaNum, status: 'recebido', garcom_id: pMesa ? pMesa.garcom_id : null } 
           })
         ]);
@@ -1037,6 +1038,7 @@ module.exports = (ctx) => {
           para_cozinha: temItemCozinha,
           para_churrasco: temItemChurrasco,
           is_addition: true,
+          detalhes_edicao: detalhesEdicao,
           garcom_id: pMesa ? (pMesa.garcom_id || 'ADMIN') : 'ADMIN',
           pedido: { id: id, mesa_numero: mesaNum, status: 'recebido', garcom_id: pMesa ? (pMesa.garcom_id || 'ADMIN') : 'ADMIN' } 
         })
