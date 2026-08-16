@@ -6725,7 +6725,12 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
         ocultarLoading();
       }
       
-      mostrarToast("✅ Conta Total Finalizada!");
+      if (pedidoParaFecharAdmin && (pedidoParaFecharAdmin.garcom_id === 'DELIVERY' || (pedidoParaFecharAdmin.mesa_numero && String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('DELIVERY')))) {
+        const localNome = `DELIVERY #${idPedido}`;
+        adicionarNotificacao('✅ DELIVERY CONCLUÍDO (PAGO)', `📍 Local: ${localNome}\n💰 O pagamento foi registrado e o delivery finalizado.`, '🛵');
+      } else {
+        mostrarToast("✅ Conta Total Finalizada!");
+      }
       const novosPagamentosCount = (formasPagamentoPessoas && formasPagamentoPessoas.length) ? formasPagamentoPessoas.length : 1;
       
       const pedidoFinal = { 
@@ -7133,8 +7138,9 @@ let pedidoAtualizadoId = null;
 const realtimeEventDeduplicationMap = new Map();
 function isDuplicateRealtimeEvent(event, data) {
   const dataKey = data ? (data.pedido_id || (data.pedido && data.pedido.id) || data.id || data.mesa_id || data.mesa_numero || JSON.stringify(data)) : '';
+  const statusKey = data && data.status ? `:${data.status}` : '';
   const now = Date.now();
-  const key = `${event}:${dataKey}`;
+  const key = `${event}:${dataKey}${statusKey}`;
   const lastTime = realtimeEventDeduplicationMap.get(key) || 0;
   if (now - lastTime < 3000) {
     return true;
