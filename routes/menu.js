@@ -53,19 +53,24 @@ module.exports = (ctx) => {
         }
       }
 
-      if (ordem) {
+      if (ordem && ordem.length > 0) {
         menu.sort((a, b) => {
-          const catA = a.categoria.trim().toUpperCase();
-          const catB = b.categoria.trim().toUpperCase();
+          const catA = (a.categoria || '').trim().toUpperCase();
+          const catB = (b.categoria || '').trim().toUpperCase();
           const indexA = ordem.indexOf(catA);
           const indexB = ordem.indexOf(catB);
-          if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-          if (indexA !== -1) return -1;
-          if (indexB !== -1) return 1;
-          return catA.localeCompare(catB);
+          if (indexA !== -1 && indexB !== -1) {
+            if (indexA !== indexB) return indexA - indexB;
+          } else if (indexA !== -1) {
+            return -1;
+          } else if (indexB !== -1) {
+            return 1;
+          } else {
+            const comp = catA.localeCompare(catB);
+            if (comp !== 0) return comp;
+          }
+          return (a.nome || '').localeCompare(b.nome || '');
         });
-      } else {
-        menu.sort((a, b) => (a.validade || '').localeCompare(b.validade || ''));
       }
 
       res.json(menu);

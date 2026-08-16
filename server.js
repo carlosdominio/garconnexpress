@@ -5112,14 +5112,32 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
 
 
 
+app.get('/api/config/ordem-categorias', async (req, res) => {
+  try {
+    const ordemRes = await query("SELECT valor FROM sistema_config WHERE chave = 'ordem_categorias'");
+    let ordem = [];
+    if (ordemRes.rows.length > 0 && ordemRes.rows[0].valor) {
+      try {
+        ordem = JSON.parse(ordemRes.rows[0].valor);
+      } catch (e) {
+        ordem = [];
+      }
+    }
+    res.json(ordem);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
 app.post('/api/config/ordem-categorias', isAdmin, async (req, res) => {
   const { ordem } = req.body;
   try {
-    const valor = JSON.stringify(ordem);
+    const valor = JSON.stringify(Array.isArray(ordem) ? ordem : []);
     if (isPostgres) {
       await query("INSERT INTO sistema_config (chave, valor) VALUES ('ordem_categorias', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [valor]);
     } else {
       await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('ordem_categorias', ?)", [valor]);
+    }
+    if (typeof cachedOrdemCategorias !== 'undefined') {
+      cachedOrdemCategorias = Array.isArray(ordem) ? ordem.map(c => String(c).trim().toUpperCase()) : null;
     }
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
     res.json({ success: true });

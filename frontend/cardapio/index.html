@@ -1422,10 +1422,11 @@
                 return;
             }
 
-            const groups = menuToShow.reduce((acc, i) => { const n = i.categoria.trim().toUpperCase(); if(!acc[n]) acc[n]=[]; acc[n].push(i); return acc; }, {});
-            for (const cat in groups) {
+            const groups = menuToShow.reduce((acc, i) => { const n = (i.categoria || 'OUTROS').trim().toUpperCase(); if(!acc[n]) acc[n]=[]; acc[n].push(i); return acc; }, {});
+            const catOrder = [...new Set(menuToShow.map(i => (i.categoria || 'OUTROS').trim().toUpperCase()))];
+            catOrder.forEach(cat => {
                 const section = document.createElement('div'); section.innerHTML = `<h2 class="section-title">${cat}</h2>`;
-                groups[cat].forEach(i => {
+                (groups[cat] || []).forEach(i => {
                     const cartI = cart.find(c => c.id === i.id); const qty = cartI ? cartI.qty : 0;
                     let promoBadge = '';
                     let priceHtml = `R$ ${i.preco.toFixed(2)}`;
@@ -1449,7 +1450,7 @@
                         </div>`;
                 });
                 container.appendChild(section);
-            }
+            });
         }
         function updateCart(id, delta) {
             if (delta > 0 && window.isCardapioOpen === false) {

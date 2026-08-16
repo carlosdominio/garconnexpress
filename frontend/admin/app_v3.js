@@ -2329,16 +2329,31 @@ async function exibirConfigOrdemCategorias() {
   if (!container) return;
 
   try {
-    const resMenu = await fetch('/api/menu?admin=true');
-    const menu = await resMenu.json();
-    const categoriasExistentes = [...new Set(menu.map(item => item.categoria.trim()))];
-    
-    // Tenta carregar a ordem salva do banco
-    const resOrdem = await fetch('/api/config/categorias-cozinha'); // Reusando o objeto de config geral se necessário, ou pegando do menu que já vem ordenado
-    // Como o /api/menu agora já retorna ordenado pelo server, as categoriasExistentes virão na ordem correta se o server estiver ok.
-    // Mas para garantir a manipulação, vamos usar o estadoOrdemCategorias
-    estadoOrdemCategorias = categoriasExistentes;
+    const [resMenu, resOrdem] = await Promise.all([
+      fetch('/api/menu?admin=true').then(r => r.json()).catch(() => []),
+      fetch('/api/config/ordem-categorias').then(r => r.json()).catch(() => [])
+    ]);
 
+    const todasCategorias = [...new Set((resMenu || []).map(item => (item.categoria || '').trim()).filter(Boolean))];
+    const ordemSalva = Array.isArray(resOrdem) ? resOrdem.map(c => String(c).trim()).filter(Boolean) : [];
+
+    const categoriasOrdenadas = [];
+    // 1. Mantém a ordem salva para as categorias existentes
+    ordemSalva.forEach(catSalva => {
+      const match = todasCategorias.find(c => c.toUpperCase() === catSalva.toUpperCase());
+      if (match && !categoriasOrdenadas.some(c => c.toUpperCase() === match.toUpperCase())) {
+        categoriasOrdenadas.push(match);
+      }
+    });
+
+    // 2. Adiciona quaisquer novas categorias que ainda não estavam na lista salva
+    todasCategorias.forEach(catReal => {
+      if (!categoriasOrdenadas.some(c => c.toUpperCase() === catReal.toUpperCase())) {
+        categoriasOrdenadas.push(catReal);
+      }
+    });
+
+    estadoOrdemCategorias = categoriasOrdenadas;
     renderizarListaOrdemCategorias();
   } catch (e) {
     console.error('Erro ao carregar ordem das categorias:', e);

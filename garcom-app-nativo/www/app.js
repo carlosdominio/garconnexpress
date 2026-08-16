@@ -3142,12 +3142,13 @@ async function exibirMenu(categoria, queryTexto = '') {
     return acc;
   }, {});
 
+  const catOrder = [...new Set(itens.map(i => (i.categoria || 'Sem Categoria').trim().toUpperCase()))];
   let html = '';
-  for (const catName in grupos) {
+  catOrder.forEach(catName => {
     // Adiciona o título da categoria (ocupa a largura toda do grid)
     html += `<div class="section-title-garcom">${catName}</div>`;
 
-    html += grupos[catName].map(item => {
+    html += (grupos[catName] || []).map(item => {
       const itemNoPedido = pedidoAtual.find(p => p.menu_id === item.id);
       const qtdNoCarrinho = itemNoPedido ? itemNoPedido.quantidade : 0;
 
@@ -3189,7 +3190,7 @@ async function exibirMenu(categoria, queryTexto = '') {
         </div>
       `;
     }).join('');
-  }
+  });
 
   grid.innerHTML = html;
 
