@@ -7663,7 +7663,21 @@ function alternarSomWindows() {
  * @param {string} titulo - Título opcional
  * @param {number} duracao - Tempo em ms (padrão 5s)
  */
+window._recentToastsMap = window._recentToastsMap || new Map();
 function mostrarToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
+  const toastKey = `${tipo}:${titulo}:${msg}`;
+  const now = Date.now();
+  const lastTime = window._recentToastsMap.get(toastKey) || 0;
+  if (now - lastTime < 3500) {
+    return; // Ignora toast duplicado no mesmo intervalo de 3.5s
+  }
+  window._recentToastsMap.set(toastKey, now);
+  if (window._recentToastsMap.size > 50) {
+    for (const [k, t] of window._recentToastsMap.entries()) {
+      if (now - t > 10000) window._recentToastsMap.delete(k);
+    }
+  }
+
   let container = document.getElementById('toast-container');
   if (!container) {
     container = document.createElement('div');
@@ -8919,6 +8933,22 @@ function toggleDropdownNotificacoes() {
 }
 
 function adicionarNotificacao(titulo, descricao, icone = '🔔') {
+  // Deduplicação: Se uma notificação com o mesmo conteúdo ou título similar foi gravada nos últimos 5 segundos, ignora
+  const now = Date.now();
+  if (Array.isArray(notificacoesGerais) && notificacoesGerais.length > 0) {
+    const duvidosa = notificacoesGerais.slice(0, 5).find(n => {
+      const timeDiff = now - new Date(n.data).getTime();
+      if (timeDiff >= 5000) return false;
+      const descLimpa1 = (n.descricao || '').replace(/[\s\r\n]+/g, ' ').trim();
+      const descLimpa2 = (descricao || '').replace(/[\s\r\n]+/g, ' ').trim();
+      return (descLimpa1 === descLimpa2) || (n.titulo === titulo && descLimpa1.includes(descLimpa2));
+    });
+    if (duvidosa) {
+      console.log(`⚡ [Deduplicador Sino] Notificação duplicada ignorada: ${titulo}`);
+      return;
+    }
+  }
+
   const nova = {
     id: Date.now() + Math.random(),
     titulo,
