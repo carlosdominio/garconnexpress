@@ -4531,9 +4531,13 @@ async function atualizarIndicadoresTopo() {
   const elFat = document.getElementById('faturamento-resumo');
   const elVendas = document.getElementById('vendas-dia-resumo');
 
-  // 1. Busca o status do caixa (Apenas 1 chamada necessária)
-  const resCaixa = await fetch('/api/caixa/status');
-  caixaAtual = await resCaixa.json();
+  // 1. Busca o status do caixa
+  try {
+    const resCaixa = await fetch('/api/caixa/status');
+    caixaAtual = await resCaixa.json();
+  } catch (e) {
+    console.error('Erro ao buscar status do caixa:', e);
+  }
 
   if (!caixaAtual) {
     if (elFat) elFat.innerText = `R$ 0,00`;
@@ -4541,14 +4545,30 @@ async function atualizarIndicadoresTopo() {
     return;
   }
 
-  // 2. Calcula o faturamento ativo usando os dados que já temos no array 'pedidos'
-  // O endpoint /ativos-detalhado já traz os itens embutidos, então não precisamos de fetch extras!
+  // 2. Calcula o faturamento ativo (mesas, balcão e delivery) considerando taxa ligada/desligada
   let faturamentoRealAtivo = 0;
   for (const p of pedidos) {
     if (p.itens && Array.isArray(p.itens)) {
-      faturamentoRealAtivo += p.itens
-        .filter(i => i.status === 'entregue')
-        .reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+      const itensValidos = p.itens.filter(i => (i.status || '').toLowerCase() !== 'cancelado');
+      const subtotalPedido = itensValidos.reduce((sum, i) => sum + ((i.preco || 0) * (i.quantidade || 1)), 0);
+      
+      const isDelivery = (p.garcom_id === 'DELIVERY' || (p.mesa_numero && String(p.mesa_numero).toUpperCase().includes('DELIVERY')));
+      const taxaCobrada = (pedidosStatusTaxa[p.id] !== undefined) 
+        ? pedidosStatusTaxa[p.id] 
+        : (p.cobrar_taxa === undefined || p.cobrar_taxa === null ? true : (p.cobrar_taxa == 1 || p.cobrar_taxa === true));
+      
+      let taxaValor = 0;
+      if (taxaCobrada && subtotalPedido > 0) {
+        if (isDelivery) {
+          taxaValor = (p.taxa_entrega !== undefined && p.taxa_entrega !== null) ? parseFloat(p.taxa_entrega) : 3.00;
+        } else {
+          taxaValor = subtotalPedido * 0.10;
+        }
+      }
+      
+      const pagoParcial = p.pago_parcial || 0;
+      const totalEstePedido = Math.max(0, subtotalPedido + taxaValor - pagoParcial);
+      faturamentoRealAtivo += totalEstePedido;
     }
   }
 
@@ -5258,15 +5278,19 @@ async function alternarTaxaPedido(id, checkboxEl) {
   const pedidoRef = pedidos.find(p => p.id === id);
   if (pedidoRef) pedidoRef.cobrar_taxa = novoEstado;
 
-  // 2. Atualiza os componentes do modal imediatamente a cada clique
-  const modalOpcoes = document.getElementById('modal-opcoes');
+  // 2. Atualiza imediatamente o indicador "ATIVO AGORA" e os cards na tela
+  atualizarIndicadoresTopo();
+  renderizarCardsMesas();
+
+  // 3. Atualiza os componentes do modal de opções se estiver aberto
+  const modalOpcoes = document.getElementById('modal-opcoes-mesa');
   if (modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.dataset.pedidoId == id) {
     if (typeof abrirModalOpcoes === 'function') {
       abrirModalOpcoes(id);
     }
   }
 
-  // 3. Debounce de 250ms: se clicar várias vezes rápido, apenas o estado final é enviado ao servidor
+  // 4. Debounce de 250ms: se clicar várias vezes rápido, apenas o estado final é enviado ao servidor
   if (taxaDebounceTimers[id]) {
     clearTimeout(taxaDebounceTimers[id]);
   }
@@ -8432,7 +8456,7 @@ async function abrirModalOpcoes(pedidoId) {
   const mesaId = pedido.mesa_id;
   
   // 1. DADOS BÁSICOS E CORES
-  const modalOpcoes = document.getElementById('modal-opcoes');
+  const modalOpcoes = document.getElementById('modal-opcoes-mesa');
   if (modalOpcoes) modalOpcoes.dataset.pedidoId = pedidoId;
   const headerBg = document.getElementById('modal-opcoes-header-bg');
   const itens = (pedido.itens && pedido.itens.length > 0) ? pedido.itens : await fetch(`/api/pedidos/${pedidoId}/itens`).then(res => res.json()).catch(() => []);

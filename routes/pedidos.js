@@ -1381,11 +1381,13 @@ module.exports = (ctx) => {
     const { id } = req.params;
     const { cobrar_taxa } = req.body;
     try {
-      const pedidoOriginal = (await query("SELECT p.mesa_id, p.garcom_id, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) WHERE p.id = ?", [id])).rows[0];
+      const pedidoOriginal = (await query("SELECT p.mesa_id, p.garcom_id, p.taxa_entrega, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) WHERE p.id = ?", [id])).rows[0];
       const todosItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
       const subtotal = todosItens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+      const isDelivery = pedidoOriginal && (pedidoOriginal.garcom_id === 'DELIVERY' || String(pedidoOriginal.mesa_numero).toUpperCase().includes('DELIVERY'));
+      const taxaEntrega = isDelivery ? parseFloat(pedidoOriginal.taxa_entrega !== undefined && pedidoOriginal.taxa_entrega !== null ? pedidoOriginal.taxa_entrega : 3.00) : 0;
       const taxaMultiplicador = await getTaxaServicoMultiplicador();
-      const total = cobrar_taxa ? Math.round(subtotal * taxaMultiplicador * 100) / 100 : subtotal;
+      const total = cobrar_taxa ? (isDelivery ? (subtotal + taxaEntrega) : Math.round(subtotal * taxaMultiplicador * 100) / 100) : subtotal;
 
       const taxaBanco = isPostgres ? cobrar_taxa : (cobrar_taxa ? 1 : 0);
       await query("UPDATE pedidos SET total = ?, cobrar_taxa = ? WHERE id = ?", [total, taxaBanco, id]);
