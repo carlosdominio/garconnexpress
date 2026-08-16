@@ -4394,7 +4394,9 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
               }
             }
           } else {
-            houveMudancaStatus = true;
+            if (!temEdicoesLocaisNaoSalvas) {
+              houveMudancaStatus = true;
+            }
           }
         });
 
@@ -4404,8 +4406,8 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
           houveMudancaStatus = true;
         }
 
-        // Se o garçom entregou o pedido ou algum item mudou de status:
-        if (houveMudancaStatus && pedidoEmEdicao) {
+        // Se o garçom entregou o pedido ou algum item mudou de status (apenas se o admin NÃO tiver edições locais pendentes):
+        if (houveMudancaStatus && pedidoEmEdicao && !temEdicoesLocaisNaoSalvas) {
           const numMesa = pedidoEmEdicao.mesa_tipo === 'balcao' ? 'Balcão ' + pedidoEmEdicao.mesa_numero : (pedidoEmEdicao.mesa_numero ? 'Mesa ' + pedidoEmEdicao.mesa_numero : (pedidoEmEdicao.garcom_id === 'DELIVERY' ? `Delivery #${pedidoEmEdicao.id}` : 'Balcão'));
           const tituloEl = document.getElementById('modal-titulo');
           if (tituloEl) tituloEl.innerText = `Editar Pedido: ${numMesa}`;
@@ -5737,6 +5739,7 @@ function removerItensSelecionados() {
   const selecionados = itensEmEdicao.filter(i => i.selecionado);
   if (selecionados.length === 0) return mostrarAlerta("Selecione itens para remover");
   
+  temEdicoesLocaisNaoSalvas = true;
   itensEmEdicao = itensEmEdicao.filter(i => !i.selecionado);
   renderizarItensEdicao();
 }
