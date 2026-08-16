@@ -7463,9 +7463,7 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
         mostrarToast(`🛵 A Caminho: ${nMesa}`);
       }
       else if (data.status === 'entregue' && (data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY')))) {
-        tocarNotificacao();
-        exibirNotificacaoNativa('✅ DELIVERY CONCLUÍDO (PAGO)', `📍 Local: ${nMesa}\n💰 O pagamento foi registrado e o delivery finalizado.`, tagMesa);
-        mostrarToast(`✅ ${nMesa} concluído (PAGO)`);
+        adicionarNotificacao('✅ DELIVERY CONCLUÍDO (PAGO)', `📍 Local: ${nMesa}\n💰 O pagamento foi registrado e o delivery finalizado.`, '🛵');
       }
       else if (data.status === 'entregue') {
         tocarNotificacao();
