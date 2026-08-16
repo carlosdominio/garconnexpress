@@ -7107,35 +7107,7 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
   adicionarNotificacao(tit, msg, icone);
 
   // Evita duplicar notificações enviando para o WhatsApp do Admin apenas o que o backend não envia de forma nativa.
-  // O backend já envia nativamente de forma detalhada: Novos Pedidos, Cancelamentos, Fechamentos e Entregas de Delivery.
-  const uppercaseTit = tit.toUpperCase();
-  const isRedundante = uppercaseTit.includes('🚀 NOVO PEDIDO') || 
-                       uppercaseTit.includes('ITEM ADICIONADO') || 
-                       uppercaseTit.includes('DELIVERY ATIVADO') ||
-                       uppercaseTit.includes('DELIVERY DESATIVADO') ||
-                       uppercaseTit.includes('PEDIDO ATUALIZADO') || 
-                       uppercaseTit.includes('CANCELADO') || 
-                       uppercaseTit.includes('CANCELADA') ||
-                       uppercaseTit.includes('FECHAMENTO') ||
-                       uppercaseTit.includes('CONTA') ||
-                       uppercaseTit.includes('PREPARANDO') || 
-                       uppercaseTit.includes('PREPARO') || 
-                       uppercaseTit.includes('PRONTO') || 
-                       uppercaseTit.includes('SERVIDO') || 
-                       uppercaseTit.includes('ENTREGA') || 
-                       uppercaseTit.includes('ATRASO') ||
-                       (uppercaseTit.includes('CONCLUÍDO') && msg.toUpperCase().includes('DELIVERY'));
-
-  if (!isRedundante) {
-    // Envia notificação nativa para o WhatsApp do Administrador (via API Proxy)
-    fetch('/api/notify-admin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ titulo: tit, mensagem: msg }) // Restaura chave mensagem original
-    }).catch(e => console.error("Erro ao notificar WhatsApp do Admin:", e));
-  } else {
-    console.log(`ℹ️ [Notificação WhatsApp] Ignorando envio redundante para WhatsApp do Admin: ${tit}`);
-  }
+  // O backend gerencia 100% dos disparos de WhatsApp para o Admin com deduplicação centralizada no servidor.
 
   if ("Notification" in window && Notification.permission === "granted") {
     try {

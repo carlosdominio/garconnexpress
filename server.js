@@ -2432,6 +2432,8 @@ function formatarNomeMesaOuComanda(numero, isComanda = 0) {
   return str;
 }
 
+const recentAdminWhatsAppMap = new Map();
+
 async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null, detalhesEdicao = null) {
   try {
     let mesaNum = mesaNumPredefined;
@@ -2553,12 +2555,28 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
         }
       }
     } else if (status === 'cancelado') {
-      adminMsg = `❌ *PEDIDO CANCELADO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId || 'N/A'}\n🗑️ O pedido/comanda foi cancelado no sistema.`;
-    } else if (status === 'liberada' || status === 'acesso_cancelado') {
-      adminMsg = `🚫 *MESA / COMANDA CANCELADA*\n📍 Local: ${mesaNum}\nℹ️ O acesso foi encerrado e a comanda cancelada pelo estabelecimento.`;
+      const isDeliv = mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY');
+      const tipoLocal = isDeliv ? 'DELIVERY' : (isComandaFlag === 1 ? 'COMANDA' : 'MESA');
+      const tipoLocalMin = isDeliv ? 'delivery' : (isComandaFlag === 1 ? 'comanda' : 'mesa');
+      adminMsg = `❌ *${tipoLocal} CANCELADA*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId || 'N/A'}\n🗑️ O pedido da ${tipoLocalMin} foi cancelado no sistema.`;
+    } else if (status === 'liberada') {
+      const mesaKey = `mesa_paga_${finalMesaId || mesaNum}`;
+      const lastPaid = recentAdminWhatsAppMap.get(mesaKey) || 0;
+      if (Date.now() - lastPaid < 15000) {
+        adminMsg = null;
+      } else {
+        const tipoLocal = isComandaFlag === 1 ? 'COMANDA' : 'MESA';
+        const tipoLocalMin = isComandaFlag === 1 ? 'comanda' : 'mesa';
+        adminMsg = `🔓 *${tipoLocal} LIBERADA*\n📍 Local: ${mesaNum}\nℹ️ A ${tipoLocalMin} foi liberada e está disponível para o próximo cliente.`;
+      }
+    } else if (status === 'acesso_cancelado') {
+      const tipoLocal = isComandaFlag === 1 ? 'Comanda' : 'Mesa';
+      adminMsg = `🚫 *ACESSO DA ${tipoLocal.toUpperCase()} ENCERRADO*\n📍 Local: ${mesaNum}\nℹ️ O acesso da ${tipoLocal.toLowerCase()} foi encerrado pelo estabelecimento.`;
     } else if (status === 'itens_atualizados') {
       adminMsg = `📝 *PEDIDO ATUALIZADO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n🛠️ Alterações: ${detalhesEdicao || 'Itens ou observações atualizados'}`;
     } else if (status === 'entregue') {
+      const mesaKey = `mesa_paga_${finalMesaId || mesaNum}`;
+      recentAdminWhatsAppMap.set(mesaKey, Date.now());
       if (mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY')) {
         adminMsg = `✅ *DELIVERY CONCLUÍDO (PAGO)*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O pagamento foi registrado e o delivery finalizado.`;
       } else {
