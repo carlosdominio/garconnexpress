@@ -7267,11 +7267,14 @@ async function configurarPusher() {
 
     // EVENTO: SOLICITAÇÃO DE FECHAMENTO PELO CLIENTE (💰)
     channel.bind('solicitacao-fechamento-cliente', (data) => {
+      const mesaNum = data.mesa_numero || 'X';
+      if (String(mesaNum).toUpperCase().includes('DELIVERY')) {
+        return; // Delivery não gera alerta de fechamento de conta de mesa
+      }
       console.log('📢 Admin: Solicitação de fechamento recebida!', data);
       tocarNotificacao('campainha');
       iniciarPiscarTitulo();
 
-      const mesaNum = data.mesa_numero || 'X';
       const msg = data.mensagem || `💰 MESA ${mesaNum} solicitou o fechamento da conta!`;
       
       exibirNotificacaoNativa('💰 SOLICITAÇÃO DE CONTA', msg, `fechamento-${data.mesa_id}`);
@@ -7337,10 +7340,10 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       if (isAddition) {
         markRecentAdditionNotified(p ? p.id : (data.pedido_id || data.id));
         exibirNotificacaoNativa('➕ ITEM ADICIONADO', `Novos itens adicionados na ${nomeExibicao}.`, `mesa-${mesaId}`);
-        mostrarToast(`➕ ITEM ADICIONADO: ${nomeExibicao}`);
+        if (!isDelivery) mostrarToast(`➕ ITEM ADICIONADO: ${nomeExibicao}`);
       } else {
         exibirNotificacaoNativa('🚀 NOVO PEDIDO', `${nomeExibicao} acabou de fazer um pedido.`, `mesa-${mesaId}`);
-        mostrarToast(`🚀 NOVO PEDIDO: ${nomeExibicao}`);
+        if (!isDelivery) mostrarToast(`🚀 NOVO PEDIDO: ${nomeExibicao}`);
       }
 
       clearTimeout(timeoutPusher);
@@ -7444,14 +7447,17 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
         pedidoAtualizadoId = data.pedido_id;
       }
       else if (data.status === 'aguardando_fechamento') {
+        const isDelivery = data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY'));
+        if (isDelivery) return; // Delivery não gera alerta de fechamento de conta
         tocarNotificacao();
         exibirNotificacaoNativa('🛎️ Fechamento', `${nMesa} está aguardando fechamento.`, tagMesa);
         mostrarToast(`🛎️ Fechamento: ${nMesa}`);
       }
       else if (data.status === 'cancelado') {
+        const isDelivery = data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY'));
         tocarNotificacao();
         exibirNotificacaoNativa('❌ Cancelado', `${nMesa}: Pedido cancelado.`, tagMesa);
-        mostrarToast(`❌ ${nMesa} cancelado`);
+        if (!isDelivery) mostrarToast(`❌ ${nMesa} cancelado`);
       }
       else if (data.status === 'servido' && data.garcom_id !== 'DELIVERY') {
         tocarNotificacao();
@@ -7461,7 +7467,6 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       else if (data.status === 'servido' && data.garcom_id === 'DELIVERY') {
         tocarNotificacao();
         exibirNotificacaoNativa('🛵 Saiu para Entrega', `${nMesa} está a caminho do cliente!`, tagMesa);
-        mostrarToast(`🛵 A Caminho: ${nMesa}`);
       }
       else if (data.status === 'entregue' && (data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY')))) {
         adicionarNotificacao('✅ DELIVERY CONCLUÍDO (PAGO)', `📍 Local: ${nMesa}\n💰 O pagamento foi registrado e o delivery finalizado.`, '🛵');
