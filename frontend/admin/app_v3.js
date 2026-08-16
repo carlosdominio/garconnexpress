@@ -8449,7 +8449,11 @@ async function abrirModalOpcoes(pedidoId) {
   // Exibir observação do pedido se existir
   const infoExtra = document.getElementById('modal-opcoes-info-extra');
   if (infoExtra) {
-    infoExtra.innerHTML = (pedido.observacao ? `<div style="background:#fff3cd; color:#856404; padding:8px 12px; border-radius:8px; margin-top:10px; font-weight:bold; font-size:0.9rem; border:1px solid #ffeeba;">📝 OBS: ${pedido.observacao}</div>` : '');
+    infoExtra.innerHTML = (pedido.observacao ? `
+      <div style="margin-bottom: 12px; padding: 10px; background: #fff9db; border-radius: 8px; border: 1px solid #fab005; font-size: 0.85rem; color: #856404; line-height: 1.4; white-space: pre-line;">
+        <b style="display: block; margin-bottom: 2px;">📝 OBSERVAÇÃO:</b>
+        ${pedido.observacao}
+      </div>` : '');
   }
   
   // Cores dinâmicas conforme status
