@@ -582,44 +582,48 @@ module.exports = (ctx) => {
         let destLat = parseFloat(req.body.lat_cliente || req.body.lat);
         let destLng = parseFloat(req.body.lng_cliente || req.body.lng);
 
-        if ((isNaN(destLat) || isNaN(destLng)) && (req.body.endereco || req.body.cep)) {
-          try {
-            const queryStr = req.body.cep || req.body.endereco;
-            const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryStr)}&limit=1`, {
-              headers: { 'User-Agent': 'GarcomExpress/2.0' }
-            });
-            if (nomRes.ok) {
-              const nomData = await nomRes.json();
-              if (nomData && nomData.length > 0) {
-                destLat = parseFloat(nomData[0].lat);
-                destLng = parseFloat(nomData[0].lon);
+        if (req.body.taxa_entrega !== undefined && !isNaN(parseFloat(req.body.taxa_entrega))) {
+          taxaEntrega = Math.max(0, parseFloat(req.body.taxa_entrega));
+        } else {
+          if ((isNaN(destLat) || isNaN(destLng)) && (req.body.endereco || req.body.cep)) {
+            try {
+              const queryStr = req.body.cep || req.body.endereco;
+              const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryStr)}&limit=1`, {
+                headers: { 'User-Agent': 'GarcomExpress/2.0' }
+              });
+              if (nomRes.ok) {
+                const nomData = await nomRes.json();
+                if (nomData && nomData.length > 0) {
+                  destLat = parseFloat(nomData[0].lat);
+                  destLng = parseFloat(nomData[0].lon);
+                }
               }
+            } catch (errNom) {
+              console.warn('⚠️ Erro ao geolocalizar endereço via Nominatim:', errNom.message);
             }
-          } catch (errNom) {
-            console.warn('⚠️ Erro ao geolocalizar endereço via Nominatim:', errNom.message);
           }
-        }
 
-        if (isNaN(destLat) || isNaN(destLng)) {
-          return res.status(400).json({ error: 'Geolocalização (latitude e longitude) ou endereço válido é obrigatória para calcular a taxa de entrega no delivery.' });
-        }
+          if (!isNaN(destLat) && !isNaN(destLng)) {
+            const R = 6371;
+            const dLat = (destLat - latRestaurante) * Math.PI / 180;
+            const dLon = (destLng - lngRestaurante) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(latRestaurante * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            distKm = Math.round((R * c * 1.3) * 100) / 100;
 
-        const R = 6371;
-        const dLat = (destLat - latRestaurante) * Math.PI / 180;
-        const dLon = (destLng - lngRestaurante) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(latRestaurante * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) *
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        distKm = Math.round((R * c * 1.3) * 100) / 100;
+            if (distKm > raioMaximo && (!req.user || req.user.role !== 'admin')) {
+              return res.status(400).json({ error: `Endereço a ${distKm}km excede o raio máximo de entrega (${raioMaximo} km).` });
+            }
 
-        if (distKm > raioMaximo) {
-          return res.status(400).json({ error: `Endereço a ${distKm}km excede o raio máximo de entrega (${raioMaximo} km).` });
-        }
-
-        taxaEntrega = taxaBase;
-        if (distKm > kmBaseIncluso) {
-          taxaEntrega += ((distKm - kmBaseIncluso) * valorKmAdicional);
+            taxaEntrega = taxaBase;
+            if (distKm > kmBaseIncluso) {
+              taxaEntrega += ((distKm - kmBaseIncluso) * valorKmAdicional);
+            }
+          } else {
+            taxaEntrega = taxaBase;
+          }
         }
         taxaEntrega = Math.round(taxaEntrega * 100) / 100;
       }

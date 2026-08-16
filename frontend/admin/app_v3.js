@@ -2032,14 +2032,14 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
   let vTroco = 0;
 
   if (isDelivery) {
-    const name = document.getElementById('lancar-delivery-nome').value.trim();
-    const phone = document.getElementById('lancar-delivery-telefone').value.trim();
-    const address = document.getElementById('lancar-delivery-endereco').value.trim();
-    const number = document.getElementById('lancar-delivery-numero').value.trim();
-    const bairro = document.getElementById('lancar-delivery-bairro').value.trim();
-    const payment = document.getElementById('lancar-delivery-pagamento').value;
-    const change = document.getElementById('lancar-delivery-troco').value.trim();
-    const obs = document.getElementById('lancar-delivery-obs').value.trim();
+    const name = document.getElementById('lancar-delivery-nome') ? document.getElementById('lancar-delivery-nome').value.trim() : '';
+    const phone = document.getElementById('lancar-delivery-telefone') ? document.getElementById('lancar-delivery-telefone').value.trim() : '';
+    const address = document.getElementById('lancar-delivery-endereco') ? document.getElementById('lancar-delivery-endereco').value.trim() : '';
+    const number = document.getElementById('lancar-delivery-numero') ? document.getElementById('lancar-delivery-numero').value.trim() : '';
+    const bairro = document.getElementById('lancar-delivery-bairro') ? document.getElementById('lancar-delivery-bairro').value.trim() : '';
+    const payment = document.getElementById('lancar-delivery-pagamento') ? document.getElementById('lancar-delivery-pagamento').value : 'Dinheiro';
+    const change = document.getElementById('lancar-delivery-troco') ? document.getElementById('lancar-delivery-troco').value.trim() : '';
+    const obs = document.getElementById('lancar-delivery-obs') ? document.getElementById('lancar-delivery-obs').value.trim() : '';
 
     wppTelefone = phone.replace(/\D/g, '');
 
@@ -2067,6 +2067,7 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
         itens: carrinhoLancar, 
         cobrar_taxa: isDelivery ? true : cobrarTaxa,
         taxa_entrega: isDelivery ? taxaDeliveryVal : undefined,
+        endereco: isDelivery ? `${document.getElementById('lancar-delivery-endereco')?.value || ''}, ${document.getElementById('lancar-delivery-numero')?.value || ''}` : undefined,
         observacao: isDelivery ? customObs : undefined,
         cliente_telefone: isDelivery ? wppTelefone : undefined,
         forma_pagamento: isDelivery ? formaPag : undefined,
