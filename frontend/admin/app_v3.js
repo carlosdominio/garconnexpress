@@ -4018,7 +4018,7 @@ function abrirModalDetalheHistorico(p) {
     // Observação (se houver)
     if (p.observacao) {
       htmlContent += `
-        <div style="margin-bottom: 12px; padding: 10px; background: #fff9db; border-radius: 8px; border: 1px solid #fab005; font-size: 0.85rem; color: #856404; line-height: 1.4;">
+        <div style="margin-bottom: 12px; padding: 10px; background: #fff9db; border-radius: 8px; border: 1px solid #fab005; font-size: 0.85rem; color: #856404; line-height: 1.4; white-space: pre-line;">
           <b style="display: block; margin-bottom: 2px;">📝 OBSERVAÇÃO:</b>
           ${p.observacao}
         </div>`;
