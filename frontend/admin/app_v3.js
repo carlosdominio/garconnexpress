@@ -7454,7 +7454,10 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       }
       else if (data.status === 'aguardando_fechamento') {
         const isDelivery = data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY'));
-        if (isDelivery) return; // Delivery não gera alerta de fechamento de conta
+        if (isDelivery) {
+          adicionarNotificacao('📦 PEDIDO ENTREGUE', `📍 Local: ${nMesa}\n✓ O motoboy confirmou a entrega ao cliente.`, '📦');
+          return;
+        }
         tocarNotificacao();
         exibirNotificacaoNativa('🛎️ Fechamento', `${nMesa} está aguardando fechamento.`, tagMesa);
         mostrarToast(`🛎️ Fechamento: ${nMesa}`);
