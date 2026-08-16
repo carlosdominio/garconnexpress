@@ -772,7 +772,10 @@ module.exports = (ctx) => {
         const p = menuMap[item.menu_id];
         return `${item.quantidade}x ${p ? p.nome : 'Item'}`;
       });
-      const msgWpp = `🚀 *NOVO PEDIDO #${pedidoId}*\n📍 Mesa: ${mesaNum}\n📝 Itens:\n${itensNomes.join('\n')}\n💰 Total: R$ ${total.toFixed(2)}`;
+      const isDeliv = mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY');
+      const isBalcao = !isDeliv && (!mesa_id || mesaNum === 'BALCÃO' || mesaNum.toString().toUpperCase().includes('BALCÃO') || mesaNum.toString().toUpperCase().includes('BALCAO'));
+      const localLabel = isDeliv ? mesaNum : (isBalcao ? 'BALCÃO' : (mesaNum.startsWith('Mesa ') || mesaNum.startsWith('Comanda ') ? mesaNum : `Mesa ${mesaNum}`));
+      const msgWpp = `🚀 *NOVO PEDIDO #${pedidoId}*\n📍 Local: ${localLabel}\n📝 Itens:\n${itensNomes.join('\n')}\n💰 Total: R$ ${total.toFixed(2)}`;
       
       const temItemCozinha = await checkTemItemCozinha(menuIds);
       const temItemChurrasco = await checkTemItemChurrasco(menuIds);

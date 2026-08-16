@@ -2536,8 +2536,12 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
     } else if (status === 'pronto') {
       adminMsg = `✅ *PEDIDO PRONTO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n🔔 O pedido está pronto para ser servido/entregue.`;
     } else if (status === 'servido') {
-      if (mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY')) {
+      const isDeliv = mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY');
+      const isBalcao = !isDeliv && (!finalMesaId || mesaNum === 'BALCÃO' || mesaNum.toString().toUpperCase().includes('BALCÃO') || mesaNum.toString().toUpperCase().includes('BALCAO'));
+      if (isDeliv) {
         adminMsg = `🛵 *SAIU PARA ENTREGA*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n📦 O motoboy saiu para a entrega.`;
+      } else if (isBalcao) {
+        adminMsg = `🍽️ *PEDIDO ENTREGUE NO BALCÃO*\n📍 Local: BALCÃO\n🆔 Pedido: #${pedidoId}\n✓ O pedido foi entregue ao cliente no balcão.`;
       } else {
         adminMsg = `🍽️ *PEDIDO SERVIDO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n✓ O pedido foi entregue à mesa.`;
       }
@@ -2556,9 +2560,16 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
       }
     } else if (status === 'cancelado') {
       const isDeliv = mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY');
-      const tipoLocal = isDeliv ? 'DELIVERY' : (isComandaFlag === 1 ? 'COMANDA' : 'MESA');
-      const tipoLocalMin = isDeliv ? 'delivery' : (isComandaFlag === 1 ? 'comanda' : 'mesa');
-      adminMsg = `❌ *${tipoLocal} CANCELADA*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId || 'N/A'}\n🗑️ O pedido da ${tipoLocalMin} foi cancelado no sistema.`;
+      const isBalcao = !isDeliv && (!finalMesaId || mesaNum === 'BALCÃO' || mesaNum.toString().toUpperCase().includes('BALCÃO') || mesaNum.toString().toUpperCase().includes('BALCAO'));
+      if (isDeliv) {
+        adminMsg = `❌ *DELIVERY CANCELADO*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId || 'N/A'}\n🗑️ O pedido de delivery foi cancelado no sistema.`;
+      } else if (isBalcao) {
+        adminMsg = `❌ *PEDIDO DE BALCÃO CANCELADO*\n📍 Local: BALCÃO\n🆔 Pedido: #${pedidoId || 'N/A'}\n🗑️ O pedido de balcão foi cancelado no sistema.`;
+      } else {
+        const tipoLocal = isComandaFlag === 1 ? 'COMANDA' : 'MESA';
+        const tipoLocalMin = isComandaFlag === 1 ? 'comanda' : 'mesa';
+        adminMsg = `❌ *${tipoLocal} CANCELADA*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId || 'N/A'}\n🗑️ O pedido da ${tipoLocalMin} foi cancelado no sistema.`;
+      }
     } else if (status === 'liberada') {
       const mesaKey = `mesa_paga_${finalMesaId || mesaNum}`;
       const lastPaid = recentAdminWhatsAppMap.get(mesaKey) || 0;
@@ -2577,42 +2588,40 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
     } else if (status === 'entregue') {
       const mesaKey = `mesa_paga_${finalMesaId || mesaNum}`;
       recentAdminWhatsAppMap.set(mesaKey, Date.now());
-      if (mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY')) {
+      const isDeliv = mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY');
+      const isBalcao = !isDeliv && (!finalMesaId || mesaNum === 'BALCÃO' || mesaNum.toString().toUpperCase().includes('BALCÃO') || mesaNum.toString().toUpperCase().includes('BALCAO'));
+      
+      if (isDeliv) {
         adminMsg = `✅ *DELIVERY CONCLUÍDO (PAGO)*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId}\n💰 O pagamento foi registrado e o delivery finalizado.`;
-      } else {
-        const pDb = (await query("SELECT balcao_imediato, desconto, acrescimo, cobrar_taxa FROM pedidos WHERE id = ?", [pedidoId])).rows[0];
-        if (pDb && pDb.balcao_imediato === 1) {
-          const itens = (await query("SELECT pi.quantidade, m.nome, COALESCE(pi.preco, m.preco) as preco FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ?", [pedidoId])).rows;
-          let itensStr = '';
-          let subtotal = 0;
-          for (const item of itens) {
-            const itemTotal = item.quantidade * item.preco;
-            subtotal += itemTotal;
-            itensStr += `• ${item.quantidade}x ${item.nome} (R$ ${item.preco.toFixed(2)}) = R$ ${itemTotal.toFixed(2)}\n`;
-          }
-          
-          let calcTotal = subtotal;
-          if (pDb.cobrar_taxa) {
-            calcTotal = calcTotal * 1.10;
-          }
-          calcTotal = calcTotal + (pDb.acrescimo || 0) - (pDb.desconto || 0);
-          
-          adminMsg = `🏪 *VENDA DE BALCÃO FINALIZADA (PAGO)*\n` +
-                     `🆔 Pedido: #${pedidoId}\n` +
-                     `📍 Local: BALCÃO (Venda Rápida)\n\n` +
-                     `🛒 *ITENS COMPRADOS:*\n${itensStr}\n` +
-                     `💵 *RESUMO FINANCEIRO:*\n` +
-                     `- Subtotal: R$ ${subtotal.toFixed(2)}\n` +
-                     (pDb.cobrar_taxa ? `- Taxa (10%): R$ ${(subtotal * 0.1).toFixed(2)}\n` : '') +
-                     (pDb.acrescimo ? `- Acréscimo: R$ ${pDb.acrescimo.toFixed(2)}\n` : '') +
-                     (pDb.desconto ? `- Desconto: R$ ${pDb.desconto.toFixed(2)}\n` : '') +
-                     `💰 *Total Geral:* R$ ${calcTotal.toFixed(2)}\n\n` +
-                     `✓ O pagamento foi registrado e a venda concluída.`;
-        } else {
-          const tipoLocal = isComandaFlag === 1 ? 'COMANDA' : 'MESA';
-          const tipoLocalMin = isComandaFlag === 1 ? 'comanda' : 'mesa';
-          adminMsg = `✅ *${tipoLocal} FINALIZADA (PAGA & LIBERADA)*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId || 'N/A'}\n💰 O pagamento foi registrado e a ${tipoLocalMin} já está liberada para o próximo cliente.`;
+      } else if (isBalcao) {
+        const pDb = pedidoId ? (await query("SELECT balcao_imediato, desconto, acrescimo, cobrar_taxa FROM pedidos WHERE id = ?", [pedidoId])).rows[0] : null;
+        const itens = pedidoId ? (await query("SELECT pi.quantidade, m.nome, COALESCE(pi.preco, m.preco) as preco FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ?", [pedidoId])).rows : [];
+        let itensStr = '';
+        let subtotal = 0;
+        for (const item of itens) {
+          const itemTotal = item.quantidade * item.preco;
+          subtotal += itemTotal;
+          itensStr += `• ${item.quantidade}x ${item.nome} (R$ ${item.preco.toFixed(2)}) = R$ ${itemTotal.toFixed(2)}\n`;
         }
+        
+        let calcTotal = subtotal;
+        if (pDb && pDb.cobrar_taxa) {
+          calcTotal = calcTotal * 1.10;
+        }
+        if (pDb) {
+          calcTotal = calcTotal + (pDb.acrescimo || 0) - (pDb.desconto || 0);
+        }
+        
+        adminMsg = `🏪 *VENDA DE BALCÃO FINALIZADA (PAGO)*\n` +
+                   `🆔 Pedido: #${pedidoId || 'N/A'}\n` +
+                   `📍 Local: BALCÃO\n\n` +
+                   (itensStr ? `🛒 *ITENS COMPRADOS:*\n${itensStr}\n` : '') +
+                   `💰 *Total Geral:* R$ ${(calcTotal > 0 ? calcTotal : subtotal).toFixed(2)}\n\n` +
+                   `✓ O pagamento foi registrado e a venda concluída.`;
+      } else {
+        const tipoLocal = isComandaFlag === 1 ? 'COMANDA' : 'MESA';
+        const tipoLocalMin = isComandaFlag === 1 ? 'comanda' : 'mesa';
+        adminMsg = `✅ *${tipoLocal} FINALIZADA (PAGA & LIBERADA)*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId || 'N/A'}\n💰 O pagamento foi registrado e a ${tipoLocalMin} já está liberada para o próximo cliente.`;
       }
     }
 
@@ -4445,7 +4454,10 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
       const p = menuMap[item.menu_id];
       return `${item.quantidade}x ${p ? p.nome : 'Item'}`;
     });
-    const msgWpp = `🚀 *NOVO PEDIDO #${pedidoId}*\n📍 Mesa: ${mesaNum}\n📝 Itens:\n${itensNomes.join('\n')}\n💰 Total: R$ ${total.toFixed(2)}`;
+    const isDeliv = mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY');
+    const isBalcao = !isDeliv && (!mesa_id || mesaNum === 'BALCÃO' || mesaNum.toString().toUpperCase().includes('BALCÃO') || mesaNum.toString().toUpperCase().includes('BALCAO'));
+    const localLabel = isDeliv ? mesaNum : (isBalcao ? 'BALCÃO' : (mesaNum.startsWith('Mesa ') || mesaNum.startsWith('Comanda ') ? mesaNum : `Mesa ${mesaNum}`));
+    const msgWpp = `🚀 *NOVO PEDIDO #${pedidoId}*\n📍 Local: ${localLabel}\n📝 Itens:\n${itensNomes.join('\n')}\n💰 Total: R$ ${total.toFixed(2)}`;
     // 2. Verifica se o pedido tem itens para a cozinha ou churrasqueiro
     const temItemCozinha = await checkTemItemCozinha(menuIds);
     const temItemChurrasco = await checkTemItemChurrasco(menuIds);
