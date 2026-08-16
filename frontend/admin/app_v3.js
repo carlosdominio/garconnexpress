@@ -8352,26 +8352,34 @@ async function imprimirRelatorioCaixa() {
     if (g.id === 'DELIVERY') {
       return `
         <div style="border-bottom: 1px dotted #ccc; padding: 4px 0; font-size: 9pt;">
-          <div style="display:flex; justify-content:space-between; font-weight: bold;">
+          <div style="display:flex; justify-content:space-between; font-weight: bold; margin-bottom: 2px;">
             <span>🛵 ${g.nome.toUpperCase()}</span>
             <span>${g.atendimentos} atend.</span>
           </div>
+          <div style="display:flex; justify-content:space-between; opacity: 0.9; margin-bottom: 2px;">
+            <span>Vendas:</span>
+            <span>R$ ${g.vendas.toFixed(2)}</span>
+          </div>
           <div style="display:flex; justify-content:space-between; opacity: 0.9;">
-            <span>Vendas: R$ ${g.vendas.toFixed(2)}</span>
-            <span style="font-weight: 900; color: #27ae60;">Taxas de Entrega: R$ ${g.taxasGeradas.toFixed(2)}</span>
+            <span>Taxas de Entrega:</span>
+            <span style="font-weight: 900; color: #27ae60;">R$ ${g.taxasGeradas.toFixed(2)}</span>
           </div>
         </div>
       `;
     }
     return `
       <div style="border-bottom: 1px dotted #ccc; padding: 4px 0; font-size: 9pt;">
-        <div style="display:flex; justify-content:space-between; font-weight: bold;">
+        <div style="display:flex; justify-content:space-between; font-weight: bold; margin-bottom: 2px;">
           <span>👤 ${g.nome.toUpperCase()}</span>
           <span>${g.atendimentos} atend.</span>
         </div>
+        <div style="display:flex; justify-content:space-between; opacity: 0.9; margin-bottom: 2px;">
+          <span>Vendas:</span>
+          <span>R$ ${g.vendas.toFixed(2)}</span>
+        </div>
         <div style="display:flex; justify-content:space-between; opacity: 0.9;">
-          <span>Vendas: R$ ${g.vendas.toFixed(2)}</span>
-          <span style="font-weight: 900; color: #27ae60;">Comissão (10%): R$ ${g.taxasGeradas.toFixed(2)}</span>
+          <span>Comissão (10%):</span>
+          <span style="font-weight: 900; color: #27ae60;">R$ ${g.taxasGeradas.toFixed(2)}</span>
         </div>
       </div>
     `;
