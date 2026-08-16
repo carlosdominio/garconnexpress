@@ -192,6 +192,7 @@ async function carregarConfiguracoesToastsMotoboy() {
   }
 }
 
+window._motoboyToastDebounce = window._motoboyToastDebounce || new Map();
 function dispararToastMotoboy(evento, dados = {}, fallbackText = '', fallbackTipo = 'info') {
   const config = _toastTemplatesMotoboy.find(x => x.evento === evento);
   const ativo = config ? config.ativo !== false : true;
@@ -200,6 +201,15 @@ function dispararToastMotoboy(evento, dados = {}, fallbackText = '', fallbackTip
     return;
   }
   
+  const pedidoIdVal = dados.pedido_id || dados.id || dados.pedidoId || '';
+  const dedupeKey = `${evento}_${pedidoIdVal}`;
+  const now = Date.now();
+  if (now - (window._motoboyToastDebounce.get(dedupeKey) || 0) < 4000) {
+    console.log(`⚡ [Motoboy Deduplicador] Ignorando evento duplicado: ${dedupeKey}`);
+    return;
+  }
+  window._motoboyToastDebounce.set(dedupeKey, now);
+
   const template = (config && config.texto) ? config.texto : fallbackText;
   if (!template) return;
   
@@ -208,7 +218,6 @@ function dispararToastMotoboy(evento, dados = {}, fallbackText = '', fallbackTip
   const itensVal = dados.itens || '';
   const statusVal = dados.status || '';
   const msgVal = dados.mensagem || '';
-  const pedidoIdVal = dados.pedido_id || dados.id || dados.pedidoId || '';
   const itemVal = dados.item || '';
   const qtdVal = dados.qtd || '';
   
@@ -1214,9 +1223,9 @@ const App = {
 
         showToast(msg, tipo = 'success', titulo = '', duracao = 5000) {
             if (typeof this.adicionarNotificacaoPainel === 'function') this.adicionarNotificacaoPainel(msg, titulo, tipo);
-            if ("Notification" in window && Notification.permission === "granted") {
+            if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
                 try {
-                    new Notification(titulo || (tipo === 'success' ? 'SUCESSO' : tipo.toUpperCase()), { body: msg, tag: 'toast-' + Date.now(), renotify: true });
+                    new Notification(titulo || (tipo === 'success' ? 'SUCESSO' : tipo.toUpperCase()), { body: msg, tag: 'toast-' + Date.now(), renotify: false });
                 } catch(e) {}
             }
             let c = document.getElementById('toast-container');

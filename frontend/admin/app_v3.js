@@ -7346,10 +7346,10 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       if (isAddition) {
         markRecentAdditionNotified(p ? p.id : (data.pedido_id || data.id));
         exibirNotificacaoNativa('➕ ITEM ADICIONADO', `Novos itens adicionados na ${nomeExibicao}.`, `mesa-${mesaId}`);
-        if (!isDelivery) mostrarToast(`➕ ITEM ADICIONADO: ${nomeExibicao}`);
+        mostrarToast(`➕ Item Adicionado: ${nomeExibicao}`);
       } else {
         exibirNotificacaoNativa('🚀 NOVO PEDIDO', `${nomeExibicao} acabou de fazer um pedido.`, `mesa-${mesaId}`);
-        if (!isDelivery) mostrarToast(`🚀 NOVO PEDIDO: ${nomeExibicao}`);
+        mostrarToast(`🚀 Novo Pedido: ${nomeExibicao}`);
       }
 
       clearTimeout(timeoutPusher);
@@ -7456,6 +7456,7 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
         const isDelivery = data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY'));
         if (isDelivery) {
           adicionarNotificacao('📦 PEDIDO ENTREGUE', `📍 Local: ${nMesa}\n✓ O motoboy confirmou a entrega ao cliente.`, '📦');
+          mostrarToast(`📦 Pedido Entregue: ${nMesa}`);
           return;
         }
         tocarNotificacao();
@@ -7463,10 +7464,9 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
         mostrarToast(`🛎️ Fechamento: ${nMesa}`);
       }
       else if (data.status === 'cancelado') {
-        const isDelivery = data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY'));
         tocarNotificacao();
         exibirNotificacaoNativa('❌ Cancelado', `${nMesa}: Pedido cancelado.`, tagMesa);
-        if (!isDelivery) mostrarToast(`❌ ${nMesa} cancelado`);
+        mostrarToast(`❌ ${nMesa} cancelado`);
       }
       else if (data.status === 'servido' && data.garcom_id !== 'DELIVERY') {
         tocarNotificacao();
@@ -7476,9 +7476,11 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       else if (data.status === 'servido' && data.garcom_id === 'DELIVERY') {
         tocarNotificacao();
         exibirNotificacaoNativa('🛵 Saiu para Entrega', `${nMesa} está a caminho do cliente!`, tagMesa);
+        mostrarToast(`🛵 Saiu para Entrega: ${nMesa}`);
       }
       else if (data.status === 'entregue' && (data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY')))) {
         adicionarNotificacao('✅ DELIVERY CONCLUÍDO (PAGO)', `📍 Local: ${nMesa}\n💰 O pagamento foi registrado e o delivery finalizado.`, '🛵');
+        mostrarToast(`✅ ${nMesa} Concluído e Pago!`);
       }
       else if (data.status === 'entregue') {
         tocarNotificacao();
