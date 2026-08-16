@@ -17,6 +17,26 @@
       }
     },
     {
+      "src": "frontend/**",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "motoboy-app-nativo/www/**",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "cozinha-app-nativo/www/**",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "garcom-app-nativo/www/**",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "churrasqueiro-app-nativo/www/**",
+      "use": "@vercel/static"
+    },
+    {
       "src": "*.apk",
       "use": "@vercel/static"
     }
@@ -46,7 +66,35 @@
     }
   ],
   "routes": [
+    { "src": "/api/(.*)", "dest": "/server.js" },
+    { "src": "/_vercel(.*)", "dest": "/server.js" },
+    { "src": "/(garcom-v1.1.0-portrait.apk|cozinha-v1.1.0-portrait.apk|motoboy-v2.0.0-portrait.apk|churrasqueiro-final.apk)", "dest": "/$1" },
     { "handle": "filesystem" },
+    { "src": "/admin", "dest": "/frontend/admin/index.html" },
+    { "src": "/admin/(.*)", "dest": "/frontend/admin/$1" },
+    { "src": "/garcom", "dest": "/frontend/garcom/index.html" },
+    { "src": "/garcom/(.*)", "dest": "/frontend/garcom/$1" },
+    { "src": "/cozinha", "dest": "/frontend/cozinha/index.html" },
+    { "src": "/cozinha/(.*)", "dest": "/frontend/cozinha/$1" },
+    { "src": "/churrasqueiro", "dest": "/frontend/churrasqueiro/index.html" },
+    { "src": "/churrasqueiro/(.*)", "dest": "/frontend/churrasqueiro/$1" },
+    { "src": "/motoboy", "dest": "/frontend/motoboy/index.html" },
+    { "src": "/motoboy/(.*)", "dest": "/frontend/motoboy/$1" },
+    { "src": "/cardapio", "dest": "/frontend/cardapio/index.html" },
+    { "src": "/cardapio/(.*)", "dest": "/frontend/cardapio/$1" },
+    { "src": "/delivery", "dest": "/frontend/delivery/index.html" },
+    { "src": "/delivery/(.*)", "dest": "/frontend/delivery/$1" },
+    { "src": "/app-garcom", "dest": "/garcom-app-nativo/www/index.html" },
+    { "src": "/app-garcom/(.*)", "dest": "/garcom-app-nativo/www/$1" },
+    { "src": "/app-cozinha", "dest": "/cozinha-app-nativo/www/index.html" },
+    { "src": "/app-cozinha/(.*)", "dest": "/cozinha-app-nativo/www/$1" },
+    { "src": "/app-motoboy", "dest": "/motoboy-app-nativo/www/index.html" },
+    { "src": "/app-motoboy/(.*)", "dest": "/motoboy-app-nativo/www/$1" },
+    { "src": "/app-churrasqueiro", "dest": "/churrasqueiro-app-nativo/www/index.html" },
+    { "src": "/app-churrasqueiro/(.*)", "dest": "/churrasqueiro-app-nativo/www/$1" },
+    { "src": "/(favicon.svg|icon-192.png|icon-192.webp|icon-512.png|icon.png|notificacao.mp3)", "dest": "/frontend/$1" },
+    { "src": "/sons/(.*)", "dest": "/frontend/sons/$1" },
+    { "src": "/", "dest": "/frontend/garcom/index.html" },
     { "src": "/(.*)", "dest": "/server.js" }
   ]
 }

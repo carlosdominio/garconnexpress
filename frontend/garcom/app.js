@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Verifica versão do sistema contra descompasso de deploy
   verificarVersaoSistema();
-  setInterval(verificarVersaoSistema, 60 * 1000);
+  setInterval(verificarVersaoSistema, 5 * 60 * 1000);
 
   // Verifica atualização do APK nativo
   if (isNativeApp) {

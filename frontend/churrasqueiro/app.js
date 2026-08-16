@@ -1379,7 +1379,7 @@ async function verificarVersaoSistema() {
     }
 }
 verificarVersaoSistema();
-setInterval(verificarVersaoSistema, 60 * 1000);
+setInterval(verificarVersaoSistema, 5 * 60 * 1000);
 
 document.addEventListener('click', () => {
     if (audioDesbloqueado) return;

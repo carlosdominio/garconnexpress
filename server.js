@@ -211,20 +211,22 @@ app.use(express.json());
 const compression = require('compression');
 app.use(compression());
 
-// Middleware de Sanitização Global (Anti-XSS) - Limpa todos os textos que o cliente envia
+// Middleware de Sanitização (Anti-XSS) - Protege o banco contra injeção de HTML em requisições de mutação (POST/PUT/PATCH)
 const sanitizeHtml = require('sanitize-html');
 const sanitizePayload = (obj) => {
+  if (!obj || typeof obj !== 'object' || Buffer.isBuffer(obj)) return;
   for (let key in obj) {
     if (typeof obj[key] === 'string') {
       obj[key] = sanitizeHtml(obj[key], { allowedTags: [], allowedAttributes: {} });
-    } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+    } else if (typeof obj[key] === 'object' && obj[key] !== null && !Buffer.isBuffer(obj[key])) {
       sanitizePayload(obj[key]);
     }
   }
 };
 app.use((req, res, next) => {
-  if (req.body) sanitizePayload(req.body);
-  if (req.query) sanitizePayload(req.query);
+  if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+    sanitizePayload(req.body);
+  }
   next();
 });
 app.use(cookieParser());

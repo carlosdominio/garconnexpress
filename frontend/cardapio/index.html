@@ -553,18 +553,24 @@
             }
 
             // 1. Verifica status inicial
-            await verificarCaixa();
+            const cxInicial = await verificarCaixa();
 
             // 2. Continua inicialização independente do status (para manter sincronia)
             initPusher(); 
             // initNativeSSE(); // Desativado para economizar Fluid CPU na Vercel (Pusher ativo)
-            setInterval(verificarCaixa, 30000);
+            
+            // Fallback resiliente: só faz polling se o Pusher estiver desconectado/indisponível
+            setInterval(() => {
+                const pusherConectado = pusher && pusher.connection && pusher.connection.state === 'connected';
+                if (!pusherConectado) {
+                    verificarCaixa();
+                }
+            }, 60000);
             
             if (!sessionMesa) { 
                 showLoading(false); 
                 // Só mostra login se estiver aberto
-                const cx = await verificarCaixa();
-                if (cx) {
+                if (cxInicial) {
                     document.body.classList.add('login-active'); 
                     document.getElementById('login-screen').style.display='flex'; 
                 }
@@ -774,6 +780,10 @@
                 pusherChannel.bind('cardapio-status-atualizado', (d) => { 
                     if(isClosingSession) return;
                     verificarCaixa(); // Atualiza a tela em tempo real
+                });
+                
+                pusher.connection.bind('connected', () => {
+                    if(!isClosingSession) verificarCaixa();
                 });
                 
                 attachSessionBindings();

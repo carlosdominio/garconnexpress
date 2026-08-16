@@ -1397,7 +1397,7 @@ async function verificarVersaoSistema() {
     }
 }
 verificarVersaoSistema();
-setInterval(verificarVersaoSistema, 60 * 1000);
+setInterval(verificarVersaoSistema, 5 * 60 * 1000);
 
 // Desbloqueia áudio no primeiro clique do usuário
 document.addEventListener('click', () => {

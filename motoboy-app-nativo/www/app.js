@@ -303,7 +303,7 @@ const App = {
         localStorage.setItem('audio_unlocked', 'true');
 
         this.verificarVersaoSistema();
-        setInterval(() => this.verificarVersaoSistema(), 60 * 1000);
+        setInterval(() => this.verificarVersaoSistema(), 5 * 60 * 1000);
 
         if (isNativeApp) {
             verificarAtualizacaoApk('motoboy');
