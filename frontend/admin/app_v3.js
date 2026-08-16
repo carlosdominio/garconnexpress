@@ -7462,7 +7462,12 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
         exibirNotificacaoNativa('🛵 Saiu para Entrega', `${nMesa} está a caminho do cliente!`, tagMesa);
         mostrarToast(`🛵 A Caminho: ${nMesa}`);
       }
-      else if (data.status === 'entregue' && data.garcom_id === 'DELIVERY') {
+      else if (data.status === 'entregue' && (data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY')))) {
+        tocarNotificacao();
+        exibirNotificacaoNativa('✅ DELIVERY CONCLUÍDO (PAGO)', `📍 Local: ${nMesa}\n💰 O pagamento foi registrado e o delivery finalizado.`, tagMesa);
+        mostrarToast(`✅ ${nMesa} concluído (PAGO)`);
+      }
+      else if (data.status === 'entregue') {
         tocarNotificacao();
         exibirNotificacaoNativa('✅ Concluído', `${nMesa} foi finalizado e concluído com sucesso.`, tagMesa);
         mostrarToast(`✅ Concluído: ${nMesa}`);
@@ -8955,7 +8960,7 @@ function renderizarNotificacoes() {
         <div class="notificacao-icon">${n.icone}</div>
         <div class="notificacao-content">
           <strong class="notificacao-title">${n.titulo}</strong>
-          <div class="notificacao-desc">${n.descricao}</div>
+          <div class="notificacao-desc" style="white-space: pre-line;">${n.descricao}</div>
           <span class="notificacao-time">🕒 ${hora}</span>
         </div>
       </div>
