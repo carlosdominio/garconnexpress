@@ -2145,15 +2145,15 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
           document.body.classList.remove('modal-open');
           window.isFechamentoImediatoBalcao = false;
           if (isDelivery) {
-            mostrarToast("🛵 Pedido enviado para o Delivery!");
+            mostrarToast("🚀 Pedido de Delivery lançado com sucesso!");
             switchTab('ativos');
             switchSubTab('delivery');
           } else if (isMesa) {
-            mostrarToast("🚪 Pedido enviado para a Mesa!");
+            mostrarToast(`🚀 Pedido lançado com sucesso na Mesa ${nomeMesa}!`);
             switchTab('ativos');
             switchSubTab('garcom');
           } else {
-            mostrarToast("⏳ Pedido mantido nos Ativos!");
+            mostrarToast("🚀 Pedido de Balcão lançado com sucesso!");
             switchTab('ativos');
             switchSubTab('balcao');
           }
@@ -7466,6 +7466,8 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       const tagMesa = `mesa-${data.mesa_id}`;
 
       if (data.status === 'liberada') {
+        adicionarNotificacao('🔓 MESA LIBERADA', `${nMesa} está livre para o próximo cliente.`, '🔓');
+
         const isPropriaLiberacao = (window.ultimaMesaLiberadaPeloAdmin !== null && window.ultimaMesaLiberadaPeloAdmin !== undefined) && (
           String(data.mesa_id) === String(window.ultimaMesaLiberadaPeloAdmin) ||
           String(data.mesa_numero) === String(window.ultimaMesaLiberadaPeloAdmin)
@@ -7492,16 +7494,24 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
           mostrarToast(`📦 Pedido Entregue: ${nMesa}`);
           return;
         }
+        adicionarNotificacao('🛎️ SOLICITAÇÃO DE CONTA', `${nMesa} solicitou o fechamento da conta.`, '💰');
         tocarNotificacao();
         exibirNotificacaoNativa('🛎️ Fechamento', `${nMesa} está aguardando fechamento.`, tagMesa);
         mostrarToast(`🛎️ Fechamento: ${nMesa}`);
       }
       else if (data.status === 'cancelado') {
+        adicionarNotificacao('❌ PEDIDO CANCELADO', `${nMesa}: Pedido cancelado.`, '❌');
         tocarNotificacao();
         exibirNotificacaoNativa('❌ Cancelado', `${nMesa}: Pedido cancelado.`, tagMesa);
         mostrarToast(`❌ ${nMesa} cancelado`);
       }
       else if (data.status === 'servido') {
+        if (data.garcom_id !== 'DELIVERY') {
+          adicionarNotificacao('🍽️ PEDIDO SERVIDO', `${nMesa} foi entregue na mesa.`, '🍽️');
+        } else {
+          adicionarNotificacao('🛵 SAIU PARA ENTREGA', `${nMesa} está a caminho do cliente com o motoboy.`, '🛵');
+        }
+
         const isProprioServido = (window.ultimoPedidoServidoPeloAdmin !== null && window.ultimoPedidoServidoPeloAdmin !== undefined) && (
           String(data.pedido_id) === String(window.ultimoPedidoServidoPeloAdmin)
         );
@@ -7522,6 +7532,12 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
         }
       }
       else if (data.status === 'entregue') {
+        if (data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY'))) {
+          adicionarNotificacao('✅ DELIVERY CONCLUÍDO (PAGO)', `${nMesa}: Pagamento registrado e delivery concluído.`, '🛵');
+        } else {
+          adicionarNotificacao('✅ MESA FINALIZADA (PAGA)', `${nMesa}: Pagamento registrado e pedido finalizado.`, '✅');
+        }
+
         const isPropriaFinalizacao = (window.ultimoPedidoFinalizadoPeloAdmin !== null && window.ultimoPedidoFinalizadoPeloAdmin !== undefined) && (
           String(data.pedido_id) === String(window.ultimoPedidoFinalizadoPeloAdmin)
         );
@@ -7532,7 +7548,6 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
         }
 
         if (data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY'))) {
-          adicionarNotificacao('✅ DELIVERY CONCLUÍDO (PAGO)', `📍 Local: ${nMesa}\n💰 O pagamento foi registrado e o delivery finalizado.`, '🛵');
           mostrarToast(`✅ ${nMesa} Concluído e Pago!`);
         } else {
           tocarNotificacao();
