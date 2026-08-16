@@ -2085,6 +2085,8 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
     if (res.ok) {
       const data = await res.json();
       const novoPedidoId = data.id || (pedidoExistente ? pedidoExistente.id : null);
+      window.ultimoPedidoCriadoPeloAdmin = novoPedidoId;
+      setTimeout(() => { window.ultimoPedidoCriadoPeloAdmin = null; }, 7000);
 
       // Salva a escolha da taxa para este pedido
       pedidosStatusTaxa[novoPedidoId] = cobrarTaxa;
@@ -5524,6 +5526,8 @@ async function marcarPedidoEntregue(id) {
       const opcao = await mostrarModalOpcoesEntregaAdmin(pedido, emPreparo, prontosOuForaCozinha, isDelivery);
       
       if (opcao === 'parcial') {
+        window.ultimoPedidoServidoPeloAdmin = id;
+        setTimeout(() => { window.ultimoPedidoServidoPeloAdmin = null; }, 7000);
         const res = await fetch(`/api/pedidos/${id}/marcar-entregue`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -5537,6 +5541,8 @@ async function marcarPedidoEntregue(id) {
           carregarPedidos();
         }
       } else if (opcao === 'forcar') {
+        window.ultimoPedidoServidoPeloAdmin = id;
+        setTimeout(() => { window.ultimoPedidoServidoPeloAdmin = null; }, 7000);
         const res = await fetch(`/api/pedidos/${id}/marcar-entregue`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -5559,6 +5565,8 @@ async function marcarPedidoEntregue(id) {
     // CASO 2: Não há nada na cozinha em preparo, mas pode haver itens 'prontos' ou 'bebidas'
     const confirmPrompt = isDelivery ? "Confirmar o envio deste pedido para entrega com o motoboy?" : "Confirmar a entrega de todos os itens deste pedido?";
     if (await mostrarConfirmacao(confirmPrompt, isDelivery ? "Enviar para Entrega" : "Entregar Tudo", "Confirmar", "Cancelar", "🚚")) {
+      window.ultimoPedidoServidoPeloAdmin = id;
+      setTimeout(() => { window.ultimoPedidoServidoPeloAdmin = null; }, 7000);
       const res = await fetch(`/api/pedidos/${id}/marcar-entregue`, { 
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -6715,6 +6723,13 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
         finalFormaPagamento = 'Múltiplas';
       }
 
+      window.ultimoPedidoFinalizadoPeloAdmin = idPedido;
+      window.ultimaMesaLiberadaPeloAdmin = idMesa;
+      setTimeout(() => {
+        window.ultimoPedidoFinalizadoPeloAdmin = null;
+        window.ultimaMesaLiberadaPeloAdmin = null;
+      }, 7000);
+
       const isDelivery = pedidoParaFecharAdmin && pedidoParaFecharAdmin.garcom_id === 'DELIVERY';
       const loadingTitle = isDelivery ? "Finalizando Delivery..." : "Finalizando Conta...";
       const loadingMsg = isDelivery 
@@ -6750,10 +6765,10 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
       }
       
       if (pedidoParaFecharAdmin && (pedidoParaFecharAdmin.garcom_id === 'DELIVERY' || (pedidoParaFecharAdmin.mesa_numero && String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('DELIVERY')))) {
-        const localNome = `DELIVERY #${idPedido}`;
-        adicionarNotificacao('✅ DELIVERY CONCLUÍDO (PAGO)', `📍 Local: ${localNome}\n💰 O pagamento foi registrado e o delivery finalizado.`, '🛵');
+        mostrarToast(`✅ DELIVERY #${idPedido} Concluído e Pago!`);
       } else {
-        mostrarToast("✅ Conta Total Finalizada!");
+        const localNome = (pedidoParaFecharAdmin && pedidoParaFecharAdmin.mesa_numero) ? `Mesa ${pedidoParaFecharAdmin.mesa_numero}` : `Mesa`;
+        mostrarToast(`✅ ${localNome} Finalizada e Liberada!`);
       }
       const novosPagamentosCount = (formasPagamentoPessoas && formasPagamentoPessoas.length) ? formasPagamentoPessoas.length : 1;
       
@@ -7320,9 +7335,21 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
         (p && String(p.id) === String(ultimoPedidoEditadoPeloAdmin)) ||
         (data && String(data.pedido_id) === String(ultimoPedidoEditadoPeloAdmin))
       );
+      const isProprioNovoPedidoAdmin = (window.ultimoPedidoCriadoPeloAdmin !== null && window.ultimoPedidoCriadoPeloAdmin !== undefined) && (
+        (p && String(p.id) === String(window.ultimoPedidoCriadoPeloAdmin)) ||
+        (data && String(data.pedido_id) === String(window.ultimoPedidoCriadoPeloAdmin))
+      );
 
       if (isAddition && isPropriaEdicaoAdmin) {
         return; // Ignora alertas e sons para edições da própria sessão
+      }
+      if (!isAddition && isProprioNovoPedidoAdmin) {
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => {
+          carregarPedidos();
+          carregarHistorico();
+        }, 100);
+        return; // O admin já confirmou e viu o popup ao criar o pedido nesta tela
       }
 
       tocarNotificacao(); 
@@ -7439,6 +7466,16 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       const tagMesa = `mesa-${data.mesa_id}`;
 
       if (data.status === 'liberada') {
+        const isPropriaLiberacao = (window.ultimaMesaLiberadaPeloAdmin !== null && window.ultimaMesaLiberadaPeloAdmin !== undefined) && (
+          String(data.mesa_id) === String(window.ultimaMesaLiberadaPeloAdmin) ||
+          String(data.mesa_numero) === String(window.ultimaMesaLiberadaPeloAdmin)
+        );
+        if (isPropriaLiberacao) {
+          clearTimeout(timeoutPusher);
+          timeoutPusher = setTimeout(() => { carregarPedidos(); carregarHistorico(); }, 100);
+          return; // Suprime toast redundante pois o admin já confirmou no modal
+        }
+
         tocarNotificacao();
         exibirNotificacaoNativa('✅ Mesa Liberada', `${nMesa} está livre para o próximo cliente.`, tagMesa);
         mostrarToast(`✅ ${nMesa} liberada`);
@@ -7464,24 +7501,44 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
         exibirNotificacaoNativa('❌ Cancelado', `${nMesa}: Pedido cancelado.`, tagMesa);
         mostrarToast(`❌ ${nMesa} cancelado`);
       }
-      else if (data.status === 'servido' && data.garcom_id !== 'DELIVERY') {
-        tocarNotificacao();
-        exibirNotificacaoNativa('🍽️ Pedido Servido', `${nMesa} foi entregue na mesa!`, tagMesa);
-        mostrarToast(`🍽️ Servido: ${nMesa}`);
-      }
-      else if (data.status === 'servido' && data.garcom_id === 'DELIVERY') {
-        tocarNotificacao();
-        exibirNotificacaoNativa('🛵 Saiu para Entrega', `${nMesa} está a caminho do cliente!`, tagMesa);
-        mostrarToast(`🛵 Saiu para Entrega: ${nMesa}`);
-      }
-      else if (data.status === 'entregue' && (data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY')))) {
-        adicionarNotificacao('✅ DELIVERY CONCLUÍDO (PAGO)', `📍 Local: ${nMesa}\n💰 O pagamento foi registrado e o delivery finalizado.`, '🛵');
-        mostrarToast(`✅ ${nMesa} Concluído e Pago!`);
+      else if (data.status === 'servido') {
+        const isProprioServido = (window.ultimoPedidoServidoPeloAdmin !== null && window.ultimoPedidoServidoPeloAdmin !== undefined) && (
+          String(data.pedido_id) === String(window.ultimoPedidoServidoPeloAdmin)
+        );
+        if (isProprioServido) {
+          clearTimeout(timeoutPusher);
+          timeoutPusher = setTimeout(() => { carregarPedidos(); carregarHistorico(); }, 100);
+          return; // Suprime toast redundante pois o admin já viu a confirmação da sua ação
+        }
+
+        if (data.garcom_id !== 'DELIVERY') {
+          tocarNotificacao();
+          exibirNotificacaoNativa('🍽️ Pedido Servido', `${nMesa} foi entregue na mesa!`, tagMesa);
+          mostrarToast(`🍽️ Servido: ${nMesa}`);
+        } else {
+          tocarNotificacao();
+          exibirNotificacaoNativa('🛵 Saiu para Entrega', `${nMesa} está a caminho do cliente!`, tagMesa);
+          mostrarToast(`🛵 Saiu para Entrega: ${nMesa}`);
+        }
       }
       else if (data.status === 'entregue') {
-        tocarNotificacao();
-        exibirNotificacaoNativa('✅ Concluído', `${nMesa} foi finalizado e concluído com sucesso.`, tagMesa);
-        mostrarToast(`✅ Concluído: ${nMesa}`);
+        const isPropriaFinalizacao = (window.ultimoPedidoFinalizadoPeloAdmin !== null && window.ultimoPedidoFinalizadoPeloAdmin !== undefined) && (
+          String(data.pedido_id) === String(window.ultimoPedidoFinalizadoPeloAdmin)
+        );
+        if (isPropriaFinalizacao) {
+          clearTimeout(timeoutPusher);
+          timeoutPusher = setTimeout(() => { carregarPedidos(); carregarHistorico(); }, 100);
+          return; // Suprime toast redundante pois o admin já viu a confirmação da sua ação
+        }
+
+        if (data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY'))) {
+          adicionarNotificacao('✅ DELIVERY CONCLUÍDO (PAGO)', `📍 Local: ${nMesa}\n💰 O pagamento foi registrado e o delivery finalizado.`, '🛵');
+          mostrarToast(`✅ ${nMesa} Concluído e Pago!`);
+        } else {
+          tocarNotificacao();
+          exibirNotificacaoNativa('✅ Concluído', `${nMesa} foi finalizado e concluído com sucesso.`, tagMesa);
+          mostrarToast(`✅ Concluído: ${nMesa}`);
+        }
       }
       else if (data.cobrar_taxa !== undefined) {
         mostrarToast(`ℹ️ ${nMesa}: Taxa de 10% ${data.cobrar_taxa ? 'ativada' : 'desativada'}`);

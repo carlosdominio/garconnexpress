@@ -2609,7 +2609,9 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
                      `💰 *Total Geral:* R$ ${calcTotal.toFixed(2)}\n\n` +
                      `✓ O pagamento foi registrado e a venda concluída.`;
         } else {
-          adminMsg = `✅ *FINALIZADO (PAGO)*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId || 'N/A'}\n💰 O pagamento foi registrado e o pedido/comanda fechado.`;
+          const tipoLocal = isComandaFlag === 1 ? 'COMANDA' : 'MESA';
+          const tipoLocalMin = isComandaFlag === 1 ? 'comanda' : 'mesa';
+          adminMsg = `✅ *${tipoLocal} FINALIZADA (PAGA & LIBERADA)*\n📍 Local: ${mesaNum}\n🆔 Pedido: #${pedidoId || 'N/A'}\n💰 O pagamento foi registrado e a ${tipoLocalMin} já está liberada para o próximo cliente.`;
         }
       }
     }
@@ -5624,19 +5626,9 @@ app.get('/api/pusher-config', (req, res) => {
   });
 });
 
+// POST /api/notify-admin (Apenas registro/sucesso, WhatsApp centralizado no notifyStatus)
 app.post('/api/notify-admin', isAuthenticated, async (req, res) => {
-  const { titulo, mensagem, message } = req.body;
-  const msgContent = mensagem || message;
-  if (!titulo || !msgContent) {
-    return res.status(400).json({ error: 'Título e mensagem são obrigatórios.' });
-  }
-  try {
-    const formattedText = `🔔 *PAINEL ADM — ${titulo}*\n\n${msgContent}`;
-    await sendWhatsAppMessage(formattedText);
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  res.json({ success: true });
 });
 
 // --- ROTAS DO CARDÁPIO DIGITAL (CLIENTE) ---
