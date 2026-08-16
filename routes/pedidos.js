@@ -835,18 +835,18 @@ module.exports = (ctx) => {
         const antigaQtd = atuaisMap[menuId] || 0;
         const nomeItem = menuMap[menuId] || `Item #${menuId}`;
         if (antigaQtd === 0) {
-          adicionados.push({ nome: nomeItem, qtd: novaQtd });
+          adicionados.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: novaQtd });
         } else if (novaQtd > antigaQtd) {
-          adicionados.push({ nome: nomeItem, qtd: novaQtd - antigaQtd });
+          adicionados.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: novaQtd - antigaQtd });
         } else if (novaQtd < antigaQtd) {
-          removidos.push({ nome: nomeItem, qtd: antigaQtd - novaQtd });
+          removidos.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: antigaQtd - novaQtd });
         }
       }
       for (const menuId in atuaisMap) {
         if (!novosMap[menuId]) {
           const antigaQtd = atuaisMap[menuId];
           const nomeItem = menuMap[menuId] || `Item #${menuId}`;
-          removidos.push({ nome: nomeItem, qtd: antigaQtd });
+          removidos.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: antigaQtd });
         }
       }
 
@@ -875,15 +875,22 @@ module.exports = (ctx) => {
       const totalAlteracoes = [...substituicoes, ...alteracoes];
       const detalhesEdicao = totalAlteracoes.length > 0 ? totalAlteracoes.join(', ') : null;
 
-      for (const item of itensAtuais) await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
-      for (const item of (itens || [])) {
-        if (!item.quantidade || item.quantidade <= 0) return res.status(400).json({ error: 'Quantidade inválida (negativa ou zero)' });
-        const checagemEstoque = await verificarEstoqueDisponivel(item.menu_id, item.quantidade);
+      // Validação de estoque apenas para o que aumentou
+      for (const add of adicionados) {
+        const checagemEstoque = await verificarEstoqueDisponivel(add.menu_id, add.qtd);
         if (!checagemEstoque.disponivel) {
-          for (const itemRoll of itensAtuais) await abaterEstoquePorFichaTecnica(itemRoll.menu_id, itemRoll.quantidade);
           return res.status(400).json({ error: checagemEstoque.erro });
         }
       }
+
+      // Abate / retorno diferencial (não re-abate itens inalterados)
+      for (const rem of removidos) {
+        await retornarEstoquePorFichaTecnica(rem.menu_id, rem.qtd);
+      }
+      for (const add of adicionados) {
+        await abaterEstoquePorFichaTecnica(add.menu_id, add.qtd);
+      }
+
       await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [id]);
       let novoSub = 0;
       if (itens && itens.length > 0) {
@@ -895,7 +902,6 @@ module.exports = (ctx) => {
         await query(`INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES ${placeholders}`, values);
 
         for (const item of itens) {
-          await abaterEstoquePorFichaTecnica(item.menu_id, item.quantidade);
           const pMenu = (await query("SELECT preco FROM menu WHERE id = ?", [item.menu_id])).rows[0];
           if (pMenu) novoSub += (parseFloat(pMenu.preco) * item.quantidade);
         }

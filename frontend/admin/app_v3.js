@@ -7341,21 +7341,6 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
         (data && String(data.pedido_id) === String(window.ultimoPedidoCriadoPeloAdmin))
       );
 
-      if (isAddition && isPropriaEdicaoAdmin) {
-        return; // Ignora alertas e sons para edições da própria sessão
-      }
-      if (!isAddition && isProprioNovoPedidoAdmin) {
-        clearTimeout(timeoutPusher);
-        timeoutPusher = setTimeout(() => {
-          carregarPedidos();
-          carregarHistorico();
-        }, 100);
-        return; // O admin já confirmou e viu o popup ao criar o pedido nesta tela
-      }
-
-      tocarNotificacao(); 
-      iniciarPiscarTitulo();
-
       const isDelivery = (p && p.garcom_id === 'DELIVERY');
       let nomeExibicao = 'X';
       
@@ -7370,11 +7355,23 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       if (isAddition) {
         markRecentAdditionNotified(p ? p.id : (data.pedido_id || data.id));
         const descTexto = data.detalhes_edicao ? `${nomeExibicao} — ${data.detalhes_edicao}` : `Novos itens adicionados na ${nomeExibicao}.`;
-        exibirNotificacaoNativa('➕ ITEM ADICIONADO', descTexto, `mesa-${mesaId}`);
-        mostrarToast(`➕ Item Adicionado: ${data.detalhes_edicao ? `${nomeExibicao} (${data.detalhes_edicao})` : nomeExibicao}`);
+        adicionarNotificacao('➕ ITEM ADICIONADO', descTexto, '➕');
+        
+        if (!isPropriaEdicaoAdmin) {
+          tocarNotificacao(); 
+          iniciarPiscarTitulo();
+          exibirNotificacaoNativa('➕ ITEM ADICIONADO', descTexto, `mesa-${mesaId}`);
+          mostrarToast(`➕ Item Adicionado: ${data.detalhes_edicao ? `${nomeExibicao} (${data.detalhes_edicao})` : nomeExibicao}`);
+        }
       } else {
-        exibirNotificacaoNativa('🚀 NOVO PEDIDO', `${nomeExibicao} acabou de fazer um pedido.`, `mesa-${mesaId}`);
-        mostrarToast(`🚀 Novo Pedido: ${nomeExibicao}`);
+        if (!isProprioNovoPedidoAdmin) {
+          tocarNotificacao(); 
+          iniciarPiscarTitulo();
+          exibirNotificacaoNativa('🚀 NOVO PEDIDO', `${nomeExibicao} acabou de fazer um pedido.`, `mesa-${mesaId}`);
+          mostrarToast(`🚀 Novo Pedido: ${nomeExibicao}`);
+        } else {
+          adicionarNotificacao('🚀 NOVO PEDIDO', `${nomeExibicao} acabou de fazer um pedido.`, '🚀');
+        }
       }
 
       clearTimeout(timeoutPusher);

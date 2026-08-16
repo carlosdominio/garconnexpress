@@ -2202,11 +2202,16 @@ async function getTaxaServicoMultiplicador() {
   return 1.10; // default 10%
 }
 
+const recentStockAlertsMap = new Map();
 async function verificarEstoqueBaixo(menuId) {
   try {
     // Busca enviar_cozinha e categoria para rotear o push nativo corretamente
     const item = (await query("SELECT id, nome, estoque, enviar_cozinha, categoria FROM menu WHERE id = ?", [menuId])).rows[0];
     if (item && item.estoque !== -1 && item.estoque <= 5) {
+      const lastAlert = recentStockAlertsMap.get(item.id) || 0;
+      if (Date.now() - lastAlert < 60000) return; // Evita disparar alerta repetido para o mesmo item em menos de 60s
+      recentStockAlertsMap.set(item.id, Date.now());
+
       const tipo = item.estoque === 0 ? '🚨 ESTOQUE ZERADO' : '⚠️ ESTOQUE BAIXO';
       const msg  = item.estoque === 0
         ? `🚨 ESTOQUE ZERADO: O produto "${item.nome}" acabou!`
@@ -4513,18 +4518,18 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
       const antigaQtd = atuaisMap[menuId] || 0;
       const nomeItem = menuMap[menuId] || `Item #${menuId}`;
       if (antigaQtd === 0) {
-        adicionados.push({ nome: nomeItem, qtd: novaQtd });
+        adicionados.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: novaQtd });
       } else if (novaQtd > antigaQtd) {
-        adicionados.push({ nome: nomeItem, qtd: novaQtd - antigaQtd });
+        adicionados.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: novaQtd - antigaQtd });
       } else if (novaQtd < antigaQtd) {
-        removidos.push({ nome: nomeItem, qtd: antigaQtd - novaQtd });
+        removidos.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: antigaQtd - novaQtd });
       }
     }
     for (const menuId in atuaisMap) {
       if (!novosMap[menuId]) {
         const antigaQtd = atuaisMap[menuId];
         const nomeItem = menuMap[menuId] || `Item #${menuId}`;
-        removidos.push({ nome: nomeItem, qtd: antigaQtd });
+        removidos.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: antigaQtd });
       }
     }
 
@@ -4555,16 +4560,22 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
     const totalAlteracoes = [...substituicoes, ...alteracoes];
     const detalhesEdicao = totalAlteracoes.length > 0 ? totalAlteracoes.join(', ') : null;
 
-    for (const item of itensAtuais) await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
-    for (const item of itens) {
-      if (!item.quantidade || item.quantidade <= 0) return res.status(400).json({ error: 'Quantidade inválida (negativa ou zero)' });
-      const checagemEstoque = await verificarEstoqueDisponivel(item.menu_id, item.quantidade);
+    // Validação de estoque apenas para o que aumentou
+    for (const add of adicionados) {
+      const checagemEstoque = await verificarEstoqueDisponivel(add.menu_id, add.qtd);
       if (!checagemEstoque.disponivel) {
-        // Rollback dos abatimentos prévios antes de retornar o erro de estoque insuficiente
-        for (const itemRoll of itensAtuais) await abaterEstoquePorFichaTecnica(itemRoll.menu_id, itemRoll.quantidade);
         return res.status(400).json({ error: checagemEstoque.erro });
       }
     }
+
+    // Abate / retorno diferencial (não re-abate itens inalterados)
+    for (const rem of removidos) {
+      await retornarEstoquePorFichaTecnica(rem.menu_id, rem.qtd);
+    }
+    for (const add of adicionados) {
+      await abaterEstoquePorFichaTecnica(add.menu_id, add.qtd);
+    }
+
     await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [id]);
     let novoSub = 0;
     if (itens.length > 0) {
@@ -4576,7 +4587,6 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
       await query(`INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES ${placeholders}`, values);
 
       for (const item of itens) {
-        await abaterEstoquePorFichaTecnica(item.menu_id, item.quantidade);
         const pMenu = (await query("SELECT preco FROM menu WHERE id = ?", [item.menu_id])).rows[0];
         if (pMenu) novoSub += (parseFloat(pMenu.preco) * item.quantidade); // ANTIFRAUDE: usa sempre o preço do banco, ignora item.preco do cliente
       }
