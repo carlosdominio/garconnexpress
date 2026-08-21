@@ -2233,38 +2233,33 @@ async function verificarEstoqueBaixo(menuId) {
 }
 
 // ─── HELPER: Abate Estoque com Ficha Técnica ────────────────────────────────
-// Se o item possui ficha técnica (doses/drinks), desconta cada ingrediente.
-// Caso contrário, desconta o próprio item (comportamento original).
-async function abaterEstoquePorFichaTecnica(menuId, quantidadeVendida) {
+async function abaterEstoquePorFichaTecnica(menuId, quantidadeVendida, tx = null) {
+  const dbQuery = tx || query;
   try {
-    const ficha = (await query(
+    const ficha = (await dbQuery(
       'SELECT ingrediente_id, quantidade FROM ficha_tecnica WHERE menu_id = ?',
       [menuId]
     )).rows;
 
     if (ficha && ficha.length > 0) {
-      // Produto com ficha técnica → desconta cada ingrediente
       for (const linha of ficha) {
         const qtdDesconto = linha.quantidade * quantidadeVendida;
-        await query(
+        await dbQuery(
           'UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?',
           [qtdDesconto, linha.ingrediente_id]
         );
         await verificarEstoqueBaixo(linha.ingrediente_id);
       }
     } else {
-      // Produto simples → desconta diretamente (comportamento original)
-      await query(
+      await dbQuery(
         'UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?',
         [quantidadeVendida, menuId]
       );
-      // Verifica e dispara alerta de estoque baixo também para produtos simples
       await verificarEstoqueBaixo(menuId);
     }
   } catch (e) {
     console.error('Erro ao abater estoque por ficha técnica:', e.message);
-    // Fallback seguro: tenta desconto direto para não bloquear venda
-    await query(
+    await dbQuery(
       'UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque - ? END WHERE id = ?',
       [quantidadeVendida, menuId]
     ).catch(() => {});
@@ -2272,11 +2267,10 @@ async function abaterEstoquePorFichaTecnica(menuId, quantidadeVendida) {
 }
 
 // ─── HELPER: Devolve Estoque com Ficha Técnica ──────────────────────────────
-// Se o item possui ficha técnica (doses/drinks), devolve cada ingrediente.
-// Caso contrário, devolve o próprio item (comportamento original).
-async function retornarEstoquePorFichaTecnica(menuId, quantidadeRetornada) {
+async function retornarEstoquePorFichaTecnica(menuId, quantidadeRetornada, tx = null) {
+  const dbQuery = tx || query;
   try {
-    const ficha = (await query(
+    const ficha = (await dbQuery(
       'SELECT ingrediente_id, quantidade FROM ficha_tecnica WHERE menu_id = ?',
       [menuId]
     )).rows;
@@ -2284,20 +2278,20 @@ async function retornarEstoquePorFichaTecnica(menuId, quantidadeRetornada) {
     if (ficha && ficha.length > 0) {
       for (const linha of ficha) {
         const qtdRetorno = linha.quantidade * quantidadeRetornada;
-        await query(
+        await dbQuery(
           'UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque + ? END WHERE id = ?',
           [qtdRetorno, linha.ingrediente_id]
         );
       }
     } else {
-      await query(
+      await dbQuery(
         'UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque + ? END WHERE id = ?',
         [quantidadeRetornada, menuId]
       );
     }
   } catch (e) {
     console.error('Erro ao retornar estoque por ficha técnica:', e.message);
-    await query(
+    await dbQuery(
       'UPDATE menu SET estoque = CASE WHEN estoque = -1 THEN -1 ELSE estoque + ? END WHERE id = ?',
       [quantidadeRetornada, menuId]
     ).catch(() => {});
@@ -2305,10 +2299,13 @@ async function retornarEstoquePorFichaTecnica(menuId, quantidadeRetornada) {
 }
 
 // ─── HELPER: Valida se há Estoque Disponível (Incluindo Ficha Técnica) ───────
-async function verificarEstoqueDisponivel(menuId, quantidadeDesejada) {
+async function verificarEstoqueDisponivel(menuId, quantidadeDesejada, tx = null) {
+  const dbQuery = tx || query;
   try {
-    const ficha = (await query(
-      'SELECT ft.ingrediente_id, ft.quantidade, m.nome, m.estoque, m.unidade FROM ficha_tecnica ft JOIN menu m ON ft.ingrediente_id = m.id WHERE ft.menu_id = ?',
+    const lockSuffix = (tx && isPostgres) ? ' FOR UPDATE' : '';
+    
+    const ficha = (await dbQuery(
+      `SELECT ft.ingrediente_id, ft.quantidade, m.nome, m.estoque, m.unidade FROM ficha_tecnica ft JOIN menu m ON ft.ingrediente_id = m.id WHERE ft.menu_id = ?${lockSuffix}`,
       [menuId]
     )).rows;
 
@@ -2325,7 +2322,7 @@ async function verificarEstoqueDisponivel(menuId, quantidadeDesejada) {
         }
       }
     } else {
-      const p = (await query('SELECT nome, estoque, unidade FROM menu WHERE id = ?', [menuId])).rows[0];
+      const p = (await dbQuery(`SELECT nome, estoque, unidade FROM menu WHERE id = ?${lockSuffix}`, [menuId])).rows[0];
       if (p && p.estoque !== null && p.estoque !== undefined && p.estoque !== -1 && p.estoque < quantidadeDesejada) {
         return {
           disponivel: false,
@@ -4246,6 +4243,10 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
       }
     }
     let subtotalReal = 0;
+    
+    if (!itens || !Array.isArray(itens) || itens.length === 0) {
+      return res.status(400).json({ error: 'O pedido deve conter pelo menos um item válido.' });
+    }
 
     for (const item of itens) {
       // 1. Validação Antifraude: Bloqueia Quantidade Zero ou Negativa
@@ -4340,97 +4341,96 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
       total = deveCobrarTaxa ? Math.round(subtotalReal * taxaMultiplicador * 100) / 100 : subtotalReal;
     }
 
-    let pedidoId;
-    let resPedido;
-
     // Captura a forma de pagamento (tenta ambos os nomes para evitar erros de versão)
     const fPag = forma_pagamento || metodo_pagamento || null;
     const vRec = valor_recebido || 0;
     const vTrc = troco || 0;
 
-    if (isPostgres) {
-      try {
-        resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
-      } catch (errCol) {
-        if (errCol.message && (errCol.message.includes('taxa_entrega') || errCol.message.includes('distancia_km'))) {
-          console.warn('⚠️ Coluna taxa_entrega ausente. Criando colunas no PostgreSQL automaticamente...');
-          await query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS taxa_entrega REAL DEFAULT 0");
-          await query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS distancia_km REAL DEFAULT 0");
-          resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
-        } else {
-          throw errCol;
+    let txRes;
+    try {
+      txRes = await runInTransaction(async (tx) => {
+        // REVALIDAÇÃO ATÔMICA DO ESTOQUE DENTRO DO LOCK
+        for (const item of itens) {
+          const checagemEstoque = await verificarEstoqueDisponivel(item.menu_id, item.quantidade, tx);
+          if (!checagemEstoque.disponivel) {
+            throw new Error('ESTOQUE_INSUFICIENTE:' + checagemEstoque.erro);
+          }
         }
-      }
-      pedidoId = resPedido.rows && resPedido.rows[0] ? resPedido.rows[0].id : resPedido.lastInsertRowid;
-    } else {
-      try {
-        resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
-      } catch (errColSq) {
-        if (errColSq.message && (errColSq.message.includes('taxa_entrega') || errColSq.message.includes('distancia_km') || errColSq.message.includes('has no column'))) {
-          try { await query("ALTER TABLE pedidos ADD COLUMN taxa_entrega REAL DEFAULT 0"); } catch(e){}
-          try { await query("ALTER TABLE pedidos ADD COLUMN distancia_km REAL DEFAULT 0"); } catch(e){}
-          resPedido = await query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
+
+        let localPedidoId;
+        let pRes;
+
+        if (isPostgres) {
+          try {
+            pRes = await tx.query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
+          } catch (errCol) {
+            await tx.query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS taxa_entrega REAL DEFAULT 0");
+            await tx.query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS distancia_km REAL DEFAULT 0");
+            pRes = await tx.query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
+          }
+          localPedidoId = pRes.rows && pRes.rows[0] ? pRes.rows[0].id : pRes.lastInsertRowid;
         } else {
-          throw errColSq;
+          try {
+            pRes = await tx.query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
+          } catch (errColSq) {
+            try { await query("ALTER TABLE pedidos ADD COLUMN taxa_entrega REAL DEFAULT 0"); } catch(e){}
+            try { await query("ALTER TABLE pedidos ADD COLUMN distancia_km REAL DEFAULT 0"); } catch(e){}
+            pRes = await tx.query('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
+          }
+          localPedidoId = pRes.lastInsertRowid;
         }
+
+        if (mesa_id) {
+          const mesaIdNum = Number(mesa_id);
+          const rascunhos = (await tx.query("SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesaIdNum])).rows;
+          for (const r of rascunhos) {
+              await tx.query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
+              await tx.query("DELETE FROM pedidos WHERE id = ?", [r.id]);
+          }
+          await tx.query("UPDATE mesas SET status = 'ocupada', garcom_id = ? WHERE id = ?", [garcom_id, mesaIdNum]);
+
+          const acessoExistente = (await tx.query("SELECT id, codigo FROM codigos_acesso WHERE mesa_id = ? AND status = 'ativo' LIMIT 1", [mesaIdNum])).rows[0];
+          if (!acessoExistente) {
+            const caracteres = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let novoCodigo = '';
+            for (let i = 0; i < 4; i++) novoCodigo += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+            await tx.query("INSERT INTO codigos_acesso (mesa_id, codigo, status) VALUES (?, ?, 'ativo')", [mesaIdNum, novoCodigo]);
+          }
+        }
+
+        if (itens.length > 0) {
+          const placeholders = itens.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
+          const values = [];
+          for (const item of itens) {
+            values.push(localPedidoId, item.menu_id, item.quantidade, item.observacao || '', 'pendente', item.preco_unitario || 0);
+          }
+          await tx.query(`INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status, preco) VALUES ${placeholders}`, values);
+
+          for (const item of itens) {
+            await abaterEstoquePorFichaTecnica(item.menu_id, item.quantidade, tx);
+          }
+        }
+
+        return { pedidoId: localPedidoId };
+      });
+    } catch (errTx) {
+      if (errTx.message && errTx.message.startsWith('ESTOQUE_INSUFICIENTE:')) {
+        return res.status(409).json({ error: errTx.message.replace('ESTOQUE_INSUFICIENTE:', '') });
       }
-      pedidoId = resPedido.lastInsertRowid;
+      throw errTx;
     }
 
-    // NOTIFICAÇÃO PARA DELIVERY (MANTÉM MODO AUTOMÁTICO DO ROBÔ)
+    const pedidoId = txRes.pedidoId;
+
     if (garcom_id === 'DELIVERY' && cliente_telefone) {
       const numClean = cliente_telefone.replace(/\D/g, '');
-      if (numClean) {
-        console.log(`📦 [Delivery] Notificando cliente ${numClean} sobre recebimento...`);
-        
-        if (whatsappSocket && whatsappSocket.connected) {
-          // Apenas notifica o status, o Robô agora está configurado para manter o modo automático
-          notifyDeliveryStatusToBot(numClean, 'recebido', pedidoId).catch(console.error);
-        }
+      if (numClean && whatsappSocket && whatsappSocket.connected) {
+        notifyDeliveryStatusToBot(numClean, 'recebido', pedidoId).catch(console.error);
       }
     }
+    
     if (mesa_id) {
-      const mesaIdNum = Number(mesa_id);
-      console.log(`[Pedido] Processando mesa ${mesaIdNum}. Garçom: ${garcom_id}`);
-      
-      // LIMPA RASCUNHOS: Quando o garçom lança o pedido oficial, removemos o rascunho de bloqueio
-      const rascunhos = (await query("SELECT id FROM pedidos WHERE mesa_id = ? AND status = 'rascunho'", [mesaIdNum])).rows;
-      for (const r of rascunhos) {
-          console.log(`[LIMPEZA] Removendo rascunho #${r.id} da mesa ${mesaIdNum}`);
-          await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [r.id]);
-          await query("DELETE FROM pedidos WHERE id = ?", [r.id]);
-      }
-
-      // Notifica o cliente que o rascunho foi processado e ele pode pedir mais
-      safePusherTrigger('garconnexpress', `rascunho-processado-mesa-${mesaIdNum}`, { success: true }).catch(console.error);
-
-      await query("UPDATE mesas SET status = 'ocupada', garcom_id = ? WHERE id = ?", [garcom_id, mesaIdNum]);
-
-      // GERAÇÃO AUTOMÁTICA DE CÃ“DIGO DE ACESSO (Só se não houver um ativo)
-      const acessoExistente = (await query("SELECT id, codigo FROM codigos_acesso WHERE mesa_id = ? AND status = 'ativo' LIMIT 1", [mesaIdNum])).rows[0];
-
-      if (!acessoExistente) {
-        const caracteres = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        let novoCodigo = '';
-        for (let i = 0; i < 4; i++) novoCodigo += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
-
-        await query("INSERT INTO codigos_acesso (mesa_id, codigo, status) VALUES (?, ?, 'ativo')", [mesaIdNum, novoCodigo]);
-        console.log(`🔑 Código automático gerado para Mesa ${mesaIdNum}: ${novoCodigo}`);
-      } else {
-        console.log(`ℹ️ Mesa ${mesaIdNum} já possui código de acesso ativo (ID: ${acessoExistente.id}, Código: ${acessoExistente.codigo}). Mantendo sessão.`);
-      }
-    }    if (itens.length > 0) {
-      const placeholders = itens.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
-      const values = [];
-      for (const item of itens) {
-        values.push(pedidoId, item.menu_id, item.quantidade, item.observacao || '', 'pendente', item.preco_unitario || 0);
-      }
-      await query(`INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status, preco) VALUES ${placeholders}`, values);
-
-      for (const item of itens) {
-        // abaterEstoquePorFichaTecnica já chama verificarEstoqueBaixo internamente
-        await abaterEstoquePorFichaTecnica(item.menu_id, item.quantidade);
-      }
+       safePusherTrigger('garconnexpress', `rascunho-processado-mesa-${mesa_id}`, { success: true }).catch(console.error);
     }
     let mesaNum = 'BALCÃO';
     let isComVal = 0;
@@ -5054,8 +5054,9 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
         return { code: 200, already: true };
       }
 
-      if (status === 'entregue' && ['entregue', 'cancelado'].includes(prevStatus)) {
-        return { code: 409, error: 'Pedido já foi finalizado ou cancelado anteriormente.' };
+      // FUNC-002: Trava Máquina de Estados Definitiva
+      if (['cancelado', 'entregue', 'finalizado'].includes(prevStatus) && status !== prevStatus) {
+        return { code: 409, error: 'Transição inválida: o pedido já foi finalizado ou cancelado e não pode voltar para um estado ativo.' };
       }
 
       if (status === 'entregue') {
