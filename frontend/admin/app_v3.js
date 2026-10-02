@@ -22,116 +22,227 @@ window.onerror = function(msg, url, line) {
     originalError.apply(console, args);
   };
   
-  // Interceptador global para redirecionar ao login se a sessão expirar e exibir loading
-  const originalFetch = window.fetch;
-  window.fetch = async (...args) => {
-    let urlStr = '';
-    if (args[0]) {
-      if (typeof args[0] === 'string') {
-        urlStr = args[0];
-      } else if (args[0] instanceof URL) {
-        urlStr = args[0].href;
-      } else if (typeof args[0] === 'object' && args[0].url) {
-        urlStr = args[0].url;
-      } else {
-        urlStr = String(args[0]);
+// ============================================================================
+// Controlador da Barra de Carregamento Moderna no Topo (Top Loading Bar)
+// ============================================================================
+const TopBar = (function() {
+  let progress = 0;
+  let timer = null;
+  let el = null;
+  let activeCount = 0;
+
+  function getBar() {
+    if (!el) {
+      el = document.getElementById('top-progress-bar');
+      if (!el && document.body) {
+        el = document.createElement('div');
+        el.id = 'top-progress-bar';
+        document.body.insertBefore(el, document.body.firstChild);
       }
     }
-    const isLocal = !urlStr.startsWith('http://') && !urlStr.startsWith('https://') || urlStr.includes(window.location.host);
+    return el;
+  }
 
-    // Adiciona token ao header Authorization se existir no localStorage apenas para rotas locais
-    if (isLocal) {
-      const token = localStorage.getItem('admin_token');
-      if (token) {
-        if (!args[1]) args[1] = {};
-        if (!args[1].headers) args[1].headers = {};
-        args[1].headers['Authorization'] = `Bearer ${token}`;
-      }
+  function set(percent) {
+    percent = Math.max(0, Math.min(100, percent));
+    progress = percent;
+    const bar = getBar();
+    if (bar) {
+      bar.classList.add('active');
+      bar.style.width = percent + '%';
+      bar.style.opacity = '1';
     }
+  }
 
-    const url = args[0];
-    const options = args[1] || {};
-    const method = (options.method || 'GET').toUpperCase();
+  function start() {
+    if (timer) clearInterval(timer);
+    if (progress === 0) {
+      set(18);
+    }
+    timer = setInterval(() => {
+      if (progress < 40) {
+        set(progress + 8 + Math.random() * 4);
+      } else if (progress < 70) {
+        set(progress + 3 + Math.random() * 3);
+      } else if (progress < 88) {
+        set(progress + 1 + Math.random() * 1.5);
+      } else if (progress < 96) {
+        set(progress + 0.2);
+      }
+    }, 200);
+  }
+
+  function inc(amount = 10) {
+    if (progress === 0) start();
+    else set(progress + amount);
+  }
+
+  function done() {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+    const bar = getBar();
+    if (!bar) return;
     
-    const isApiRequest = urlStr.startsWith('/api/') || urlStr.includes('/api/');
-    const isIgnoredUrl = 
-      urlStr.includes('/_vercel/') ||
-      urlStr.includes('speed-insights') ||
-      urlStr.includes('vitals') ||
-      urlStr.includes('/api/notify-admin') ||
-      urlStr.includes('/api/pusher') ||
-      urlStr.includes('/api/whatsapp-status') ||
-      urlStr.includes('/api/send-message') ||
-      urlStr.includes('/api/chats/') ||
-      urlStr.includes('/toggle-human') ||
-      urlStr.includes('/api/config/upload-apk-vercel') ||
-      urlStr.includes('vercel-storage.com') ||
-      urlStr.includes('vercel.com/api/blob');
-
-    // Determina se devemos exibir o loading para esta requisição (APENAS quando explicitamente solicitado por ações do usuário)
-    const shouldShowLoading = 
-      options.showLoading !== false &&
-      !isIgnoredUrl &&
-      (options.showLoading === true || !!options.showLoadingTitle);
-
-    if (shouldShowLoading) {
-      let title = options.showLoadingTitle || "Aguarde...";
-      let msg = options.showLoadingMsg || "Processando requisição...";
-      mostrarLoading(title, msg);
-    }
-
-    // Clona e limpa as opções customizadas para evitar avisos ou erros no fetch nativo
-    const cleanOptions = { ...options };
-    delete cleanOptions.showLoading;
-    delete cleanOptions.showLoadingTitle;
-    delete cleanOptions.showLoadingMsg;
-
-    args[1] = cleanOptions;
-
-    try {
-      const response = await originalFetch(...args);
-      
-      // DEBUG: Loga erros 400+ de forma amigável para ajudar no diagnóstico
-      if (!response.ok) {
-        if (response.status === 400 || response.status === 403) {
-          console.warn(`ℹ️ [Aviso de Regra/Validação] Servidor retornou status ${response.status} na URL: ${args[0]}. (Ex: Controle de Estoque ou Caixa Fechado)`);
-        } else {
-          response.clone().text().then(body => {
-            console.error(`❌ FETCH ERRO [${response.status}] na URL:`, args[0], body ? `| Detalhe: ${body}` : '');
-          }).catch(() => {
-            console.error(`❌ FETCH ERRO [${response.status}] na URL:`, args[0]);
-          });
+    set(100);
+    setTimeout(() => {
+      if (bar) bar.style.opacity = '0';
+      setTimeout(() => {
+        if (activeCount === 0 && bar) {
+          bar.classList.remove('active');
+          bar.style.width = '0%';
+          progress = 0;
         }
-      }
+      }, 300);
+    }, 200);
+  }
 
-      // Ignora o redirecionamento se for uma tentativa de login ou se for uma API externa
-      const isInternal = !args[0].startsWith('http') || new URL(args[0], window.location.origin).origin === window.location.origin;
-      if (isInternal && (response.status === 401 || response.status === 403) && !args[0].includes('/api/admin/login')) {
-        console.warn("⚠️ Sessão expirada ou acesso negado (401/403).");
-        console.log("URL que falhou:", args[0]);
-        
-        const wasLogado = localStorage.getItem('admin_logado');
-        localStorage.removeItem('admin_logado');
-        localStorage.removeItem('admin_token');
-        
-        // Só recarrega se o usuário estava anteriormente logado (evita loop infinito na tela de login)
-        if (wasLogado) {
-          window.location.reload(); 
-        }
-      }
-      return response;
-    } catch (error) {
-      const isBotUrl = args[0] && typeof args[0] === 'string' && (args[0].includes(':3002') || (window.whatsappBotUrl && args[0].includes(window.whatsappBotUrl)));
-      if (!isBotUrl) {
-        console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
-      }
-      throw error;
-    } finally {
-      if (shouldShowLoading) {
-        ocultarLoading();
-      }
+  function reqStart() {
+    activeCount++;
+    if (activeCount === 1) {
+      start();
     }
+  }
+
+  function reqEnd() {
+    activeCount = Math.max(0, activeCount - 1);
+    if (activeCount === 0) {
+      done();
+    }
+  }
+
+  return {
+    start,
+    set,
+    inc,
+    done,
+    reqStart,
+    reqEnd
   };
+})();
+
+window.TopBar = TopBar;
+
+// Interceptador global para redirecionar ao login se a sessão expirar e exibir loading
+const originalFetch = window.fetch;
+window.fetch = async (...args) => {
+  let urlStr = '';
+  if (args[0]) {
+    if (typeof args[0] === 'string') {
+      urlStr = args[0];
+    } else if (args[0] instanceof URL) {
+      urlStr = args[0].href;
+    } else if (typeof args[0] === 'object' && args[0].url) {
+      urlStr = args[0].url;
+    } else {
+      urlStr = String(args[0]);
+    }
+  }
+  const isLocal = !urlStr.startsWith('http://') && !urlStr.startsWith('https://') || urlStr.includes(window.location.host);
+
+  // Adiciona token ao header Authorization se existir no localStorage apenas para rotas locais
+  if (isLocal) {
+    const token = localStorage.getItem('admin_token');
+    if (token) {
+      if (!args[1]) args[1] = {};
+      if (!args[1].headers) args[1].headers = {};
+      args[1].headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+
+  const url = args[0];
+  const options = args[1] || {};
+  const method = (options.method || 'GET').toUpperCase();
+  
+  const isApiRequest = urlStr.startsWith('/api/') || urlStr.includes('/api/');
+  const isIgnoredUrl = 
+    urlStr.includes('/_vercel/') ||
+    urlStr.includes('speed-insights') ||
+    urlStr.includes('vitals') ||
+    urlStr.includes('/api/notify-admin') ||
+    urlStr.includes('/api/pusher') ||
+    urlStr.includes('/api/whatsapp-status') ||
+    urlStr.includes('/api/send-message') ||
+    urlStr.includes('/api/chats/') ||
+    urlStr.includes('/toggle-human') ||
+    urlStr.includes('/api/config/upload-apk-vercel') ||
+    urlStr.includes('vercel-storage.com') ||
+    urlStr.includes('vercel.com/api/blob');
+
+  // Dispara a barra moderna no topo em requisições de API relevantes
+  const isTopBarTracked = isApiRequest && !isIgnoredUrl;
+  if (isTopBarTracked) {
+    TopBar.reqStart();
+  }
+
+  // Determina se devemos exibir o modal de carregamento para esta requisição (quando explicitamente solicitado por ações do usuário)
+  const shouldShowLoading = 
+    options.showLoading !== false &&
+    !isIgnoredUrl &&
+    (options.showLoading === true || !!options.showLoadingTitle);
+
+  if (shouldShowLoading) {
+    let title = options.showLoadingTitle || "Aguarde...";
+    let msg = options.showLoadingMsg || "Processando requisição...";
+    mostrarLoading(title, msg);
+  }
+
+  // Clona e limpa as opções customizadas para evitar avisos ou erros no fetch nativo
+  const cleanOptions = { ...options };
+  delete cleanOptions.showLoading;
+  delete cleanOptions.showLoadingTitle;
+  delete cleanOptions.showLoadingMsg;
+
+  args[1] = cleanOptions;
+
+  try {
+    const response = await originalFetch(...args);
+    
+    // DEBUG: Loga erros 400+ de forma amigável para ajudar no diagnóstico
+    if (!response.ok) {
+      if (response.status === 400 || response.status === 403) {
+        console.warn(`ℹ️ [Aviso de Regra/Validação] Servidor retornou status ${response.status} na URL: ${args[0]}. (Ex: Controle de Estoque ou Caixa Fechado)`);
+      } else {
+        response.clone().text().then(body => {
+          console.error(`❌ FETCH ERRO [${response.status}] na URL:`, args[0], body ? `| Detalhe: ${body}` : '');
+        }).catch(() => {
+          console.error(`❌ FETCH ERRO [${response.status}] na URL:`, args[0]);
+        });
+      }
+    }
+
+    // Ignora o redirecionamento se for uma tentativa de login ou se for uma API externa
+    const isInternal = !args[0].startsWith('http') || new URL(args[0], window.location.origin).origin === window.location.origin;
+    if (isInternal && (response.status === 401 || response.status === 403) && !args[0].includes('/api/admin/login')) {
+      console.warn("⚠️ Sessão expirada ou acesso negado (401/403).");
+      console.log("URL que falhou:", args[0]);
+      
+      const wasLogado = localStorage.getItem('admin_logado');
+      localStorage.removeItem('admin_logado');
+      localStorage.removeItem('admin_token');
+      
+      // Só recarrega se o usuário estava anteriormente logado (evita loop infinito na tela de login)
+      if (wasLogado) {
+        window.location.reload(); 
+      }
+    }
+    return response;
+  } catch (error) {
+    const isBotUrl = args[0] && typeof args[0] === 'string' && (args[0].includes(':3002') || (window.whatsappBotUrl && args[0].includes(window.whatsappBotUrl)));
+    if (!isBotUrl) {
+      console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
+    }
+    throw error;
+  } finally {
+    if (isTopBarTracked) {
+      TopBar.reqEnd();
+    }
+    if (shouldShowLoading) {
+      ocultarLoading();
+    }
+  }
+};
   
   let cardapio = [];
 let pedidos = [];
