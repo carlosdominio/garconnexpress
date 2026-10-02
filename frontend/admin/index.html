@@ -1729,7 +1729,7 @@
       <div class="modal-footer">
         <div style="display: flex; gap: 12px; justify-content: flex-end; width: 100%;">
           <button class="modal-btn modal-btn-outline" onclick="fecharModal()" style="width: auto; padding: 10px 20px;">CANCELAR EDIÇÃO</button>
-          <button class="modal-btn modal-btn-primary" onclick="salvarAlteracoes()" style="width: auto; padding: 10px 20px; background: #27ae60;">💾 SALVAR ALTERAÇÕES</button>
+          <button id="btn-salvar-alteracoes-edicao" class="modal-btn modal-btn-primary" onclick="salvarAlteracoes()" style="width: auto; padding: 10px 20px; background: #94a3b8; opacity: 0.45; cursor: not-allowed;" disabled title="Nenhuma alteração foi realizada no pedido">💾 SALVAR ALTERAÇÕES</button>
         </div>
       </div>
     </div>
@@ -2194,7 +2194,7 @@
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="app_v3.js?v=1.3.8-topbar-2"></script>
+  <script src="app_v3.js?v=1.3.8-topbar-3"></script>
   <!-- Modal: Mesa Aguardando Cliente -->
   <div id="modal-mesa-aguardando" class="modal">
     <div class="modal-content" style="max-width: 420px; border-radius: 16px; overflow: hidden; padding: 0;">

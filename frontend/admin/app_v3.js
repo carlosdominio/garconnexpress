@@ -4528,6 +4528,9 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
               ...i,
               selecionado: !!(i && i.id && selecoesAtuais[i.id])
             }));
+            if (typeof gerarSnapshotItens === 'function') {
+              itensEdicaoSnapshotOriginal = gerarSnapshotItens(itensEmEdicao);
+            }
             renderizarItensEdicao();
           }
         }
@@ -5742,9 +5745,67 @@ async function irParaEdicaoDestePedido() {
   }
 }
 
+let itensEdicaoSnapshotOriginal = '';
+
+function gerarSnapshotItens(itens) {
+  if (!Array.isArray(itens)) return '[]';
+  const limpos = itens
+    .filter(i => i && Number(i.quantidade) > 0)
+    .map(i => ({
+      id: i.id || null,
+      menu_id: Number(i.menu_id),
+      quantidade: Number(i.quantidade),
+      observacao: String(i.observacao || '').trim(),
+      status: i.status || 'pendente'
+    }))
+    .sort((a, b) => (a.id || 0) - (b.id || 0) || a.menu_id - b.menu_id);
+  return JSON.stringify(limpos);
+}
+
+function verificarHouveAlteracoesEdicao() {
+  if (!pedidoEmEdicao) return false;
+  const snapshotAtual = gerarSnapshotItens(itensEmEdicao);
+  return snapshotAtual !== itensEdicaoSnapshotOriginal;
+}
+
+function atualizarEstadoBotaoSalvarEdicao() {
+  const btnSalvar = document.getElementById('btn-salvar-alteracoes-edicao') || document.querySelector("button[onclick='salvarAlteracoes()']");
+  if (!btnSalvar) return;
+  
+  const houveMudanca = verificarHouveAlteracoesEdicao();
+  temEdicoesLocaisNaoSalvas = houveMudanca;
+
+  if (isSalvandoAlteracoesAdmin) {
+    btnSalvar.disabled = true;
+    btnSalvar.innerText = "⏳ SALVANDO...";
+    btnSalvar.style.opacity = "0.6";
+    btnSalvar.style.cursor = "wait";
+    return;
+  }
+
+  btnSalvar.innerText = "💾 SALVAR ALTERAÇÕES";
+
+  if (houveMudanca) {
+    btnSalvar.disabled = false;
+    btnSalvar.style.opacity = "1";
+    btnSalvar.style.cursor = "pointer";
+    btnSalvar.style.background = "#27ae60";
+    btnSalvar.style.boxShadow = "0 4px 10px rgba(39, 174, 96, 0.4)";
+    btnSalvar.title = "Clique para salvar as alterações do pedido";
+  } else {
+    btnSalvar.disabled = true;
+    btnSalvar.style.opacity = "0.45";
+    btnSalvar.style.cursor = "not-allowed";
+    btnSalvar.style.background = "#94a3b8";
+    btnSalvar.style.boxShadow = "none";
+    btnSalvar.title = "Nenhuma alteração foi realizada no pedido";
+  }
+}
+
 function abrirModalEdicao(pedido, itens) {
   pedidoEmEdicao = pedido;
   itensEmEdicao = itens.map(i => ({ ...i, selecionado: false }));
+  itensEdicaoSnapshotOriginal = gerarSnapshotItens(itensEmEdicao);
   categoriaEdicaoAtual = 'todas';
   termoBuscaEdicao = '';
   temEdicoesLocaisNaoSalvas = false;
@@ -5757,6 +5818,7 @@ function abrirModalEdicao(pedido, itens) {
   
   // TRAVA DE SCROLL: Congela o fundo
   document.body.classList.add('modal-open');
+  atualizarEstadoBotaoSalvarEdicao();
   iniciarAutoRefreshModalAdmin();
 }
 
@@ -5764,6 +5826,7 @@ function fecharModal() {
   document.getElementById('modal-edicao').style.display = 'none';
   pedidoEmEdicao = null;
   itensEmEdicao = [];
+  itensEdicaoSnapshotOriginal = '';
   termoBuscaEdicao = '';
   temEdicoesLocaisNaoSalvas = false;
   const inputBusca = document.getElementById('input-busca-menu-edicao');
@@ -5774,6 +5837,7 @@ function fecharModal() {
       document.body.classList.remove('modal-open');
   }
   pararAutoRefreshModalAdmin();
+  atualizarEstadoBotaoSalvarEdicao();
 }
 
 function renderizarItensEdicao() {
@@ -5823,7 +5887,7 @@ function renderizarItensEdicao() {
                placeholder="📝 Obs..." 
                maxlength="150"
                value="${item.observacao || ''}" 
-               oninput="itensEmEdicao[${index}].observacao = this.value; temEdicoesLocaisNaoSalvas = true;"
+               oninput="itensEmEdicao[${index}].observacao = this.value; atualizarEstadoBotaoSalvarEdicao();"
                style="width: 100%; padding: 4px 8px; border-radius: 6px; border: 1px solid #edf2f7; font-size: 0.75rem; background: #f8fafc;">
       </div>
 
@@ -5854,6 +5918,7 @@ function renderizarItensEdicao() {
   
   const subtotal = itensEmEdicao.reduce((s, i) => s + (i.preco * i.quantidade), 0);
   document.getElementById('modal-total').textContent = `Total: R$ ${subtotal.toFixed(2)}`;
+  atualizarEstadoBotaoSalvarEdicao();
 }
 
 function alternarSelecaoItemEdicao(index) {
@@ -5967,7 +6032,7 @@ async function renderizarMenuEdicao(categoria = 'todas') {
         <h4 style="margin: 0 !important; font-size: 0.85rem !important; color: #2c3e50 !important; line-height: 1.1 !important; font-weight: 700 !important; white-space: normal !important; text-align: left !important;">${item.nome}</h4>
       </div>
     </div>
-  `}).join('');
+    `}).join('');
 }
 
 async function adicionarItemNaEdicao(itemId) {
@@ -6033,13 +6098,14 @@ let timerIgnoreEdit = null;
 let isSalvandoAlteracoesAdmin = false;
 async function salvarAlteracoes() {
   if (!pedidoEmEdicao || isSalvandoAlteracoesAdmin) return;
-  isSalvandoAlteracoesAdmin = true;
-  const btnSalvar = document.querySelector("button[onclick='salvarAlteracoes()']");
-  if (btnSalvar) {
-    btnSalvar.disabled = true;
-    btnSalvar.innerText = "⏳ SALVANDO...";
-    btnSalvar.style.opacity = "0.6";
+  
+  if (!verificarHouveAlteracoesEdicao()) {
+    mostrarToast("ℹ️ Nenhuma alteração foi realizada no pedido.");
+    return;
   }
+
+  isSalvandoAlteracoesAdmin = true;
+  atualizarEstadoBotaoSalvarEdicao();
 
   const idEditado = pedidoEmEdicao.id;
   ultimoPedidoEditadoPeloAdmin = idEditado;
@@ -6054,6 +6120,7 @@ async function salvarAlteracoes() {
       body: JSON.stringify({ itens: itensValidos })
     });
     if (res.ok) {
+      itensEdicaoSnapshotOriginal = gerarSnapshotItens(itensValidos);
       temEdicoesLocaisNaoSalvas = false;
       const data = await res.json();
       const idPed = pedidoEmEdicao.id;
@@ -6093,11 +6160,7 @@ async function salvarAlteracoes() {
     mostrarAlerta("Erro de rede");
   } finally {
     isSalvandoAlteracoesAdmin = false;
-    if (btnSalvar) {
-      btnSalvar.disabled = false;
-      btnSalvar.innerText = "💾 SALVAR ALTERAÇÕES";
-      btnSalvar.style.opacity = "1";
-    }
+    atualizarEstadoBotaoSalvarEdicao();
   }
 }
 
