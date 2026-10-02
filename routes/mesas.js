@@ -98,59 +98,10 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
   });
 
   router.get('/', ensureDbInitialized, isAuthenticated, async (req, res) => { 
-    if (typeof checkAndNotifyDelayedOrders === 'function') checkAndNotifyDelayedOrders();
+    if (typeof checkAndNotifyDelayedOrders === 'function') {
+      checkAndNotifyDelayedOrders().catch(err => console.warn('⚠️ Erro background em checkAndNotifyDelayedOrders:', err.message));
+    }
     try {
-      // Limpa rascunhos antigos de mesas que já estão LIVRES
-      await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT p.id FROM pedidos p JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.status = 'rascunho' AND m.status = 'livre')");
-      await query("DELETE FROM pedidos WHERE status = 'rascunho' AND (CAST(mesa_id AS TEXT) IN (SELECT CAST(id AS TEXT) FROM mesas WHERE status = 'livre') OR CAST(mesa_id AS TEXT) IN (SELECT CAST(numero AS TEXT) FROM mesas WHERE status = 'livre'))");
-
-      // Auto-limpeza de comandas (is_comanda = 1) que já tiveram pedidos, mas cujos pedidos foram todos finalizados/cancelados
-      try {
-        await query(`
-          DELETE FROM mesas 
-          WHERE COALESCE(is_comanda, 0) = 1 
-          AND id IN (
-            SELECT DISTINCT m.id 
-            FROM mesas m 
-            JOIN pedidos p ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT)
-          )
-          AND id NOT IN (
-            SELECT DISTINCT m.id 
-            FROM mesas m 
-            JOIN pedidos p ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT)
-            WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho')
-          )
-          AND id NOT IN (
-            SELECT DISTINCT m.id 
-            FROM mesas m 
-            JOIN codigos_acesso ca ON CAST(ca.mesa_id AS TEXT) = CAST(m.id AS TEXT)
-            WHERE ca.status = 'ativo'
-          )
-        `);
-
-        // Auto-liberação de mesas fixas que ficaram com status 'ocupada' mas não possuem pedidos ativos nem código ativo
-        await query(`
-          UPDATE mesas 
-          SET status = 'livre' 
-          WHERE COALESCE(is_comanda, 0) = 0 
-          AND status != 'livre'
-          AND id NOT IN (
-            SELECT DISTINCT m.id 
-            FROM mesas m 
-            JOIN pedidos p ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
-            WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho')
-          )
-          AND id NOT IN (
-            SELECT DISTINCT m.id 
-            FROM mesas m 
-            JOIN codigos_acesso ca ON (CAST(ca.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(ca.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
-            WHERE ca.status = 'ativo'
-          )
-        `);
-      } catch (cleanupErr) {
-        console.warn('⚠️ [GET /api/mesas] Erro na auto-limpeza de mesas órfãs:', cleanupErr.message);
-      }
-
       const mesasResult = await query(`
         SELECT m.*,
           p.id as pedido_id,
