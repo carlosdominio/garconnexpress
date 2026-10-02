@@ -237,6 +237,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Responde imediatamente a qualquer requisição interna da plataforma Vercel (Speed Insights, Analytics) sem travar
+app.all('/_vercel/*', (req, res) => res.status(204).end());
+
 // Garante que o banco de dados está inicializado para qualquer chamada de API
 app.use('/api/', ensureDbInitialized);
 

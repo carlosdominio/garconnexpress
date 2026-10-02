@@ -67,7 +67,6 @@
   ],
   "routes": [
     { "src": "/api/(.*)", "dest": "/server.js" },
-    { "src": "/_vercel(.*)", "dest": "/server.js" },
     { "src": "/(garcom-v1.1.0-portrait.apk|cozinha-v1.1.0-portrait.apk|motoboy-v2.0.0-portrait.apk|churrasqueiro-final.apk)", "dest": "/$1" },
     { "handle": "filesystem" },
     { "src": "^/$", "status": 302, "headers": { "Location": "/garcom" } },

@@ -53,22 +53,30 @@ window.onerror = function(msg, url, line) {
     const options = args[1] || {};
     const method = (options.method || 'GET').toUpperCase();
     
-    // Determina se devemos exibir o loading para esta requisição
+    const isApiRequest = urlStr.startsWith('/api/') || urlStr.includes('/api/');
+    const isIgnoredUrl = 
+      urlStr.includes('/_vercel/') ||
+      urlStr.includes('speed-insights') ||
+      urlStr.includes('vitals') ||
+      urlStr.includes('/api/notify-admin') ||
+      urlStr.includes('/api/pusher') ||
+      urlStr.includes('/api/whatsapp-status') ||
+      urlStr.includes('/api/send-message') ||
+      urlStr.includes('/api/chats/') ||
+      urlStr.includes('/toggle-human') ||
+      urlStr.includes('/api/config/upload-apk-vercel') ||
+      urlStr.includes('vercel-storage.com') ||
+      urlStr.includes('vercel.com/api/blob');
+
+    // Determina se devemos exibir o loading para esta requisição (APENAS ações reais do usuário na API)
     const shouldShowLoading = 
       options.showLoading !== false && // Permite desativar passando showLoading: false
+      !isIgnoredUrl &&
       (
         options.showLoading === true || // Ativa passando showLoading: true
         (
-          ['POST', 'PUT', 'DELETE'].includes(method) &&
-          !urlStr.includes('/api/notify-admin') &&
-          !urlStr.includes('/api/pusher') &&
-          !urlStr.includes('/api/whatsapp-status') &&
-          !urlStr.includes('/api/send-message') &&
-          !urlStr.includes('/api/chats/') &&
-          !urlStr.includes('/toggle-human') &&
-          !urlStr.includes('/api/config/upload-apk-vercel') &&
-          !urlStr.includes('vercel-storage.com') &&
-          !urlStr.includes('vercel.com/api/blob')
+          isApiRequest &&
+          ['POST', 'PUT', 'DELETE'].includes(method)
         )
       );
 
@@ -177,7 +185,9 @@ window.onerror = function(msg, url, line) {
       if (!isBotUrl) {
         if (error.name === 'AbortError') {
           console.warn("⚠️ Requisição cancelada por timeout:", args[0]);
-          mostrarAlerta("O servidor demorou para responder. Verifique sua conexão e tente novamente.", "Tempo Esgotado", "⚠️");
+          if (shouldShowLoading) {
+            mostrarAlerta("O servidor demorou para responder. Verifique sua conexão e tente novamente.", "Tempo Esgotado", "⚠️");
+          }
         } else {
           console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
         }
