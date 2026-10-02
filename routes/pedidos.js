@@ -130,23 +130,58 @@ module.exports = (ctx) => {
 
   // GET /api/pedidos
   router.get('/', ensureDbInitialized, isAuthenticated, async (req, res) => {
-    if (checkAndNotifyDelayedOrders) checkAndNotifyDelayedOrders();
+    if (typeof checkAndNotifyDelayedOrders === 'function') {
+      checkAndNotifyDelayedOrders().catch(err => console.warn('⚠️ Erro ao verificar atrasos (background):', err.message));
+    }
     try {
       let result;
       try {
-        result = await query(`SELECT p.*, COALESCE(p.mesa_numero, m.numero) as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`);
+        result = await query(`
+          SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, COALESCE(p.mesa_numero, m.numero) as mesa_numero, g.nome as garcom_nome 
+          FROM pedidos p 
+          LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
+          LEFT JOIN garcons g ON p.garcom_id = g.usuario 
+          WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho') 
+          ORDER BY p.created_at DESC
+        `);
       } catch(e) {
-        result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`);
+        try {
+          if (isPostgres) {
+            await query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS mesa_numero TEXT; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0;");
+          }
+        } catch(migErr) {}
+        try {
+          result = await query(`
+            SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, g.nome as garcom_nome 
+            FROM pedidos p 
+            LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
+            LEFT JOIN garcons g ON p.garcom_id = g.usuario 
+            WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho') 
+            ORDER BY p.created_at DESC
+          `);
+        } catch(finalErr) {
+          result = await query(`
+            SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome 
+            FROM pedidos p 
+            LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
+            LEFT JOIN garcons g ON p.garcom_id = g.usuario 
+            WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho') 
+            ORDER BY p.created_at DESC
+          `);
+        }
       }
-      res.json(result.rows);
+      res.json(result.rows || []);
     } catch (error) {
+      console.error('❌ Erro em router.get /api/pedidos:', error.message);
       res.status(500).json({ error: error.message });
     }
   });
 
   // GET /api/pedidos/cozinha
   router.get('/cozinha', ensureDbInitialized, isAuthenticated, async (req, res) => {
-    if (checkAndNotifyDelayedOrders) checkAndNotifyDelayedOrders();
+    if (typeof checkAndNotifyDelayedOrders === 'function') {
+      checkAndNotifyDelayedOrders().catch(err => console.warn('⚠️ Erro ao verificar atrasos (background):', err.message));
+    }
     res.setHeader('X-Debug-Version', '1.0.3');
     try {
       const filterCozinha = await getFilterCozinha();

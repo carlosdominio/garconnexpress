@@ -134,7 +134,11 @@ window.onerror = function(msg, url, line) {
         if (response.status === 400 || response.status === 403) {
           console.warn(`ℹ️ [Aviso de Regra/Validação] Servidor retornou status ${response.status} na URL: ${args[0]}. (Ex: Controle de Estoque ou Caixa Fechado)`);
         } else {
-          console.error(`❌ FETCH ERRO [${response.status}] na URL:`, args[0]);
+          response.clone().text().then(body => {
+            console.error(`❌ FETCH ERRO [${response.status}] na URL:`, args[0], body ? `| Detalhe: ${body}` : '');
+          }).catch(() => {
+            console.error(`❌ FETCH ERRO [${response.status}] na URL:`, args[0]);
+          });
         }
       }
 

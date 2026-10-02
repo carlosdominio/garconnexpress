@@ -2893,11 +2893,20 @@ async function lazyInitDb() {
         console.log('⚡ Tabelas já existentes. DDL ignorado para acelerar cold start.');
         if (isPostgres) {
           try {
-            await db.query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS mesa_numero TEXT; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0;");
-          } catch(e) {}
-          
-          try {
-            await db.query("ALTER TABLE menu ADD COLUMN IF NOT EXISTS enviar_churrasco BOOLEAN DEFAULT NULL;");
+            await db.query(`
+              ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS mesa_numero TEXT;
+              ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0;
+              ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS notificado_atraso INTEGER DEFAULT 0;
+              ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS notificado_atraso_fechamento INTEGER DEFAULT 0;
+              ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS solicitou_fechamento BOOLEAN DEFAULT FALSE;
+              ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS fechamento_solicitado_em TIMESTAMP;
+              ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS fechamento_liberado BOOLEAN DEFAULT FALSE;
+              ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS taxa_entrega REAL DEFAULT 0;
+              ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS distancia_km REAL DEFAULT 0;
+              ALTER TABLE codigos_acesso ADD COLUMN IF NOT EXISTS notificado_atraso_registro INTEGER DEFAULT 0;
+              ALTER TABLE mesas ADD COLUMN IF NOT EXISTS tipo TEXT DEFAULT 'mesa';
+              ALTER TABLE menu ADD COLUMN IF NOT EXISTS enviar_churrasco BOOLEAN DEFAULT NULL;
+            `);
           } catch(e) {}
           
           try {
@@ -3809,22 +3818,57 @@ app.get('/api/pedidos/ativos-detalhado', ensureDbInitialized, isAuthenticated, a
 });
 
 app.get('/api/pedidos', ensureDbInitialized, isAuthenticated, async (req, res) => {
-  checkAndNotifyDelayedOrders();
+  if (typeof checkAndNotifyDelayedOrders === 'function') {
+    checkAndNotifyDelayedOrders().catch(err => console.warn('⚠️ Erro ao verificar atrasos (background):', err.message));
+  }
   try {
     let result;
     try {
-      result = await query(`SELECT p.*, COALESCE(p.mesa_numero, m.numero) as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`);
+      result = await query(`
+        SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, COALESCE(p.mesa_numero, m.numero) as mesa_numero, g.nome as garcom_nome 
+        FROM pedidos p 
+        LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
+        LEFT JOIN garcons g ON p.garcom_id = g.usuario 
+        WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho') 
+        ORDER BY p.created_at DESC
+      `);
     } catch(e) {
-      result = await query(`SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.status NOT IN ('entregue', 'cancelado') ORDER BY p.created_at DESC`);
+      try {
+        if (isPostgres) {
+          await query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS mesa_numero TEXT; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0;");
+        }
+      } catch(migErr) {}
+      try {
+        result = await query(`
+          SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, g.nome as garcom_nome 
+          FROM pedidos p 
+          LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
+          LEFT JOIN garcons g ON p.garcom_id = g.usuario 
+          WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho') 
+          ORDER BY p.created_at DESC
+        `);
+      } catch(finalErr) {
+        result = await query(`
+          SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome 
+          FROM pedidos p 
+          LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
+          LEFT JOIN garcons g ON p.garcom_id = g.usuario 
+          WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho') 
+          ORDER BY p.created_at DESC
+        `);
+      }
     }
-    res.json(result.rows);
+    res.json(result.rows || []);
   } catch (error) {
+    console.error('❌ Erro em GET /api/pedidos:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
 
 app.get('/api/pedidos/cozinha', ensureDbInitialized, isAuthenticated, async (req, res) => {
-  checkAndNotifyDelayedOrders();
+  if (typeof checkAndNotifyDelayedOrders === 'function') {
+    checkAndNotifyDelayedOrders().catch(err => console.warn('⚠️ Erro ao verificar atrasos (background):', err.message));
+  }
   res.setHeader('X-Debug-Version', '1.0.3');
   try {
     const filterCozinha = await getFilterCozinha();
