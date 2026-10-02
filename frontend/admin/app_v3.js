@@ -170,8 +170,12 @@ window.fetch = async (...args) => {
     urlStr.includes('vercel-storage.com') ||
     urlStr.includes('vercel.com/api/blob');
 
-  // Dispara a barra moderna no topo em requisições de API relevantes
-  const isTopBarTracked = isApiRequest && !isIgnoredUrl;
+  // Dispara a barra moderna no topo APENAS quando há uma ação real executada pelo admin:
+  // 1) Ações de mutação/envio/alteração/exclusão (POST, PUT, DELETE, PATCH)
+  // 2) Ou requisições explicitamente solicitadas pelo usuário (showTopBar: true / showLoading: true)
+  // Requisições passivas de leitura em segundo plano (Pusher events, timers, polling) não ativam a barra
+  const isUserAction = method !== 'GET' || options.showTopBar === true || options.showLoading === true || options.userAction === true;
+  const isTopBarTracked = isApiRequest && !isIgnoredUrl && isUserAction;
   if (isTopBarTracked) {
     TopBar.reqStart();
   }
@@ -193,6 +197,8 @@ window.fetch = async (...args) => {
   delete cleanOptions.showLoading;
   delete cleanOptions.showLoadingTitle;
   delete cleanOptions.showLoadingMsg;
+  delete cleanOptions.showTopBar;
+  delete cleanOptions.userAction;
 
   args[1] = cleanOptions;
 
