@@ -68,62 +68,15 @@ window.onerror = function(msg, url, line) {
       urlStr.includes('vercel-storage.com') ||
       urlStr.includes('vercel.com/api/blob');
 
-    // Determina se devemos exibir o loading para esta requisição (APENAS ações reais do usuário na API)
+    // Determina se devemos exibir o loading para esta requisição (APENAS quando explicitamente solicitado por ações do usuário)
     const shouldShowLoading = 
-      options.showLoading !== false && // Permite desativar passando showLoading: false
+      options.showLoading !== false &&
       !isIgnoredUrl &&
-      (
-        options.showLoading === true || // Ativa passando showLoading: true
-        (
-          isApiRequest &&
-          ['POST', 'PUT', 'DELETE'].includes(method)
-        )
-      );
+      (options.showLoading === true || !!options.showLoadingTitle);
 
     if (shouldShowLoading) {
-      let title = options.showLoadingTitle;
-      let msg = options.showLoadingMsg;
-      
-      if (!title || !msg) {
-        let fallbackTitle = "Aguarde...";
-        let fallbackMsg = "Comunicando com o servidor...";
-        
-        const bodyStr = options.body ? String(options.body) : '';
-        if (bodyStr.includes('"status":"cancelado"') || bodyStr.includes("'status':'cancelado'")) {
-          fallbackTitle = "Cancelando Pedido...";
-          fallbackMsg = "Cancelando o pedido e liberando a mesa, aguarde por favor...";
-        } else if (urlStr.includes('/marcar-entregue')) {
-          fallbackTitle = "Confirmando Entrega...";
-          fallbackMsg = "Registrando a entrega dos itens e atualizando o consumo, aguarde por favor...";
-        } else if (urlStr.includes('/transferir')) {
-          fallbackTitle = "Transferindo Pedido...";
-          fallbackMsg = "Transferindo os itens para a nova mesa, aguarde por favor...";
-        } else if (bodyStr.includes('"status":') || bodyStr.includes("'status':")) {
-          fallbackTitle = "Atualizando Pedido...";
-          fallbackMsg = "Atualizando o status do pedido no servidor, aguarde por favor...";
-        } else if (['POST', 'PUT'].includes(method) && (urlStr.includes('/api/pedidos') || urlStr.includes('/adicionar'))) {
-          fallbackTitle = "Enviando Pedido...";
-          fallbackMsg = "Enviando os itens do pedido para a cozinha/bar, aguarde por favor...";
-        } else if (['POST', 'PUT'].includes(method) && urlStr.includes('/api/menu')) {
-          fallbackTitle = "Salvando Item...";
-          fallbackMsg = "Salvando as alterações do cardápio no servidor, aguarde por favor...";
-        } else if (method === 'DELETE' && /\/api\/pedidos\/\d+/.test(urlStr)) {
-          fallbackTitle = "Excluindo Pedido...";
-          fallbackMsg = "Removendo o pedido permanentemente do banco de dados...";
-        } else if (['POST', 'PUT'].includes(method) && (
-          urlStr.includes('/api/config') || 
-          urlStr.includes('/api/whatsapp') || 
-          urlStr.includes('/api/fcm-config') ||
-          urlStr.includes('/api/bot-responses')
-        )) {
-          fallbackTitle = "Salvando Configurações...";
-          fallbackMsg = "Salvando as alterações no servidor, aguarde por favor...";
-        }
-        
-        if (!title) title = fallbackTitle;
-        if (!msg) msg = fallbackMsg;
-      }
-      
+      let title = options.showLoadingTitle || "Aguarde...";
+      let msg = options.showLoadingMsg || "Processando requisição...";
       mostrarLoading(title, msg);
     }
 
@@ -133,22 +86,10 @@ window.onerror = function(msg, url, line) {
     delete cleanOptions.showLoadingTitle;
     delete cleanOptions.showLoadingMsg;
 
-    // Timeout defensivo de 15 segundos para evitar requisições presas indefinidamente
-    let timeoutId = null;
-    if (!cleanOptions.signal && typeof AbortController !== 'undefined') {
-      const controller = new AbortController();
-      cleanOptions.signal = controller.signal;
-      timeoutId = setTimeout(() => {
-        controller.abort();
-        console.warn(`⏱️ [Timeout] Requisição abortada após 15 segundos: ${urlStr}`);
-      }, 15000);
-    }
-
     args[1] = cleanOptions;
 
     try {
       const response = await originalFetch(...args);
-      if (timeoutId) clearTimeout(timeoutId);
       
       // DEBUG: Loga erros 400+ de forma amigável para ajudar no diagnóstico
       if (!response.ok) {
@@ -180,21 +121,12 @@ window.onerror = function(msg, url, line) {
       }
       return response;
     } catch (error) {
-      if (timeoutId) clearTimeout(timeoutId);
       const isBotUrl = args[0] && typeof args[0] === 'string' && (args[0].includes(':3002') || (window.whatsappBotUrl && args[0].includes(window.whatsappBotUrl)));
       if (!isBotUrl) {
-        if (error.name === 'AbortError') {
-          console.warn("⚠️ Requisição cancelada por timeout:", args[0]);
-          if (shouldShowLoading) {
-            mostrarAlerta("O servidor demorou para responder. Verifique sua conexão e tente novamente.", "Tempo Esgotado", "⚠️");
-          }
-        } else {
-          console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
-        }
+        console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
       }
       throw error;
     } finally {
-      if (timeoutId) clearTimeout(timeoutId);
       if (shouldShowLoading) {
         ocultarLoading();
       }
