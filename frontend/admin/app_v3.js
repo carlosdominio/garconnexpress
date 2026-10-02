@@ -2845,6 +2845,102 @@ async function excluirGarcom(id) {
 
 // MENU
 let idItemEdicaoMenu = null;
+let itemMenuSnapshotOriginal = '';
+
+function coletarEstadoFormularioItemMenu() {
+  const nome = (document.getElementById('menu-nome')?.value || '').trim();
+  const descricao = (document.getElementById('menu-descricao')?.value || '').trim();
+  const selectCat = document.getElementById('menu-cat-select')?.value || '';
+  const inputNovo = (document.getElementById('menu-cat-novo')?.value || '').trim();
+  const categoria = (selectCat === 'NOVA_CATEGORIA' ? inputNovo : selectCat).trim().toUpperCase();
+  const preco = (document.getElementById('menu-preco')?.value || '').trim();
+  const preco_original = (document.getElementById('menu-preco-original')?.value || '').trim();
+  const preco_custo = (document.getElementById('menu-preco-custo')?.value || '').trim();
+  const unidade = document.getElementById('menu-unidade')?.value || 'un';
+  const estoque = (document.getElementById('menu-estoque')?.value || '').trim();
+  const validade = (document.getElementById('menu-validade')?.value || '').trim();
+  const imagem = (document.getElementById('menu-img')?.value || '').trim();
+  const enviar_cozinha = !!document.getElementById('menu-enviar-cozinha')?.checked;
+  const enviar_churrasco = !!document.getElementById('menu-enviar-churrasco')?.checked;
+  const visivel = !!document.getElementById('menu-visivel')?.checked;
+  const em_promocao = !!document.getElementById('menu-promocao')?.checked;
+  
+  // Ficha técnica
+  const fichaAtivo = !!document.getElementById('ficha-tecnica-ativo')?.checked;
+  const fichaLinhas = [];
+  if (fichaAtivo) {
+    document.querySelectorAll('.ficha-linha').forEach(linha => {
+      const ingId = linha.querySelector('.ficha-ingrediente-select')?.value || '';
+      const qtd = linha.querySelector('.ficha-quantidade')?.value || '';
+      const und = linha.querySelector('.ficha-unidade')?.value || 'un';
+      fichaLinhas.push({ ingId, qtd, und });
+    });
+  }
+
+  return JSON.stringify({
+    nome,
+    descricao,
+    categoria,
+    preco,
+    preco_original,
+    preco_custo,
+    unidade,
+    estoque,
+    validade,
+    imagem,
+    enviar_cozinha,
+    enviar_churrasco,
+    visivel,
+    em_promocao,
+    fichaAtivo,
+    fichaLinhas
+  });
+}
+
+function verificarHouveAlteracoesItemMenu() {
+  if (!idItemEdicaoMenu) {
+    return true; // No modo novo item, permite submeter normalmente
+  }
+  const snapshotAtual = coletarEstadoFormularioItemMenu();
+  return snapshotAtual !== itemMenuSnapshotOriginal;
+}
+
+function atualizarEstadoBotaoSalvarItemMenu() {
+  const btn = document.getElementById('btn-acao-menu');
+  if (!btn) return;
+
+  if (!idItemEdicaoMenu) {
+    // Modo Novo Item
+    btn.disabled = false;
+    btn.innerText = "🚀 CADASTRAR NO CARDÁPIO";
+    btn.style.background = "#27ae60";
+    btn.style.opacity = "1";
+    btn.style.cursor = "pointer";
+    btn.style.boxShadow = "none";
+    btn.title = "Cadastrar novo produto no cardápio";
+    return;
+  }
+
+  // Modo Editar Item
+  const houveMudanca = verificarHouveAlteracoesItemMenu();
+  btn.innerText = "💾 SALVAR ALTERAÇÕES";
+
+  if (houveMudanca) {
+    btn.disabled = false;
+    btn.style.background = "#27ae60";
+    btn.style.opacity = "1";
+    btn.style.cursor = "pointer";
+    btn.style.boxShadow = "0 4px 10px rgba(39, 174, 96, 0.4)";
+    btn.title = "Clique para salvar as alterações do produto";
+  } else {
+    btn.disabled = true;
+    btn.style.background = "#94a3b8";
+    btn.style.opacity = "0.45";
+    btn.style.cursor = "not-allowed";
+    btn.style.boxShadow = "none";
+    btn.title = "Nenhuma alteração foi realizada no item";
+  }
+}
 
 function alternarNovaCategoria(valor) {
   const inputNovo = document.getElementById('menu-cat-novo');
@@ -2874,6 +2970,7 @@ function alternarNovaCategoria(valor) {
       }
     }
   }
+  atualizarEstadoBotaoSalvarItemMenu();
 }
 window.alternarNovaCategoria = alternarNovaCategoria;
 
@@ -2897,6 +2994,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     checkCozinha.checked = isChurr ? false : configCozinhaCategorias.includes(valor);
                 }
             }
+            atualizarEstadoBotaoSalvarItemMenu();
         });
     }
 });
@@ -2908,6 +3006,12 @@ async function abrirModalItemMenu(item = null) {
   const btn = document.getElementById('btn-acao-menu');
   const selectCat = document.getElementById('menu-cat-select');
   const inputNovo = document.getElementById('menu-cat-novo');
+
+  if (modal && !modal.dataset.changeListenerAdded) {
+    modal.addEventListener('input', atualizarEstadoBotaoSalvarItemMenu);
+    modal.addEventListener('change', atualizarEstadoBotaoSalvarItemMenu);
+    modal.dataset.changeListenerAdded = 'true';
+  }
 
   // Popula o Select de categorias com as categorias existentes no cardápio
   if (selectCat) {
@@ -2926,7 +3030,7 @@ async function abrirModalItemMenu(item = null) {
   if (item) {
     titulo.innerText = "✏️ Editar Item";
     btn.innerText = "💾 SALVAR ALTERAÇÕES";
-    btn.style.background = "#e67e22";
+    btn.style.background = "#27ae60";
     
     const btnExcluir = document.getElementById('btn-excluir-item-menu');
     if (btnExcluir) btnExcluir.classList.remove('hidden');
@@ -3029,6 +3133,9 @@ async function abrirModalItemMenu(item = null) {
       }
     } catch (e) { console.warn('Erro ao carregar ficha técnica:', e); }
   }
+
+  itemMenuSnapshotOriginal = coletarEstadoFormularioItemMenu();
+  atualizarEstadoBotaoSalvarItemMenu();
 }
 
 async function excluirDoMenuAtual() {
@@ -3053,13 +3160,20 @@ async function excluirDoMenuAtual() {
 function fecharModalItemMenu() {
   document.getElementById('modal-item-menu').style.display = 'none';
   idItemEdicaoMenu = null;
+  itemMenuSnapshotOriginal = '';
   // Apenas remove se não estiver nas abas que exigem dashboard fixo
   if (abaAtiva !== 'lancar' && abaAtiva !== 'ativos') {
     document.body.classList.remove('modal-open');
   }
+  atualizarEstadoBotaoSalvarItemMenu();
 }
 
 async function processarAcaoMenu() {
+  if (idItemEdicaoMenu && !verificarHouveAlteracoesItemMenu()) {
+    mostrarToast("ℹ️ Nenhuma alteração foi realizada no item.");
+    return;
+  }
+
   const nome = document.getElementById('menu-nome').value;
   const descricao = document.getElementById('menu-descricao') ? document.getElementById('menu-descricao').value : '';
   const selectCat = document.getElementById('menu-cat-select').value;
@@ -3106,55 +3220,68 @@ async function processarAcaoMenu() {
   const enviar_cozinha = (checkCozinhaVal === defaultCozinha) ? null : checkCozinhaVal;
   const enviar_churrasco = (checkChurrascoVal === defaultChurrasco) ? null : checkChurrascoVal;
 
-  const payload = { nome, descricao, categoria: categoria.toUpperCase(), preco, preco_original, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, em_promocao, preco_custo, unidade };
-  const method = idItemEdicaoMenu ? 'PUT' : 'POST';
-  const url = idItemEdicaoMenu ? `/api/menu/${idItemEdicaoMenu}` : '/api/menu';
+  const btnAcao = document.getElementById('btn-acao-menu');
+  if (btnAcao) {
+    btnAcao.disabled = true;
+    btnAcao.innerText = "⏳ SALVANDO...";
+    btnAcao.style.opacity = "0.6";
+  }
 
-  const res = await fetch(url, {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+  try {
+    const payload = { nome, descricao, categoria: categoria.toUpperCase(), preco, preco_original, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, em_promocao, preco_custo, unidade };
+    const method = idItemEdicaoMenu ? 'PUT' : 'POST';
+    const url = idItemEdicaoMenu ? `/api/menu/${idItemEdicaoMenu}` : '/api/menu';
 
-  if (res.ok) {
-    const savedData = await res.json();
-    const savedId = idItemEdicaoMenu || savedData.id;
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
 
-    // Salva ficha técnica se ativa
-    if (savedId) {
-      const cbFicha = document.getElementById('ficha-tecnica-ativo');
-      if (cbFicha && cbFicha.checked) {
-        const linhas = document.querySelectorAll('.ficha-linha');
-        const itens = [];
-        linhas.forEach(linha => {
-          const ingId = linha.querySelector('.ficha-ingrediente-select')?.value;
-          const qtd = parseFloat(linha.querySelector('.ficha-quantidade')?.value);
-          const und = linha.querySelector('.ficha-unidade')?.value || 'un';
-          if (ingId && !isNaN(qtd) && qtd > 0) itens.push({ ingrediente_id: ingId, quantidade: qtd, unidade: und });
-        });
-        await fetch(`/api/menu/${savedId}/ficha-tecnica`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ itens }),
-          showLoading: false
-        });
-      } else {
-        // Limpa ficha se desmarcou
-        await fetch(`/api/menu/${savedId}/ficha-tecnica`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ itens: [] }),
-          showLoading: false
-        });
+    if (res.ok) {
+      const savedData = await res.json();
+      const savedId = idItemEdicaoMenu || savedData.id;
+
+      // Salva ficha técnica se ativa
+      if (savedId) {
+        const cbFicha = document.getElementById('ficha-tecnica-ativo');
+        if (cbFicha && cbFicha.checked) {
+          const linhas = document.querySelectorAll('.ficha-linha');
+          const itens = [];
+          linhas.forEach(linha => {
+            const ingId = linha.querySelector('.ficha-ingrediente-select')?.value;
+            const qtd = parseFloat(linha.querySelector('.ficha-quantidade')?.value);
+            const und = linha.querySelector('.ficha-unidade')?.value || 'un';
+            if (ingId && !isNaN(qtd) && qtd > 0) itens.push({ ingrediente_id: ingId, quantidade: qtd, unidade: und });
+          });
+          await fetch(`/api/menu/${savedId}/ficha-tecnica`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itens }),
+            showLoading: false
+          });
+        } else {
+          // Limpa ficha se desmarcou
+          await fetch(`/api/menu/${savedId}/ficha-tecnica`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itens: [] }),
+            showLoading: false
+          });
+        }
       }
-    }
 
-    mostrarToast(idItemEdicaoMenu ? "Item atualizado com sucesso!" : "Item cadastrado com sucesso!");
-    fecharModalItemMenu();
-    carregarCardapio();
-  } else {
-    const err = await res.json();
-    mostrarAlerta("Erro ao salvar: " + (err.error || "Desconhecido"), "Erro", "❌");
+      mostrarToast(idItemEdicaoMenu ? "Item atualizado com sucesso!" : "Item cadastrado com sucesso!");
+      fecharModalItemMenu();
+      carregarCardapio();
+    } else {
+      const err = await res.json();
+      mostrarAlerta("Erro ao salvar: " + (err.error || "Desconhecido"), "Erro", "❌");
+    }
+  } catch (e) {
+    mostrarAlerta("Erro de rede ao salvar item.", "Erro", "❌");
+  } finally {
+    atualizarEstadoBotaoSalvarItemMenu();
   }
 }
 
@@ -3185,6 +3312,7 @@ function toggleFichaTecnica() {
   if (!ativo) {
     document.getElementById('ficha-tecnica-info') && (document.getElementById('ficha-tecnica-info').style.display = 'none');
   }
+  atualizarEstadoBotaoSalvarItemMenu();
 }
 
 function adicionarLinhaFicha(dados = null) {
@@ -3209,7 +3337,7 @@ function adicionarLinhaFicha(dados = null) {
       value="${dados ? dados.quantidade : ''}"
       onchange="atualizarInfoFicha()"
       style="flex:1; padding:6px; border-radius:6px; border:1px solid #c4b5fd; font-size:0.82rem; min-width:60px; max-width:80px;">
-    <select class="ficha-unidade" style="flex:1; padding:6px; border-radius:6px; border:1px solid #c4b5fd; font-size:0.82rem; min-width:55px; max-width:70px;">
+    <select class="ficha-unidade" onchange="atualizarInfoFicha()" style="flex:1; padding:6px; border-radius:6px; border:1px solid #c4b5fd; font-size:0.82rem; min-width:55px; max-width:70px;">
       <option value="un" ${dados && dados.unidade === 'un' ? 'selected' : ''}>un</option>
       <option value="ml" ${dados && dados.unidade === 'ml' ? 'selected' : ''}>ml</option>
       <option value="g" ${dados && dados.unidade === 'g' ? 'selected' : ''}>g</option>
@@ -3232,7 +3360,11 @@ function atualizarInfoFicha() {
   if (!infoDiv) return;
 
   const linhas = document.querySelectorAll('.ficha-linha');
-  if (linhas.length === 0) { infoDiv.style.display = 'none'; return; }
+  if (linhas.length === 0) { 
+    infoDiv.style.display = 'none'; 
+    atualizarEstadoBotaoSalvarItemMenu();
+    return; 
+  }
 
   let textos = [];
   linhas.forEach(linha => {
@@ -3261,6 +3393,7 @@ function atualizarInfoFicha() {
   } else {
     infoDiv.style.display = 'none';
   }
+  atualizarEstadoBotaoSalvarItemMenu();
 }
 
 // --- CONTROLE DE FILTRO CUSTOMIZADO COM SCROLL ---
