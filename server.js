@@ -776,7 +776,7 @@ if (isPostgres) {
         rejectUnauthorized: false, // Aceita certificados self-signed
         require: true 
       },
-      max: process.env.VERCEL ? 2 : 15, // Permite 2 conexões por lambda no Vercel (evita fila no pooler)
+      max: process.env.VERCEL ? 10 : 15, // Permite conexões suficientes no pooler para transações e consultas simultâneas
       idleTimeoutMillis: process.env.VERCEL ? 3000 : 30000, 
       connectionTimeoutMillis: 15000, // Timeout de 15s para garantir resposta do Supabase sob alta demanda
     });
@@ -5148,7 +5148,7 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
       if (status === 'cancelado' && prevStatus !== 'cancelado' && prevStatus !== 'rascunho') {
         const itensRes = await tx("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id]);
         for (const item of itensRes.rows) {
-          await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
+          await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade, tx);
         }
         await tx("UPDATE pedido_itens SET status = 'cancelado' WHERE pedido_id = ?", [id]);
       }

@@ -1540,7 +1540,7 @@ module.exports = (ctx) => {
         if (status === 'cancelado' && prevStatus !== 'cancelado' && prevStatus !== 'rascunho') {
           const itensRes = await tx("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id]);
           for (const item of itensRes.rows) {
-            await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
+            await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade, tx);
           }
           await tx("UPDATE pedido_itens SET status = 'cancelado' WHERE pedido_id = ?", [id]);
         }

@@ -124,10 +124,23 @@ window.onerror = function(msg, url, line) {
     delete cleanOptions.showLoading;
     delete cleanOptions.showLoadingTitle;
     delete cleanOptions.showLoadingMsg;
+
+    // Timeout defensivo de 15 segundos para evitar requisições presas indefinidamente
+    let timeoutId = null;
+    if (!cleanOptions.signal && typeof AbortController !== 'undefined') {
+      const controller = new AbortController();
+      cleanOptions.signal = controller.signal;
+      timeoutId = setTimeout(() => {
+        controller.abort();
+        console.warn(`⏱️ [Timeout] Requisição abortada após 15 segundos: ${urlStr}`);
+      }, 15000);
+    }
+
     args[1] = cleanOptions;
 
     try {
       const response = await originalFetch(...args);
+      if (timeoutId) clearTimeout(timeoutId);
       
       // DEBUG: Loga erros 400+ de forma amigável para ajudar no diagnóstico
       if (!response.ok) {
@@ -159,12 +172,19 @@ window.onerror = function(msg, url, line) {
       }
       return response;
     } catch (error) {
+      if (timeoutId) clearTimeout(timeoutId);
       const isBotUrl = args[0] && typeof args[0] === 'string' && (args[0].includes(':3002') || (window.whatsappBotUrl && args[0].includes(window.whatsappBotUrl)));
       if (!isBotUrl) {
-        console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
+        if (error.name === 'AbortError') {
+          console.warn("⚠️ Requisição cancelada por timeout:", args[0]);
+          mostrarAlerta("O servidor demorou para responder. Verifique sua conexão e tente novamente.", "Tempo Esgotado", "⚠️");
+        } else {
+          console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
+        }
       }
       throw error;
     } finally {
+      if (timeoutId) clearTimeout(timeoutId);
       if (shouldShowLoading) {
         ocultarLoading();
       }
@@ -7876,12 +7896,22 @@ function mostrarAlerta(msg, titulo = "Aviso", icone = "🔔") {
   });
 }
 function mostrarLoading(titulo = "Aguarde...", mensagem = "Processando requisição...") {
+  // Trava de segurança: garante que NENHUM modal de loading fique travado por mais de 10 segundos
+  if (window._loadingSafetyTimeout) clearTimeout(window._loadingSafetyTimeout);
+  window._loadingSafetyTimeout = setTimeout(() => {
+    if (typeof Swal !== 'undefined' && Swal.isVisible()) {
+      Swal.close();
+      console.warn("⚠️ [Safety Timeout] Modal de carregamento fechado automaticamente para evitar bloqueio da tela.");
+    }
+  }, 10000);
+
   if (typeof Swal !== 'undefined') {
     Swal.fire({
       title: titulo,
       html: `<div style="font-size: 0.95rem; margin-top: 5px;">${mensagem}</div>`,
-      allowOutsideClick: false,
+      allowOutsideClick: true, // Permite clicar fora para não travar a tela do usuário
       showConfirmButton: false,
+      showCloseButton: true, // Permite fechar pelo 'X' caso demore
       didOpen: () => {
         Swal.showLoading();
       }
@@ -7895,6 +7925,10 @@ function mostrarLoading(titulo = "Aguarde...", mensagem = "Processando requisiç
 }
 
 function ocultarLoading() {
+  if (window._loadingSafetyTimeout) {
+    clearTimeout(window._loadingSafetyTimeout);
+    window._loadingSafetyTimeout = null;
+  }
   if (window.bloqueiaOcultarLoading) {
     return; // Protege modais persistentes customizados (como o progresso do APK)
   }
