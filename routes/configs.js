@@ -59,6 +59,7 @@ module.exports = (ctx) => {
 
   // GET /api/time (Público)
   router.get('/time', (req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     res.json({ timestamp: new Date().toISOString() });
   });
 
