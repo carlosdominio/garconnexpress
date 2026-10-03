@@ -832,12 +832,12 @@
               <div style="margin-bottom: 1.5rem; background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
                 <div class="modal-form-group">
                   <label>Nome Completo</label>
-                  <input type="text" id="garcom-nome" placeholder="Nome do Garçom">
+                  <input type="text" id="garcom-nome" placeholder="Nome do Garçom" oninput="verificarFormGarcom()">
                 </div>
                 
                 <div class="modal-form-group">
                   <label>Usuário (Login)</label>
-                  <input type="text" id="garcom-usuario" placeholder="Usuário (ex: joao123)">
+                  <input type="text" id="garcom-usuario" placeholder="Usuário (ex: joao123)" oninput="verificarFormGarcom()">
                 </div>
 
                 <div class="modal-form-group">
@@ -862,7 +862,7 @@
                 </div>
 
                 <div style="display: flex; gap: 10px; margin-top: 10px;">
-                  <button id="btn-acao-garcom" onclick="processarAcaoGarcom()" style="flex: 2; padding: 12px; font-weight: bold;">Cadastrar</button>
+                  <button id="btn-acao-garcom" onclick="processarAcaoGarcom()" style="flex: 2; padding: 12px; font-weight: bold; background: #94a3b8; opacity: 0.45; cursor: not-allowed;" disabled>Cadastrar</button>
                   <button id="btn-cancelar-garcom" class="hidden" onclick="cancelarEdicaoGarcom()" style="flex: 1; background-color: #95a5a6; padding: 12px; font-weight: bold;">Cancelar</button>
                 </div>
               </div>

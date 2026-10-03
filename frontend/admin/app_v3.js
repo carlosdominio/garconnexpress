@@ -2887,6 +2887,26 @@ function prepararEdicaoGarcomByIndex(index) {
   prepararEdicaoGarcom(g);
 }
 
+function verificarFormGarcom() {
+  const nome = (document.getElementById('garcom-nome')?.value || '').trim();
+  const usuario = (document.getElementById('garcom-usuario')?.value || '').trim();
+  const btn = document.getElementById('btn-acao-garcom');
+  if (!btn) return;
+  const modoEdicao = !!idGarcomEdicao;
+  const habilitado = nome.length > 0 && usuario.length > 0;
+  if (habilitado) {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+    btn.style.background = modoEdicao ? '#e67e22' : '#27ae60';
+  } else {
+    btn.disabled = true;
+    btn.style.opacity = '0.45';
+    btn.style.cursor = 'not-allowed';
+    btn.style.background = '#94a3b8';
+  }
+}
+
 function prepararEdicaoGarcom(g) {
   idGarcomEdicao = g.id;
   document.getElementById('garcom-nome').value = g.nome;
@@ -2896,12 +2916,10 @@ function prepararEdicaoGarcom(g) {
   document.getElementById('garcom-senha').value = '';
   document.getElementById('garcom-senha').placeholder = 'Deixe em branco para manter';
   const btn = document.getElementById('btn-acao-garcom');
-  if (btn) {
-      btn.textContent = "💾 Salvar Alterações";
-      btn.style.background = "#e67e22";
-  }
+  if (btn) btn.textContent = '💾 Salvar Alterações';
   const btnCan = document.getElementById('btn-cancelar-garcom');
   if (btnCan) btnCan.classList.remove('hidden');
+  verificarFormGarcom();
 }
 
 function cancelarEdicaoGarcom() {
@@ -2911,12 +2929,10 @@ function cancelarEdicaoGarcom() {
     if (el) { el.value = ''; el.placeholder = ''; }
   });
   const btn = document.getElementById('btn-acao-garcom');
-  if (btn) {
-      btn.textContent = "Cadastrar";
-      btn.style.background = "#27ae60";
-  }
+  if (btn) btn.textContent = 'Cadastrar';
   const btnCan = document.getElementById('btn-cancelar-garcom');
   if (btnCan) btnCan.classList.add('hidden');
+  verificarFormGarcom();
 }
 
 async function processarAcaoGarcom() {
