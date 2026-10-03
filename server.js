@@ -7214,6 +7214,7 @@ app.get('/api/versao', (req, res) => {
 });
 
 app.get('/api/time', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
   res.json({ timestamp: new Date().toISOString() });
 });
 

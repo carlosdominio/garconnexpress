@@ -800,16 +800,27 @@ let serverClockOffset = 0;
 
 async function calcularClockOffset() {
   try {
-    const start = Date.now();
-    const res = await fetch('/api/time');
-    if (res.ok) {
+    let melhor = null;
+    for (let i = 0; i < 3; i++) {
+      const start = Date.now();
+      // no-store + parâmetro único: impede resposta antiga vinda de qualquer cache
+      const res = await fetch(`/api/time?t=${start}_${i}`, { cache: 'no-store' });
+      if (!res.ok) continue;
       const data = await res.json();
       const end = Date.now();
       const serverTime = new Date(data.timestamp).getTime();
+      if (Number.isNaN(serverTime)) continue;
       const rtt = (end - start) / 2;
-      const estimatedServerTime = serverTime + rtt;
-      serverClockOffset = estimatedServerTime - end;
+      const offset = (serverTime + rtt) - end;
+      // Mantém a amostra com menor latência (mais precisa)
+      if (!melhor || rtt < melhor.rtt) melhor = { rtt, offset };
+    }
+    if (melhor) {
+      serverClockOffset = melhor.offset;
       console.log(`⏱️ Sincronização de tempo: Offset calculado em ${serverClockOffset}ms.`);
+      if (Math.abs(serverClockOffset) > 5 * 60 * 1000) {
+        console.warn(`⚠️ O relógio deste dispositivo difere do servidor em ${Math.round(serverClockOffset / 60000)} min. Verifique a data/hora do computador.`);
+      }
     }
   } catch (e) {
     console.warn('⚠️ Não foi possível sincronizar o relógio com o servidor:', e);
@@ -8059,17 +8070,8 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       exibirNotificacaoNativa('⚠️ ESTOQUE BAIXO', data.mensagem, `estoque-${data.id}`);
     });
 
-    // EVENTO: MENU ATUALIZADO
-    channel.bind('menu-atualizado', (data) => {
-      console.log('📢 Admin: Menu atualizado recebido!', data);
-      carregarCardapio();
-      // Recarrega pedidos também para garantir sincronia de estoque na tela
-      clearTimeout(timeoutPusher);
-      timeoutPusher = setTimeout(() => {
-        carregarPedidos();
-        carregarHistorico();
-      }, 100);
-    });
+    // OBS: 'menu-atualizado' é tratado uma única vez acima (estoque/cardápio).
+    // Um segundo bind do mesmo evento era descartado pelo deduplicador e nunca executava.
 
     // EVENTO: STATUS DO GARÇOM ALTERADO (RODÍZIO)
     channel.bind('garcom-status-alterado', (data) => {
