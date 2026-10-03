@@ -9681,6 +9681,7 @@ window.addCustomMenu = function(type) {
     customMenusDelivery.push(newItem);
   }
   renderCustomMenus();
+  atualizarEstadoBtnTextosBot();
 };
 
 window.removeCustomMenu = async function(type, index) {
@@ -9691,6 +9692,7 @@ window.removeCustomMenu = async function(type, index) {
       customMenusDelivery.splice(index, 1);
     }
     renderCustomMenus();
+    atualizarEstadoBtnTextosBot();
   }
 };
 
