@@ -1446,6 +1446,9 @@ async function carregarStatusWhatsApp() {
     const inputConfigBot = document.getElementById('config-bot-numero');
     if (inputConfigBot && status.number !== 'Não configurado' && status.number !== 'Erro ao carregar') {
         inputConfigBot.value = status.number;
+        // Snapshot para botão de salvar número
+        snapshotNumeroBotOriginal = status.number;
+        if (typeof atualizarEstadoBtnNumeroBot === 'function') atualizarEstadoBtnNumeroBot();
     }
 
     // Atualiza o iframe dinamicamente para o bot configurado
@@ -2407,6 +2410,28 @@ async function carregarDadosConfig() {
   await Promise.all([exibirMesasConfig(), exibirGarconsConfig(), exibirMenuConfig(), exibirConfigCategoriasCozinha(), exibirConfigCategoriasChurrasco(), exibirConfigOrdemCategorias()]);
 }
 
+// HELPER GLOBAL PARA CONTROLE DE BOTOES (HABILITADO / DESABILITADO)
+function setBtnState(btnOrId, enabled, activeBg, activeText, disabledText) {
+  const btn = typeof btnOrId === 'string' ? document.getElementById(btnOrId) : btnOrId;
+  if (!btn) return;
+  if (enabled) {
+    btn.disabled = false;
+    btn.style.background = activeBg || '#27ae60';
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+    btn.style.boxShadow = '0 4px 10px rgba(0,0,0,0.15)';
+    if (activeText) btn.innerHTML = activeText;
+  } else {
+    btn.disabled = true;
+    btn.style.background = '#94a3b8';
+    btn.style.opacity = '0.45';
+    btn.style.cursor = 'not-allowed';
+    btn.style.boxShadow = 'none';
+    if (disabledText) btn.innerHTML = disabledText;
+  }
+}
+window.setBtnState = setBtnState;
+
 // ORDEM DAS CATEGORIAS
 let estadoOrdemCategorias = [];
 
@@ -2440,10 +2465,18 @@ async function exibirConfigOrdemCategorias() {
     });
 
     estadoOrdemCategorias = categoriasOrdenadas;
+    snapshotOrdemCategoriasOriginal = JSON.stringify(estadoOrdemCategorias);
     renderizarListaOrdemCategorias();
+    atualizarEstadoBtnOrdemCategorias();
   } catch (e) {
     console.error('Erro ao carregar ordem das categorias:', e);
   }
+}
+
+let snapshotOrdemCategoriasOriginal = '';
+function atualizarEstadoBtnOrdemCategorias() {
+  const mudou = JSON.stringify(estadoOrdemCategorias) !== snapshotOrdemCategoriasOriginal;
+  setBtnState('btn-salvar-ordem-categorias', mudou, '#3498db', 'SALVAR ORDEM', 'SALVAR ORDEM');
 }
 
 function renderizarListaOrdemCategorias() {
@@ -2478,9 +2511,22 @@ function moverCategoria(index, direcao) {
   estadoOrdemCategorias[novoIndex] = temp;
 
   renderizarListaOrdemCategorias();
+  atualizarEstadoBtnOrdemCategorias();
 }
 
 async function salvarOrdemCategorias() {
+  const mudou = JSON.stringify(estadoOrdemCategorias) !== snapshotOrdemCategoriasOriginal;
+  if (!mudou) {
+    mostrarToast("ℹ️ Nenhuma alteração na ordem das categorias.");
+    return;
+  }
+
+  const btn = document.getElementById('btn-salvar-ordem-categorias');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "⏳ SALVANDO...";
+  }
+
   try {
     const res = await fetch('/api/config/ordem-categorias', {
       method: 'POST',
@@ -2489,6 +2535,7 @@ async function salvarOrdemCategorias() {
     });
 
     if (res.ok) {
+      snapshotOrdemCategoriasOriginal = JSON.stringify(estadoOrdemCategorias);
       await mostrarAlerta("✅ Ordem das categorias salva com sucesso!", "Sucesso", "✅");
       // Recarrega o menu globalmente
       if (typeof carregarMenu === 'function') await carregarMenu();
@@ -2498,13 +2545,28 @@ async function salvarOrdemCategorias() {
   } catch (e) {
     console.error('Erro ao salvar ordem:', e);
     await mostrarAlerta("❌ Erro de conexão ao salvar.", "Erro", "❌");
+  } finally {
+    atualizarEstadoBtnOrdemCategorias();
   }
 }
 
 // CONFIGURAÇÃO DE CATEGORIAS DA COZINHA
+let snapshotConfigCozinhaOriginal = '';
+function atualizarEstadoBtnConfigCozinha() {
+  const checks = document.querySelectorAll('.check-cat-cozinha:checked');
+  const atual = JSON.stringify(Array.from(checks).map(c => c.value.trim().toUpperCase()).sort());
+  const mudou = atual !== snapshotConfigCozinhaOriginal;
+  setBtnState('btn-salvar-config-cozinha', mudou, '#2c3e50', 'SALVAR CONFIGURAÇÃO', 'SALVAR CONFIGURAÇÃO');
+}
+
 async function exibirConfigCategoriasCozinha() {
   const container = document.getElementById('lista-categorias-cozinha-config');
   if (!container) return;
+
+  if (!container.dataset.changeListenerAdded) {
+    container.addEventListener('change', atualizarEstadoBtnConfigCozinha);
+    container.dataset.changeListenerAdded = 'true';
+  }
 
   try {
     // Busca todas as categorias existentes no menu
@@ -2518,6 +2580,8 @@ async function exibirConfigCategoriasCozinha() {
 
     if (categorias.length === 0) {
       container.innerHTML = '<p style="text-align:center; opacity:0.5; padding:10px;">Nenhuma categoria encontrada no cardápio.</p>';
+      snapshotConfigCozinhaOriginal = JSON.stringify([]);
+      atualizarEstadoBtnConfigCozinha();
       return;
     }
 
@@ -2528,6 +2592,10 @@ async function exibirConfigCategoriasCozinha() {
         <button onclick="editarCategoria('${cat}')" style="background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 5px;" title="Editar Nome da Categoria">✏️</button>
       </div>
     `).join('');
+
+    const checks = container.querySelectorAll('.check-cat-cozinha:checked');
+    snapshotConfigCozinhaOriginal = JSON.stringify(Array.from(checks).map(c => c.value.trim().toUpperCase()).sort());
+    atualizarEstadoBtnConfigCozinha();
   } catch (e) {
     console.error('Erro ao carregar config de cozinha:', e);
     container.innerHTML = '<p style="color:red; padding:10px;">Erro ao carregar configurações.</p>';
@@ -2537,6 +2605,18 @@ async function exibirConfigCategoriasCozinha() {
 async function salvarConfigCategoriasCozinha() {
   const checks = document.querySelectorAll('.check-cat-cozinha:checked');
   const categorias = Array.from(checks).map(c => c.value.trim().toUpperCase());
+  const atual = JSON.stringify([...categorias].sort());
+
+  if (atual === snapshotConfigCozinhaOriginal) {
+    mostrarToast("ℹ️ Nenhuma alteração na configuração da cozinha.");
+    return;
+  }
+
+  const btn = document.getElementById('btn-salvar-config-cozinha');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "⏳ SALVANDO...";
+  }
 
   try {
     const res = await fetch('/api/config/categorias-cozinha', {
@@ -2547,6 +2627,7 @@ async function salvarConfigCategoriasCozinha() {
 
     if (res.ok) {
       configCozinhaCategorias = categorias; // Atualiza localmente
+      snapshotConfigCozinhaOriginal = atual;
       await carregarCardapio(); // RECARREGA O CARDÁPIO PARA SINCRONIZAR OS ITENS
       await mostrarAlerta("✅ Configuração de cozinha salva com sucesso! Todos os itens do cardápio foram sincronizados automaticamente.", "Sucesso", "✅");
     } else {
@@ -2555,12 +2636,28 @@ async function salvarConfigCategoriasCozinha() {
   } catch (e) {
     console.error(e);
     await mostrarAlerta("❌ Erro ao salvar configuração.", "Erro", "❌");
+  } finally {
+    atualizarEstadoBtnConfigCozinha();
   }
+}
+
+// CONFIGURAÇÃO DE CATEGORIAS DO CHURRASQUEIRO
+let snapshotConfigChurrascoOriginal = '';
+function atualizarEstadoBtnConfigChurrasco() {
+  const checks = document.querySelectorAll('.check-cat-churrasco:checked');
+  const atual = JSON.stringify(Array.from(checks).map(c => c.value.trim().toUpperCase()).sort());
+  const mudou = atual !== snapshotConfigChurrascoOriginal;
+  setBtnState('btn-salvar-config-churrasco', mudou, '#e67e22', 'SALVAR CONFIGURAÇÃO', 'SALVAR CONFIGURAÇÃO');
 }
 
 async function exibirConfigCategoriasChurrasco() {
   const container = document.getElementById('lista-categorias-churrasco-config');
   if (!container) return;
+
+  if (!container.dataset.changeListenerAdded) {
+    container.addEventListener('change', atualizarEstadoBtnConfigChurrasco);
+    container.dataset.changeListenerAdded = 'true';
+  }
 
   try {
     const resMenu = await fetch('/api/menu?admin=true');
@@ -2572,6 +2669,8 @@ async function exibirConfigCategoriasChurrasco() {
 
     if (categorias.length === 0) {
       container.innerHTML = '<p style="text-align:center; opacity:0.5; padding:10px;">Nenhuma categoria encontrada no cardápio.</p>';
+      snapshotConfigChurrascoOriginal = JSON.stringify([]);
+      atualizarEstadoBtnConfigChurrasco();
       return;
     }
 
@@ -2581,6 +2680,10 @@ async function exibirConfigCategoriasChurrasco() {
         <label for="check-cat-churrasco-${cat}" style="margin: 0; font-weight: bold; color: #2c3e50; cursor: pointer; flex: 1;">${cat}</label>
       </div>
     `).join('');
+
+    const checks = container.querySelectorAll('.check-cat-churrasco:checked');
+    snapshotConfigChurrascoOriginal = JSON.stringify(Array.from(checks).map(c => c.value.trim().toUpperCase()).sort());
+    atualizarEstadoBtnConfigChurrasco();
   } catch (e) {
     console.error('Erro ao carregar config de churrasqueiro:', e);
     container.innerHTML = '<p style="color:red; padding:10px;">Erro ao carregar configurações.</p>';
@@ -2590,6 +2693,18 @@ async function exibirConfigCategoriasChurrasco() {
 async function salvarConfigCategoriasChurrasco() {
   const checks = document.querySelectorAll('.check-cat-churrasco:checked');
   const categorias = Array.from(checks).map(c => c.value.trim().toUpperCase());
+  const atual = JSON.stringify([...categorias].sort());
+
+  if (atual === snapshotConfigChurrascoOriginal) {
+    mostrarToast("ℹ️ Nenhuma alteração na configuração do churrasqueiro.");
+    return;
+  }
+
+  const btn = document.getElementById('btn-salvar-config-churrasco');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "⏳ SALVANDO...";
+  }
 
   try {
     const res = await fetch('/api/config/categorias-churrasco', {
@@ -2600,6 +2715,7 @@ async function salvarConfigCategoriasChurrasco() {
 
     if (res.ok) {
       configChurrascoCategorias = categorias;
+      snapshotConfigChurrascoOriginal = atual;
       await carregarCardapio();
       await mostrarAlerta("✅ Configuração do churrasqueiro salva com sucesso!", "Sucesso", "✅");
     } else {
@@ -2608,6 +2724,8 @@ async function salvarConfigCategoriasChurrasco() {
   } catch (e) {
     console.error(e);
     await mostrarAlerta("❌ Erro ao salvar configuração.", "Erro", "❌");
+  } finally {
+    atualizarEstadoBtnConfigChurrasco();
   }
 }
 
@@ -3849,15 +3967,27 @@ async function excluirCategoria(categoria) {
   }
 }
 
+let snapshotRenomearCategoriaOriginal = '';
+
+function atualizarEstadoBtnRenomearCategoria() {
+  const inputNovo = document.getElementById('input-novo-nome-categoria');
+  const val = (inputNovo?.value || '').trim();
+  const mudou = val !== '' && val.toUpperCase() !== snapshotRenomearCategoriaOriginal.toUpperCase();
+  setBtnState('btn-salvar-renomear-cat', mudou, '#27ae60', '💾 SALVAR ALTERAÇÃO', '💾 SALVAR ALTERAÇÃO');
+}
+window.atualizarEstadoBtnRenomearCategoria = atualizarEstadoBtnRenomearCategoria;
+
 async function editarCategoria(categoriaAntiga) {
   const modal = document.getElementById('modal-renomear-categoria');
   const inputNovo = document.getElementById('input-novo-nome-categoria');
   const inputAntiga = document.getElementById('input-categoria-antiga');
 
   if (modal && inputNovo && inputAntiga) {
+    snapshotRenomearCategoriaOriginal = categoriaAntiga || '';
     inputAntiga.value = categoriaAntiga;
     inputNovo.value = categoriaAntiga;
     modal.style.display = 'flex';
+    atualizarEstadoBtnRenomearCategoria();
     inputNovo.focus();
     inputNovo.select();
   }
@@ -3875,6 +4005,12 @@ async function confirmarRenomearCategoria() {
   if (!novoNome || novoNome.trim() === "" || novoNome.toUpperCase() === categoriaAntiga.toUpperCase()) {
     fecharModalRenomearCategoria();
     return;
+  }
+
+  const btn = document.getElementById('btn-salvar-renomear-cat');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "⏳ SALVANDO...";
   }
 
   try {
@@ -3899,6 +4035,8 @@ async function confirmarRenomearCategoria() {
   } catch (e) {
     console.error(e);
     mostrarAlerta("❌ Erro de conexão", "Erro", "❌");
+  } finally {
+    atualizarEstadoBtnRenomearCategoria();
   }
 }
 
@@ -9548,6 +9686,35 @@ window.updateCustomMenu = function(type, index, field, value) {
   }
 };
 
+// ─── SNAPSHOT: ROBÔ ZAP (NÚMERO) ────────────────────────────────────────────
+let snapshotNumeroBotOriginal = '';
+
+function coletarEstadoNumeroBot() {
+  const el = document.getElementById('config-bot-numero');
+  return el ? el.value.trim() : '';
+}
+
+function atualizarEstadoBtnNumeroBot() {
+  const mudou = coletarEstadoNumeroBot() !== snapshotNumeroBotOriginal;
+  setBtnState('btn-salvar-numero-bot', mudou, '#25d366', '💾 SALVAR NÚMERO', '💾 SALVAR NÚMERO');
+}
+
+// ─── SNAPSHOT: TEXTOS DO ROBÔ ────────────────────────────────────────────────
+let snapshotTextosBotOriginal = '';
+
+function coletarEstadoTextosBot() {
+  const ids = ['bot-txt-welcome','bot-txt-delivery','bot-txt-delivery-opt1',
+                'bot-txt-delivery-opt2','bot-txt-menu1','bot-txt-menu2',
+                'bot-txt-menu3','bot-txt-menu4','bot-txt-menu5','bot-txt-store-closed'];
+  const valores = ids.map(id => { const el = document.getElementById(id); return el ? el.value : ''; });
+  return JSON.stringify({ valores, main: customMenusMain, delivery: customMenusDelivery });
+}
+
+function atualizarEstadoBtnTextosBot() {
+  const mudou = coletarEstadoTextosBot() !== snapshotTextosBotOriginal;
+  setBtnState('btn-salvar-textos-bot', mudou, '#25d366', '💾 SALVAR TEXTOS', '💾 SALVAR TEXTOS');
+}
+
 async function carregarTextosBot() {
   try {
     const res = await fetch('/api/bot-responses');
@@ -9571,13 +9738,32 @@ async function carregarTextosBot() {
       customMenusMain = data.customMenusMain || [];
       customMenusDelivery = data.customMenusDelivery || [];
       renderCustomMenus();
+
+      // Snapshot após popular todos os campos
+      snapshotTextosBotOriginal = coletarEstadoTextosBot();
+      atualizarEstadoBtnTextosBot();
+
+      // Listener de mudanças no container (event delegation)
+      const container = document.getElementById('config-sub-bottexts');
+      if (container && !container._textosBotListenerAdded) {
+        container._textosBotListenerAdded = true;
+        container.addEventListener('input', atualizarEstadoBtnTextosBot);
+        container.addEventListener('change', atualizarEstadoBtnTextosBot);
+      }
     }
   } catch (e) {
     console.error('Erro ao carregar textos do bot:', e);
   }
 }
 
+
 async function salvarTextosBot() {
+  const atual = coletarEstadoTextosBot();
+  if (atual === snapshotTextosBotOriginal) {
+    mostrarToast('ℹ️ Nenhuma alteração para salvar.', 'info');
+    return;
+  }
+  setBtnState('btn-salvar-textos-bot', false, '#25d366', '⏳ SALVANDO...', '⏳ SALVANDO...');
   const responses = {
     welcome: document.getElementById('bot-txt-welcome').value,
     delivery: document.getElementById('bot-txt-delivery').value,
@@ -9601,6 +9787,7 @@ async function salvarTextosBot() {
     });
     const data = await res.json();
     if (data.success) {
+      snapshotTextosBotOriginal = coletarEstadoTextosBot();
       mostrarToast('Textos do robô atualizados com sucesso!', 'sucesso');
     } else {
       mostrarToast('Erro ao atualizar textos do robô', 'erro');
@@ -9608,6 +9795,8 @@ async function salvarTextosBot() {
   } catch (e) {
     console.error('Erro ao salvar textos do bot:', e);
     mostrarToast('Erro de conexão ao salvar textos', 'erro');
+  } finally {
+    atualizarEstadoBtnTextosBot();
   }
 }
 
@@ -9619,6 +9808,12 @@ async function salvarNumeroBotZap() {
   const numInput = document.getElementById('config-bot-numero');
   if (!numInput) return;
   const number = numInput.value.trim();
+  const atual = number;
+  if (atual === snapshotNumeroBotOriginal) {
+    mostrarToast('ℹ️ Nenhuma alteração para salvar.', 'info');
+    return;
+  }
+  setBtnState('btn-salvar-numero-bot', false, '#25d366', '⏳ SALVANDO...', '⏳ SALVANDO...');
   try {
     const res = await fetch('/api/whatsapp-number', {
       method: 'POST',
@@ -9627,6 +9822,7 @@ async function salvarNumeroBotZap() {
     });
     const data = await res.json();
     if (data.success) {
+      snapshotNumeroBotOriginal = number;
       mostrarToast('Número do robô atualizado com sucesso!', 'sucesso');
       if (typeof carregarStatusWhatsApp === 'function') carregarStatusWhatsApp();
     } else {
@@ -9634,7 +9830,9 @@ async function salvarNumeroBotZap() {
     }
   } catch (e) {
     console.error('Erro ao salvar número do robô:', e);
-    mostrarToast('Erro ao salvar nmero', 'erro');
+    mostrarToast('Erro ao salvar número', 'erro');
+  } finally {
+    atualizarEstadoBtnNumeroBot();
   }
 }
 
@@ -9860,6 +10058,30 @@ function fecharPreviaCupom() {
 
 // ─── LÓGICA DO PAINEL FCM (SEGURO E BLINDADO) ───────────────────────────────────
 
+// ─── SNAPSHOT: PUSH FCM ──────────────────────────────────────────────────────
+let snapshotFCMSistemaOriginal = '';
+
+function coletarEstadoFCMSistema() {
+  const inputs = document.querySelectorAll('[id^="fcm-sys-title-"]');
+  const estado = [];
+  inputs.forEach(input => {
+    const ev = input.id.replace('fcm-sys-title-', '');
+    const somEl = document.getElementById(`fcm-sys-sound-${ev}`);
+    estado.push({
+      evento: ev,
+      titulo: input.value,
+      corpo: (document.getElementById(`fcm-sys-body-${ev}`) || {}).value || '',
+      som: somEl ? somEl.checked : true
+    });
+  });
+  return JSON.stringify(estado);
+}
+
+function atualizarEstadoBtnTemplatesFCM() {
+  const mudou = coletarEstadoFCMSistema() !== snapshotFCMSistemaOriginal;
+  setBtnState('btn-salvar-templates-fcm', mudou, '#6366f1', '💾 SALVAR EVENTOS DO SISTEMA', '💾 SALVAR EVENTOS DO SISTEMA');
+}
+
 let _fcmCustomEventos = [];
 const FCM_DEST_BADGES = {
   garcom: { label: 'Garçom', color: '#10b981', emoji: '🤵' },
@@ -9900,6 +10122,18 @@ async function carregarNotificacoesFCM() {
     renderizarEventosSistema(data.sistema);
     _fcmCustomEventos = data.customizados || [];
     renderizarEventosCustom(_fcmCustomEventos);
+
+    // Snapshot após renderizar os eventos do sistema
+    snapshotFCMSistemaOriginal = coletarEstadoFCMSistema();
+    atualizarEstadoBtnTemplatesFCM();
+
+    // Listener de mudanças no container (event delegation)
+    const ctrFCM = document.getElementById('fcm-eventos-sistema');
+    if (ctrFCM && !ctrFCM._fcmListenerAdded) {
+      ctrFCM._fcmListenerAdded = true;
+      ctrFCM.addEventListener('input', atualizarEstadoBtnTemplatesFCM);
+      ctrFCM.addEventListener('change', atualizarEstadoBtnTemplatesFCM);
+    }
 
   } catch (err) {
     console.error('[FCM ERRO]', err);
@@ -9965,6 +10199,11 @@ function mostrarConfirmacaoFCM(titulo, mensagem, tipo = 'pergunta', somenteConfi
 }
 
 async function salvarTemplatesFCM() {
+  const atual = coletarEstadoFCMSistema();
+  if (atual === snapshotFCMSistemaOriginal) {
+    mostrarToast('ℹ️ Nenhuma alteração para salvar.', 'info');
+    return;
+  }
   const btn = event.currentTarget;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> SALVANDO...';
   const inputs = document.querySelectorAll('[id^="fcm-sys-title-"]');
@@ -9987,11 +10226,12 @@ async function salvarTemplatesFCM() {
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error);
+    snapshotFCMSistemaOriginal = coletarEstadoFCMSistema();
     await mostrarConfirmacaoFCM('Sucesso', '✅ Eventos do sistema salvos com sucesso!', 'sucesso', true);
   } catch (err) {
     await mostrarConfirmacaoFCM('Erro', '❌ Erro ao salvar: ' + err.message, 'perigo', true);
   } finally {
-    btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> SALVAR EVENTOS DO SISTEMA';
+    atualizarEstadoBtnTemplatesFCM();
   }
 }
 
@@ -10225,6 +10465,28 @@ async function enviarTesteFCM(titulo, corpo, destinatario) {
 
 // ─── CONFIGURAÇÃO DE TOASTS/POPUPS ──────────────────────────────────────────
 
+// ─── SNAPSHOT: ALERTAS DO APP (TOASTS) ──────────────────────────────────────
+let snapshotToastTemplatesOriginal = '';
+
+function coletarEstadoToastTemplates() {
+  return JSON.stringify(_toastTemplates.map(t => {
+    const textoEl = document.getElementById(`toast-text-${t.evento}`);
+    const ativoEl = document.getElementById(`toast-active-${t.evento}`);
+    const somEl = document.getElementById(`toast-sound-${t.evento}`);
+    return {
+      evento: t.evento,
+      texto: textoEl ? textoEl.value.trim() : (t.texto || ''),
+      ativo: ativoEl ? ativoEl.checked : t.ativo,
+      som: somEl ? somEl.checked : (t.som !== false)
+    };
+  }));
+}
+
+function atualizarEstadoBtnToastTemplates() {
+  const mudou = coletarEstadoToastTemplates() !== snapshotToastTemplatesOriginal;
+  setBtnState('btn-salvar-templates-toast', mudou, '#10b981', '💾 SALVAR ALERTAS', '💾 SALVAR ALERTAS');
+}
+
 let _toastTemplates = [];
 
 async function carregarConfiguracoesToasts() {
@@ -10254,18 +10516,18 @@ function renderizarTemplatesToasts() {
           <span style="font-weight: 700; color: #1e293b; font-size: 0.9rem;">${t.label}</span>
           <div style="display: flex; gap: 12px; align-items: center;">
             <label style="display: flex; align-items: center; gap: 5px; font-size: 0.78rem; font-weight: 600; cursor: pointer; color: ${somAtivo ? '#f59e0b' : '#94a3b8'};" title="Tocar som ao exibir este alerta">
-              <input type="checkbox" id="toast-sound-${t.evento}" ${somAtivo ? 'checked' : ''} onchange="atualizarSomCardToast('${t.evento}', this.checked)" style="accent-color: #f59e0b; cursor: pointer; width: 14px; height: 14px;">
+              <input type="checkbox" id="toast-sound-${t.evento}" ${somAtivo ? 'checked' : ''} onchange="atualizarSomCardToast('${t.evento}', this.checked); atualizarEstadoBtnToastTemplates();" style="accent-color: #f59e0b; cursor: pointer; width: 14px; height: 14px;">
               <span id="toast-sound-label-${t.evento}">${somAtivo ? '🔊 Som' : '🔇 Mudo'}</span>
             </label>
             <label style="display: flex; align-items: center; gap: 5px; font-size: 0.78rem; font-weight: 600; cursor: pointer; color: ${t.ativo ? '#10b981' : '#64748b'};">
-              <input type="checkbox" id="toast-active-${t.evento}" ${t.ativo ? 'checked' : ''} onchange="atualizarStatusCardToast('${t.evento}', this.checked)" style="accent-color: #10b981; cursor: pointer; width: 14px; height: 14px;">
+              <input type="checkbox" id="toast-active-${t.evento}" ${t.ativo ? 'checked' : ''} onchange="atualizarStatusCardToast('${t.evento}', this.checked); atualizarEstadoBtnToastTemplates();" style="accent-color: #10b981; cursor: pointer; width: 14px; height: 14px;">
               <span>${t.ativo ? '🟢 Ativo' : '🔴 Inativo'}</span>
             </label>
           </div>
         </div>
         <div style="margin-bottom: 8px;">
           <label style="font-size: 0.75rem; font-weight: 600; color: #64748b; display: block; margin-bottom: 3px;">Mensagem do Balão</label>
-          <input type="text" id="toast-text-${t.evento}" value="${(t.texto || t.textoPadrao || '').replace(/"/g, '&quot;')}" placeholder="${t.textoPadrao}" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: white;">
+          <input type="text" id="toast-text-${t.evento}" value="${(t.texto || t.textoPadrao || '').replace(/"/g, '&quot;')}" placeholder="${t.textoPadrao}" oninput="atualizarEstadoBtnToastTemplates()" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: white;">
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <div style="font-size: 0.72rem; color: #94a3b8;">Variáveis: ${varsHtml || '<span style="opacity:0.5">nenhuma</span>'}</div>
@@ -10277,6 +10539,10 @@ function renderizarTemplatesToasts() {
       </div>
     `;
   }).join('');
+
+  // Snapshot após renderizar todos os cards
+  snapshotToastTemplatesOriginal = coletarEstadoToastTemplates();
+  atualizarEstadoBtnToastTemplates();
 }
 
 function atualizarStatusCardToast(evento, checked) {
@@ -10296,6 +10562,12 @@ function atualizarSomCardToast(evento, checked) {
 }
 
 async function salvarTemplatesToast() {
+  const atual = coletarEstadoToastTemplates();
+  if (atual === snapshotToastTemplatesOriginal) {
+    mostrarToast('ℹ️ Nenhuma alteração para salvar.', 'info');
+    return;
+  }
+  setBtnState('btn-salvar-templates-toast', false, '#10b981', '⏳ SALVANDO...', '⏳ SALVANDO...');
   const templates = _toastTemplates.map(t => {
     const texto = document.getElementById(`toast-text-${t.evento}`).value.trim();
     const ativo = document.getElementById(`toast-active-${t.evento}`).checked;
@@ -10312,6 +10584,7 @@ async function salvarTemplatesToast() {
     });
     const data = await res.json();
     if (data.success) {
+      snapshotToastTemplatesOriginal = coletarEstadoToastTemplates();
       await mostrarConfirmacaoFCM('Sucesso', '✅ Alertas do aplicativo salvos com sucesso!', 'sucesso', true);
       carregarConfiguracoesToasts();
     } else {
@@ -10319,6 +10592,8 @@ async function salvarTemplatesToast() {
     }
   } catch (err) {
     await mostrarConfirmacaoFCM('Erro', '❌ Falha ao salvar alertas: ' + err.message, 'perigo', true);
+  } finally {
+    atualizarEstadoBtnToastTemplates();
   }
 }
 
@@ -10416,6 +10691,20 @@ async function enviarComunicadoBroadcast() {
 
 // ─── CONFIGURAÇÃO DE SONS SEPARADOS DOS APLICATIVOS ──────────────────────────────
 
+// ─── SNAPSHOT: TOQUES DE ALERTA (SONS) ───────────────────────────────────────
+let snapshotSonsAppsOriginal = '';
+
+function coletarEstadoSonsApps() {
+  const ids = ['config-som-garcom','config-som-cozinha','config-som-motoboy',
+                'config-som-admin','config-som-churrasqueiro','config-som-whatsapp'];
+  return JSON.stringify(ids.map(id => { const el = document.getElementById(id); return el ? el.value : ''; }));
+}
+
+function atualizarEstadoBtnSonsApps() {
+  const mudou = coletarEstadoSonsApps() !== snapshotSonsAppsOriginal;
+  setBtnState('btn-salvar-sons-apps', mudou, '#f59e0b', '💾 SALVAR CONFIGURAÇÕES', '💾 SALVAR CONFIGURAÇÕES');
+}
+
 async function carregarSonsApps() {
   try {
     const res = await fetch('/api/config/som-global');
@@ -10437,6 +10726,20 @@ async function carregarSonsApps() {
       
       localStorage.setItem('admin_som_global', data.somAdmin || 'alerta_digital');
       localStorage.setItem('admin_som_whatsapp_tipo', data.somWhatsapp || 'campainha_classica');
+
+      // Snapshot após popular os selects
+      snapshotSonsAppsOriginal = coletarEstadoSonsApps();
+      atualizarEstadoBtnSonsApps();
+
+      // Listener de mudanças nos selects
+      ['config-som-garcom','config-som-cozinha','config-som-motoboy',
+       'config-som-admin','config-som-churrasqueiro','config-som-whatsapp'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el._sonsListenerAdded) {
+          el._sonsListenerAdded = true;
+          el.addEventListener('change', atualizarEstadoBtnSonsApps);
+        }
+      });
     }
   } catch (err) {
     console.error('Erro ao carregar configurações de som dos apps:', err);
@@ -10444,6 +10747,12 @@ async function carregarSonsApps() {
 }
 
 async function salvarSonsApps() {
+  const atual = coletarEstadoSonsApps();
+  if (atual === snapshotSonsAppsOriginal) {
+    mostrarToast('ℹ️ Nenhuma alteração para salvar.', 'info');
+    return;
+  }
+  setBtnState('btn-salvar-sons-apps', false, '#f59e0b', '⏳ SALVANDO...', '⏳ SALVANDO...');
   const somGarcom = document.getElementById('config-som-garcom')?.value || 'campainha_classica';
   const somCozinha = document.getElementById('config-som-cozinha')?.value || 'sino_moderno';
   const somMotoboy = document.getElementById('config-som-motoboy')?.value || 'campainha_classica';
@@ -10461,6 +10770,7 @@ async function salvarSonsApps() {
     if (data.success) {
       localStorage.setItem('admin_som_global', somAdmin);
       localStorage.setItem('admin_som_whatsapp_tipo', somWhatsapp);
+      snapshotSonsAppsOriginal = coletarEstadoSonsApps();
       await mostrarConfirmacaoFCM('Sucesso', '🔔 Configuração de sons salva com sucesso!', 'sucesso', true);
       carregarSonsApps();
     } else {
@@ -10468,6 +10778,8 @@ async function salvarSonsApps() {
     }
   } catch (err) {
     await mostrarConfirmacaoFCM('Erro', '❌ Falha ao salvar sons: ' + err.message, 'perigo', true);
+  } finally {
+    atualizarEstadoBtnSonsApps();
   }
 }
 
@@ -10493,6 +10805,30 @@ function tocarPreviewSomApp(selectId) {
   if (val === 'mudo') return;
   const audio = new Audio(getSoundPath(val));
   audio.play().catch(e => console.warn('Erro ao reproduzir preview de som:', e));
+}
+
+// ─── SNAPSHOT: ATUALIZAR APPS ────────────────────────────────────────────────
+let snapshotVersaoWebOriginal = '';
+let snapshotVersaoApksOriginal = '';
+
+function coletarEstadoVersaoWeb() {
+  const el = document.getElementById('config-web-version');
+  return el ? el.value.trim() : '';
+}
+
+function coletarEstadoVersaoApks() {
+  const ids = ['config-garcom-apk-version','config-garcom-apk-url',
+                'config-cozinha-apk-version','config-cozinha-apk-url',
+                'config-motoboy-apk-version','config-motoboy-apk-url',
+                'config-churrasqueiro-apk-version','config-churrasqueiro-apk-url'];
+  return JSON.stringify(ids.map(id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; }));
+}
+
+function atualizarEstadoBtnVersaoApp() {
+  const mudouWeb = coletarEstadoVersaoWeb() !== snapshotVersaoWebOriginal;
+  setBtnState('btn-salvar-versao-app', mudouWeb, '#6366f1', '💾 SALVAR VERSÃO WEB', '💾 SALVAR VERSÃO WEB');
+  const mudouApks = coletarEstadoVersaoApks() !== snapshotVersaoApksOriginal;
+  setBtnState('btn-salvar-config-apks', mudouApks, '#3b82f6', '💾 SALVAR CONFIG APKs', '💾 SALVAR CONFIG APKs');
 }
 
 /** Busca as configurações de versões atuais do app no servidor */
@@ -10528,6 +10864,25 @@ async function carregarVersaoApp() {
 
       if (inChurrasqueiroApk && data.churrasqueiro_apk_version) inChurrasqueiroApk.value = data.churrasqueiro_apk_version;
       if (inChurrasqueiroUrl && data.churrasqueiro_apk_url) inChurrasqueiroUrl.value = data.churrasqueiro_apk_url;
+
+      // Snapshots após popular os campos
+      snapshotVersaoWebOriginal = coletarEstadoVersaoWeb();
+      snapshotVersaoApksOriginal = coletarEstadoVersaoApks();
+      atualizarEstadoBtnVersaoApp();
+
+      // Listeners de input para os campos
+      const camposWeb = ['config-web-version'];
+      const camposApks = ['config-garcom-apk-version','config-garcom-apk-url',
+                          'config-cozinha-apk-version','config-cozinha-apk-url',
+                          'config-motoboy-apk-version','config-motoboy-apk-url',
+                          'config-churrasqueiro-apk-version','config-churrasqueiro-apk-url'];
+      [...camposWeb, ...camposApks].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el._versaoListenerAdded) {
+          el._versaoListenerAdded = true;
+          el.addEventListener('input', atualizarEstadoBtnVersaoApp);
+        }
+      });
     }
   } catch (err) {
     console.error('Erro ao carregar configurações de versão:', err);
@@ -10559,47 +10914,79 @@ function converterParaLinkDireto(url) {
   return url;
 }
 
-/** Salva as configurações de versão (Web/APK) no servidor e dispara Pusher */
-async function salvarVersaoApp() {
+/** Salva apenas a versão Web */
+async function salvarVersaoAppWeb() {
+  if (coletarEstadoVersaoWeb() === snapshotVersaoWebOriginal) {
+    mostrarToast('ℹ️ Nenhuma alteração para salvar.', 'info');
+    return;
+  }
+  setBtnState('btn-salvar-versao-app', false, '#6366f1', '⏳ SALVANDO...', '⏳ SALVANDO...');
   const web_version = document.getElementById('config-web-version')?.value || '1.0.0';
-  
   const garcom_apk_version = document.getElementById('config-garcom-apk-version')?.value || '2.0.0';
-  const garcom_apk_url = converterParaLinkDireto(document.getElementById('config-garcom-apk-url')?.value || '/garcom-v1.1.0-portrait.apk');
-  
+  const garcom_apk_url = converterParaLinkDireto(document.getElementById('config-garcom-apk-url')?.value || '');
   const cozinha_apk_version = document.getElementById('config-cozinha-apk-version')?.value || '2.0.0';
-  const cozinha_apk_url = converterParaLinkDireto(document.getElementById('config-cozinha-apk-url')?.value || '/cozinha-v1.1.0-portrait.apk');
-  
+  const cozinha_apk_url = converterParaLinkDireto(document.getElementById('config-cozinha-apk-url')?.value || '');
   const motoboy_apk_version = document.getElementById('config-motoboy-apk-version')?.value || '2.0.0';
-  const motoboy_apk_url = converterParaLinkDireto(document.getElementById('config-motoboy-apk-url')?.value || '/motoboy-v2.0.0-portrait.apk');
-
+  const motoboy_apk_url = converterParaLinkDireto(document.getElementById('config-motoboy-apk-url')?.value || '');
   const churrasqueiro_apk_version = document.getElementById('config-churrasqueiro-apk-version')?.value || '1.0.0';
-  const churrasqueiro_apk_url = converterParaLinkDireto(document.getElementById('config-churrasqueiro-apk-url')?.value || '/churrasqueiro-v1.0.0-portrait.apk');
-
+  const churrasqueiro_apk_url = converterParaLinkDireto(document.getElementById('config-churrasqueiro-apk-url')?.value || '');
   try {
     const res = await fetch('/api/config/versao-app', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '')
-      },
-      body: JSON.stringify({
-        web_version,
-        garcom_apk_version, garcom_apk_url,
-        cozinha_apk_version, cozinha_apk_url,
-        motoboy_apk_version, motoboy_apk_url,
-        churrasqueiro_apk_version, churrasqueiro_apk_url
-      })
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '') },
+      body: JSON.stringify({ web_version, garcom_apk_version, garcom_apk_url, cozinha_apk_version, cozinha_apk_url, motoboy_apk_version, motoboy_apk_url, churrasqueiro_apk_version, churrasqueiro_apk_url })
     });
     const data = await res.json();
     if (data.success) {
-      await mostrarConfirmacaoFCM('Sucesso', '⚙️ Controle de versões atualizado e propagado com sucesso!', 'sucesso', true);
+      snapshotVersaoWebOriginal = coletarEstadoVersaoWeb();
+      await mostrarConfirmacaoFCM('Sucesso', '⚙️ Versão Web atualizada com sucesso!', 'sucesso', true);
       carregarVersaoApp();
-    } else {
-      throw new Error(data.error || 'Erro desconhecido');
-    }
+    } else { throw new Error(data.error || 'Erro desconhecido'); }
   } catch (err) {
-    await mostrarConfirmacaoFCM('Erro', '❌ Falha ao salvar versões: ' + err.message, 'perigo', true);
+    await mostrarConfirmacaoFCM('Erro', '❌ Falha ao salvar versão Web: ' + err.message, 'perigo', true);
+  } finally {
+    atualizarEstadoBtnVersaoApp();
   }
+}
+
+/** Salva apenas as configs de APKs */
+async function salvarVersaoAppApks() {
+  if (coletarEstadoVersaoApks() === snapshotVersaoApksOriginal) {
+    mostrarToast('ℹ️ Nenhuma alteração para salvar.', 'info');
+    return;
+  }
+  setBtnState('btn-salvar-config-apks', false, '#3b82f6', '⏳ SALVANDO...', '⏳ SALVANDO...');
+  const web_version = document.getElementById('config-web-version')?.value || '1.0.0';
+  const garcom_apk_version = document.getElementById('config-garcom-apk-version')?.value || '2.0.0';
+  const garcom_apk_url = converterParaLinkDireto(document.getElementById('config-garcom-apk-url')?.value || '');
+  const cozinha_apk_version = document.getElementById('config-cozinha-apk-version')?.value || '2.0.0';
+  const cozinha_apk_url = converterParaLinkDireto(document.getElementById('config-cozinha-apk-url')?.value || '');
+  const motoboy_apk_version = document.getElementById('config-motoboy-apk-version')?.value || '2.0.0';
+  const motoboy_apk_url = converterParaLinkDireto(document.getElementById('config-motoboy-apk-url')?.value || '');
+  const churrasqueiro_apk_version = document.getElementById('config-churrasqueiro-apk-version')?.value || '1.0.0';
+  const churrasqueiro_apk_url = converterParaLinkDireto(document.getElementById('config-churrasqueiro-apk-url')?.value || '');
+  try {
+    const res = await fetch('/api/config/versao-app', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '') },
+      body: JSON.stringify({ web_version, garcom_apk_version, garcom_apk_url, cozinha_apk_version, cozinha_apk_url, motoboy_apk_version, motoboy_apk_url, churrasqueiro_apk_version, churrasqueiro_apk_url })
+    });
+    const data = await res.json();
+    if (data.success) {
+      snapshotVersaoApksOriginal = coletarEstadoVersaoApks();
+      await mostrarConfirmacaoFCM('Sucesso', '⚙️ Configurações dos APKs atualizadas com sucesso!', 'sucesso', true);
+      carregarVersaoApp();
+    } else { throw new Error(data.error || 'Erro desconhecido'); }
+  } catch (err) {
+    await mostrarConfirmacaoFCM('Erro', '❌ Falha ao salvar APKs: ' + err.message, 'perigo', true);
+  } finally {
+    atualizarEstadoBtnVersaoApp();
+  }
+}
+
+/** Compatibilidade: salva tudo (chamado de contextos legados) */
+async function salvarVersaoApp() {
+  await salvarVersaoAppWeb();
 }
 
 /** Dispara o input de arquivo oculto para a aplicação selecionada */
