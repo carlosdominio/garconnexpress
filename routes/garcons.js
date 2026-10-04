@@ -77,7 +77,13 @@ module.exports = (ctx) => {
   // GET /api/garcons
   router.get('/garcons', ensureDbInitialized, isAuthenticated, async (req, res) => {
     try {
-      const result = await query('SELECT id, nome, usuario, telefone, comissao, is_online FROM garcons ORDER BY nome');
+      let result;
+      try {
+        result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online FROM garcons ORDER BY nome');
+      } catch (errCol) {
+        // Fallback seguro caso a coluna 'diaria' ainda não exista no banco
+        result = await query('SELECT id, nome, usuario, telefone, comissao, is_online FROM garcons ORDER BY nome');
+      }
       res.json(result.rows);
     } catch (error) {
       console.error('❌ ERRO NA ROTA /api/garcons:', error);
@@ -89,8 +95,9 @@ module.exports = (ctx) => {
   router.post('/garcons', isAdmin, async (req, res) => {
     try {
       const { nome, usuario, senha, telefone, comissao } = req.body;
+      const diaria = Math.max(0, parseFloat(req.body.diaria) || 0);
       const hashed = await bcrypt.hash(senha || '123', saltRounds);
-      await query('INSERT INTO garcons (nome, usuario, senha, telefone, comissao) VALUES (?, ?, ?, ?, ?)', [nome, usuario, hashed, telefone, comissao || 0]);
+      await query('INSERT INTO garcons (nome, usuario, senha, telefone, comissao, diaria) VALUES (?, ?, ?, ?, ?, ?)', [nome, usuario, hashed, telefone, comissao || 0, diaria]);
       res.json({ success: true });
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
@@ -99,11 +106,12 @@ module.exports = (ctx) => {
   router.put('/garcons/:id', isAdmin, async (req, res) => {
     try {
       const { nome, usuario, senha, telefone, comissao } = req.body;
+      const diaria = Math.max(0, parseFloat(req.body.diaria) || 0);
       if (senha) {
         const hashed = await bcrypt.hash(senha, saltRounds);
-        await query('UPDATE garcons SET nome = ?, usuario = ?, senha = ?, telefone = ?, comissao = ? WHERE id = ?', [nome, usuario, hashed, telefone, comissao || 0, req.params.id]);
+        await query('UPDATE garcons SET nome = ?, usuario = ?, senha = ?, telefone = ?, comissao = ?, diaria = ? WHERE id = ?', [nome, usuario, hashed, telefone, comissao || 0, diaria, req.params.id]);
       } else {
-        await query('UPDATE garcons SET nome = ?, usuario = ?, telefone = ?, comissao = ? WHERE id = ?', [nome, usuario, telefone, comissao || 0, req.params.id]);
+        await query('UPDATE garcons SET nome = ?, usuario = ?, telefone = ?, comissao = ?, diaria = ? WHERE id = ?', [nome, usuario, telefone, comissao || 0, diaria, req.params.id]);
       }
       res.json({ success: true });
     } catch (error) { res.status(500).json({ error: error.message }); }

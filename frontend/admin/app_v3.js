@@ -2858,7 +2858,7 @@ async function exibirGarconsConfig() {
         </div>
         <small style="color:#7f8c8d;">@${g.usuario}</small>
         ${g.telefone ? `<br><small style="color:#25D366; cursor:pointer;" onclick="window.open('https://wa.me/${g.telefone.replace(/\D/g, '')}', '_blank')">📱 WhatsApp: ${g.telefone}</small>` : ''}
-        <br><small style="color:#64748b; font-weight: bold;">💰 Comissão: ${g.comissao !== undefined ? g.comissao : 0}%</small>
+        <br><small style="color:#64748b; font-weight: bold;">💰 Comissão: ${g.comissao !== undefined ? g.comissao : 0}% · 📅 Diária: R$ ${(g.diaria !== undefined && g.diaria !== null ? parseFloat(g.diaria) : 0).toFixed(2)}</small>
       </div>
       <div style="display:flex; gap:0.5rem">
         <button style="background:#3498db; padding:4px 8px; font-size:0.8rem; width:auto;" onclick="prepararEdicaoGarcomByIndex(${index})">✏️</button>
@@ -2924,6 +2924,7 @@ function prepararEdicaoGarcom(g) {
   document.getElementById('garcom-usuario').value = g.usuario;
   document.getElementById('garcom-telefone').value = g.telefone || '';
   document.getElementById('garcom-comissao').value = g.comissao || 0;
+  document.getElementById('garcom-diaria').value = (g.diaria !== undefined && g.diaria !== null) ? g.diaria : 0;
   document.getElementById('garcom-senha').value = '';
   document.getElementById('garcom-senha').placeholder = 'Deixe em branco para manter';
   const btn = document.getElementById('btn-acao-garcom');
@@ -2935,7 +2936,7 @@ function prepararEdicaoGarcom(g) {
 
 function cancelarEdicaoGarcom() {
   idGarcomEdicao = null;
-  ['garcom-nome', 'garcom-usuario', 'garcom-telefone', 'garcom-comissao', 'garcom-senha'].forEach(id => {
+  ['garcom-nome', 'garcom-usuario', 'garcom-telefone', 'garcom-comissao', 'garcom-diaria', 'garcom-senha'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.value = ''; el.placeholder = ''; }
   });
@@ -2951,11 +2952,12 @@ async function processarAcaoGarcom() {
   const usuario = document.getElementById('garcom-usuario').value;
   const telefone = document.getElementById('garcom-telefone').value;
   const comissao = parseFloat(document.getElementById('garcom-comissao').value) || 0;
+  const diaria = parseFloat(document.getElementById('garcom-diaria')?.value) || 0;
   const senha = document.getElementById('garcom-senha').value;
 
   if (!nome || !usuario) return await mostrarAlerta("Nome e usuário são obrigatórios", "Aviso", "⚠️");
 
-  const payload = { nome, usuario, telefone, comissao, senha };
+  const payload = { nome, usuario, telefone, comissao, diaria, senha };
   const url = idGarcomEdicao ? `/api/garcons/${idGarcomEdicao}` : '/api/garcons';
   const method = idGarcomEdicao ? 'PUT' : 'POST';
 
@@ -4591,13 +4593,14 @@ async function imprimirResumoDiario() {
 
       // Calcula performance do garçom
       if (!performanceGarcons[garcomId]) {
-        const infoG = garconsLista.find(g => g && g.usuario === garcomId) || { comissao: 0 };
+        const infoG = garconsLista.find(g => g && g.usuario === garcomId) || { comissao: 0, diaria: 0 };
         performanceGarcons[garcomId] = {
           id: garcomId,
           nome: garcomNome,
           vendas: 0,
           atendimentos: 0,
           percComissao: infoG.comissao || 0,
+          valorDiaria: parseFloat(infoG.diaria) || 0,
           taxasEntrega: 0
         };
       }
@@ -4633,6 +4636,8 @@ async function imprimirResumoDiario() {
       `;
     }
     const vComissao = g.vendas * (g.percComissao / 100);
+    const vDiaria = g.valorDiaria || 0;
+    const vTotalReceber = vComissao + vDiaria;
     return `
       <div style="border-bottom: 1px dotted #ccc; padding: 5px 0;">
         <div style="display:flex; justify-content:space-between; font-weight: bold;">
@@ -4647,6 +4652,16 @@ async function imprimirResumoDiario() {
           <span>Comissão (${g.percComissao}%):</span>
           <span>R$ ${vComissao.toFixed(2)}</span>
         </div>
+        ${vDiaria > 0 ? `
+        <div style="display:flex; justify-content:space-between; font-size: 9pt; color: #2980b9; font-weight: bold;">
+          <span>Diária Fixa:</span>
+          <span>R$ ${vDiaria.toFixed(2)}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size: 9.5pt; color: #2c3e50; font-weight: 900; border-top: 1px dashed #eee; margin-top: 2px; padding-top: 2px;">
+          <span>Total a Receber:</span>
+          <span>R$ ${vTotalReceber.toFixed(2)}</span>
+        </div>
+        ` : ''}
       </div>
     `;
   }).join('');
@@ -8777,13 +8792,14 @@ async function imprimirRelatorioCaixa() {
       }
 
       if (!performanceGarcons[garcomId]) {
-        const infoG = (Array.isArray(garconsLista) ? garconsLista : []).find(g => g && g.usuario === garcomId) || { comissao: 0 };
+        const infoG = (Array.isArray(garconsLista) ? garconsLista : []).find(g => g && g.usuario === garcomId) || { comissao: 0, diaria: 0 };
         performanceGarcons[garcomId] = {
           id: garcomId,
           nome: garcomNome,
           vendas: 0,
           atendimentos: 0,
           percComissao: infoG.comissao || 0,
+          valorDiaria: parseFloat(infoG.diaria) || 0,
           taxasGeradas: 0
         };
       }
@@ -8815,6 +8831,8 @@ async function imprimirRelatorioCaixa() {
         </div>
       `;
     }
+    const vDiaria = g.valorDiaria || 0;
+    const vTotalReceber = (g.taxasGeradas || 0) + vDiaria;
     return `
       <div style="border-bottom: 1px dotted #ccc; padding: 4px 0; font-size: 9pt;">
         <div style="display:flex; justify-content:space-between; font-weight: bold; margin-bottom: 2px;">
@@ -8829,6 +8847,16 @@ async function imprimirRelatorioCaixa() {
           <span>Comissão (10%):</span>
           <span style="font-weight: 900; color: #27ae60;">R$ ${g.taxasGeradas.toFixed(2)}</span>
         </div>
+        ${vDiaria > 0 ? `
+        <div style="display:flex; justify-content:space-between; opacity: 0.9; color: #2980b9; font-weight: bold;">
+          <span>Diária Fixa:</span>
+          <span>R$ ${vDiaria.toFixed(2)}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size: 9.5pt; color: #2c3e50; font-weight: 900; border-top: 1px dashed #eee; margin-top: 2px; padding-top: 2px;">
+          <span>Total a Receber:</span>
+          <span>R$ ${vTotalReceber.toFixed(2)}</span>
+        </div>
+        ` : ''}
       </div>
     `;
   }).join('');

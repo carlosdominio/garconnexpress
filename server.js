@@ -2804,6 +2804,7 @@ async function initDb() {
     await addCol('pedidos', 'observacao', 'TEXT');
     await addCol('pedidos', 'pago_parcial', 'REAL DEFAULT 0');
     await addCol('garcons', 'comissao', 'REAL DEFAULT 0');
+    await addCol('garcons', 'diaria', 'REAL DEFAULT 0');
     await addCol('garcons', 'is_online', 'BOOLEAN DEFAULT FALSE');
     await addCol('garcons', 'last_assigned_at', 'TIMESTAMP');
     await addCol('pedidos', 'cliente_telefone', 'TEXT');
@@ -2915,6 +2916,13 @@ async function lazyInitDb() {
               ALTER TABLE menu ADD COLUMN IF NOT EXISTS enviar_churrasco BOOLEAN DEFAULT NULL;
             `);
           } catch(e) {}
+
+          // Diária fixa por garçom (consulta isolada para não afetar o lote acima)
+          try {
+            await db.query("ALTER TABLE garcons ADD COLUMN IF NOT EXISTS diaria REAL DEFAULT 0");
+          } catch(e) {
+            console.warn('Aviso ao adicionar coluna diaria em garcons:', e.message);
+          }
           
           try {
             const migCheck = await query("SELECT valor FROM sistema_config WHERE chave = 'mig_churrasco_clean'");
@@ -5388,7 +5396,13 @@ app.post('/api/estoque/resetar-movimentacoes', isAdmin, async (req, res) => {
 
 app.get('/api/garcons', ensureDbInitialized, isAuthenticated, async (req, res) => {
   try {
-    const result = await query('SELECT id, nome, usuario, telefone, comissao, is_online FROM garcons ORDER BY nome');
+    let result;
+    try {
+      result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online FROM garcons ORDER BY nome');
+    } catch (errCol) {
+      // Fallback seguro caso a coluna 'diaria' ainda não exista no banco
+      result = await query('SELECT id, nome, usuario, telefone, comissao, is_online FROM garcons ORDER BY nome');
+    }
     res.json(result.rows);
   } catch (error) { 
     console.error('❌ ERRO NA ROTA /api/garcons:', error);
@@ -5398,19 +5412,21 @@ app.get('/api/garcons', ensureDbInitialized, isAuthenticated, async (req, res) =
 app.post('/api/garcons', isAdmin, async (req, res) => { 
   try {
     const { nome, usuario, senha, telefone, comissao } = req.body; 
+    const diaria = Math.max(0, parseFloat(req.body.diaria) || 0);
     const hashed = await bcrypt.hash(senha || '123', saltRounds); 
-    await query('INSERT INTO garcons (nome, usuario, senha, telefone, comissao) VALUES (?, ?, ?, ?, ?)', [nome, usuario, hashed, telefone, comissao || 0]); 
+    await query('INSERT INTO garcons (nome, usuario, senha, telefone, comissao, diaria) VALUES (?, ?, ?, ?, ?, ?)', [nome, usuario, hashed, telefone, comissao || 0, diaria]); 
     res.json({ success: true }); 
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 app.put('/api/garcons/:id', isAdmin, async (req, res) => {
   try {
     const { nome, usuario, senha, telefone, comissao } = req.body;
+    const diaria = Math.max(0, parseFloat(req.body.diaria) || 0);
     if (senha) {
       const hashed = await bcrypt.hash(senha, saltRounds);
-      await query('UPDATE garcons SET nome = ?, usuario = ?, senha = ?, telefone = ?, comissao = ? WHERE id = ?', [nome, usuario, hashed, telefone, comissao || 0, req.params.id]);
+      await query('UPDATE garcons SET nome = ?, usuario = ?, senha = ?, telefone = ?, comissao = ?, diaria = ? WHERE id = ?', [nome, usuario, hashed, telefone, comissao || 0, diaria, req.params.id]);
     } else {
-      await query('UPDATE garcons SET nome = ?, usuario = ?, telefone = ?, comissao = ? WHERE id = ?', [nome, usuario, telefone, comissao || 0, req.params.id]);
+      await query('UPDATE garcons SET nome = ?, usuario = ?, telefone = ?, comissao = ?, diaria = ? WHERE id = ?', [nome, usuario, telefone, comissao || 0, diaria, req.params.id]);
     }
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
