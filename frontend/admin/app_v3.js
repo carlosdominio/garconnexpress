@@ -8539,39 +8539,39 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false) {
 
               if (isReimpressaoHistorico) {
                   status = '(JÁ PAGO)';
-                  style = 'opacity: 0.8;';
+                  style = '';
               } else if (pedido.isFracaoPagamento) {
                   const jaPago = i < jaPagosAnteriormente.length;
                   const sendoPaga = i === jaPagosAnteriormente.length;
 
                   if (jaPago) {
                       status = '(JÁ PAGO)';
-                      style = 'opacity: 0.7;';
+                      style = '';
                   } else if (sendoPaga) {
                       status = '(PAGANDO AGORA)';
-                      style = 'font-weight: bold; color: #27ae60;';
+                      style = 'font-weight: bold; color: #000;';
                   } else {
                       status = '(A PAGAR)';
-                      style = 'opacity: 0.5;';
+                      style = '';
                   }
               } else if (pedido.isFechamentoFinal) {
                   const jaPago = i < jaPagosAnteriormente.length;
                   if (jaPago) {
                       status = '(JÁ PAGO)';
-                      style = 'opacity: 0.7;';
+                      style = '';
                   } else {
                       status = '(PAGANDO AGORA)';
-                      style = 'font-weight: bold; color: #27ae60;';
+                      style = 'font-weight: bold; color: #000;';
                   }
               } else if (isConferencia) {
                   // Na Nota Parcial (Conferência), mostramos apenas JÁ PAGO ou A PAGAR
                   const jaPago = i < historicoPagos.length;
                   if (jaPago) {
                       status = '(JÁ PAGO)';
-                      style = 'opacity: 0.7;';
+                      style = '';
                   } else {
                       status = '(A PAGAR)';
-                      style = 'opacity: 0.5;';
+                      style = '';
                   }
               }
 
@@ -8682,7 +8682,7 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false) {
 
     ${dadosDeliveryHtml}
     
-    <div style="font-size: 10pt; margin-bottom: 10px; ${pedido.status === 'cancelado' ? 'text-decoration: line-through; opacity: 0.7;' : ''}">
+    <div style="font-size: 10pt; margin-bottom: 10px; ${pedido.status === 'cancelado' ? 'text-decoration: line-through;' : ''}">
       ${itensFiltrados.map(i => `
         <div style="display:flex; justify-content:space-between; margin-bottom: 3px; align-items: flex-start;">
           <span style="flex:1; text-align: left; padding-right: 5px;">
@@ -8690,12 +8690,12 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false) {
           </span>
           <span style="font-weight:bold; flex-shrink: 0;">R$ ${(i.preco * i.quantidade).toFixed(2)}</span>
         </div>
-        ${i.observacao ? `<div style="font-size:8.5pt; margin-bottom:5px; margin-left: 15px; opacity: 0.85; font-style: italic;">* ${i.observacao}</div>` : ''}
+        ${i.observacao ? `<div style="font-size:8.5pt; margin-bottom:5px; margin-left: 15px; font-style: italic;">* ${i.observacao}</div>` : ''}
       `).join('')}
     </div>
 
     <div class="cupom-footer" style="font-size: 10pt; border-top: 2px dashed #000; padding-top: 5px;">
-      <div style="display:flex; justify-content:space-between; opacity: 0.8; font-size: 9pt;">
+      <div style="display:flex; justify-content:space-between; font-size: 9pt;">
         <span>SUBTOTAL CONSUMO:</span>
         <span>R$ ${subtotal.toFixed(2)}</span>
       </div>
@@ -8703,10 +8703,10 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false) {
         <span>${isDeliveryCupom ? 'TAXA ENTREGA' : `TAXA SERV (${cobrarTaxaNoCupom ? '10%' : 'OFF'})`}:</span>
         <span>R$ ${taxa.toFixed(2)}</span>
       </div>
-      ${acrescimo > 0 ? `<div style="display:flex; justify-content:space-between; opacity: 0.8; font-size: 9pt;"><span>ACRÉSCIMO:</span><span>R$ ${acrescimo.toFixed(2)}</span></div>` : ''}
-      ${desconto > 0 ? `<div style="display:flex; justify-content:space-between; opacity: 0.8; font-size: 9pt;"><span>DESCONTO:</span><span>- R$ ${desconto.toFixed(2)}</span></div>` : ''}
+      ${acrescimo > 0 ? `<div style="display:flex; justify-content:space-between; font-size: 9pt;"><span>ACRÉSCIMO:</span><span>R$ ${acrescimo.toFixed(2)}</span></div>` : ''}
+      ${desconto > 0 ? `<div style="display:flex; justify-content:space-between; font-size: 9pt;"><span>DESCONTO:</span><span>- R$ ${desconto.toFixed(2)}</span></div>` : ''}
       
-      <div style="display:flex; justify-content:space-between; font-weight: bold; margin-top: 2px; border-top: 1px solid #eee; padding-top: 2px; font-size: 9pt; opacity: 0.9;">
+      <div style="display:flex; justify-content:space-between; font-weight: bold; margin-top: 2px; border-top: 1px solid #eee; padding-top: 2px; font-size: 9pt;">
         <span>${isReimpressaoHistorico ? 'VALOR TOTAL DA MESA:' : 'TOTAL DA CONTA:'}</span>
         <span>R$ ${totalGeralMesa.toFixed(2)}</span>
       </div>
