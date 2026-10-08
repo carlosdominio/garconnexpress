@@ -891,17 +891,23 @@ button.btn-entregue { background-color: #95a5a6; }
   #cupom-impressao { 
     display: block !important; 
     visibility: visible !important;
-    position: absolute; left: 0; top: 0; width: 58mm; margin: 0; padding: 1.5mm; background: #fff;
+    position: absolute; left: 0; top: 0; 
+    width: 100%; /* Auto-ajusta à largura da bobina (58mm ou 80mm) definida pelo driver */
+    max-width: 100%;
+    margin: 0; padding: 0; background: #fff;
     color: #000;
     font-family: "Courier New", monospace;
     font-size: 10pt;
     line-height: 1.3;
     font-weight: 600;
+    text-align: left; /* Garante que o texto não centralize herdando estilos */
+    box-sizing: border-box;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
   html.paper-80 #cupom-impressao {
-    width: 80mm;
+    width: 100%; 
+    font-size: 11pt; /* Letra ligeiramente maior para 80mm */
   }
   #cupom-impressao * { visibility: visible !important; }
   .cupom-header { padding-bottom: 6px; margin-bottom: 6px; }
