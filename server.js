@@ -4098,7 +4098,7 @@ app.get('/api/pedidos/ativo-telefone/:telefone', ensureDbInitialized, isAuthenti
   }
 });
 
-app.get('/api/pedidos/:id', ensureDbInitialized, isAuthenticated, async (req, res) => {
+app.get('/api/pedidos/:id', ensureDbInitialized, async (req, res) => {
   try {
     let result;
     try {
