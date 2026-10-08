@@ -8451,7 +8451,11 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false) {
   aplicarConfiguracaoImpressao();
 
   const isConferencia = !!(pedido.isImpressaoParcialItens || pedido.isImpressaoParcialMesa);
-  const itensFiltrados = isConferencia ? itens.filter(i => i.status === 'entregue') : itens;
+  
+  const isBalcaoOuDelivery = pedido.garcom_id === 'DELIVERY' || !pedido.mesa_numero || String(pedido.mesa_numero).toUpperCase().includes('BALC') || pedido.mesa_tipo === 'balcao' || (!pedido.mesa_id && !pedido.mesa_numero);
+  
+  // Se for Conferência de Mesa comum, filtra só o que já foi entregue. Mas Balcão/Delivery imprime tudo.
+  const itensFiltrados = (isConferencia && !isBalcaoOuDelivery) ? itens.filter(i => i.status === 'entregue') : itens;
 
   // Busca histórico de pagamentos deste pedido no servidor
   let historicoPagos = [];
