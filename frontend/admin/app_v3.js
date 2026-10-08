@@ -595,6 +595,15 @@ function getPrintPaperMm() {
 function aplicarConfiguracaoImpressao() {
   const mm = getPrintPaperMm();
   document.documentElement.classList.toggle('paper-80', mm === '80');
+  
+  let styleEl = document.getElementById('dynamic-page-size');
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'dynamic-page-size';
+    document.head.appendChild(styleEl);
+  }
+  // Força o navegador a tentar puxar essa largura automaticamente na tela de impressão
+  styleEl.innerHTML = `@media print { @page { size: ${mm}mm 297mm; margin: 0; } }`;
 }
 
 function inicializarConfiguracaoImpressao() {

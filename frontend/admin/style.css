@@ -881,7 +881,7 @@ button.btn-entregue { background-color: #95a5a6; }
 
 /* Estilos de Impressão */
 @media print {
-  @page { margin: 0; size: auto; }
+  @page { margin: 0; }
   #toast-container, .toast-notificacao { 
     display: none !important; 
     visibility: hidden !important; 
