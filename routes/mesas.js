@@ -10,6 +10,12 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       const isComanda = req.body.is_comanda ? 1 : 0;
       if (!numOuNome) return res.status(400).json({ error: 'Informe o número ou nome da mesa/comanda' });
 
+      // TRAVA DE DUPLICIDADE (Case-insensitive)
+      const existing = await query('SELECT id FROM mesas WHERE LOWER(CAST(numero AS TEXT)) = LOWER(CAST(? AS TEXT))', [numOuNome]);
+      if (existing && existing.rows && existing.rows.length > 0) {
+          return res.status(400).json({ error: 'Já existe uma mesa ou comanda criada com esse número ou nome!' });
+      }
+
       let ins;
       try {
         ins = await query('INSERT INTO mesas (numero, tipo, is_comanda) VALUES (?, ?, ?) RETURNING id', [numOuNome, tipo, isComanda]);
