@@ -8082,6 +8082,26 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       }
     });
 
+    // EVENTOS DE RASCUNHO (CARDÁPIO DIGITAL)
+    channel.bind('rascunho-recebido', (data) => {
+      console.log('📢 Admin: Rascunho recebido!', data);
+      tocarNotificacao('campainha_classica');
+      mostrarRascunhoAdmin(data);
+    });
+
+    channel.bind('rascunho-cancelado', (data) => {
+      console.log('📢 Admin: Rascunho cancelado!', data);
+      const modalAberto = document.getElementById('modal-sistema') && document.getElementById('modal-sistema').style.display === 'flex';
+      if (modalAberto) {
+        const titulo = document.getElementById('modal-sistema-titulo').innerText;
+        if (titulo === "📝 RASCUNHO RECEBIDO") {
+          document.getElementById('modal-sistema').style.display = 'none';
+          document.body.classList.remove('modal-open');
+          mostrarToast("O rascunho desta mesa foi processado/cancelado.", "info");
+        }
+      }
+    });
+
     } catch (e) {
     console.warn('❌ Erro na inicialização do Pusher:', e);
     }
@@ -12156,3 +12176,112 @@ setTimeout(inicializarWhatsAppWidget, 3000);
 
 
 
+
+// --- RASCUNHOS CARDÁPIO DIGITAL NO ADMIN ---
+function mostrarRascunhoAdmin(data) {
+  const itensHtml = data.itens.map(i => `<li>${i.quantidade}x ${i.nome}</li>`).join('');
+  const msgHtml = `
+    <div style="text-align: left; background: #2f3542; padding: 15px; border-radius: 10px; border: 1px solid #34495e; color: #ffffff;">
+      <p style="margin-bottom: 10px; font-weight: bold; color: #f1c40f;">Mesa ${data.mesa_numero} enviou um rascunho pelo Cardápio Digital:</p>
+      <ul style="padding-left: 20px; margin-bottom: 15px; color: #ffffff;">${itensHtml}</ul>
+      <p style="font-size: 0.85rem; color: #bdc3c7; border-top: 1px dashed #57606f; padding-top: 10px;">Deseja carregar estes itens no carrinho de lançamento?</p>
+    </div>
+  `;
+
+  document.getElementById('modal-sistema-titulo').innerText = "📝 RASCUNHO RECEBIDO";
+  document.getElementById('modal-sistema-mensagem').innerHTML = msgHtml;
+  document.getElementById('modal-sistema-icon').innerText = "";
+  
+  const btnCancelar = document.getElementById('btn-sistema-cancelar');
+  const btnConfirmar = document.getElementById('btn-sistema-confirmar');
+  
+  btnCancelar.classList.remove('hidden');
+  btnCancelar.innerText = "RECUSAR";
+  btnCancelar.style.background = "#e74c3c";
+  btnCancelar.style.color = "white";
+  
+  btnConfirmar.innerText = "ACEITAR";
+  btnConfirmar.style.background = "#2ecc71";
+  btnConfirmar.style.color = "white";
+
+  const modal = document.getElementById('modal-sistema');
+  modal.style.display = 'flex';
+  document.body.classList.add('modal-open');
+
+  btnConfirmar.onclick = () => {
+    modal.style.display = 'none';
+    document.body.classList.remove('modal-open');
+    aceitarRascunhoAdmin(data);
+  };
+
+  btnCancelar.onclick = () => {
+    modal.style.display = 'none';
+    document.body.classList.remove('modal-open');
+    recusarRascunhoAdmin(data);
+  };
+}
+
+async function aceitarRascunhoAdmin(data) {
+  // Notifica o backend
+  try {
+    const res = await fetch('/api/pedidos/aceitar-rascunho', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mesa_id: data.mesa_id })
+    });
+    if (!res.ok) throw new Error("Falha na requisição");
+  } catch (e) {
+    console.warn("Erro ao notificar aceite do rascunho:", e);
+  }
+
+  // Joga os itens no carrinho do Admin
+  carrinhoLancar = [];
+  for (const itemDraft of data.itens) {
+    const menuItem = cardapio.find(m => m.id === itemDraft.menu_id);
+    if (menuItem) {
+      carrinhoLancar.push({
+        menu_id: menuItem.id,
+        nome: menuItem.nome,
+        preco: menuItem.preco,
+        quantidade: itemDraft.quantidade,
+        observacao: itemDraft.observacoes || ''
+      });
+    }
+  }
+
+  // Seleciona a mesa correta na barra lateral (Lançamento)
+  const selectMesa = document.getElementById('lancar-mesa-select');
+  if (selectMesa) {
+    // Tenta encontrar o option com value igual ao ID da mesa
+    const option = Array.from(selectMesa.options).find(o => o.value == data.mesa_id);
+    if (option) {
+      selectMesa.value = data.mesa_id;
+      // Dispara o evento change
+      const event = new Event('change');
+      selectMesa.dispatchEvent(event);
+    }
+  }
+
+  renderizarCarrinhoLancar();
+  mostrarToast(`Rascunho da Mesa ${data.mesa_numero} carregado no carrinho! Confirme e Lance.`, 'success');
+}
+
+async function recusarRascunhoAdmin(data) {
+  const confirmar = await mostrarConfirmacao(`Deseja realmente RECUSAR o rascunho da Mesa ${data.mesa_numero}?`, "Aviso de Recusa", "Sim, Recusar", "Cancelar", "⚠️");
+  if (!confirmar) return;
+
+  try {
+    const res = await fetch('/api/pedidos/rejeitar-rascunho', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mesa_id: data.mesa_id })
+    });
+    if (res.ok) {
+      mostrarToast(`Rascunho da Mesa ${data.mesa_numero} recusado com sucesso.`, 'success');
+    } else {
+      mostrarToast('Erro ao recusar rascunho.', 'error');
+    }
+  } catch (e) {
+    mostrarToast('Erro ao se conectar ao servidor.', 'error');
+  }
+}

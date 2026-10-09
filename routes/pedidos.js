@@ -1607,6 +1607,9 @@ module.exports = (ctx) => {
         status: 'aceito',
         mensagem: 'Seu pedido foi aceito pelo garçom!'
       }).catch(console.error);
+
+      // Notifica os outros garçons/admin para limpar a tela
+      safePusherTrigger('garconnexpress', 'rascunho-cancelado', { mesa_id }).catch(console.error);
       
       res.json({ success: true, mensagem: 'Rascunho aceito com sucesso.' });
     } catch (error) {
