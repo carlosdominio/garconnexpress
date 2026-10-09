@@ -6569,8 +6569,21 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   renderizarListaItensFechamento();
 
   const isDelivery = (pedidoParaFecharAdmin.garcom_id === 'DELIVERY');
-  const mesaLabel = isDelivery ? `DELIVERY #${pedidoParaFecharAdmin.id}` : (pedidoParaFecharAdmin.mesa_numero ? `Mesa ${pedidoParaFecharAdmin.mesa_numero}` : 'BALCÃO');
-  document.getElementById('fechamento-mesa-admin').textContent = mesaLabel;
+  const isBalcao = (!pedidoParaFecharAdmin.mesa_numero || String(pedidoParaFecharAdmin.mesa_numero).toUpperCase() === 'BALCÃO' || String(pedidoParaFecharAdmin.mesa_numero).toUpperCase() === 'BALCAO');
+  
+  let titleHTML = '';
+  if (isDelivery) {
+      titleHTML = `Finalizar Delivery <span id="fechamento-mesa-admin">#${pedidoParaFecharAdmin.id}</span>`;
+  } else if (isBalcao) {
+      titleHTML = `Finalizar Pedido <span id="fechamento-mesa-admin">BALCÃO</span>`;
+  } else {
+      titleHTML = `Finalizar e Liberar <span id="fechamento-mesa-admin">Mesa ${pedidoParaFecharAdmin.mesa_numero}</span>`;
+  }
+  
+  const spanMesaAdmin = document.getElementById('fechamento-mesa-admin');
+  if (spanMesaAdmin && spanMesaAdmin.parentElement) {
+      spanMesaAdmin.parentElement.innerHTML = titleHTML;
+  }
 
   const lblTaxaFechamento = document.getElementById('lbl-fechamento-taxa');
   if (lblTaxaFechamento) {
