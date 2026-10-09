@@ -12222,7 +12222,7 @@ function mostrarRascunhoAdmin(data) {
 }
 
 async function aceitarRascunhoAdmin(data) {
-  // Notifica o backend
+  // Notifica o backend para fechar o rascunho
   try {
     const res = await fetch('/api/pedidos/aceitar-rascunho', {
       method: 'POST',
@@ -12234,12 +12234,12 @@ async function aceitarRascunhoAdmin(data) {
     console.warn("Erro ao notificar aceite do rascunho:", e);
   }
 
-  // Joga os itens no carrinho do Admin
-  carrinhoLancar = [];
+  // Prepara os itens para enviar à API diretamente, sem depender do DOM
+  const itensParaEnviar = [];
   for (const itemDraft of data.itens) {
     const menuItem = cardapio.find(m => m.id === itemDraft.menu_id);
     if (menuItem) {
-      carrinhoLancar.push({
+      itensParaEnviar.push({
         menu_id: menuItem.id,
         nome: menuItem.nome,
         preco: menuItem.preco,
@@ -12249,24 +12249,39 @@ async function aceitarRascunhoAdmin(data) {
     }
   }
 
-  // Seleciona a mesa correta na barra lateral (Lançamento)
-  const selectMesa = document.getElementById('lancar-mesa-select');
-  if (selectMesa) {
-    // Tenta encontrar o option com value igual ao ID da mesa
-    const option = Array.from(selectMesa.options).find(o => o.value == data.mesa_id);
-    if (option) {
-      selectMesa.value = data.mesa_id;
-      // Dispara o evento change
-      const event = new Event('change');
-      selectMesa.dispatchEvent(event);
-    }
+  if (itensParaEnviar.length === 0) {
+    return mostrarToast("Erro: Itens do rascunho não encontrados no cardápio.", "error");
   }
 
-  renderizarCarrinhoLancar();
   mostrarToast(`Processando rascunho da Mesa ${data.mesa_numero}...`, 'info');
-  
-  // Envia o pedido automaticamente pulando o modal de confirmação
-  enviarPedidoLoteAdmin(false, true);
+
+  // Envia diretamente para a rota de pedidos
+  try {
+    const res = await fetch('/api/pedidos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mesa_id: data.mesa_id,
+        garcom_id: 'ADMIN',
+        itens: itensParaEnviar,
+        cobrar_taxa: true // Assumindo taxa padrão ativada
+      })
+    });
+
+    if (res.ok) {
+      const respData = await res.json();
+      window.ultimoPedidoCriadoPeloAdmin = respData.id;
+      setTimeout(() => { window.ultimoPedidoCriadoPeloAdmin = null; }, 7000);
+      pedidosStatusTaxa[respData.id] = true;
+      mostrarToast(`🚀 Pedido da Mesa ${data.mesa_numero} lançado com sucesso!`);
+    } else {
+      const err = await res.json();
+      mostrarAlerta(err.error || "Erro ao processar pedido", "Erro", "❌");
+    }
+  } catch (e) {
+    console.error("Erro ao enviar pedido do rascunho:", e);
+    mostrarAlerta("Erro de conexão ao processar rascunho.", "Erro", "❌");
+  }
 }
 
 async function recusarRascunhoAdmin(data) {
