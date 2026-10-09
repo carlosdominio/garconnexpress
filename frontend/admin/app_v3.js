@@ -5185,10 +5185,12 @@ async function exibirPedidos() {
     delivery: { pendentes: 0, servidos: 0, fechamento: 0 }
   };
 
-  // ORDENAÇÃO: Mais antigos primeiro, priorizando quem já pediu a conta (aguardando_fechamento)
+  // ORDENAÇÃO: Mais antigos primeiro, priorizando quem já pediu a conta (aguardando_fechamento ou solicitou_fechamento)
   const pedidosOrdenados = [...pedidos].sort((a, b) => {
-    if (a.status === 'aguardando_fechamento' && b.status !== 'aguardando_fechamento') return -1;
-    if (a.status !== 'aguardando_fechamento' && b.status === 'aguardando_fechamento') return 1;
+    const isFechA = (a.status === 'aguardando_fechamento' || !!a.solicitou_fechamento);
+    const isFechB = (b.status === 'aguardando_fechamento' || !!b.solicitou_fechamento);
+    if (isFechA && !isFechB) return -1;
+    if (!isFechA && isFechB) return 1;
     return new Date(a.created_at) - new Date(b.created_at);
   });
 
@@ -5215,7 +5217,7 @@ async function exibirPedidos() {
       
       const hasPend = (itensPendentes.length > 0 || itensProntos.length > 0);
       const statusGeral = hasPend ? 'recebido' : 'servido';
-      const isAguardando = pedido.status === 'aguardando_fechamento';
+      const isAguardando = (pedido.status === 'aguardando_fechamento' || !!pedido.solicitou_fechamento);
 
       let minutosCronometro = null;
       let classeAlertaAtraso = '';
@@ -5352,14 +5354,14 @@ async function exibirPedidos() {
         <div class="pedido-footer">
           <div class="pedido-actions" style="width: 100%; margin-top: 8px;">
             ${isDelivery ?
-              (pedido.status === 'aguardando_fechamento' ?
+              (isAguardando ?
                 `<button style="background:#f1c40f; color:white; font-weight: 900; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #d68910; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 FINALIZAR DELIVERY</button>` :
                 (hasPend ?
                   `<button style="background:#e74c3c; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #c0392b; border:none; color:white; cursor:pointer;" onclick="marcarPedidoEntregue(${pedido.id})">🛵 ENVIAR PARA ENTREGA</button>` :
                   `<button style="background:#e67e22; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #d35400; border:none; color:white; cursor:pointer;" onclick="confirmarEntregaDelivery(${pedido.id})">✅ CONFIRMAR ENTREGA</button>`
                 )
               ) :
-              (pedido.status === 'aguardando_fechamento' ? 
+              (isAguardando ? 
                 `<button style="background:#f1c40f; color:white; font-weight: 900; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #d68910; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 CONFIRMAR PAGAMENTO E LIBERAR</button>` : 
                 (hasPend ? 
                   `<button style="background:${pedido.garcom_id === 'ADMIN' ? '#e74c3c' : '#e67e22'}; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 ${pedido.garcom_id === 'ADMIN' ? '#c0392b' : '#d35400'}; border:none; color:white; cursor:pointer;" onclick="marcarPedidoEntregue(${pedido.id})">🚚 ENTREGAR TUDO AGORA</button>` :
@@ -5377,7 +5379,8 @@ async function exibirPedidos() {
       else if (statusGeral === 'servido') targetCol = 'servidos';
 
       if (group === 'balcao' && targetCol === 'fechamento') targetCol = 'servidos';
-      const targetList = lists[group][targetCol];
+      const targetList = (lists[group] && lists[group][targetCol]) || (lists[group] && lists[group]['servidos']) || (lists[group] && lists[group]['pendentes']);
+      if (!targetList) continue;
 
       let card = document.getElementById(cardId);
       if (!card) {
@@ -7743,13 +7746,18 @@ async function configurarPusher() {
       exibirNotificacaoNativa('💰 SOLICITAÇÃO DE CONTA', msg, `fechamento-${data.mesa_id}`);
       mostrarToast(`💰 CONTA: Mesa ${mesaNum}`, 'sucesso');
       
-      mostrarAlerta(msg, "💰 FECHAMENTO DE CONTA", "💰");
-      
+      // Recarrega imediatamente para já posicionar a mesa na coluna Fechamento em background
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => {
         carregarPedidos();
         carregarHistorico();
-      }, 100);
+      }, 50);
+
+      // E ao clicar em OK no modal, força nova atualização visual imediata
+      mostrarAlerta(msg, "💰 FECHAMENTO DE CONTA", "💰").then(() => {
+        carregarPedidos();
+        if (abaAtiva === 'lancar') carregarMesasLancar();
+      });
     });
 
 function formatarNomeMesaNotificacao(numero, isComanda) {

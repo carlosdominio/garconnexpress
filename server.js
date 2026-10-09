@@ -384,7 +384,10 @@ app.get('/api/cron/cardapio', async (req, res) => {
     }
     if (typeof botUrlFinal !== 'undefined' && botUrlFinal) {
         const pingUrl = botUrlFinal.endsWith('/') ? `${botUrlFinal}health` : `${botUrlFinal}/health`;
-        await fetch(pingUrl).catch((err) => console.log('⚠️ Erro ao acordar o robô no Render:', err.message));
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        await fetch(pingUrl, { signal: controller.signal }).catch((err) => console.log('⚠️ Ping enviado ao Render (Timeout controlado):', err.message));
+        clearTimeout(timeoutId);
     }
     try {
         await checkAndSendScheduledFCM();

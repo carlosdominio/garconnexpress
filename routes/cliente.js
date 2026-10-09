@@ -10,7 +10,8 @@ module.exports = (ctx) => {
     sendWhatsAppMessage,
     isPostgres,
     jwt,
-    JWT_SECRET
+    JWT_SECRET,
+    notifyStatus
   } = ctx;
 
   const router = express.Router();
@@ -43,13 +44,17 @@ module.exports = (ctx) => {
         });
       }
 
-      await query("UPDATE pedidos SET solicitou_fechamento = TRUE, fechamento_solicitado_em = COALESCE(fechamento_solicitado_em, CURRENT_TIMESTAMP) WHERE id = ?", [pedido.id]);
-      await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [mesaId]); 
+      await query("UPDATE pedidos SET status = 'aguardando_fechamento', solicitou_fechamento = TRUE, fechamento_solicitado_em = COALESCE(fechamento_solicitado_em, CURRENT_TIMESTAMP) WHERE id = ?", [pedido.id]);
+      await query("UPDATE mesas SET status = 'fechando' WHERE id = ?", [mesaId]); 
 
       const mesaRes = await query("SELECT numero, is_comanda FROM mesas WHERE id = ?", [mesaId]);
       const isCom = mesaRes.rows[0]?.is_comanda;
       const fmtFn = formatarNomeMesaOuComanda || ((n) => n || 'BALCÃO');
       const mesaNum = fmtFn(mesaRes.rows[0]?.numero, isCom);
+
+      if (typeof notifyStatus === 'function') {
+        await notifyStatus(pedido.id, mesaId, 'aguardando_fechamento', mesaNum);
+      }
 
       await safePusherTrigger('garconnexpress', 'solicitacao-fechamento-cliente', {
         pedido_id: pedido.id,
