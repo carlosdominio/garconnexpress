@@ -2096,7 +2096,7 @@ async function confirmarLancarPedidoDelivery() {
 
 let enviandoPedidoLote = false;
 
-async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
+async function enviarPedidoLoteAdmin(skipDeliveryForm = false, skipConfirmation = false) {
   if (enviandoPedidoLote) return;
 
   let mesaId = document.getElementById('lancar-mesa-select').value;
@@ -2117,7 +2117,7 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
   const taxaDeliveryVal = !isNaN(taxaDeliveryInput) ? taxaDeliveryInput : 5.00;
   const totalEstimado = isDelivery ? subtotal + taxaDeliveryVal : (cobrarTaxa ? subtotal * 1.10 : subtotal);
 
-  if (!await mostrarConfirmacao(`Confirmar lançamento de R$ ${totalEstimado.toFixed(2)}?`, "Novo Pedido", "Confirmar", "Cancelar", "🚀")) return;
+  if (!skipConfirmation && !await mostrarConfirmacao(`Confirmar lançamento de R$ ${totalEstimado.toFixed(2)}?`, "Novo Pedido", "Confirmar", "Cancelar", "🚀")) return;
 
   enviandoPedidoLote = true;
   const btn = document.querySelector("button[onclick='enviarPedidoLoteAdmin()']");
@@ -12263,7 +12263,10 @@ async function aceitarRascunhoAdmin(data) {
   }
 
   renderizarCarrinhoLancar();
-  mostrarToast(`Rascunho da Mesa ${data.mesa_numero} carregado no carrinho! Confirme e Lance.`, 'success');
+  mostrarToast(`Processando rascunho da Mesa ${data.mesa_numero}...`, 'info');
+  
+  // Envia o pedido automaticamente pulando o modal de confirmação
+  enviarPedidoLoteAdmin(false, true);
 }
 
 async function recusarRascunhoAdmin(data) {
