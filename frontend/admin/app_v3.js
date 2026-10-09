@@ -1547,13 +1547,13 @@ function renderizarMesasSelectLancar(mesas) {
   if (!select) return;
   
   const optionsHtml = '<option value="">Selecione a Mesa</option>' + 
-    '<option value="BALCAO" style="font-weight:bold; color:#27ae60;">🏪 BALCÃO / VENDA DIRETA</option>' +
-    '<option value="DELIVERY" style="font-weight:bold; color:#e67e22;">🛵 DELIVERY</option>' +
+    '<option value="BALCAO" style="font-weight:bold; color:#27ae60;" data-tipo="balcao">🏪 BALCÃO / VENDA DIRETA</option>' +
+    '<option value="DELIVERY" style="font-weight:bold; color:#e67e22;" data-tipo="delivery">🛵 DELIVERY</option>' +
     mesas.map(m => {
       const isNum = /^\d+$/.test(String(m.numero || '').trim());
       const label = isNum ? `Mesa ${m.numero}` : m.numero;
       const badge = m.tipo === 'balcao' ? ' 🏪 (Balcão)' : '';
-      return `<option value="${m.id}">${label}${badge} (${m.status.toUpperCase()})</option>`;
+      return `<option value="${m.id}" data-tipo="${m.tipo || 'mesa'}">${label}${badge} (${m.status.toUpperCase()})</option>`;
     }).join('');
   
   if (select.innerHTML !== optionsHtml) {
@@ -2099,17 +2099,30 @@ let enviandoPedidoLote = false;
 async function enviarPedidoLoteAdmin(skipDeliveryForm = false, skipConfirmation = false) {
   if (enviandoPedidoLote) return;
 
-  let mesaId = document.getElementById('lancar-mesa-select').value;
-  if (!mesaId) return await mostrarAlerta("Selecione a mesa, BALCÃO ou DELIVERY!", "Aviso", "⚠️");
+  const selMesa = document.getElementById('lancar-mesa-select');
+  const valorMesaOriginal = selMesa ? selMesa.value : '';
+  if (!valorMesaOriginal) return await mostrarAlerta("Selecione a mesa, BALCÃO ou DELIVERY!", "Aviso", "⚠️");
   if (carrinhoLancar.length === 0) return await mostrarAlerta("Carrinho vazio!", "Aviso", "⚠️");
 
-  const isDelivery = (mesaId === 'DELIVERY');
+  const optSelecionada = selMesa && selMesa.selectedIndex >= 0 ? selMesa.options[selMesa.selectedIndex] : null;
+  const textoMesaOriginal = optSelecionada ? optSelecionada.text : '';
+  const tipoMesaSelecionada = optSelecionada ? (optSelecionada.dataset.tipo || '') : '';
+
+  const isDelivery = (valorMesaOriginal === 'DELIVERY') || (tipoMesaSelecionada === 'delivery');
   
   if (isDelivery && !skipDeliveryForm) {
     abrirModalLancarDelivery();
     return;
   }
 
+  // Identifica Balcão de forma robusta (opção direta BALCAO, tipo='balcao' da comanda, cache ou texto)
+  const mesaObj = (_mesasLancarCache || []).find(m => String(m.id) === String(valorMesaOriginal));
+  const isBalcao = (valorMesaOriginal === 'BALCAO') || 
+                   (tipoMesaSelecionada === 'balcao') || 
+                   (mesaObj && mesaObj.tipo === 'balcao') || 
+                   (/balc[aã]o/i.test(textoMesaOriginal));
+
+  let mesaId = valorMesaOriginal;
   const garcomId = isDelivery ? 'DELIVERY' : 'ADMIN';
   const cobrarTaxa = document.getElementById('lancar-taxa-toggle').checked;
   const subtotal = carrinhoLancar.reduce((s,i) => s + (i.preco * i.quantidade), 0);
@@ -2124,9 +2137,10 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false, skipConfirmation 
   if (btn) { btn.disabled = true; btn.innerText = "⏳ ENVIANDO..."; }
 
   let pedidoExistente = null;
-  if (mesaId !== 'BALCAO' && mesaId !== 'DELIVERY') {
-    const resMesa = await fetch(`/api/pedidos/mesa/${mesaId}`);
+  if (valorMesaOriginal !== 'BALCAO' && valorMesaOriginal !== 'DELIVERY') {
+    const resMesa = await fetch(`/api/pedidos/mesa/${valorMesaOriginal}`);
     pedidoExistente = await resMesa.json();
+    mesaId = valorMesaOriginal;
   } else {
     mesaId = null;
   }
@@ -2197,32 +2211,28 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false, skipConfirmation 
       // Salva a escolha da taxa para este pedido
       pedidosStatusTaxa[novoPedidoId] = cobrarTaxa;
 
-      const sel = document.getElementById('lancar-mesa-select');
-      const nomeMesa = sel.options[sel.selectedIndex].text.replace('Mesa ', '').split(' ')[0];
+      const nomeMesa = textoMesaOriginal.replace('Mesa ', '').split(' ')[0] || '';
 
       carrinhoLancar = [];
       renderizarCarrinhoLancar();
       resetarMesaLancar();
       
       window.isFechamentoImediatoBalcao = false;
-      
-      const isMesa = (mesaId !== null && mesaId !== undefined && mesaId !== '');
 
-      // Redirecionamento direto, modal removido
+      // Redirecionamento correto conforme o canal/tipo do pedido
       if (isDelivery) {
-        window.isFechamentoImediatoBalcao = false;
         mostrarToast("🚀 Pedido de Delivery lançado com sucesso!");
         switchTab('ativos');
         switchSubTab('delivery');
-      } else if (isMesa) {
-        window.isFechamentoImediatoBalcao = false;
+      } else if (isBalcao) {
+        const labelNome = nomeMesa ? ` (${nomeMesa})` : '';
+        mostrarToast(`🚀 Pedido lançado com sucesso no Balcão${labelNome}!`);
+        switchTab('ativos');
+        switchSubTab('balcao');
+      } else {
         mostrarToast(`🚀 Pedido lançado com sucesso na Mesa ${nomeMesa}!`);
         switchTab('ativos');
         switchSubTab('garcom');
-      } else {
-        window.isFechamentoImediatoBalcao = true;
-        mostrarToast("🚀 Preparando fechamento do Balcão...");
-        aprovarFechamento(novoPedidoId, mesaId, nomeMesa);
       }
     } else {
       const err = await res.json();
