@@ -6569,7 +6569,12 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   renderizarListaItensFechamento();
 
   const isDelivery = (pedidoParaFecharAdmin.garcom_id === 'DELIVERY');
-  const isBalcao = (!pedidoParaFecharAdmin.mesa_numero || String(pedidoParaFecharAdmin.mesa_numero).toUpperCase() === 'BALCÃO' || String(pedidoParaFecharAdmin.mesa_numero).toUpperCase() === 'BALCAO');
+  const isBalcao = (
+    pedidoParaFecharAdmin.mesa_tipo === 'balcao' ||
+    !pedidoParaFecharAdmin.mesa_numero || 
+    String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('BALC') ||
+    String(pedidoParaFecharAdmin.mesa_numero).includes('🏪')
+  );
   
   let titleHTML = '';
   if (isDelivery) {
