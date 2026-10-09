@@ -2206,64 +2206,23 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false) {
       
       window.isFechamentoImediatoBalcao = false;
       
-      // MOSTRA MODAL DE DECISÃO (Ajustado para Delivery e Mesas)
-      const modalDecisao = document.getElementById('modal-decisao-pos-lancar');
-      const btnFechar = document.getElementById('btn-decisao-fechar');
-      const btnManter = document.getElementById('btn-decisao-manter');
       const isMesa = (mesaId !== null && mesaId !== undefined && mesaId !== '');
 
+      // Redirecionamento direto, modal removido
       if (isDelivery) {
-        if (btnFechar) btnFechar.style.display = 'none';
-        if (btnManter) {
-          btnManter.innerText = '🛵 ACOMPANHAR DELIVERY';
-          btnManter.style.background = '#e67e22'; // Cor laranja do Delivery
-        }
+        window.isFechamentoImediatoBalcao = false;
+        mostrarToast("🚀 Pedido de Delivery lançado com sucesso!");
+        switchTab('ativos');
+        switchSubTab('delivery');
       } else if (isMesa) {
-        if (btnFechar) btnFechar.style.display = 'none';
-        if (btnManter) {
-          btnManter.innerText = '🚪 ACOMPANHAR MESA';
-          btnManter.style.background = '#3498db'; // Cor azul para Mesas
-        }
+        window.isFechamentoImediatoBalcao = false;
+        mostrarToast(`🚀 Pedido lançado com sucesso na Mesa ${nomeMesa}!`);
+        switchTab('ativos');
+        switchSubTab('garcom');
       } else {
-        // Balcão (Venda Direta)
-        if (btnFechar) btnFechar.style.display = 'block';
-        if (btnManter) {
-          btnManter.innerText = '⏳ MANTER EM ABERTO';
-          btnManter.style.background = '#3498db'; // Azul padrão
-        }
-      }
-
-      modalDecisao.style.display = 'flex';
-      document.body.classList.add('modal-open');
-
-      if (btnFechar) {
-        btnFechar.onclick = async () => {
-          modalDecisao.style.display = 'none';
-          document.body.classList.remove('modal-open');
-          window.isFechamentoImediatoBalcao = true;
-          aprovarFechamento(novoPedidoId, mesaId, nomeMesa);
-        };
-      }
-
-      if (btnManter) {
-        btnManter.onclick = () => {
-          modalDecisao.style.display = 'none';
-          document.body.classList.remove('modal-open');
-          window.isFechamentoImediatoBalcao = false;
-          if (isDelivery) {
-            mostrarToast("🚀 Pedido de Delivery lançado com sucesso!");
-            switchTab('ativos');
-            switchSubTab('delivery');
-          } else if (isMesa) {
-            mostrarToast(`🚀 Pedido lançado com sucesso na Mesa ${nomeMesa}!`);
-            switchTab('ativos');
-            switchSubTab('garcom');
-          } else {
-            mostrarToast("🚀 Pedido de Balcão lançado com sucesso!");
-            switchTab('ativos');
-            switchSubTab('balcao');
-          }
-        };
+        window.isFechamentoImediatoBalcao = true;
+        mostrarToast("🚀 Preparando fechamento do Balcão...");
+        aprovarFechamento(novoPedidoId, mesaId, nomeMesa);
       }
     } else {
       const err = await res.json();
