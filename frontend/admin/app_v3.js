@@ -8309,50 +8309,67 @@ function mostrarAlerta(msg, titulo = "Aviso", icone = "🔔") {
     document.getElementById('modal-sistema-icon').innerText = icone;
     document.getElementById('modal-sistema-titulo').innerText = titulo;
     document.getElementById('modal-sistema-mensagem').innerHTML = msg;
-    document.getElementById('btn-sistema-cancelar').classList.add('hidden');
-    document.getElementById('btn-sistema-confirmar').innerText = "OK";
-    document.getElementById('btn-sistema-confirmar').style.background = "#27ae60";
+    
+    const btnCancel = document.getElementById('btn-sistema-cancelar');
+    const btnConfirm = document.getElementById('btn-sistema-confirmar');
+    
+    btnCancel.style.background = '';
+    btnCancel.style.color = '';
+    btnConfirm.style.background = '';
+    btnConfirm.style.color = '';
+
+    btnCancel.classList.add('hidden');
+    btnConfirm.innerText = "OK";
+    btnConfirm.style.background = "#27ae60";
 
     const modal = document.getElementById('modal-sistema');
     modal.style.display = 'flex';
     document.body.classList.add('modal-open');
 
-    document.getElementById('btn-sistema-confirmar').onclick = () => {
+    btnConfirm.onclick = () => {
       modal.style.display = 'none';
-      if (abaAtiva !== 'lancar' && abaAtiva !== 'ativos') {
+      if (typeof abaAtiva !== 'undefined' && abaAtiva !== 'lancar' && abaAtiva !== 'ativos') {
           document.body.classList.remove('modal-open');
       }
       resolve(true);
     };
-    });
-    }
+  });
+}
 
-    function mostrarConfirmacao(msg, titulo = "Confirmação", txtConfirmar = "Confirmar", txtCancelar = "Cancelar", icone = "❓") {
-
+function mostrarConfirmacao(msg, titulo = "Confirmação", txtConfirmar = "Confirmar", txtCancelar = "Cancelar", icone = "❓") {
   return new Promise(resolve => {
     document.getElementById('modal-sistema-icon').innerText = icone;
     document.getElementById('modal-sistema-titulo').innerText = titulo;
     document.getElementById('modal-sistema-mensagem').innerHTML = msg;
-    document.getElementById('btn-sistema-cancelar').classList.remove('hidden');
-    document.getElementById('btn-sistema-cancelar').innerText = txtCancelar;
-    document.getElementById('btn-sistema-confirmar').innerText = txtConfirmar;
-    document.getElementById('btn-sistema-confirmar').style.background = "#e74c3c";
+    
+    const btnCancel = document.getElementById('btn-sistema-cancelar');
+    const btnConfirm = document.getElementById('btn-sistema-confirmar');
+    
+    btnCancel.style.background = '';
+    btnCancel.style.color = '';
+    btnConfirm.style.background = '';
+    btnConfirm.style.color = '';
+
+    btnCancel.classList.remove('hidden');
+    btnCancel.innerText = txtCancelar;
+    btnConfirm.innerText = txtConfirmar;
+    btnConfirm.style.background = "#e74c3c";
 
     const modal = document.getElementById('modal-sistema');
     modal.style.display = 'flex';
     document.body.classList.add('modal-open');
 
-    document.getElementById('btn-sistema-confirmar').onclick = () => {
+    btnConfirm.onclick = () => {
       modal.style.display = 'none';
-      if (abaAtiva !== 'lancar' && abaAtiva !== 'ativos') {
+      if (typeof abaAtiva !== 'undefined' && abaAtiva !== 'lancar' && abaAtiva !== 'ativos') {
           document.body.classList.remove('modal-open');
       }
       resolve(true);
     };
 
-    document.getElementById('btn-sistema-cancelar').onclick = () => {
+    btnCancel.onclick = () => {
       modal.style.display = 'none';
-      if (abaAtiva !== 'lancar' && abaAtiva !== 'ativos') {
+      if (typeof abaAtiva !== 'undefined' && abaAtiva !== 'lancar' && abaAtiva !== 'ativos') {
           document.body.classList.remove('modal-open');
       }
       resolve(false);

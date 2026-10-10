@@ -1024,6 +1024,22 @@
             doc.setFontSize(10);
             doc.text(`TOTAL GERAL: R$ ${total.toFixed(2)}`, 75, y, { align: "right" });
 
+            if (data.pedido && data.pedido.forma_pagamento) {
+                y += 6;
+                doc.setFontSize(8);
+                doc.setFont("helvetica", "normal");
+                doc.text(`Forma de Pgto: ${data.pedido.forma_pagamento}`, 75, y, { align: "right" });
+                
+                // Se o garçom preencheu valor recebido
+                if (data.pedido.valor_recebido && Number(data.pedido.valor_recebido) > total) {
+                    y += 4;
+                    doc.text(`Valor Recebido: R$ ${Number(data.pedido.valor_recebido).toFixed(2)}`, 75, y, { align: "right" });
+                    y += 4;
+                    const trocoCalc = Number(data.pedido.valor_recebido) - total;
+                    doc.text(`Troco a devolver: R$ ${trocoCalc.toFixed(2)}`, 75, y, { align: "right" });
+                }
+            }
+
             y += 10;
             doc.setFontSize(8);
             doc.setFont("helvetica", "italic");
@@ -1608,7 +1624,7 @@
             }
         }
         async function chamarGarcom() {
-            if (await Swal.fire({ title: 'Chamar Garçom?', icon: 'question', showCancelButton: true, confirmButtonColor: '#ff4757' }).then(r => r.isConfirmed)) {
+            if (await Swal.fire({ title: 'Chamar Garçom?', icon: 'question', showCancelButton: true, confirmButtonColor: '#ff4757', cancelButtonColor: '#95a5a6' }).then(r => r.isConfirmed)) {
                 showLoading(true); try { await fetch('/api/cliente/chamar-garcom', { method:'POST', headers:{'Content-Type':'application/json', 'Authorization': `Bearer ${sessionMesa.token}`}, body:JSON.stringify({ mesa_id:sessionMesa.mesa_id, mesa_numero:sessionMesa.mesa_numero }) }); Swal.fire('Enviado','Garçom notificado!','success'); } finally { showLoading(false); }
             }
         }
@@ -1619,6 +1635,7 @@
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#ff4757',
+                cancelButtonColor: '#95a5a6',
                 confirmButtonText: 'Sim, cancelar',
                 cancelButtonText: 'Não'
             }).then(r => r.isConfirmed)) {
