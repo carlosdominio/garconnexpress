@@ -8718,6 +8718,27 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false) {
       `;
   }
 
+  // --- Lógica de parse para pagamento/troco ---
+  let exibForma = pedido.forma_pagamento || '';
+  let valRecExib = pedido.valor_recebido ? Number(pedido.valor_recebido) : 0;
+  let trocoCalcExib = pedido.troco ? Number(pedido.troco) : 0;
+
+  const trocoMatchAdm = exibForma.match(/Dinheiro \(Troco para R\$ ([\d.]+)\)/);
+  if (trocoMatchAdm) {
+      exibForma = 'Dinheiro';
+      if (!valRecExib) valRecExib = Number(trocoMatchAdm[1]);
+  }
+  
+  if (!exibForma) exibForma = 'N/A';
+  let isDinheiroExib = (exibForma === 'Dinheiro' || exibForma.toLowerCase().includes('dinheiro'));
+
+  if (isDinheiroExib && valRecExib > 0 && trocoCalcExib === 0) {
+      trocoCalcExib = Math.max(0, valRecExib - pagoAgora);
+  }
+  
+  const exibirBlocoPagamento = (!isConferencia) || (pedido.forma_pagamento && pedido.forma_pagamento !== 'N/A');
+  // --------------------------------------------
+
   const html = `
     <div class="cupom-header" style="text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px;">
       <h2 style="margin:0; font-size: 14pt; font-weight: 900;">GuGA Bebidas</h2>
@@ -8767,20 +8788,20 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false) {
       </div>
 
       <!-- Detalhes de Pagamento (Forma, Recebido, Troco) -->
-      ${!isConferencia ? `
+      ${exibirBlocoPagamento ? `
         <div style="margin-top: 5px; border-top: 2px dashed #000; padding-top: 5px; font-size: 9pt;">
           <div style="display:flex; justify-content:space-between;">
             <span>FORMA DE PAGAMENTO:</span>
-            <span style="font-weight:bold;">${(pedido.pagamentos_detalhados_lista || (historicoPagos && historicoPagos.length > 1)) ? 'MÚLTIPLAS / DIVIDIDO' : (pedido.forma_pagamento || 'N/A')}</span>
+            <span style="font-weight:bold;">${(pedido.pagamentos_detalhados_lista || (historicoPagos && historicoPagos.length > 1)) ? 'MÚLTIPLAS / DIVIDIDO' : (exibForma)}</span>
           </div>
-          ${(pedido.forma_pagamento === 'Dinheiro' && !pedido.pagamentos_detalhados_lista && (!historicoPagos || historicoPagos.length <= 1)) ? `
+          ${(isDinheiroExib && !pedido.pagamentos_detalhados_lista && (!historicoPagos || historicoPagos.length <= 1)) ? `
             <div style="display:flex; justify-content:space-between;">
               <span>VALOR RECEBIDO:</span>
-              <span>R$ ${(pedido.valor_recebido || 0).toFixed(2)}</span>
+              <span>R$ ${valRecExib.toFixed(2)}</span>
             </div>
             <div style="display:flex; justify-content:space-between; font-weight:bold;">
               <span>TROCO:</span>
-              <span>R$ ${(pedido.troco || 0).toFixed(2)}</span>
+              <span>R$ ${trocoCalcExib.toFixed(2)}</span>
             </div>
           ` : ''}
         </div>

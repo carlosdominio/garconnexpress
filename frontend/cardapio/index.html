@@ -1028,15 +1028,24 @@
                 y += 6;
                 doc.setFontSize(8);
                 doc.setFont("helvetica", "normal");
-                doc.text(`Forma de Pgto: ${data.pedido.forma_pagamento}`, 75, y, { align: "right" });
                 
-                // Se o garçom preencheu valor recebido
-                if (data.pedido.valor_recebido && Number(data.pedido.valor_recebido) > total) {
+                let exibFormaCli = data.pedido.forma_pagamento;
+                let valRecCli = data.pedido.valor_recebido ? Number(data.pedido.valor_recebido) : 0;
+                
+                const trocoMatchCli = exibFormaCli.match(/Dinheiro \(Troco para R\$ ([\d.]+)\)/);
+                if (trocoMatchCli) {
+                    exibFormaCli = "Dinheiro";
+                    if (!valRecCli) valRecCli = Number(trocoMatchCli[1]);
+                }
+                
+                doc.text(`Forma de Pgto: ${exibFormaCli}`, 75, y, { align: "right" });
+                
+                if (valRecCli && valRecCli > total) {
                     y += 4;
-                    doc.text(`Valor Recebido: R$ ${Number(data.pedido.valor_recebido).toFixed(2)}`, 75, y, { align: "right" });
+                    doc.text(`Valor Recebido: R$ ${valRecCli.toFixed(2)}`, 75, y, { align: "right" });
                     y += 4;
-                    const trocoCalc = Number(data.pedido.valor_recebido) - total;
-                    doc.text(`Troco a devolver: R$ ${trocoCalc.toFixed(2)}`, 75, y, { align: "right" });
+                    const trocoCalcCli = valRecCli - total;
+                    doc.text(`Troco a devolver: R$ ${trocoCalcCli.toFixed(2)}`, 75, y, { align: "right" });
                 }
             }
 
@@ -1567,8 +1576,8 @@
                 },
                 inputPlaceholder: 'Selecione uma opção',
                 showCancelButton: true,
-                confirmButtonColor: '#f1c40f',
-                cancelButtonColor: '#95a5a6',
+                confirmButtonColor: '#27ae60',
+                cancelButtonColor: '#ff4757',
                 confirmButtonText: 'Pedir Conta',
                 cancelButtonText: 'Cancelar',
                 inputValidator: (value) => {
@@ -1590,8 +1599,8 @@
                     inputAttributes: { min: 0, step: 0.01 },
                     inputPlaceholder: 'Ex: 50',
                     showCancelButton: true,
-                    confirmButtonColor: '#f1c40f',
-                    cancelButtonColor: '#95a5a6',
+                    confirmButtonColor: '#27ae60',
+                    cancelButtonColor: '#ff4757',
                     confirmButtonText: 'Confirmar',
                     cancelButtonText: 'Cancelar'
                 });
@@ -1624,7 +1633,8 @@
             }
         }
         async function chamarGarcom() {
-            if (await Swal.fire({ title: 'Chamar Garçom?', icon: 'question', showCancelButton: true, confirmButtonColor: '#ff4757', cancelButtonColor: '#95a5a6' }).then(r => r.isConfirmed)) {
+            if (await Swal.fire({ title: 'Chamar Garçom?', icon: 'question', showCancelButton: true, confirmButtonColor: '#ff4757',
+                cancelButtonColor: '#95a5a6' }).then(r => r.isConfirmed)) {
                 showLoading(true); try { await fetch('/api/cliente/chamar-garcom', { method:'POST', headers:{'Content-Type':'application/json', 'Authorization': `Bearer ${sessionMesa.token}`}, body:JSON.stringify({ mesa_id:sessionMesa.mesa_id, mesa_numero:sessionMesa.mesa_numero }) }); Swal.fire('Enviado','Garçom notificado!','success'); } finally { showLoading(false); }
             }
         }
