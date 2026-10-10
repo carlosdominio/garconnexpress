@@ -4824,7 +4824,7 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
 
 // Cliente solicita o fechamento da conta (avisar garçom)
 app.post('/api/cliente/solicitar-conta', async (req, res) => {
-  const { token } = req.body;
+  const { token, formaPagamento } = req.body;
   if (!token) return res.status(400).json({ error: 'Token é obrigatório.' });
 
   try {
@@ -4855,7 +4855,7 @@ app.post('/api/cliente/solicitar-conta', async (req, res) => {
     // 1. Atualiza o banco de dados
     // NÃO muda o status da mesa para 'fechando' ainda. 
     // Mantém 'ocupada' para o garçom processar primeiro, mas marca a flag de solicitação.
-    await query("UPDATE pedidos SET solicitou_fechamento = TRUE, fechamento_solicitado_em = COALESCE(fechamento_solicitado_em, CURRENT_TIMESTAMP) WHERE id = ?", [pedido.id]);
+    await query("UPDATE pedidos SET solicitou_fechamento = TRUE, fechamento_solicitado_em = COALESCE(fechamento_solicitado_em, CURRENT_TIMESTAMP), forma_pagamento = ? WHERE id = ?", [formaPagamento || null, pedido.id]);
     await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [mesaId]); 
 
     // 2. Busca número da mesa para a notificação
@@ -4864,12 +4864,14 @@ app.post('/api/cliente/solicitar-conta', async (req, res) => {
     const mesaNum = formatarNomeMesaOuComanda(mesaRes.rows[0]?.numero, isCom);
 
     // 3. Notifica Garçom e Admin via Pusher (Som + Modal + Visual Pulsante)
+    const msgExtra = formaPagamento ? `\n💳 Forma: ${formaPagamento}` : '';
     await safePusherTrigger('garconnexpress', 'solicitacao-fechamento-cliente', {
       pedido_id: pedido.id,
       mesa_id: mesaId,
       mesa_numero: mesaNum,
       is_comanda: isCom,
-      mensagem: `🙋‍♂️ ${mesaNum} solicitou o fechamento da conta!`
+      forma_pagamento: formaPagamento, // Envia para o painel
+      mensagem: `🙋‍♂️ ${mesaNum} solicitou o fechamento da conta!${msgExtra}`
     });
 
     res.json({ success: true });

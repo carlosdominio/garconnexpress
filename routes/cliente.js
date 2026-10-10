@@ -18,7 +18,7 @@ module.exports = (ctx) => {
 
   // POST /api/cliente/solicitar-conta
   router.post('/solicitar-conta', async (req, res) => {
-    const { token } = req.body;
+    const { token, formaPagamento } = req.body;
     if (!token) return res.status(400).json({ error: 'Token é obrigatório.' });
 
     try {
@@ -44,7 +44,7 @@ module.exports = (ctx) => {
         });
       }
 
-      await query("UPDATE pedidos SET status = 'aguardando_fechamento', solicitou_fechamento = TRUE, fechamento_solicitado_em = COALESCE(fechamento_solicitado_em, CURRENT_TIMESTAMP) WHERE id = ?", [pedido.id]);
+      await query("UPDATE pedidos SET status = 'aguardando_fechamento', solicitou_fechamento = TRUE, fechamento_solicitado_em = COALESCE(fechamento_solicitado_em, CURRENT_TIMESTAMP), forma_pagamento = ? WHERE id = ?", [formaPagamento || null, pedido.id]);
       await query("UPDATE mesas SET status = 'fechando' WHERE id = ?", [mesaId]); 
 
       const mesaRes = await query("SELECT numero, is_comanda FROM mesas WHERE id = ?", [mesaId]);
@@ -56,12 +56,14 @@ module.exports = (ctx) => {
         await notifyStatus(pedido.id, mesaId, 'aguardando_fechamento', mesaNum);
       }
 
+      const msgExtra = formaPagamento ? `\n💳 Forma: ${formaPagamento}` : '';
       await safePusherTrigger('garconnexpress', 'solicitacao-fechamento-cliente', {
         pedido_id: pedido.id,
+        forma_pagamento: formaPagamento,
         mesa_id: mesaId,
         mesa_numero: mesaNum,
         is_comanda: isCom,
-        mensagem: `🙋‍♂️ ${mesaNum} solicitou o fechamento da conta!`
+        mensagem: `🙋‍♂️ ${mesaNum} solicitou o fechamento da conta!${msgExtra}`
       });
 
       res.json({ success: true });

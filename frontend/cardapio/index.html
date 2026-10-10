@@ -1538,12 +1538,36 @@
                 });
             }
 
-            if (await Swal.fire({ title: 'Pedir conta?', icon: 'question', showCancelButton: true, confirmButtonColor: '#f1c40f' }).then(r => r.isConfirmed)) {
+            const { value: formaPagamento } = await Swal.fire({
+                title: 'Pedir conta?',
+                text: 'Qual será a forma de pagamento?',
+                icon: 'question',
+                input: 'select',
+                inputOptions: {
+                    'PIX': 'PIX',
+                    'Cartão de Crédito': 'Cartão de Crédito',
+                    'Cartão de Débito': 'Cartão de Débito',
+                    'Dinheiro': 'Dinheiro'
+                },
+                inputPlaceholder: 'Selecione uma opção',
+                showCancelButton: true,
+                confirmButtonColor: '#f1c40f',
+                cancelButtonColor: '#95a5a6',
+                confirmButtonText: 'Pedir Conta',
+                cancelButtonText: 'Cancelar',
+                inputValidator: (value) => {
+                    if (!value) {
+                        return 'Por favor, selecione a forma de pagamento!';
+                    }
+                }
+            });
+
+            if (formaPagamento) {
                 showLoading(true); try { 
                     const res = await fetch('/api/cliente/solicitar-conta', { 
                         method:'POST', 
                         headers:{'Content-Type':'application/json'}, 
-                        body:JSON.stringify({token:sessionMesa.token}) 
+                        body:JSON.stringify({token:sessionMesa.token, formaPagamento}) 
                     }); 
                     
                     const d = await res.json();

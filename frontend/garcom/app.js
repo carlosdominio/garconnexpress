@@ -1607,7 +1607,8 @@ async function configurarPusher() {
 
       if (deveTocarSom('solicitacao-fechamento-cliente')) tocarCampainha();
       const mesaVal = data.mesa_numero || data.mesa_id || 'Mesa';
-      dispararToastSistema('solicitacao-fechamento-cliente', { mesa: mesaVal, pedido_id: data.pedido_id || '' }, `💰 A ${mesaVal} solicitou o fechamento da conta.`, 'info');
+      const fpMsg = data.forma_pagamento ? ` (Forma: ${data.forma_pagamento})` : '';
+      dispararToastSistema('solicitacao-fechamento-cliente', { mesa: mesaVal, pedido_id: data.pedido_id || '' }, `💰 A ${mesaVal} solicitou o fechamento da conta.${fpMsg}`, 'info');
       
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => carregarMesas(), 50);
@@ -2937,9 +2938,19 @@ function calcularTrocoGarcom() {
   const valorPessoa = total / pessoas;
   if (elValorPessoa) elValorPessoa.textContent = `R$ ${valorPessoa.toFixed(2).replace('.',',')}`;
 
+  // Se o cliente solicitou uma forma específica via Cardápio Digital (e ainda não digitamos nada)
+  let fpRaw = pedidoAbertoNaMesa ? (pedidoAbertoNaMesa.forma_pagamento || '') : '';
+  let formaDefault = 'Dinheiro';
+  if (fpRaw.toLowerCase() === 'pix' || fpRaw.toLowerCase().includes('pix')) formaDefault = 'Pix';
+  else if (fpRaw === 'Cartão de Crédito') formaDefault = 'Cartão de Crédito';
+  else if (fpRaw === 'Cartão de Débito') formaDefault = 'Cartão de Débito';
+  else if (fpRaw.toLowerCase().includes('cart')) formaDefault = 'Cartão';
+
   // Salva os valores que já estavam preenchidos para não perder ao digitar
   const valoresAtuais = [];
   const formasAtuais = [];
+  let isFirstRun = container.children.length === 0;
+
   for (let i = 0; i < container.children.length; i++) {
     const v = document.getElementById(`valor-recebido-garcom-${i}`);
     const f = document.getElementById(`forma-pagamento-garcom-${i}`);
@@ -2951,7 +2962,7 @@ function calcularTrocoGarcom() {
   let html = '';
   for (let i = 0; i < pessoas; i++) {
     let titulo = pessoas === 1 ? 'FORMA DE PAGAMENTO:' : `PAGAMENTO PESSOA ${i + 1}:`;
-    let formaPrev = formasAtuais[i] || 'Dinheiro';
+    let formaPrev = isFirstRun ? formaDefault : (formasAtuais[i] || 'Dinheiro');
     let valorPrev = valoresAtuais[i] || '';
     let displayRecebido = formaPrev === 'Dinheiro' ? 'block' : 'none';
 
@@ -2961,7 +2972,9 @@ function calcularTrocoGarcom() {
         <select id="forma-pagamento-garcom-${i}" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; font-size:1rem; background: #fff; margin-bottom: 10px;" onchange="alternarCampoTrocoIndex(${i})">
           <option value="Dinheiro" ${formaPrev === 'Dinheiro' ? 'selected' : ''}>💵 Dinheiro</option>
           <option value="Pix" ${formaPrev === 'Pix' ? 'selected' : ''}>📱 Pix</option>
-          <option value="Cartão" ${formaPrev === 'Cartão' ? 'selected' : ''}>💳 Cartão</option>
+          <option value="Cartão" ${formaPrev === 'Cartão' ? 'selected' : ''}>💳 Cartão (Geral)</option>
+          <option value="Cartão de Crédito" ${formaPrev === 'Cartão de Crédito' ? 'selected' : ''}>💳 Cartão de Crédito</option>
+          <option value="Cartão de Débito" ${formaPrev === 'Cartão de Débito' ? 'selected' : ''}>💳 Cartão de Débito</option>
         </select>
         
         <div id="campo-recebido-garcom-${i}" style="display: ${displayRecebido};">

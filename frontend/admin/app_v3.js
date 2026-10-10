@@ -6625,9 +6625,17 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   // MAPEA A FORMA DE PAGAMENTO PARA O SELECT DO ADMIN (Garante que Cartão/Cartao/Pix/Dinheiro fiquem pré-selecionados)
   const fpRaw = (pedidoParaFecharAdmin.forma_pagamento || pedidoParaFecharAdmin.metodo_pagamento || 'Dinheiro').trim();
   let fpFinal = 'Dinheiro';
-  if (fpRaw.toLowerCase().includes('pix')) fpFinal = 'Pix';
-  else if (fpRaw.toLowerCase().includes('cart')) fpFinal = 'Cartão';
-  else if (fpRaw.toLowerCase().includes('múltiplas') || fpRaw.toLowerCase().includes('multiplas')) fpFinal = 'Múltiplas';
+  if (fpRaw.toLowerCase() === 'pix' || fpRaw.toLowerCase().includes('pix')) {
+    fpFinal = 'Pix';
+  } else if (fpRaw === 'Cartão de Crédito') {
+    fpFinal = 'Cartão de Crédito';
+  } else if (fpRaw === 'Cartão de Débito') {
+    fpFinal = 'Cartão de Débito';
+  } else if (fpRaw.toLowerCase().includes('cart')) {
+    fpFinal = 'Cartão';
+  } else if (fpRaw.toLowerCase().includes('múltiplas') || fpRaw.toLowerCase().includes('multiplas')) {
+    fpFinal = 'Múltiplas';
+  }
   else if (fpRaw.toLowerCase().includes('dinh')) fpFinal = 'Dinheiro';
 
   const num_pessoas_ini = pedidoParaFecharAdmin.num_pessoas || 1;
