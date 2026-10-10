@@ -785,6 +785,7 @@ if (isPostgres) {
       max: process.env.VERCEL ? 10 : 15, // Permite conexões suficientes no pooler para transações e consultas simultâneas
       idleTimeoutMillis: process.env.VERCEL ? 3000 : 30000, 
       connectionTimeoutMillis: 15000, // Timeout de 15s para garantir resposta do Supabase sob alta demanda
+      allowExitOnIdle: process.env.VERCEL ? true : false,
     });
     
     db.on('error', (err) => {
