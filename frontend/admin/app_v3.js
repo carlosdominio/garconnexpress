@@ -2743,7 +2743,16 @@ async function exibirMesasConfig() {
 async function adicionarMesa() {
   const inputEl = document.getElementById('nova-mesa-num');
   const numOuNome = (inputEl ? inputEl.value : '').trim();
-  if (!numOuNome) return mostrarAlerta("Digite o número ou nome da mesa/comanda", "Atenção", "⚠️");
+  if (!numOuNome) return mostrarAlerta("Digite o número da mesa", "Atenção", "⚠️");
+  
+  if (!/^\d+$/.test(numOuNome)) {
+    return Swal.fire({
+      title: 'Apenas Números!',
+      text: 'No cadastro fixo do bar, utilize apenas números para as Mesas. Para usar nomes ou comandas (ex: "João", "VIP"), utilize a aba "Lançar Pedido" e digite o nome diretamente ao lançar.',
+      icon: 'info',
+      confirmButtonColor: '#27ae60'
+    });
+  }
 
   try {
     const res = await fetch('/api/mesas', { 
