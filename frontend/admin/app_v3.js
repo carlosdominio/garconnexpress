@@ -6665,8 +6665,15 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
     }
   }
   const inputRecebido = document.getElementById('fechamento-recebido-admin');
-  inputRecebido.value = pedidoParaFecharAdmin.valor_recebido || '';
-  window.recebidoModificadoManualmente = !!pedidoParaFecharAdmin.valor_recebido;
+  let recebidoInicial = pedidoParaFecharAdmin.valor_recebido || '';
+  if (!recebidoInicial && fpFinal === 'Dinheiro' && fpRaw.includes('Troco para R$')) {
+      const match = fpRaw.match(/Troco para R\$ ([\d.]+)/);
+      if (match && match[1]) {
+          recebidoInicial = parseFloat(match[1]);
+      }
+  }
+  inputRecebido.value = recebidoInicial;
+  window.recebidoModificadoManualmente = !!recebidoInicial;
   inputRecebido.oninput = () => {
     window.recebidoModificadoManualmente = true;
     recalcularTotalFechamentoAdmin();

@@ -1538,7 +1538,7 @@
                 });
             }
 
-            const { value: formaPagamento } = await Swal.fire({
+            const resultForma = await Swal.fire({
                 title: 'Pedir conta?',
                 text: 'Qual será a forma de pagamento?',
                 icon: 'question',
@@ -1562,12 +1562,37 @@
                 }
             });
 
-            if (formaPagamento) {
+            if (resultForma.isDismissed) return;
+            let formaPagamentoFinal = resultForma.value;
+
+            if (formaPagamentoFinal === 'Dinheiro') {
+                const resultTroco = await Swal.fire({
+                    title: 'Precisa de troco?',
+                    text: 'Digite o valor que você vai entregar (ex: se a conta for 35 e você vai dar 50, digite 50). Deixe em branco se o valor for exato.',
+                    icon: 'question',
+                    input: 'number',
+                    inputAttributes: { min: 0, step: 0.01 },
+                    inputPlaceholder: 'Ex: 50',
+                    showCancelButton: true,
+                    confirmButtonColor: '#f1c40f',
+                    cancelButtonColor: '#95a5a6',
+                    confirmButtonText: 'Confirmar',
+                    cancelButtonText: 'Cancelar'
+                });
+
+                if (resultTroco.isDismissed) return;
+                
+                if (resultTroco.value) {
+                    formaPagamentoFinal = `Dinheiro (Troco para R$ ${parseFloat(resultTroco.value).toFixed(2)})`;
+                }
+            }
+
+            if (formaPagamentoFinal) {
                 showLoading(true); try { 
                     const res = await fetch('/api/cliente/solicitar-conta', { 
                         method:'POST', 
                         headers:{'Content-Type':'application/json'}, 
-                        body:JSON.stringify({token:sessionMesa.token, formaPagamento}) 
+                        body:JSON.stringify({token:sessionMesa.token, formaPagamento: formaPagamentoFinal}) 
                     }); 
                     
                     const d = await res.json();

@@ -2958,12 +2958,20 @@ function calcularTrocoGarcom() {
     formasAtuais.push(f ? f.value : 'Dinheiro');
   }
 
+  let valorPrevDefault = '';
+  if (isFirstRun && formaDefault === 'Dinheiro' && fpRaw.includes('Troco para R$')) {
+    const match = fpRaw.match(/Troco para R\$ ([\d.]+)/);
+    if (match && match[1]) {
+      valorPrevDefault = parseFloat(match[1]).toString();
+    }
+  }
+
   // Gera os campos dinamicamente
   let html = '';
   for (let i = 0; i < pessoas; i++) {
     let titulo = pessoas === 1 ? 'FORMA DE PAGAMENTO:' : `PAGAMENTO PESSOA ${i + 1}:`;
     let formaPrev = isFirstRun ? formaDefault : (formasAtuais[i] || 'Dinheiro');
-    let valorPrev = valoresAtuais[i] || '';
+    let valorPrev = isFirstRun && i === 0 ? valorPrevDefault : (valoresAtuais[i] || '');
     let displayRecebido = formaPrev === 'Dinheiro' ? 'block' : 'none';
 
     html += `
