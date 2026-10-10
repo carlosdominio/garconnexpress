@@ -5201,11 +5201,15 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
         await query("UPDATE codigos_acesso SET status = 'expirado' WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'ativo'", [pm.mesa_id, pm.numero]);
 
         // Notifica o cliente logado para encerrar o acesso
+        const finalPedido = (await query("SELECT * FROM pedidos WHERE id = ?", [id])).rows[0];
+        const finalItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco, COALESCE(m.nome, 'Item Customizado') as nome FROM pedido_itens i LEFT JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
+        
         const msgLogout = status === 'entregue' ? "Sua conta foi finalizada. Obrigado pela preferência!" : "Este pedido foi cancelado pelo estabelecimento. Seu acesso foi encerrado.";
         await safePusherTrigger('garconnexpress', `deslogar-mesa-${pm.mesa_id}`, { 
           mensagem: msgLogout,
           status: status, // envia 'cancelado' ou 'entregue'
-          mesa_id: pm.mesa_id 
+          mesa_id: pm.mesa_id,
+          dados_fechamento: { pedido: finalPedido, itens: finalItens }
         });
     }
 
@@ -5594,7 +5598,7 @@ app.post('/api/cliente/meus-pedidos', async (req, res) => {
     // Buscamos pedidos com status 'aberto' ou 'pendente', mas também incluímos pedidos 'entregues' 
     // que tenham sido criados após a geração do código de acesso para que o cliente veja seu histórico.
     const pedidosSessao = (await query(`
-      SELECT id, total, status, cobrar_taxa, desconto, acrescimo, solicitou_fechamento, fechamento_solicitado_em, fechamento_liberado 
+      SELECT id, total, status, cobrar_taxa, desconto, acrescimo, solicitou_fechamento, fechamento_solicitado_em, fechamento_liberado, forma_pagamento, valor_recebido, troco 
       FROM pedidos 
       WHERE mesa_id = ? 
       AND (

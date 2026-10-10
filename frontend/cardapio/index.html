@@ -1038,14 +1038,14 @@
                     if (!valRecCli) valRecCli = Number(trocoMatchCli[1]);
                 }
                 
-                doc.text(`Forma de Pgto: ${exibFormaCli}`, 75, y, { align: "right" });
+                doc.text(`FORMA DE PAGAMENTO: ${exibFormaCli}`, 75, y, { align: "right" });
                 
                 if (valRecCli && valRecCli > total) {
                     y += 4;
-                    doc.text(`Valor Recebido: R$ ${valRecCli.toFixed(2)}`, 75, y, { align: "right" });
+                    doc.text(`VALOR RECEBIDO: R$ ${valRecCli.toFixed(2)}`, 75, y, { align: "right" });
                     y += 4;
                     const trocoCalcCli = valRecCli - total;
-                    doc.text(`Troco a devolver: R$ ${trocoCalcCli.toFixed(2)}`, 75, y, { align: "right" });
+                    doc.text(`TROCO: R$ ${trocoCalcCli.toFixed(2)}`, 75, y, { align: "right" });
                 }
             }
 
