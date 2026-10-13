@@ -2117,10 +2117,13 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false, skipConfirmation 
 
   // Identifica Balcão de forma robusta (opção direta BALCAO, tipo='balcao' da comanda, cache ou texto)
   const mesaObj = (_mesasLancarCache || []).find(m => String(m.id) === String(valorMesaOriginal));
-  const isBalcao = (valorMesaOriginal === 'BALCAO') || 
-                   (tipoMesaSelecionada === 'balcao') || 
-                   (mesaObj && mesaObj.tipo === 'balcao') || 
-                   (/balc[aã]o/i.test(textoMesaOriginal));
+  const isBalcaoDireto = (valorMesaOriginal === 'BALCAO');
+  const isComandaBalcao = !isBalcaoDireto && (
+    (tipoMesaSelecionada === 'balcao') || 
+    (mesaObj && mesaObj.tipo === 'balcao') || 
+    (/balc[aã]o/i.test(textoMesaOriginal))
+  );
+  const isBalcao = isBalcaoDireto || isComandaBalcao;
 
   let mesaId = valorMesaOriginal;
   const garcomId = isDelivery ? 'DELIVERY' : 'ADMIN';
@@ -2217,19 +2220,26 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false, skipConfirmation 
       renderizarCarrinhoLancar();
       resetarMesaLancar();
       
-      window.isFechamentoImediatoBalcao = false;
-
       // Redirecionamento correto conforme o canal/tipo do pedido
       if (isDelivery) {
+        window.isFechamentoImediatoBalcao = false;
         mostrarToast("🚀 Pedido de Delivery lançado com sucesso!");
         switchTab('ativos');
         switchSubTab('delivery');
-      } else if (isBalcao) {
+      } else if (isBalcaoDireto) {
+        window.isFechamentoImediatoBalcao = true;
+        mostrarToast("🚀 Pedido de Balcão lançado! Abrindo finalização...");
+        switchTab('ativos');
+        switchSubTab('balcao');
+        await aprovarFechamento(novoPedidoId, mesaId, 'BALCÃO');
+      } else if (isComandaBalcao) {
+        window.isFechamentoImediatoBalcao = false;
         const labelNome = nomeMesa ? ` (${nomeMesa})` : '';
         mostrarToast(`🚀 Pedido lançado com sucesso no Balcão${labelNome}!`);
         switchTab('ativos');
         switchSubTab('balcao');
       } else {
+        window.isFechamentoImediatoBalcao = false;
         mostrarToast(`🚀 Pedido lançado com sucesso na Mesa ${nomeMesa}!`);
         switchTab('ativos');
         switchSubTab('garcom');
@@ -6491,14 +6501,25 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   if (mesaNomeForcado === null) {
     window.isFechamentoImediatoBalcao = false;
   }
-  pedidoParaFecharAdmin = pedidos.find(p => p.id === idPedido) || { 
-    id: idPedido, 
-    mesa_id: idMesa, 
-    mesa_numero: mesaNomeForcado || 'BALCÃO' 
-  };
+  pedidoParaFecharAdmin = pedidos.find(p => p.id === idPedido);
+  if (!pedidoParaFecharAdmin) {
+    try {
+      const resP = await fetch(`/api/pedidos/${idPedido}`);
+      if (resP.ok) pedidoParaFecharAdmin = await resP.json();
+    } catch (e) {
+      console.error("Erro ao carregar dados do pedido:", e);
+    }
+  }
+  if (!pedidoParaFecharAdmin) {
+    pedidoParaFecharAdmin = { 
+      id: idPedido, 
+      mesa_id: idMesa, 
+      mesa_numero: mesaNomeForcado || 'BALCÃO' 
+    };
+  }
 
   // USAR ITENS QUE JÁ TEMOS SE POSSÍVEL
-  if (pedidoParaFecharAdmin && pedidoParaFecharAdmin.itens) {
+  if (pedidoParaFecharAdmin && pedidoParaFecharAdmin.itens && pedidoParaFecharAdmin.itens.length > 0) {
     itensFechamentoAdmin = pedidoParaFecharAdmin.itens;
   } else {
     const resItens = await fetch(`/api/pedidos/${idPedido}/itens`);
@@ -6515,47 +6536,50 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   });
 
   // --- TRAVA DE COZINHA INTELIGENTE ---
-  // Filtra itens pendentes (EM PREPARO) que SÃO da cozinha ou churrasqueira
-  const itensCozinhaEmPreparo = itensFechamentoAdmin.filter(i => i.status === 'pendente' && (isItemParaCozinha(i) || isItemParaChurrasco(i)));
-  // Filtra itens PRONTOS que ainda não foram marcados como entregues
-  const itensProntosNaoEntregues = itensFechamentoAdmin.filter(i => i.status === 'pronto');
-  // Filtra itens pendentes que NÃO são da cozinha nem churrasco (bebidas, etc)
-  const itensForaCozinhaPend = itensFechamentoAdmin.filter(i => i.status === 'pendente' && !isItemParaCozinha(i) && !isItemParaChurrasco(i));
+  // Não trava se for fechamento imediato do balcão (venda rápida de balcão)
+  if (!window.isFechamentoImediatoBalcao) {
+    // Filtra itens pendentes (EM PREPARO) que SÃO da cozinha ou churrasqueira
+    const itensCozinhaEmPreparo = itensFechamentoAdmin.filter(i => i.status === 'pendente' && (isItemParaCozinha(i) || isItemParaChurrasco(i)));
+    // Filtra itens PRONTOS que ainda não foram marcados como entregues
+    const itensProntosNaoEntregues = itensFechamentoAdmin.filter(i => i.status === 'pronto');
+    // Filtra itens pendentes que NÃO são da cozinha nem churrasco (bebidas, etc)
+    const itensForaCozinhaPend = itensFechamentoAdmin.filter(i => i.status === 'pendente' && !isItemParaCozinha(i) && !isItemParaChurrasco(i));
 
-  if (itensCozinhaEmPreparo.length > 0) {
-    // MODAL ESPECÍFICO PARA COZINHA (BLOQUEIO VISUAL MELHORADO)
-    const listaHtml = itensCozinhaEmPreparo.map(i => `
-      <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(231, 76, 60, 0.1);">
-        <span style="font-weight: 600; color: #2c3e50;">• ${i.nome}</span>
-        <span style="background: #e74c3c; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;">${i.quantidade}x</span>
-      </div>
-    `).join('');
-
-    const msgHtml = `
-      <div style="text-align: center; padding: 10px;">
-        <div style="background: #fff5f5; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px;">
-          <span style="font-size: 2.5rem;">🍳</span>
+    if (itensCozinhaEmPreparo.length > 0) {
+      // MODAL ESPECÍFICO PARA COZINHA (BLOQUEIO VISUAL MELHORADO)
+      const listaHtml = itensCozinhaEmPreparo.map(i => `
+        <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(231, 76, 60, 0.1);">
+          <span style="font-weight: 600; color: #2c3e50;">• ${i.nome}</span>
+          <span style="background: #e74c3c; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;">${i.quantidade}x</span>
         </div>
-        <h3 style="color: #e74c3c; margin: 0 0 10px 0; font-size: 1.2rem;">COZINHA EM ANDAMENTO</h3>
-        <p style="color: #636e72; font-size: 0.95rem; margin-bottom: 20px;">
-          Existem <strong>${itensCozinhaEmPreparo.length} itens</strong> sendo preparados agora. <br>
-          Deseja fechar a conta mesmo assim?
-        </p>
-        <div style="background: #f8f9fa; padding: 15px; border-radius: 12px; border-left: 4px solid #e74c3c; text-align: left; margin-bottom: 20px; max-height: 150px; overflow-y: auto;">
-          <p style="font-size: 0.8rem; font-weight: bold; color: #e74c3c; margin-bottom: 8px; text-transform: uppercase;">Pendentes:</p>
-          ${listaHtml}
-        </div>
-      </div>
-    `;
+      `).join('');
 
-    if (!await mostrarConfirmacao(msgHtml, "Atenção: Pedido Incompleto", "Sim, Fechar Conta", "Não, Esperar Cozinha")) {
-      return;
-    }
-  } else if (itensProntosNaoEntregues.length > 0) {
-    // Caso de itens prontos (cozinha finalizou) mas não foram marcados como entregues
-    const total = itensProntosNaoEntregues.length;
-    if (!await mostrarConfirmacao(`✅ A COZINHA já finalizou tudo! No entanto, ainda há ${total} ${total === 1 ? 'item' : 'itens'} que não ${total === 1 ? 'foi marcado' : 'foram marcados'} como ENTREGUE${total === 1 ? '' : 'S'}. Deseja prosseguir com o fechamento?`, "Itens Pendentes", "Sim, Prosseguir", "Não, Cancelar")) {
-      return;
+      const msgHtml = `
+        <div style="text-align: center; padding: 10px;">
+          <div style="background: #fff5f5; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px;">
+            <span style="font-size: 2.5rem;">🍳</span>
+          </div>
+          <h3 style="color: #e74c3c; margin: 0 0 10px 0; font-size: 1.2rem;">COZINHA EM ANDAMENTO</h3>
+          <p style="color: #636e72; font-size: 0.95rem; margin-bottom: 20px;">
+            Existem <strong>${itensCozinhaEmPreparo.length} itens</strong> sendo preparados agora. <br>
+            Deseja fechar a conta mesmo assim?
+          </p>
+          <div style="background: #f8f9fa; padding: 15px; border-radius: 12px; border-left: 4px solid #e74c3c; text-align: left; margin-bottom: 20px; max-height: 150px; overflow-y: auto;">
+            <p style="font-size: 0.8rem; font-weight: bold; color: #e74c3c; margin-bottom: 8px; text-transform: uppercase;">Pendentes:</p>
+            ${listaHtml}
+          </div>
+        </div>
+      `;
+
+      if (!await mostrarConfirmacao(msgHtml, "Atenção: Pedido Incompleto", "Sim, Fechar Conta", "Não, Esperar Cozinha")) {
+        return;
+      }
+    } else if (itensProntosNaoEntregues.length > 0) {
+      // Caso de itens prontos (cozinha finalizou) mas não foram marcados como entregues
+      const total = itensProntosNaoEntregues.length;
+      if (!await mostrarConfirmacao(`✅ A COZINHA já finalizou tudo! No entanto, ainda há ${total} ${total === 1 ? 'item' : 'itens'} que não ${total === 1 ? 'foi marcado' : 'foram marcados'} como ENTREGUE${total === 1 ? '' : 'S'}. Deseja prosseguir com o fechamento?`, "Itens Pendentes", "Sim, Prosseguir", "Não, Cancelar")) {
+        return;
+      }
     }
   }
   // ------------------------------------
@@ -7248,6 +7272,8 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
       
       if (pedidoParaFecharAdmin && (pedidoParaFecharAdmin.garcom_id === 'DELIVERY' || (pedidoParaFecharAdmin.mesa_numero && String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('DELIVERY')))) {
         mostrarToast(`✅ DELIVERY #${idPedido} Concluído e Pago!`);
+      } else if (window.isFechamentoImediatoBalcao || (pedidoParaFecharAdmin && (pedidoParaFecharAdmin.mesa_tipo === 'balcao' || String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('BALC')))) {
+        mostrarToast(`✅ Pedido de Balcão #${idPedido} Concluído e Pago!`);
       } else {
         const localNome = (pedidoParaFecharAdmin && pedidoParaFecharAdmin.mesa_numero) ? `Mesa ${pedidoParaFecharAdmin.mesa_numero}` : `Mesa`;
         mostrarToast(`✅ ${localNome} Finalizada e Liberada!`);
@@ -7288,6 +7314,7 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
     }
     
     fecharModalFechamentoAdmin();
+    window.isFechamentoImediatoBalcao = false;
     await carregarStatusCaixa();
     if (abaAtiva === 'lancar') await carregarMesasLancar(); else carregarPedidos();
 
