@@ -2229,8 +2229,6 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false, skipConfirmation 
       } else if (isBalcaoDireto) {
         window.isFechamentoImediatoBalcao = true;
         mostrarToast("🚀 Pedido de Balcão lançado! Abrindo finalização...");
-        switchTab('ativos');
-        switchSubTab('balcao');
         await aprovarFechamento(novoPedidoId, mesaId, 'BALCÃO');
       } else if (isComandaBalcao) {
         window.isFechamentoImediatoBalcao = false;
