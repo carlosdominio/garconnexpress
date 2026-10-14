@@ -4029,7 +4029,7 @@ app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, isAuthenticated
 
     // Busca itens e pagamentos de todos os pedidos de uma vez
     const [itensRes, pagamentosRes] = await Promise.all([
-      query(`SELECT pi.*, m.nome, COALESCE(pi.preco, m.preco) as preco, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id IN (${idList})`),
+      query(`SELECT pi.*, m.nome, COALESCE(pi.preco, m.preco) as preco, m.categoria, m.enviar_cozinha, m.enviar_churrasco, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id IN (${idList})`),
       query(`SELECT * FROM pagamentos WHERE pedido_id IN (${idList}) ORDER BY data ASC`)
     ]);
 
@@ -4126,7 +4126,7 @@ app.get('/api/pedidos/:id/itens', ensureDbInitialized, isAuthenticated, async (r
     if (pedidoRes.rows.length === 0) {
       return res.status(404).json({ error: 'Pedido não encontrado' });
     }
-    const result = await query(`SELECT pi.*, m.nome, COALESCE(pi.preco, m.preco) as preco, m.categoria, m.enviar_cozinha, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [req.params.id]);
+    const result = await query(`SELECT pi.*, m.nome, COALESCE(pi.preco, m.preco) as preco, m.categoria, m.enviar_cozinha, m.enviar_churrasco, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [req.params.id]);
     res.json(result.rows);
   } catch (error) {
     console.error('Erro ao buscar itens do pedido:', error);

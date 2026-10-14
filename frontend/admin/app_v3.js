@@ -294,6 +294,9 @@ function isItemParaCozinha(item) {
     if (configCozinhaLoaded) {
         return configCozinhaCategorias.includes(cat);
     }
+    if (cat.includes('BEBIDA') || cat.includes('CERVEJA') || cat.includes('REFRIGERANTE') || cat.includes('SUCO') || cat.includes('DRINK') || cat.includes('AGUA') || cat.includes('ÁGUA') || cat.includes('DOSE')) {
+        return false;
+    }
     return true;
 }
 
@@ -2228,7 +2231,7 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false, skipConfirmation 
         switchSubTab('delivery');
       } else if (isBalcaoDireto) {
         window.isFechamentoImediatoBalcao = true;
-        mostrarToast("🚀 Pedido de Balcão lançado! Abrindo finalização...");
+        mostrarToast("🚀 Pedido de Balcão lançado com sucesso!");
         await aprovarFechamento(novoPedidoId, mesaId, 'BALCÃO');
       } else if (isComandaBalcao) {
         window.isFechamentoImediatoBalcao = false;
@@ -6533,51 +6536,101 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
     return (a.id || 0) - (b.id || 0);
   });
 
-  // --- TRAVA DE COZINHA INTELIGENTE ---
-  // Não trava se for fechamento imediato do balcão (venda rápida de balcão)
-  if (!window.isFechamentoImediatoBalcao) {
-    // Filtra itens pendentes (EM PREPARO) que SÃO da cozinha ou churrasqueira
-    const itensCozinhaEmPreparo = itensFechamentoAdmin.filter(i => i.status === 'pendente' && (isItemParaCozinha(i) || isItemParaChurrasco(i)));
-    // Filtra itens PRONTOS que ainda não foram marcados como entregues
-    const itensProntosNaoEntregues = itensFechamentoAdmin.filter(i => i.status === 'pronto');
-    // Filtra itens pendentes que NÃO são da cozinha nem churrasco (bebidas, etc)
-    const itensForaCozinhaPend = itensFechamentoAdmin.filter(i => i.status === 'pendente' && !isItemParaCozinha(i) && !isItemParaChurrasco(i));
+  const isDelivery = (pedidoParaFecharAdmin.garcom_id === 'DELIVERY');
+  const isBalcao = (
+    pedidoParaFecharAdmin.mesa_tipo === 'balcao' ||
+    !pedidoParaFecharAdmin.mesa_numero || 
+    String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('BALC') ||
+    String(pedidoParaFecharAdmin.mesa_numero).includes('🏪')
+  );
 
-    if (itensCozinhaEmPreparo.length > 0) {
-      // MODAL ESPECÍFICO PARA COZINHA (BLOQUEIO VISUAL MELHORADO)
-      const listaHtml = itensCozinhaEmPreparo.map(i => `
-        <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(231, 76, 60, 0.1);">
+  // --- TRAVA DE COZINHA E CHURRASQUEIRA INTELIGENTE ---
+  // Filtra itens pendentes (EM PREPARO) que SÃO da cozinha ou churrasqueira
+  const itensCozinhaEmPreparo = itensFechamentoAdmin.filter(i => i.status === 'pendente' && (isItemParaCozinha(i) || isItemParaChurrasco(i)));
+  // Filtra itens PRONTOS que ainda não foram marcados como entregues
+  const itensProntosNaoEntregues = itensFechamentoAdmin.filter(i => i.status === 'pronto');
+  // Filtra itens pendentes que NÃO são da cozinha nem churrasco (bebidas, etc)
+  const itensForaCozinhaPend = itensFechamentoAdmin.filter(i => i.status === 'pendente' && !isItemParaCozinha(i) && !isItemParaChurrasco(i));
+
+  if (itensCozinhaEmPreparo.length > 0) {
+    const temChurrasco = itensCozinhaEmPreparo.some(i => isItemParaChurrasco(i));
+    const temCozinha = itensCozinhaEmPreparo.some(i => isItemParaCozinha(i));
+    const setorNome = (temCozinha && temChurrasco) ? 'COZINHA & CHURRASQUEIRA' : (temChurrasco ? 'CHURRASQUEIRA' : 'COZINHA');
+    const iconeSetor = (temCozinha && temChurrasco) ? '🍳🥩' : (temChurrasco ? '🥩' : '🍳');
+
+    // MODAL ESPECÍFICO PARA COZINHA / CHURRASQUEIRA
+    const listaHtml = itensCozinhaEmPreparo.map(i => {
+      const setorItem = isItemParaChurrasco(i) ? 'Churrasco' : 'Cozinha';
+      const corBadge = isItemParaChurrasco(i) ? '#d35400' : '#e74c3c';
+      return `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(0, 0, 0, 0.06);">
           <span style="font-weight: 600; color: #2c3e50;">• ${i.nome}</span>
-          <span style="background: #e74c3c; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;">${i.quantidade}x</span>
-        </div>
-      `).join('');
-
-      const msgHtml = `
-        <div style="text-align: center; padding: 10px;">
-          <div style="background: #fff5f5; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px;">
-            <span style="font-size: 2.5rem;">🍳</span>
-          </div>
-          <h3 style="color: #e74c3c; margin: 0 0 10px 0; font-size: 1.2rem;">COZINHA EM ANDAMENTO</h3>
-          <p style="color: #636e72; font-size: 0.95rem; margin-bottom: 20px;">
-            Existem <strong>${itensCozinhaEmPreparo.length} itens</strong> sendo preparados agora. <br>
-            Deseja fechar a conta mesmo assim?
-          </p>
-          <div style="background: #f8f9fa; padding: 15px; border-radius: 12px; border-left: 4px solid #e74c3c; text-align: left; margin-bottom: 20px; max-height: 150px; overflow-y: auto;">
-            <p style="font-size: 0.8rem; font-weight: bold; color: #e74c3c; margin-bottom: 8px; text-transform: uppercase;">Pendentes:</p>
-            ${listaHtml}
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <span style="background: ${corBadge}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold;">${setorItem}</span>
+            <span style="background: #2c3e50; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;">${i.quantidade}x</span>
           </div>
         </div>
       `;
+    }).join('');
 
-      if (!await mostrarConfirmacao(msgHtml, "Atenção: Pedido Incompleto", "Sim, Fechar Conta", "Não, Esperar Cozinha")) {
-        return;
+    const tituloModal = `${setorNome} EM ANDAMENTO`;
+    const perguntaTexto = isBalcao 
+      ? `Este pedido de <strong>BALCÃO</strong> possui <strong>${itensCozinhaEmPreparo.length} item(ns)</strong> em preparo na cozinha/churrasqueira.<br><br>Deseja <strong>fechar o pedido agora</strong> ou <strong>aguardar o preparo</strong>?`
+      : `Existem <strong>${itensCozinhaEmPreparo.length} itens</strong> sendo preparados agora.<br>Deseja fechar a conta mesmo assim?`;
+
+    const textoConfirmar = isBalcao ? "Sim, Fechar Pedido" : "Sim, Fechar Conta";
+    const textoCancelar = isBalcao ? "Não, Aguardar Preparo" : "Não, Esperar Cozinha";
+
+    const msgHtml = `
+      <div style="text-align: center; padding: 10px;">
+        <div style="background: #fff5f5; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px;">
+          <span style="font-size: 2.2rem;">${iconeSetor}</span>
+        </div>
+        <h3 style="color: #e74c3c; margin: 0 0 10px 0; font-size: 1.2rem;">${tituloModal}</h3>
+        <p style="color: #636e72; font-size: 0.95rem; margin-bottom: 20px;">
+          ${perguntaTexto}
+        </p>
+        <div style="background: #f8f9fa; padding: 12px 15px; border-radius: 12px; border-left: 4px solid #e74c3c; text-align: left; margin-bottom: 20px; max-height: 150px; overflow-y: auto;">
+          <p style="font-size: 0.8rem; font-weight: bold; color: #e74c3c; margin-bottom: 8px; text-transform: uppercase;">Itens Pendentes:</p>
+          ${listaHtml}
+        </div>
+      </div>
+    `;
+
+    const confirmou = await mostrarConfirmacao(
+      msgHtml, 
+      isBalcao ? "Atenção: Balcão com Itens em Preparo" : "Atenção: Pedido Incompleto", 
+      textoConfirmar, 
+      textoCancelar, 
+      iconeSetor
+    );
+
+    if (!confirmou) {
+      if (window.isFechamentoImediatoBalcao) {
+        window.isFechamentoImediatoBalcao = false;
+        mostrarToast("⏳ Pedido de Balcão mantido em aberto para preparo!");
       }
-    } else if (itensProntosNaoEntregues.length > 0) {
-      // Caso de itens prontos (cozinha finalizou) mas não foram marcados como entregues
-      const total = itensProntosNaoEntregues.length;
-      if (!await mostrarConfirmacao(`✅ A COZINHA já finalizou tudo! No entanto, ainda há ${total} ${total === 1 ? 'item' : 'itens'} que não ${total === 1 ? 'foi marcado' : 'foram marcados'} como ENTREGUE${total === 1 ? '' : 'S'}. Deseja prosseguir com o fechamento?`, "Itens Pendentes", "Sim, Prosseguir", "Não, Cancelar")) {
-        return;
+      return;
+    }
+  } else if (itensProntosNaoEntregues.length > 0) {
+    const total = itensProntosNaoEntregues.length;
+    const msgProntos = isBalcao
+      ? `✅ A COZINHA/CHURRASQUEIRA já finalizou tudo! Há ${total} item(ns) pronto(s) aguardando entrega ao cliente. Deseja finalizar o pedido de Balcão agora?`
+      : `✅ A COZINHA já finalizou tudo! No entanto, ainda há ${total} ${total === 1 ? 'item' : 'itens'} que não ${total === 1 ? 'foi marcado' : 'foram marcados'} como ENTREGUE${total === 1 ? '' : 'S'}. Deseja prosseguir com o fechamento?`;
+
+    const confirmouProntos = await mostrarConfirmacao(
+      msgProntos, 
+      "Itens Prontos", 
+      isBalcao ? "Sim, Finalizar Balcão" : "Sim, Prosseguir", 
+      isBalcao ? "Não, Aguardar Entrega" : "Não, Cancelar", 
+      "✅"
+    );
+    if (!confirmouProntos) {
+      if (window.isFechamentoImediatoBalcao) {
+        window.isFechamentoImediatoBalcao = false;
+        mostrarToast("⏳ Pedido mantido em aberto para entrega!");
       }
+      return;
     }
   }
   // ------------------------------------
@@ -6611,14 +6664,6 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   itensFechamentoAdmin.forEach(i => i.selecionadoFechamento = true);
   
   renderizarListaItensFechamento();
-
-  const isDelivery = (pedidoParaFecharAdmin.garcom_id === 'DELIVERY');
-  const isBalcao = (
-    pedidoParaFecharAdmin.mesa_tipo === 'balcao' ||
-    !pedidoParaFecharAdmin.mesa_numero || 
-    String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('BALC') ||
-    String(pedidoParaFecharAdmin.mesa_numero).includes('🏪')
-  );
   
   let titleHTML = '';
   if (isDelivery) {
@@ -6658,16 +6703,15 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   let fpFinal = 'Dinheiro';
   if (fpRaw.toLowerCase() === 'pix' || fpRaw.toLowerCase().includes('pix')) {
     fpFinal = 'Pix';
-  } else if (fpRaw === 'Cartão de Crédito') {
-    fpFinal = 'Cartão de Crédito';
-  } else if (fpRaw === 'Cartão de Débito') {
+  } else if (fpRaw === 'Cartão de Débito' || fpRaw.toLowerCase().includes('deb') || fpRaw.toLowerCase().includes('déb')) {
     fpFinal = 'Cartão de Débito';
-  } else if (fpRaw.toLowerCase().includes('cart')) {
-    fpFinal = 'Cartão';
+  } else if (fpRaw === 'Cartão de Crédito' || fpRaw.toLowerCase().includes('cred') || fpRaw.toLowerCase().includes('créd') || fpRaw.toLowerCase().includes('cart')) {
+    fpFinal = 'Cartão de Crédito';
   } else if (fpRaw.toLowerCase().includes('múltiplas') || fpRaw.toLowerCase().includes('multiplas')) {
     fpFinal = 'Múltiplas';
+  } else if (fpRaw.toLowerCase().includes('dinh')) {
+    fpFinal = 'Dinheiro';
   }
-  else if (fpRaw.toLowerCase().includes('dinh')) fpFinal = 'Dinheiro';
 
   const num_pessoas_ini = pedidoParaFecharAdmin.num_pessoas || 1;
   const selectForma = document.getElementById('fechamento-forma-admin');
@@ -7491,7 +7535,8 @@ function mostrarModalMultiPagamento(numPessoas, valorPorPessoa, pagamentosGarcom
             <select class="multi-pag-forma-select" data-index="${i}" onchange="toggleMultiPagDinheiro(${i}, this.value)" style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e0; font-size: 0.95rem; font-weight: bold; background: white;">
               <option value="Dinheiro" ${formaAtual === 'Dinheiro' ? 'selected' : ''}>💵 Dinheiro</option>
               <option value="Pix" ${formaAtual === 'Pix' ? 'selected' : ''}>📱 Pix</option>
-              <option value="Cartão" ${formaAtual === 'Cartão' ? 'selected' : ''}>💳 Cartão</option>
+              <option value="Cartão de Crédito" ${formaAtual === 'Cartão de Crédito' || formaAtual === 'Cartão' ? 'selected' : ''}>💳 Cartão de Crédito</option>
+              <option value="Cartão de Débito" ${formaAtual === 'Cartão de Débito' ? 'selected' : ''}>💳 Cartão de Débito</option>
             </select>
           </div>
           

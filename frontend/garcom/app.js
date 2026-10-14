@@ -2980,7 +2980,6 @@ function calcularTrocoGarcom() {
         <select id="forma-pagamento-garcom-${i}" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; font-size:1rem; background: #fff; margin-bottom: 10px;" onchange="alternarCampoTrocoIndex(${i})">
           <option value="Dinheiro" ${formaPrev === 'Dinheiro' ? 'selected' : ''}>💵 Dinheiro</option>
           <option value="Pix" ${formaPrev === 'Pix' ? 'selected' : ''}>📱 Pix</option>
-          <option value="Cartão" ${formaPrev === 'Cartão' ? 'selected' : ''}>💳 Cartão (Geral)</option>
           <option value="Cartão de Crédito" ${formaPrev === 'Cartão de Crédito' ? 'selected' : ''}>💳 Cartão de Crédito</option>
           <option value="Cartão de Débito" ${formaPrev === 'Cartão de Débito' ? 'selected' : ''}>💳 Cartão de Débito</option>
         </select>
