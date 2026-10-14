@@ -793,6 +793,12 @@ function atualizarStatusElginUI() {
     headerLed.style.background = isConectada ? '#22c55e' : '#ef4444';
   }
 
+  const headerBadge = document.getElementById('header-elgin-badge');
+  if (headerBadge) {
+    headerBadge.style.borderColor = isConectada ? 'rgba(34, 197, 94, 0.5)' : 'rgba(255, 255, 255, 0.2)';
+    headerBadge.title = isConectada ? 'Elgin i7: Conectada (Pronta)' : 'Elgin i7: Desconectada (Clique para configurar)';
+  }
+
   const btnReal = document.getElementById('btn-imprimir-real-previa');
   if (btnReal) {
     if (isConectada) {
