@@ -298,6 +298,10 @@
           <option value="80">80mm</option>
         </select>
       </div>
+      <div id="header-elgin-badge" onclick="switchTab('configuracoes'); switchConfigSubTab('impressora');" title="Status da Impressora Elgin i7" style="display:flex; align-items:center; gap:6px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 5px 10px; border-radius: 6px; cursor: pointer; user-select: none; transition: 0.2s;">
+        <span id="header-elgin-led" style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444;"></span>
+        <small style="color: #cbd5e1; font-weight: 700; font-size: 0.72rem; letter-spacing: 0.5px;">ELGIN i7</small>
+      </div>
       <div style="display:flex; align-items:center; gap:8px;">
         <div id="pusher-status" title="Conexão Real-Time" style="width: 10px; height: 10px; background: #ff4444; border-radius: 50%; box-shadow: 0 0 5px rgba(255,0,0,0.5);"></div>
         <button onclick="logoutAdmin()" class="btn-sair">SAIR</button>
@@ -793,6 +797,9 @@
           </button>
           <button class="config-nav-btn" onclick="switchConfigSubTab('atualizar-apps')">
             <i class="fa-solid fa-cloud-arrow-down"></i> Atualizar Apps
+          </button>
+          <button class="config-nav-btn" onclick="switchConfigSubTab('impressora')">
+            <i class="fa-solid fa-print"></i> Impressora Elgin i7
           </button>
         </aside>
 
@@ -1537,6 +1544,88 @@
               </div>
             </div>
           </div>
+
+          <!-- Sub-seção: Impressora Térmica Elgin i7 -->
+          <div id="config-sub-impressora" class="config-sub-section">
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+              <div class="config-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px;">
+                  <div>
+                    <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                      <i class="fa-solid fa-print" style="color: #3b82f6;"></i> Impressora Térmica Elgin i7
+                    </h3>
+                    <p style="font-size: 0.85rem; color: #64748b; margin: 4px 0 0 0;">
+                      Comunicação direta ESC/POS via USB/Serial com corte automático de papel (guilhotina).
+                    </p>
+                  </div>
+                  <div id="elgin-status-tag" style="display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; background: #fee2e2; color: #dc2626; border: 1px solid #fecaca;">
+                    <span id="elgin-status-dot" style="width: 10px; height: 10px; border-radius: 50%; background: #dc2626;"></span>
+                    <span id="elgin-status-label">Desconectada</span>
+                  </div>
+                </div>
+
+                <!-- Painel de Conexão e Ações Rápidas -->
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 16px;">
+                  <h4 style="margin: 0 0 12px 0; color: #1e293b; font-size: 0.95rem;">
+                    🔌 Conexão Direta (Web Serial API)
+                  </h4>
+                  <p style="font-size: 0.82rem; color: #64748b; margin-bottom: 16px; line-height: 1.5;">
+                    Conecte a Elgin i7 no cabo USB do computador e clique em <b>Conectar Elgin i7</b>. O navegador irá listar as portas e memorizar a permissão para sempre. As impressões sairão em menos de 0,2s sem abrir janelas do navegador.
+                  </p>
+
+                  <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+                    <button id="btn-conectar-elgin" type="button" onclick="conectarElginSerial()" style="background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(37,99,235,0.2);">
+                      <i class="fa-solid fa-plug"></i> Conectar Elgin i7
+                    </button>
+                    <button id="btn-desconectar-elgin" type="button" onclick="desconectarElginSerial()" style="display: none; background: #64748b; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; align-items: center; gap: 8px;">
+                      <i class="fa-solid fa-power-off"></i> Desconectar
+                    </button>
+                    <button id="btn-testar-elgin" type="button" onclick="testarImpressaoElgin()" style="background: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(16,185,129,0.2);">
+                      <i class="fa-solid fa-scissors"></i> 🧪 Imprimir Cupom de Teste (Corte)
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Preferências de Impressão -->
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px;">
+                  <h4 style="margin: 0 0 14px 0; color: #1e293b; font-size: 0.95rem;">
+                    ⚙️ Preferências de Impressão
+                  </h4>
+
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px;">
+                    <div>
+                      <label style="font-size: 0.8rem; font-weight: 700; color: #475569; display: block; margin-bottom: 6px;">Largura da Bobina:</label>
+                      <select id="elgin-largura-select" onchange="salvarConfigElgin()" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-weight: bold; background: white;">
+                        <option value="80" selected>80mm (Padrão Elgin i7 - 48 colunas)</option>
+                        <option value="58">58mm (Bobina estreita - 32 colunas)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style="font-size: 0.8rem; font-weight: 700; color: #475569; display: block; margin-bottom: 6px;">Velocidade da Porta (Baud Rate):</label>
+                      <select id="elgin-baud-select" onchange="salvarConfigElgin()" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-weight: bold; background: white;">
+                        <option value="115200" selected>115200 bps (Padrão USB Virtual COM Elgin)</option>
+                        <option value="9600">9600 bps (Serial RS232)</option>
+                        <option value="38400">38400 bps</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 10px;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.88rem; color: #334155; font-weight: 600;">
+                      <input type="checkbox" id="elgin-auto-corte" checked onchange="salvarConfigElgin()" style="width: 18px; height: 18px; accent-color: #2563eb;">
+                      Acionar guilhotina (corte de papel) automaticamente ao final
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.88rem; color: #334155; font-weight: 600;">
+                      <input type="checkbox" id="elgin-imprimir-auto-fechamento" onchange="salvarConfigElgin()" style="width: 18px; height: 18px; accent-color: #2563eb;">
+                      Imprimir direto na Elgin ao fechar conta de mesa/balcão
+                    </label>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
         </div>
 
         </div>
@@ -1919,9 +2008,16 @@
       </div>
       
       <!-- Rodapé do Modal -->
-      <div style="padding: 14px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 12px;">
+      <div style="padding: 14px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
         <button onclick="fecharPreviaCupom()" style="background: #ffffff; border: 1px solid #cbd5e1; color: #475569; padding: 10px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.85rem; transition: background 0.2s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#ffffff'">Cancelar</button>
-        <button id="btn-imprimir-real-previa" style="background: #27ae60; border: none; color: #ffffff; padding: 10px 22px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 6px -1px rgba(39, 174, 96, 0.3); transition: background 0.2s, transform 0.1s;" onmouseover="this.style.background='#219653'" onmouseout="this.style.background='#27ae60'">🖨️ Mandar Imprimir</button>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <button id="btn-imprimir-navegador-previa" onclick="dispararImpressaoNavegadorModal()" type="button" style="background: #64748b; border: none; color: #ffffff; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; transition: background 0.2s;" onmouseover="this.style.background='#475569'" onmouseout="this.style.background='#64748b'" title="Imprimir usando a tela tradicional do navegador">
+            🖨️ Navegador
+          </button>
+          <button id="btn-imprimir-real-previa" style="background: #27ae60; border: none; color: #ffffff; padding: 10px 22px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 6px -1px rgba(39, 174, 96, 0.3); transition: background 0.2s, transform 0.1s;" onmouseover="this.style.background='#219653'" onmouseout="this.style.background='#27ae60'">
+            ⚡ Imprimir Direto (Elgin)
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -2200,7 +2296,7 @@
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="app_v3.js?v=1.3.8-topbar-15"></script>
+  <script src="app_v3.js?v=1.3.8-elgin-1"></script>
   <!-- Modal: Mesa Aguardando Cliente -->
   <div id="modal-mesa-aguardando" class="modal">
     <div class="modal-content" style="max-width: 420px; border-radius: 16px; overflow: hidden; padding: 0;">

@@ -620,8 +620,532 @@ function inicializarConfiguracaoImpressao() {
   };
 }
 
+// ============================================================================
+// MÓDULO DE IMPRESSÃO DIRETA TÉRMICA ESC/POS (ELGIN i7) VIA WEB SERIAL
+// ============================================================================
+let elginSerialPort = null;
+const ELGIN_CONFIG_KEY = 'elgin_i7_config_v1';
+let elginConfig = {
+  largura: 80,
+  baudRate: 115200,
+  autoCorte: true,
+  autoImprimirFechamento: false
+};
+window.dadosPreviaCupomAtual = null;
+
+function carregarConfigElgin() {
+  try {
+    const salvo = localStorage.getItem(ELGIN_CONFIG_KEY);
+    if (salvo) {
+      elginConfig = Object.assign(elginConfig, JSON.parse(salvo));
+    }
+  } catch (e) {
+    console.warn("Erro ao carregar config da Elgin:", e);
+  }
+}
+
+function salvarConfigElgin() {
+  try {
+    const selLargura = document.getElementById('elgin-largura-select');
+    const selBaud = document.getElementById('elgin-baud-select');
+    const checkCorte = document.getElementById('elgin-auto-corte');
+    const checkAuto = document.getElementById('elgin-imprimir-auto-fechamento');
+
+    if (selLargura) elginConfig.largura = parseInt(selLargura.value, 10);
+    if (selBaud) elginConfig.baudRate = parseInt(selBaud.value, 10);
+    if (checkCorte) elginConfig.autoCorte = checkCorte.checked;
+    if (checkAuto) elginConfig.autoImprimirFechamento = checkAuto.checked;
+
+    localStorage.setItem(ELGIN_CONFIG_KEY, JSON.stringify(elginConfig));
+    mostrarToast("⚙️ Configurações da Elgin salvas com sucesso!");
+  } catch (e) {
+    console.error("Erro ao salvar config Elgin:", e);
+  }
+}
+
+function aplicarConfigElginNaUI() {
+  carregarConfigElgin();
+  const selLargura = document.getElementById('elgin-largura-select');
+  const selBaud = document.getElementById('elgin-baud-select');
+  const checkCorte = document.getElementById('elgin-auto-corte');
+  const checkAuto = document.getElementById('elgin-imprimir-auto-fechamento');
+
+  if (selLargura) selLargura.value = String(elginConfig.largura || 80);
+  if (selBaud) selBaud.value = String(elginConfig.baudRate || 115200);
+  if (checkCorte) checkCorte.checked = (elginConfig.autoCorte !== false);
+  if (checkAuto) checkAuto.checked = !!elginConfig.autoImprimirFechamento;
+
+  atualizarStatusElginUI();
+}
+
+async function inicializarConfiguracaoElgin() {
+  aplicarConfigElginNaUI();
+  await verificarAutoConexaoElgin();
+}
+
+async function verificarAutoConexaoElgin() {
+  if (!('serial' in navigator)) {
+    atualizarStatusElginUI();
+    return;
+  }
+  try {
+    const ports = await navigator.serial.getPorts();
+    if (ports && ports.length > 0) {
+      elginSerialPort = ports[0];
+      const baud = parseInt(elginConfig.baudRate || 115200, 10);
+      try {
+        if (!elginSerialPort.readable) {
+          await elginSerialPort.open({ baudRate: baud });
+        }
+      } catch (errOpen) {
+        console.log("Porta Elgin detectada (já aberta ou ocupada):", errOpen);
+      }
+    }
+  } catch (e) {
+    console.warn("Verificação de porta Elgin:", e);
+  } finally {
+    atualizarStatusElginUI();
+  }
+}
+
+async function conectarElginSerial() {
+  if (!('serial' in navigator)) {
+    await mostrarAlerta(
+      "Seu navegador atual não possui suporte à Web Serial.<br><br>Para usar a impressão direta sem janelas do navegador, utilize o <b>Google Chrome</b> ou <b>Microsoft Edge</b> no computador.",
+      "Navegador não suportado",
+      "⚠️"
+    );
+    return false;
+  }
+
+  try {
+    const baud = parseInt(elginConfig.baudRate || 115200, 10);
+    elginSerialPort = await navigator.serial.requestPort();
+    try {
+      if (!elginSerialPort.readable) {
+        await elginSerialPort.open({ baudRate: baud });
+      }
+    } catch (openErr) {
+      console.warn("Erro ao abrir porta Elgin:", openErr);
+    }
+
+    localStorage.setItem('elgin_conectada', 'true');
+    atualizarStatusElginUI();
+    mostrarToast("✅ Impressora Elgin i7 conectada com sucesso!");
+    return true;
+  } catch (err) {
+    if (err.name !== 'NotFoundError') {
+      console.error("Erro ao selecionar porta Elgin:", err);
+      mostrarAlerta("Não foi possível conectar na porta da impressora: " + err.message, "Erro", "❌");
+    }
+    atualizarStatusElginUI();
+    return false;
+  }
+}
+
+async function desconectarElginSerial() {
+  if (elginSerialPort) {
+    try {
+      if (elginSerialPort.readable) {
+        await elginSerialPort.close();
+      }
+    } catch (e) {
+      console.warn("Erro ao fechar porta Elgin:", e);
+    }
+    elginSerialPort = null;
+    localStorage.removeItem('elgin_conectada');
+    mostrarToast("🔌 Elgin i7 desconectada.");
+    atualizarStatusElginUI();
+  }
+}
+
+function atualizarStatusElginUI() {
+  const isConectada = !!(elginSerialPort && (elginSerialPort.writable || elginSerialPort.readable));
+
+  const tag = document.getElementById('elgin-status-tag');
+  const dot = document.getElementById('elgin-status-dot');
+  const label = document.getElementById('elgin-status-label');
+  const btnConectar = document.getElementById('btn-conectar-elgin');
+  const btnDesconectar = document.getElementById('btn-desconectar-elgin');
+
+  if (tag && dot && label) {
+    if (isConectada) {
+      tag.style.background = '#dcfce7';
+      tag.style.color = '#15803d';
+      tag.style.border = '1px solid #bbf7d0';
+      dot.style.background = '#22c55e';
+      label.innerText = '🟢 Conectada (Pronta)';
+      if (btnConectar) btnConectar.style.display = 'none';
+      if (btnDesconectar) btnDesconectar.style.display = 'inline-flex';
+    } else {
+      tag.style.background = '#fee2e2';
+      tag.style.color = '#dc2626';
+      tag.style.border = '1px solid #fecaca';
+      dot.style.background = '#dc2626';
+      label.innerText = '🔴 Desconectada';
+      if (btnConectar) btnConectar.style.display = 'inline-flex';
+      if (btnDesconectar) btnDesconectar.style.display = 'none';
+    }
+  }
+
+  const headerLed = document.getElementById('header-elgin-led');
+  if (headerLed) {
+    headerLed.style.background = isConectada ? '#22c55e' : '#ef4444';
+  }
+
+  const btnReal = document.getElementById('btn-imprimir-real-previa');
+  if (btnReal) {
+    if (isConectada) {
+      btnReal.innerHTML = '⚡ Imprimir Direto (Elgin)';
+      btnReal.title = 'Imprime instantaneamente na Elgin i7 sem tela do navegador';
+    } else {
+      btnReal.innerHTML = '⚡ Imprimir Direto (Elgin)';
+      btnReal.title = 'Conecta na Elgin ou imprime direto';
+    }
+  }
+}
+
+async function enviarBytesElgin(bytes) {
+  if (!elginSerialPort) {
+    const conectou = await conectarElginSerial();
+    if (!conectou) return false;
+  }
+
+  try {
+    if (!elginSerialPort.writable) {
+      const baud = parseInt(elginConfig.baudRate || 115200, 10);
+      await elginSerialPort.open({ baudRate: baud });
+    }
+
+    const writer = elginSerialPort.writable.getWriter();
+    const data = new Uint8Array(bytes);
+    await writer.write(data);
+    writer.releaseLock();
+    return true;
+  } catch (err) {
+    console.error("Erro ao enviar bytes para a Elgin:", err);
+    mostrarAlerta("Falha de comunicação com a Elgin i7: " + err.message, "Erro de Impressão", "❌");
+    return false;
+  }
+}
+
+function removerAcentosTexto(str) {
+  if (!str) return '';
+  return String(str)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x20-\x7E\n\r]/g, "");
+}
+
+function padLinhaElgin(esquerda, direita, larguraTotal = 48) {
+  esquerda = String(esquerda || '');
+  direita = String(direita || '');
+  const espacosNecessarios = larguraTotal - esquerda.length - direita.length;
+  if (espacosNecessarios <= 0) {
+    return (esquerda + ' ' + direita).substring(0, larguraTotal);
+  }
+  return esquerda + ' '.repeat(espacosNecessarios) + direita;
+}
+
+function centralizarLinhaElgin(texto, larguraTotal = 48) {
+  texto = String(texto || '').trim();
+  if (texto.length >= larguraTotal) return texto.substring(0, larguraTotal);
+  const margem = Math.floor((larguraTotal - texto.length) / 2);
+  return ' '.repeat(margem) + texto;
+}
+
+function gerarBytesEscPosPedido(pedido, itens) {
+  const largura = parseInt(elginConfig.largura || 80, 10);
+  const colunas = (largura === 58) ? 32 : 48;
+  const divisor = '='.repeat(colunas);
+  const divisorFino = '-'.repeat(colunas);
+
+  const isBalcaoOuDelivery = pedido.garcom_id === 'DELIVERY' || !pedido.mesa_numero || String(pedido.mesa_numero).toUpperCase().includes('BALC') || pedido.mesa_tipo === 'balcao' || (!pedido.mesa_id && !pedido.mesa_numero);
+  const isDelivery = (pedido.garcom_id === 'DELIVERY');
+  const nomeMesa = removerAcentosTexto(formatarNomeMesaHistorico(pedido)).toUpperCase();
+
+  const itensFiltrados = (itens || []).filter(i => i.status !== 'cancelado');
+  const subtotal = itensFiltrados.reduce((sum, i) => sum + ((i.preco || 0) * (i.quantidade || 1)), 0);
+
+  let cobrarTaxaNoCupom = true;
+  if (pedido.cobrar_taxa !== undefined && pedido.cobrar_taxa !== null) {
+    cobrarTaxaNoCupom = (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true);
+  } else if (pedidosStatusTaxa[pedido.id] !== undefined) {
+    cobrarTaxaNoCupom = pedidosStatusTaxa[pedido.id];
+  }
+
+  const acrescimo = pedido.acrescimo || 0;
+  const desconto = pedido.desconto || 0;
+  const taxaDeliveryVal = (pedido.taxa_entrega !== undefined && pedido.taxa_entrega !== null) ? parseFloat(pedido.taxa_entrega) : 3.00;
+  const taxa = cobrarTaxaNoCupom ? (isDelivery ? taxaDeliveryVal : subtotal * 0.10) : 0;
+  const totalGeral = subtotal + taxa + acrescimo - desconto;
+
+  let pagoAgora = totalGeral;
+  if (pedido.isFracaoPagamento) {
+    pagoAgora = pedido.valor_por_pessoa || (totalGeral / (pedido.num_pessoas || 1));
+  } else if (pedido.isFechamentoFinal) {
+    const pagoAnterior = pedido.pago_parcial || 0;
+    pagoAgora = totalGeral - pagoAnterior;
+  }
+
+  let str = '';
+  // Reset ESC/POS
+  str += '\x1B\x40';
+
+  // Cabeçalho
+  str += '\x1B\x61\x01'; // Centralizado
+  str += '\x1B\x45\x01'; // Negrito ON
+  str += '\x1D\x21\x01'; // Dobro de altura
+  str += 'GUGA BEBIDAS\n';
+  str += '\x1D\x21\x00'; // Tamanho normal
+  str += 'SISTEMA DE GESTAO\n';
+  str += '\x1B\x45\x00'; // Negrito OFF
+  str += divisor + '\n';
+
+  // Informações do Pedido
+  str += '\x1B\x61\x00'; // Alinhado à esquerda
+  str += '\x1B\x45\x01';
+  str += padLinhaElgin(`PEDIDO: #${pedido.id}`, nomeMesa, colunas) + '\n';
+  str += '\x1B\x45\x00';
+  const dataFormatada = new Date().toLocaleString('pt-BR');
+  str += padLinhaElgin('DATA:', dataFormatada, colunas) + '\n';
+  const atendente = removerAcentosTexto(pedido.garcom_nome || pedido.garcom_id || 'Administrador');
+  str += padLinhaElgin('ATENDENTE:', atendente, colunas) + '\n';
+  str += divisorFino + '\n';
+
+  // Cabeçalho dos Itens
+  str += '\x1B\x45\x01';
+  if (colunas === 32) {
+    str += padLinhaElgin('QTD ITEM', 'TOTAL', colunas) + '\n';
+  } else {
+    str += padLinhaElgin('QTD  DESCRICAO', 'TOTAL (R$)', colunas) + '\n';
+  }
+  str += '\x1B\x45\x00';
+  str += divisorFino + '\n';
+
+  // Itens
+  itensFiltrados.forEach(item => {
+    const qtdStr = `${item.quantidade || 1}x `;
+    const totalItem = ((item.preco || 0) * (item.quantidade || 1)).toFixed(2);
+    let nomeItem = removerAcentosTexto(item.nome || item.produto_nome || 'Item');
+
+    if (colunas === 32) {
+      if (nomeItem.length > 18) nomeItem = nomeItem.substring(0, 18);
+      str += padLinhaElgin(`${qtdStr}${nomeItem}`, totalItem, colunas) + '\n';
+    } else {
+      if (nomeItem.length > 30) nomeItem = nomeItem.substring(0, 30);
+      str += padLinhaElgin(`${qtdStr}${nomeItem}`, totalItem, colunas) + '\n';
+    }
+  });
+
+  str += divisorFino + '\n';
+
+  // Totais
+  str += padLinhaElgin('SUBTOTAL:', `R$ ${subtotal.toFixed(2)}`, colunas) + '\n';
+  const rotuloTaxa = isDelivery ? 'TAXA ENTREGA:' : `TAXA SERVICO (${cobrarTaxaNoCupom ? '10%' : 'OFF'}):`;
+  str += padLinhaElgin(rotuloTaxa, `R$ ${taxa.toFixed(2)}`, colunas) + '\n';
+
+  if (acrescimo > 0) {
+    str += padLinhaElgin('ACRESCIMO:', `R$ ${acrescimo.toFixed(2)}`, colunas) + '\n';
+  }
+  if (desconto > 0) {
+    str += padLinhaElgin('DESCONTO:', `- R$ ${desconto.toFixed(2)}`, colunas) + '\n';
+  }
+
+  str += divisor + '\n';
+  str += '\x1B\x45\x01'; // Negrito
+  str += '\x1D\x21\x01'; // Dobro de altura
+  str += padLinhaElgin('TOTAL:', `R$ ${pagoAgora.toFixed(2)}`, colunas) + '\n';
+  str += '\x1D\x21\x00'; // Normal
+  str += '\x1B\x45\x00';
+  str += divisor + '\n';
+
+  // Forma de Pagamento
+  const formaPagto = removerAcentosTexto(pedido.forma_pagamento || 'Nao informada').toUpperCase();
+  str += padLinhaElgin('PAGAMENTO:', formaPagto, colunas) + '\n';
+  if (pedido.valor_recebido && pedido.valor_recebido > 0) {
+    str += padLinhaElgin('VALOR RECEBIDO:', `R$ ${parseFloat(pedido.valor_recebido).toFixed(2)}`, colunas) + '\n';
+  }
+  if (pedido.troco && pedido.troco > 0) {
+    str += padLinhaElgin('TROCO:', `R$ ${parseFloat(pedido.troco).toFixed(2)}`, colunas) + '\n';
+  }
+
+  // Rodapé
+  str += divisorFino + '\n';
+  str += '\x1B\x61\x01'; // Centralizado
+  str += 'OBRIGADO PELA PREFERENCIA!\n';
+  str += 'GuGA Bebidas - Sistema de Gestao\n';
+  str += '\n\n\n\n'; // Avanço do papel térmico
+
+  // Guilhotina (Corte de papel)
+  if (elginConfig.autoCorte !== false) {
+    str += '\x1D\x56\x00'; // GS V 0 (Corte completo)
+  }
+
+  // Converter para Array de Bytes
+  const bytes = [];
+  for (let i = 0; i < str.length; i++) {
+    bytes.push(str.charCodeAt(i) & 0xFF);
+  }
+  return bytes;
+}
+
+async function imprimirDiretoElgin(pedido, itens) {
+  if (!elginSerialPort) {
+    const resp = await mostrarConfirmacao(
+      "A impressora <b>Elgin i7</b> não está conectada no momento.<br><br>Deseja imprimir usando a janela do navegador agora?",
+      "Elgin i7 Desconectada",
+      "🖨️ Imprimir no Navegador",
+      "🔌 Conectar Elgin",
+      "⚠️"
+    );
+    if (resp) {
+      imprimirCupom(pedido, itens, false, true);
+    } else {
+      const conectou = await conectarElginSerial();
+      if (conectou) {
+        await imprimirDiretoElgin(pedido, itens);
+      }
+    }
+    return;
+  }
+
+  try {
+    const bytes = gerarBytesEscPosPedido(pedido, itens);
+    const ok = await enviarBytesElgin(bytes);
+    if (ok) {
+      mostrarToast("⚡ Cupom impresso na Elgin i7 com sucesso!", "success", "Elgin i7");
+    }
+  } catch (err) {
+    console.error("Erro na impressão direta Elgin:", err);
+    mostrarAlerta("Erro ao imprimir na Elgin: " + err.message, "Erro", "❌");
+  }
+}
+
+function converterHtmlParaTextoBobina(html, larguraTotal = 48) {
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = html;
+  
+  const divs = tempDiv.querySelectorAll('div, p, h1, h2, h3, h4, tr');
+  divs.forEach(d => {
+    d.after(document.createTextNode('\n'));
+  });
+  const brs = tempDiv.querySelectorAll('br');
+  brs.forEach(b => {
+    b.replaceWith(document.createTextNode('\n'));
+  });
+
+  let raw = tempDiv.innerText || tempDiv.textContent || '';
+  const linhas = raw.split('\n');
+  let textoFinal = '';
+  
+  linhas.forEach(linha => {
+    const limpa = removerAcentosTexto(linha.trim());
+    if (limpa) {
+      textoFinal += limpa + '\n';
+    }
+  });
+  return textoFinal;
+}
+
+async function imprimirRelatorioElgin(html) {
+  if (!elginSerialPort || !elginSerialPort.writable) return false;
+  try {
+    const colunas = (elginConfig.largura === 58) ? 32 : 48;
+    let texto = '\x1B\x40'; // Reset ESC/POS
+    texto += '\x1B\x61\x00'; // Left
+    texto += converterHtmlParaTextoBobina(html, colunas);
+    texto += '\n\n\n\n';
+    if (elginConfig.autoCorte !== false) {
+      texto += '\x1D\x56\x00'; // Corte
+    }
+    const bytes = [];
+    for (let i = 0; i < texto.length; i++) {
+      bytes.push(texto.charCodeAt(i) & 0xFF);
+    }
+    return await enviarBytesElgin(bytes);
+  } catch (e) {
+    console.error("Erro ao imprimir relatório na Elgin:", e);
+    return false;
+  }
+}
+
+async function testarImpressaoElgin() {
+  if (!elginSerialPort || !elginSerialPort.writable) {
+    const conectou = await conectarElginSerial();
+    if (!conectou) return;
+  }
+  
+  const largura = parseInt(elginConfig.largura || 80, 10);
+  const colunas = (largura === 58) ? 32 : 48;
+  const divisor = '='.repeat(colunas);
+  const divisorFino = '-'.repeat(colunas);
+
+  let texto = '';
+  texto += '\x1B\x40'; // Init ESC/POS
+  texto += '\x1B\x61\x01'; // Center
+  texto += '\x1B\x45\x01'; // Bold ON
+  texto += 'GUGA BEBIDAS\n';
+  texto += '\x1B\x45\x00'; // Bold OFF
+  texto += 'TESTE DE COMUNICACAO ESC/POS\n';
+  texto += 'IMPRESSORA ELGIN i7\n';
+  texto += divisor + '\n';
+  texto += '\x1B\x61\x00'; // Left
+  texto += `DATA/HORA: ${new Date().toLocaleString('pt-BR')}\n`;
+  texto += `LARGURA: ${largura}mm (${colunas} colunas)\n`;
+  texto += `BAUD RATE: ${elginConfig.baudRate || 115200} bps\n`;
+  texto += divisorFino + '\n';
+  texto += padLinhaElgin('ITEM DE TESTE (QTD)', 'TOTAL', colunas) + '\n';
+  texto += divisorFino + '\n';
+  texto += padLinhaElgin('Cerveja Lata 350ml (2x)', '12.00', colunas) + '\n';
+  texto += padLinhaElgin('Porcao Batata Frita (1x)', '25.00', colunas) + '\n';
+  texto += divisorFino + '\n';
+  texto += padLinhaElgin('TOTAL DE TESTE:', 'R$ 37.00', colunas) + '\n';
+  texto += divisor + '\n';
+  texto += '\x1B\x61\x01'; // Center
+  texto += '\x1B\x45\x01'; // Bold ON
+  texto += 'COMUNICACAO E CORTE 100% OK!\n';
+  texto += '\x1B\x45\x00'; // Bold OFF
+  texto += 'GuGA Bebidas - Sistema de Gestao\n';
+  texto += '\n\n\n\n';
+
+  if (elginConfig.autoCorte !== false) {
+    texto += '\x1D\x56\x00'; // Corte completo
+  }
+
+  const bytes = [];
+  for (let i = 0; i < texto.length; i++) {
+    bytes.push(texto.charCodeAt(i) & 0xFF);
+  }
+
+  const ok = await enviarBytesElgin(bytes);
+  if (ok) {
+    mostrarToast("✅ Cupom de teste enviado com sucesso para a Elgin i7!", "success", "Elgin i7");
+  }
+}
+
+function dispararImpressaoNavegadorModal() {
+  const dados = window.dadosPreviaCupomAtual;
+  fecharPreviaCupom();
+  if (dados && dados.pedido) {
+    imprimirCupom(dados.pedido, dados.itens, false, true);
+    return;
+  }
+  if (dados && dados.html) {
+    const container = document.getElementById('cupom-impressao');
+    if (container) {
+      container.innerHTML = dados.html;
+      aplicarConfiguracaoImpressao();
+      setTimeout(() => { window.print(); }, 250);
+      return;
+    }
+  }
+  setTimeout(() => { window.print(); }, 250);
+}
+
 async function iniciarPainelAdmin() {
   inicializarConfiguracaoImpressao();
+  inicializarConfiguracaoElgin();
   inicializarConfiguracaoSom(); 
   solicitarPermissaoNotificacao();
   carregarNotificacoes();
@@ -1075,6 +1599,9 @@ function switchConfigSubTab(subTab) {
   }
   else if (subTab === 'atualizar-apps') {
     carregarVersaoApp();
+  }
+  else if (subTab === 'impressora') {
+    aplicarConfigElginNaUI();
   }
   else if (subTab === 'relatorios') {
     const dataInicio = document.getElementById('rel-data-inicio');
@@ -4719,9 +5246,19 @@ async function imprimirResumoDiario() {
   `;
 
   document.getElementById('conteudo-previa-bobina').innerHTML = html;
+  window.dadosPreviaCupomAtual = { pedido: null, itens: null, html: html, isRelatorio: true };
+  atualizarStatusElginUI();
   
   const btnReal = document.getElementById('btn-imprimir-real-previa');
-  btnReal.onclick = function() {
+  btnReal.onclick = async function() {
+    if (elginSerialPort && (elginSerialPort.writable || elginSerialPort.readable)) {
+      const ok = await imprimirRelatorioElgin(html);
+      fecharPreviaCupom();
+      if (ok) {
+        mostrarToast("⚡ Resumo impresso na Elgin i7!", "success", "Elgin i7");
+        return;
+      }
+    }
     container.innerHTML = html;
     setTimeout(() => { window.print(); }, 250);
     fecharPreviaCupom();
@@ -7425,6 +7962,11 @@ function imprimirCupomParcialFracao(pedido, itens, valorPago, saldoRestante, pes
     </div>
   `;
 
+  if (elginSerialPort && (elginSerialPort.writable || elginSerialPort.readable)) {
+    imprimirRelatorioElgin(html);
+    return;
+  }
+
   container.innerHTML = html;
   setTimeout(() => { window.print(); }, 250);
 }
@@ -7479,6 +8021,12 @@ function imprimirCupomParcialItens(pedido, itensPagos, totalPago, cobrarTaxa) {
       <br><br>.
     </div>
   `;
+
+  if (elginSerialPort && (elginSerialPort.writable || elginSerialPort.readable)) {
+    imprimirRelatorioElgin(html);
+    return;
+  }
+
   container.innerHTML = html;
   setTimeout(() => { window.print(); }, 250);
 }
@@ -8570,7 +9118,7 @@ async function reimprimirCupomById(id) {
   }
 }
 
-async function imprimirCupom(pedido, itens, isOnlyHtml = false) {
+async function imprimirCupom(pedido, itens, isOnlyHtml = false, forcarNavegador = false) {
   const container = document.getElementById('cupom-impressao');
   if (!container) return;
   aplicarConfiguracaoImpressao();
@@ -8896,7 +9444,15 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false) {
   `;
 
   if (isOnlyHtml) {
+    window.dadosPreviaCupomAtual = { pedido, itens, html, isRelatorio: false };
+    atualizarStatusElginUI();
     return html;
+  }
+
+  // Se a Elgin estiver conectada e NÃO foi forçada a impressão pelo navegador:
+  if (!forcarNavegador && elginSerialPort && (elginSerialPort.writable || elginSerialPort.readable)) {
+    await imprimirDiretoElgin(pedido, itens);
+    return;
   }
 
   container.innerHTML = html;
@@ -9086,9 +9642,19 @@ async function imprimirRelatorioCaixa() {
   `;
 
   document.getElementById('conteudo-previa-bobina').innerHTML = html;
+  window.dadosPreviaCupomAtual = { pedido: null, itens: null, html: html, isRelatorio: true };
+  atualizarStatusElginUI();
   
   const btnReal = document.getElementById('btn-imprimir-real-previa');
-  btnReal.onclick = function() {
+  btnReal.onclick = async function() {
+    if (elginSerialPort && (elginSerialPort.writable || elginSerialPort.readable)) {
+      const ok = await imprimirRelatorioElgin(html);
+      fecharPreviaCupom();
+      if (ok) {
+        mostrarToast("⚡ Relatório de Caixa impresso na Elgin i7!", "success", "Elgin i7");
+        return;
+      }
+    }
     container.innerHTML = html;
     setTimeout(() => { window.print(); }, 250);
     fecharPreviaCupom();
