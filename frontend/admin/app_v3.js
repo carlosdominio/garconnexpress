@@ -2205,16 +2205,28 @@ function limparCarrinhoLancarStorage() {
 
 function atualizarBadgeCarrinhoLancar() {
   const badge = document.getElementById('badge-lancar-contador');
-  if (!badge) return;
+  const icon = document.getElementById('lancar-tab-icon');
   const totalItens = (carrinhoLancar || []).reduce((acc, i) => acc + (parseInt(i.quantidade) || 1), 0);
   if (totalItens > 0) {
-    badge.innerText = totalItens;
-    badge.classList.remove('hidden');
-    badge.style.display = 'inline-block';
+    if (badge) {
+      badge.innerText = totalItens;
+      badge.classList.remove('hidden');
+      badge.style.display = 'inline-flex';
+    }
+    if (icon) {
+      icon.classList.add('hidden');
+      icon.style.display = 'none';
+    }
   } else {
-    badge.innerText = '0';
-    badge.classList.add('hidden');
-    badge.style.display = 'none';
+    if (badge) {
+      badge.innerText = '0';
+      badge.classList.add('hidden');
+      badge.style.display = 'none';
+    }
+    if (icon) {
+      icon.classList.remove('hidden');
+      icon.style.display = '';
+    }
   }
 }
 setTimeout(() => carregarCarrinhoLancarStorage(), 200);
