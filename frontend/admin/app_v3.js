@@ -802,11 +802,11 @@ function atualizarStatusElginUI() {
   const btnReal = document.getElementById('btn-imprimir-real-previa');
   if (btnReal) {
     if (isConectada) {
-      btnReal.innerHTML = '⚡ Imprimir Direto (Elgin)';
+      btnReal.innerHTML = '⚡ Imprimir Cupom (Elgin)';
       btnReal.title = 'Imprime instantaneamente na Elgin i7 sem tela do navegador';
     } else {
-      btnReal.innerHTML = '⚡ Imprimir Direto (Elgin)';
-      btnReal.title = 'Conecta na Elgin ou imprime direto';
+      btnReal.innerHTML = '🖨️ Imprimir Cupom';
+      btnReal.title = 'Imprimir cupom';
     }
   }
 }
