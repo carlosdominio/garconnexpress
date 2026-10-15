@@ -1462,13 +1462,170 @@ function resetarMesaLancar() {
   }
 }
 
-function switchTab(tab) {
+async function lancarCarrinhoBalcaoAberto() {
+  if (!carrinhoLancar || carrinhoLancar.length === 0) return false;
+  
+  const selMesa = document.getElementById('lancar-mesa-select');
+  const valorMesaOriginal = selMesa ? selMesa.value : '';
+  const mesaFinal = (valorMesaOriginal && valorMesaOriginal !== 'DELIVERY') ? valorMesaOriginal : 'BALCAO';
+  const cobrarTaxa = document.getElementById('lancar-taxa-toggle')?.checked ?? false;
+
+  try {
+    const res = await fetch('/api/pedidos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mesa_id: mesaFinal,
+        garcom_id: 'ADMIN',
+        itens: carrinhoLancar,
+        cobrar_taxa: cobrarTaxa
+      })
+    });
+    if (res.ok) {
+      carrinhoLancar = [];
+      limparCarrinhoLancarStorage();
+      renderizarCarrinhoLancar();
+      resetarMesaLancar();
+      mostrarToast("⏳ Pedido mantido em aberto no Balcão!", "info", "Balcão");
+      return true;
+    } else {
+      const err = await res.json();
+      mostrarAlerta(err.error || "Erro ao salvar comanda de Balcão", "Erro", "❌");
+      return false;
+    }
+  } catch(e) {
+    console.error("Erro ao lançar pedido aberto:", e);
+    mostrarAlerta("Erro de conexão ao salvar pedido no Balcão.", "Erro", "❌");
+    return false;
+  }
+}
+
+async function perguntarAcaoAoTrocarAbaComCarrinho(tabAlvo) {
+  const totalItens = (carrinhoLancar || []).reduce((acc, i) => acc + (parseInt(i.quantidade) || 1), 0);
+  const subtotal = (carrinhoLancar || []).reduce((acc, i) => acc + (i.preco * i.quantidade), 0);
+  
+  let acaoEscolhida = 'continuar';
+
+  const htmlConteudo = `
+    <div style="text-align: left; font-size: 0.95rem; color: #334155; line-height: 1.5; padding: 5px 0;">
+      <p style="margin-bottom: 14px; font-weight: 500;">
+        Você possui <strong>${totalItens} item(ns)</strong> no carrinho (Total: <strong>R$ ${subtotal.toFixed(2)}</strong>). O que deseja fazer antes de sair?
+      </p>
+      
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button id="btn-swal-sair-balcao" type="button" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #f0fdf4; border: 1.5px solid #22c55e; border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.2s; font-family: inherit;">
+          <span style="font-size: 1.5rem;">🏪</span>
+          <div>
+            <div style="font-weight: 700; color: #15803d; font-size: 0.95rem;">Manter Aberto no Balcão</div>
+            <div style="font-size: 0.8rem; color: #64748b;">Gera a comanda ativa no Balcão para receber mais tarde e muda de aba.</div>
+          </div>
+        </button>
+
+        <button id="btn-swal-sair-continuar" type="button" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #f8fafc; border: 1.5px solid #3b82f6; border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.2s; font-family: inherit;">
+          <span style="font-size: 1.5rem;">🛒</span>
+          <div>
+            <div style="font-weight: 700; color: #1d4ed8; font-size: 0.95rem;">Continuar Editando no Carrinho</div>
+            <div style="font-size: 0.8rem; color: #64748b;">Permanece nesta tela para concluir ou corrigir o pedido agora.</div>
+          </div>
+        </button>
+
+        <button id="btn-swal-sair-salvar" type="button" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #fffbeb; border: 1.5px solid #f59e0b; border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.2s; font-family: inherit;">
+          <span style="font-size: 1.5rem;">💾</span>
+          <div>
+            <div style="font-weight: 700; color: #b45309; font-size: 0.95rem;">Salvar no Carrinho e Mudar de Aba</div>
+            <div style="font-size: 0.8rem; color: #64748b;">Guarda os itens para quando você retornar à aba Lançar Pedido.</div>
+          </div>
+        </button>
+
+        <button id="btn-swal-sair-descartar" type="button" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fef2f2; border: 1px dashed #ef4444; border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.2s; font-family: inherit;">
+          <span style="font-size: 1.3rem;">🗑️</span>
+          <div>
+            <div style="font-weight: 600; color: #b91c1c; font-size: 0.85rem;">Descartar Itens do Carrinho</div>
+          </div>
+        </button>
+      </div>
+    </div>
+  `;
+
+  await Swal.fire({
+    title: 'Itens Pendentes no Carrinho',
+    html: htmlConteudo,
+    icon: 'warning',
+    showCancelButton: false,
+    showConfirmButton: false,
+    allowOutsideClick: false,
+    didOpen: () => {
+      const bBalcao = document.getElementById('btn-swal-sair-balcao');
+      const bContinuar = document.getElementById('btn-swal-sair-continuar');
+      const bSalvar = document.getElementById('btn-swal-sair-salvar');
+      const bDescartar = document.getElementById('btn-swal-sair-descartar');
+
+      if (bBalcao) {
+        bBalcao.onmouseover = () => { bBalcao.style.background = '#dcfce7'; };
+        bBalcao.onmouseout = () => { bBalcao.style.background = '#f0fdf4'; };
+        bBalcao.onclick = () => { acaoEscolhida = 'balcao'; Swal.close(); };
+      }
+      if (bContinuar) {
+        bContinuar.onmouseover = () => { bContinuar.style.background = '#eff6ff'; };
+        bContinuar.onmouseout = () => { bContinuar.style.background = '#f8fafc'; };
+        bContinuar.onclick = () => { acaoEscolhida = 'continuar'; Swal.close(); };
+      }
+      if (bSalvar) {
+        bSalvar.onmouseover = () => { bSalvar.style.background = '#fef3c7'; };
+        bSalvar.onmouseout = () => { bSalvar.style.background = '#fffbeb'; };
+        bSalvar.onclick = () => { acaoEscolhida = 'salvar'; Swal.close(); };
+      }
+      if (bDescartar) {
+        bDescartar.onmouseover = () => { bDescartar.style.background = '#fee2e2'; };
+        bDescartar.onmouseout = () => { bDescartar.style.background = '#fef2f2'; };
+        bDescartar.onclick = () => { acaoEscolhida = 'descartar'; Swal.close(); };
+      }
+    }
+  });
+
+  if (acaoEscolhida === 'continuar') {
+    return false;
+  } else if (acaoEscolhida === 'balcao') {
+    const ok = await lancarCarrinhoBalcaoAberto();
+    if (ok) {
+      if (tabAlvo === 'ativos') {
+        setTimeout(() => switchSubTab('balcao'), 150);
+      }
+      return true;
+    }
+    return false;
+  } else if (acaoEscolhida === 'salvar') {
+    salvarCarrinhoLancarStorage();
+    mostrarToast("💾 Itens salvos no carrinho para quando você voltar!", "info", "Carrinho");
+    return true;
+  } else if (acaoEscolhida === 'descartar') {
+    carrinhoLancar = [];
+    limparCarrinhoLancarStorage();
+    renderizarCarrinhoLancar();
+    resetarMesaLancar();
+    mostrarToast("🗑️ Carrinho descartado.");
+    return true;
+  }
+  return false;
+}
+
+async function switchTab(tab) {
+  // Se está na aba de lançamento com itens no carrinho e quer sair para outra aba
+  if (abaAtiva === 'lancar' && tab !== 'lancar' && carrinhoLancar && carrinhoLancar.length > 0) {
+    const continuar = await perguntarAcaoAoTrocarAbaComCarrinho(tab);
+    if (!continuar) {
+      return; // Permanece na aba lancar!
+    }
+  }
+
   // Salva a posição do scroll antes de trocar
   const scrollPos = window.scrollY;
 
-  // Se o usuário está saindo da aba de lançar pedidos, reseta a mesa selecionada para o padrão
+  // Se o usuário está saindo da aba de lançar pedidos, reseta a mesa selecionada para o padrão SOMENTE se carrinho vazio
   if (abaAtiva === 'lancar' && tab !== 'lancar') {
-    resetarMesaLancar();
+    if (!carrinhoLancar || carrinhoLancar.length === 0) {
+      resetarMesaLancar();
+    }
   }
 
   abaAtiva = tab;
@@ -2063,8 +2220,74 @@ function scrollCategoriasEdicao(delta) {
 
 let carrinhoLancar = [];
 
-async function prepararLancarPedido() {
-  carrinhoLancar = [];
+function salvarCarrinhoLancarStorage() {
+  try {
+    localStorage.setItem('carrinhoLancar_admin', JSON.stringify(carrinhoLancar));
+    const sel = document.getElementById('lancar-mesa-select');
+    if (sel && sel.value) {
+      localStorage.setItem('mesaLancar_admin', sel.value);
+    } else {
+      localStorage.removeItem('mesaLancar_admin');
+    }
+  } catch(e) {}
+  atualizarBadgeCarrinhoLancar();
+}
+
+function carregarCarrinhoLancarStorage() {
+  try {
+    const salvo = localStorage.getItem('carrinhoLancar_admin');
+    if (salvo) {
+      const parsed = JSON.parse(salvo);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        carrinhoLancar = parsed;
+      }
+    }
+    const mesaSalva = localStorage.getItem('mesaLancar_admin');
+    if (mesaSalva) {
+      const sel = document.getElementById('lancar-mesa-select');
+      if (sel) {
+        sel.value = mesaSalva;
+        if (typeof sincronizarFiltroCustomizadoLancar === 'function') {
+          sincronizarFiltroCustomizadoLancar();
+        }
+      }
+    }
+  } catch(e) {}
+  atualizarBadgeCarrinhoLancar();
+}
+
+function limparCarrinhoLancarStorage() {
+  try {
+    localStorage.removeItem('carrinhoLancar_admin');
+    localStorage.removeItem('mesaLancar_admin');
+  } catch(e) {}
+  atualizarBadgeCarrinhoLancar();
+}
+
+function atualizarBadgeCarrinhoLancar() {
+  const badge = document.getElementById('badge-lancar-contador');
+  if (!badge) return;
+  const totalItens = (carrinhoLancar || []).reduce((acc, i) => acc + (parseInt(i.quantidade) || 1), 0);
+  if (totalItens > 0) {
+    badge.innerText = totalItens;
+    badge.classList.remove('hidden');
+    badge.style.display = 'inline-block';
+  } else {
+    badge.innerText = '0';
+    badge.classList.add('hidden');
+    badge.style.display = 'none';
+  }
+}
+setTimeout(() => carregarCarrinhoLancarStorage(), 200);
+
+async function prepararLancarPedido(forcarLimpar = false) {
+  if (forcarLimpar) {
+    carrinhoLancar = [];
+    limparCarrinhoLancarStorage();
+    resetarMesaLancar();
+  } else if (!carrinhoLancar || carrinhoLancar.length === 0) {
+    carregarCarrinhoLancarStorage();
+  }
 
   if (!cardapio || cardapio.length === 0) {
     await carregarCardapio();
@@ -2074,7 +2297,10 @@ async function prepararLancarPedido() {
   exibirCategoriasLancar();
   exibirMenuLancar('todas');
   renderizarCarrinhoLancar();
-  resetarMesaLancar();
+
+  if (!carrinhoLancar || carrinhoLancar.length === 0) {
+    resetarMesaLancar();
+  }
 }
 
 function renderizarMesasSelectLancar(mesas) {
@@ -2377,6 +2603,7 @@ async function adicionarAoCarrinhoLancar(itemId) {
 }
 
 function renderizarCarrinhoLancar() {
+  salvarCarrinhoLancarStorage();
   const container = document.getElementById('lancar-carrinho');
   if (!container) return;
   
@@ -2531,7 +2758,9 @@ async function limparCarrinhoLancar() {
   if (carrinhoLancar.length === 0) return;
   if (await mostrarConfirmacao("Deseja esvaziar todo o carrinho?", "Limpar Tudo", "Confirmar", "Cancelar", "🗑️")) {
     carrinhoLancar = [];
+    limparCarrinhoLancarStorage();
     renderizarCarrinhoLancar();
+    resetarMesaLancar();
     // Força atualização do estoque no cardápio
     const catAtiva = document.querySelector('#lancar-menu-categorias .cat-mini.ativa');
     const catNome = catAtiva ? catAtiva.id.replace('cat-lancar-', '') : 'todas';
@@ -2753,6 +2982,7 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false, skipConfirmation 
       const nomeMesa = textoMesaOriginal.replace('Mesa ', '').split(' ')[0] || '';
 
       carrinhoLancar = [];
+      limparCarrinhoLancarStorage();
       renderizarCarrinhoLancar();
       resetarMesaLancar();
       
@@ -6567,19 +6797,30 @@ async function irParaEdicaoDestePedido() {
       const resItens = await fetch(`/api/pedidos/${idPedido}/itens`);
       const itens = await resItens.json();
       
-      // 1. Coloca os itens de volta no carrinho de lançamento
+      // 1. Coloca os itens de volta no carrinho de lançamento (com observações)
       carrinhoLancar = itens.map(i => ({
         menu_id: i.menu_id,
         nome: i.nome,
         preco: i.preco,
-        quantidade: i.quantidade
+        quantidade: i.quantidade,
+        observacao: i.observacao || ''
       }));
 
-      // 2. Exclui esse pedido que acabou de ser gerado (pois vamos lançar um novo corrigido)
+      // 2. Define a mesa do lançamento como BALCAO (ou a mesa original do pedido)
+      const selectMesa = document.getElementById('lancar-mesa-select');
+      if (selectMesa) {
+        selectMesa.value = (pedidoParaFecharAdmin.mesa_id || 'BALCAO');
+        if (typeof sincronizarFiltroCustomizadoLancar === 'function') {
+          sincronizarFiltroCustomizadoLancar();
+        }
+      }
+
+      // 3. Exclui esse pedido que acabou de ser gerado (pois vamos lançar um novo corrigido)
       await fetch(`/api/pedidos/${idPedido}`, { method: 'DELETE' });
 
-      // 3. Fecha o modal e atualiza a tela de lançamento
+      // 4. Fecha o modal e atualiza a tela de lançamento
       fecharModalFechamentoAdmin(true);
+      window.isFechamentoImediatoBalcao = false;
       renderizarCarrinhoLancar();
       exibirMenuLancar('todas');
       mostrarToast("🔄 Itens retornados ao carrinho!");
