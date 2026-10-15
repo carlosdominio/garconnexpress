@@ -1462,56 +1462,6 @@ function resetarMesaLancar() {
   }
 }
 
-async function lancarCarrinhoBalcaoAberto() {
-  if (!carrinhoLancar || carrinhoLancar.length === 0) return false;
-  
-  const selMesa = document.getElementById('lancar-mesa-select');
-  const valorMesaOriginal = selMesa ? selMesa.value : '';
-  
-  // No banco PostgreSQL, mesa_id para Balcão e Delivery é NULL
-  let mesaIdFinal = null;
-  if (valorMesaOriginal && valorMesaOriginal !== 'BALCAO' && valorMesaOriginal !== 'DELIVERY' && /^\d+$/.test(String(valorMesaOriginal).trim())) {
-    mesaIdFinal = parseInt(valorMesaOriginal, 10);
-  }
-  const cobrarTaxa = document.getElementById('lancar-taxa-toggle')?.checked ?? false;
-
-  try {
-    const res = await fetch('/api/pedidos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mesa_id: mesaIdFinal,
-        garcom_id: 'ADMIN',
-        itens: carrinhoLancar,
-        cobrar_taxa: cobrarTaxa
-      })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.id) {
-        window.ultimoPedidoCriadoPeloAdmin = data.id;
-        setTimeout(() => { window.ultimoPedidoCriadoPeloAdmin = null; }, 7000);
-        pedidosStatusTaxa[data.id] = cobrarTaxa;
-      }
-      carrinhoLancar = [];
-      limparCarrinhoLancarStorage();
-      renderizarCarrinhoLancar();
-      resetarMesaLancar();
-      carregarPedidos();
-      mostrarToast("⏳ Pedido mantido em aberto no Balcão!", "info", "Balcão");
-      return true;
-    } else {
-      const err = await res.json();
-      mostrarAlerta(err.error || "Erro ao salvar comanda de Balcão", "Erro", "❌");
-      return false;
-    }
-  } catch(e) {
-    console.error("Erro ao lançar pedido aberto:", e);
-    mostrarAlerta("Erro de conexão ao salvar pedido no Balcão.", "Erro", "❌");
-    return false;
-  }
-}
-
 async function perguntarAcaoAoTrocarAbaComCarrinho(tabAlvo) {
   const totalItens = (carrinhoLancar || []).reduce((acc, i) => acc + (parseInt(i.quantidade) || 1), 0);
   const subtotal = (carrinhoLancar || []).reduce((acc, i) => acc + (i.preco * i.quantidade), 0);
@@ -1525,14 +1475,6 @@ async function perguntarAcaoAoTrocarAbaComCarrinho(tabAlvo) {
       </p>
       
       <div style="display: flex; flex-direction: column; gap: 10px;">
-        <button id="btn-swal-sair-balcao" type="button" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #f0fdf4; border: 1.5px solid #22c55e; border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.2s; font-family: inherit;">
-          <span style="font-size: 1.5rem;">🏪</span>
-          <div>
-            <div style="font-weight: 700; color: #15803d; font-size: 0.95rem;">Manter Aberto no Balcão</div>
-            <div style="font-size: 0.8rem; color: #64748b;">Gera a comanda ativa no Balcão para receber mais tarde e muda de aba.</div>
-          </div>
-        </button>
-
         <button id="btn-swal-sair-continuar" type="button" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #f8fafc; border: 1.5px solid #3b82f6; border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.2s; font-family: inherit;">
           <span style="font-size: 1.5rem;">🛒</span>
           <div>
@@ -1567,16 +1509,10 @@ async function perguntarAcaoAoTrocarAbaComCarrinho(tabAlvo) {
     showConfirmButton: false,
     allowOutsideClick: false,
     didOpen: () => {
-      const bBalcao = document.getElementById('btn-swal-sair-balcao');
       const bContinuar = document.getElementById('btn-swal-sair-continuar');
       const bSalvar = document.getElementById('btn-swal-sair-salvar');
       const bDescartar = document.getElementById('btn-swal-sair-descartar');
 
-      if (bBalcao) {
-        bBalcao.onmouseover = () => { bBalcao.style.background = '#dcfce7'; };
-        bBalcao.onmouseout = () => { bBalcao.style.background = '#f0fdf4'; };
-        bBalcao.onclick = () => { acaoEscolhida = 'balcao'; Swal.close(); };
-      }
       if (bContinuar) {
         bContinuar.onmouseover = () => { bContinuar.style.background = '#eff6ff'; };
         bContinuar.onmouseout = () => { bContinuar.style.background = '#f8fafc'; };
@@ -1596,15 +1532,6 @@ async function perguntarAcaoAoTrocarAbaComCarrinho(tabAlvo) {
   });
 
   if (acaoEscolhida === 'continuar') {
-    return false;
-  } else if (acaoEscolhida === 'balcao') {
-    const ok = await lancarCarrinhoBalcaoAberto();
-    if (ok) {
-      if (tabAlvo === 'ativos') {
-        setTimeout(() => switchSubTab('balcao'), 150);
-      }
-      return true;
-    }
     return false;
   } else if (acaoEscolhida === 'salvar') {
     salvarCarrinhoLancarStorage();
