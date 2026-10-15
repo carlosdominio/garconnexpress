@@ -1467,7 +1467,12 @@ async function lancarCarrinhoBalcaoAberto() {
   
   const selMesa = document.getElementById('lancar-mesa-select');
   const valorMesaOriginal = selMesa ? selMesa.value : '';
-  const mesaFinal = (valorMesaOriginal && valorMesaOriginal !== 'DELIVERY') ? valorMesaOriginal : 'BALCAO';
+  
+  // No banco PostgreSQL, mesa_id para Balcão e Delivery é NULL
+  let mesaIdFinal = null;
+  if (valorMesaOriginal && valorMesaOriginal !== 'BALCAO' && valorMesaOriginal !== 'DELIVERY' && /^\d+$/.test(String(valorMesaOriginal).trim())) {
+    mesaIdFinal = parseInt(valorMesaOriginal, 10);
+  }
   const cobrarTaxa = document.getElementById('lancar-taxa-toggle')?.checked ?? false;
 
   try {
@@ -1475,17 +1480,24 @@ async function lancarCarrinhoBalcaoAberto() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        mesa_id: mesaFinal,
+        mesa_id: mesaIdFinal,
         garcom_id: 'ADMIN',
         itens: carrinhoLancar,
         cobrar_taxa: cobrarTaxa
       })
     });
     if (res.ok) {
+      const data = await res.json();
+      if (data && data.id) {
+        window.ultimoPedidoCriadoPeloAdmin = data.id;
+        setTimeout(() => { window.ultimoPedidoCriadoPeloAdmin = null; }, 7000);
+        pedidosStatusTaxa[data.id] = cobrarTaxa;
+      }
       carrinhoLancar = [];
       limparCarrinhoLancarStorage();
       renderizarCarrinhoLancar();
       resetarMesaLancar();
+      carregarPedidos();
       mostrarToast("⏳ Pedido mantido em aberto no Balcão!", "info", "Balcão");
       return true;
     } else {

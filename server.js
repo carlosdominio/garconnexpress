@@ -4247,6 +4247,14 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
 }, async (req, res) => {
   let { mesa_id, garcom_id, itens, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, metodo_pagamento, valor_recebido, troco } = req.body;
   if (req.user && req.user.role === 'cliente') { mesa_id = req.user.mesa_id; garcom_id = null; }
+
+  // Sanitização anti-crash: Balcão e Delivery utilizam mesa_id = null no banco
+  if (mesa_id === 'BALCAO' || mesa_id === 'DELIVERY' || mesa_id === '' || (mesa_id !== null && mesa_id !== undefined && isNaN(Number(mesa_id)))) {
+    mesa_id = null;
+  } else if (mesa_id !== null && mesa_id !== undefined) {
+    mesa_id = parseInt(mesa_id, 10);
+    if (isNaN(mesa_id)) mesa_id = null;
+  }
   
   const isDelivery = garcom_id === 'DELIVERY';
   const maxObsLength = isDelivery ? 2000 : 500;
