@@ -6579,7 +6579,7 @@ async function irParaEdicaoDestePedido() {
       await fetch(`/api/pedidos/${idPedido}`, { method: 'DELETE' });
 
       // 3. Fecha o modal e atualiza a tela de lançamento
-      fecharModalFechamentoAdmin();
+      fecharModalFechamentoAdmin(true);
       renderizarCarrinhoLancar();
       exibirMenuLancar('todas');
       mostrarToast("🔄 Itens retornados ao carrinho!");
@@ -6592,7 +6592,7 @@ async function irParaEdicaoDestePedido() {
 
   // Comportamento padrão para as outras abas (abre o modal de edição)
   veioDoFechamento = true; // Flag para saber que deve voltar ao fechamento
-  fecharModalFechamentoAdmin();
+  fecharModalFechamentoAdmin(true);
   // Otimização: Usa itens locais se já estiverem em memória para evitar requisição ao servidor
   const localItens = pedidoParaFecharAdmin && pedidoParaFecharAdmin.itens;
   if (localItens && localItens.length > 0) {
@@ -7430,7 +7430,7 @@ async function confirmarCancelamentoDesdeFechamento() {
       body: JSON.stringify({ status: 'cancelado' }) 
     });
     if (res.ok) { 
-      fecharModalFechamentoAdmin(); 
+      fecharModalFechamentoAdmin(true); 
       carregarPedidos(); 
     }
   }
@@ -7757,7 +7757,7 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
           }]
         };
         imprimirCupom(pedidoMock, itensFechamentoAdmin);
-        fecharModalFechamentoAdmin();
+        fecharModalFechamentoAdmin(true);
         await carregarStatusCaixa();
         setTimeout(() => carregarPedidos(), 300);
         return;
@@ -7898,7 +7898,7 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
       document.getElementById('modal-previa-cupom').style.display = 'flex';
     }
     
-    fecharModalFechamentoAdmin();
+    fecharModalFechamentoAdmin(true);
     window.isFechamentoImediatoBalcao = false;
     await carregarStatusCaixa();
     if (abaAtiva === 'lancar') await carregarMesasLancar(); else carregarPedidos();
@@ -8037,12 +8037,139 @@ function imprimirCupomParcialItens(pedido, itensPagos, totalPago, cobrarTaxa) {
   setTimeout(() => { window.print(); }, 250);
 }
 
-function fecharModalFechamentoAdmin() { 
+async function fecharModalFechamentoAdmin(forcar = false) { 
+  if (!forcar && window.isFechamentoImediatoBalcao && pedidoParaFecharAdmin) {
+    await tratarSaidaFechamentoBalcao();
+    return;
+  }
+  window.isFechamentoImediatoBalcao = false;
   document.getElementById('modal-fechamento-admin').style.display = 'none'; 
   
   // LIBERA O SCROLL APENAS se não estiver nas abas que exigem trava
   if (abaAtiva !== 'lancar' && abaAtiva !== 'ativos') {
       document.body.classList.remove('modal-open');
+  }
+}
+window.fecharModalFechamentoAdmin = fecharModalFechamentoAdmin;
+
+async function tratarSaidaFechamentoBalcao() {
+  const idPedido = pedidoParaFecharAdmin?.id;
+  if (!idPedido) {
+    fecharModalFechamentoAdmin(true);
+    return;
+  }
+
+  let acaoEscolhida = 'voltar';
+
+  const htmlConteudo = `
+    <div style="text-align: left; font-size: 0.95rem; color: #334155; line-height: 1.5; padding: 5px 0;">
+      <p style="margin-bottom: 14px; font-weight: 500;">
+        O pagamento do pedido <strong>#${idPedido} (Balcão)</strong> ainda não foi confirmado. O que você deseja fazer com este pedido?
+      </p>
+      
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button id="btn-swal-balcao-manter" type="button" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #f8fafc; border: 1.5px solid #3b82f6; border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.2s; font-family: inherit;">
+          <span style="font-size: 1.5rem;">⏳</span>
+          <div>
+            <div style="font-weight: 700; color: #1d4ed8; font-size: 0.95rem;">Manter Aberto no Balcão</div>
+            <div style="font-size: 0.8rem; color: #64748b;">Deixa o pedido ativo na aba Balcão para o cliente pagar depois.</div>
+          </div>
+        </button>
+
+        <button id="btn-swal-balcao-carrinho" type="button" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #f8fafc; border: 1.5px solid #f59e0b; border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.2s; font-family: inherit;">
+          <span style="font-size: 1.5rem;">🛒</span>
+          <div>
+            <div style="font-weight: 700; color: #b45309; font-size: 0.95rem;">Devolver ao Carrinho (Corrigir)</div>
+            <div style="font-size: 0.8rem; color: #64748b;">Devolve os itens ao carrinho do Lançar Pedido para ajustar ou adicionar itens.</div>
+          </div>
+        </button>
+
+        <button id="btn-swal-balcao-cancelar" type="button" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #fef2f2; border: 1.5px solid #ef4444; border-radius: 8px; cursor: pointer; text-align: left; transition: all 0.2s; font-family: inherit;">
+          <span style="font-size: 1.5rem;">❌</span>
+          <div>
+            <div style="font-weight: 700; color: #b91c1c; font-size: 0.95rem;">Cancelar Pedido</div>
+            <div style="font-size: 0.8rem; color: #64748b;">Cancela definitivamente o pedido e devolve os produtos ao estoque.</div>
+          </div>
+        </button>
+      </div>
+    </div>
+  `;
+
+  await Swal.fire({
+    title: 'Finalização do Pedido Balcão',
+    html: htmlConteudo,
+    icon: 'question',
+    showCancelButton: true,
+    showConfirmButton: false,
+    cancelButtonText: '↩️ Voltar à Tela de Pagamento',
+    cancelButtonColor: '#64748b',
+    allowOutsideClick: false,
+    didOpen: () => {
+      const bManter = document.getElementById('btn-swal-balcao-manter');
+      const bCarrinho = document.getElementById('btn-swal-balcao-carrinho');
+      const bCancelar = document.getElementById('btn-swal-balcao-cancelar');
+
+      if (bManter) {
+        bManter.onmouseover = () => { bManter.style.background = '#eff6ff'; };
+        bManter.onmouseout = () => { bManter.style.background = '#f8fafc'; };
+        bManter.onclick = () => {
+          acaoEscolhida = 'manter';
+          Swal.close();
+        };
+      }
+      if (bCarrinho) {
+        bCarrinho.onmouseover = () => { bCarrinho.style.background = '#fffbeb'; };
+        bCarrinho.onmouseout = () => { bCarrinho.style.background = '#f8fafc'; };
+        bCarrinho.onclick = () => {
+          acaoEscolhida = 'carrinho';
+          Swal.close();
+        };
+      }
+      if (bCancelar) {
+        bCancelar.onmouseover = () => { bCancelar.style.background = '#fee2e2'; };
+        bCancelar.onmouseout = () => { bCancelar.style.background = '#fef2f2'; };
+        bCancelar.onclick = () => {
+          acaoEscolhida = 'cancelar';
+          Swal.close();
+        };
+      }
+    }
+  });
+
+  if (acaoEscolhida === 'manter') {
+    window.isFechamentoImediatoBalcao = false;
+    fecharModalFechamentoAdmin(true);
+    switchTab('ativos');
+    switchSubTab('balcao');
+    mostrarToast("⏳ Pedido mantido em aberto na comanda do Balcão!", "info", "Balcão");
+  } else if (acaoEscolhida === 'carrinho') {
+    window.isFechamentoImediatoBalcao = false;
+    await irParaEdicaoDestePedido();
+  } else if (acaoEscolhida === 'cancelar') {
+    window.isFechamentoImediatoBalcao = false;
+    try {
+      const res = await fetch(`/api/pedidos/${idPedido}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelado' })
+      });
+      if (res.ok) {
+        fecharModalFechamentoAdmin(true);
+        if (abaAtiva === 'lancar') {
+          await carregarMesasLancar();
+        } else {
+          carregarPedidos();
+        }
+        mostrarToast("❌ Pedido de Balcão cancelado com sucesso.", "warning", "Cancelado");
+      } else {
+        mostrarAlerta("Erro ao cancelar pedido no servidor.", "Erro", "❌");
+      }
+    } catch (e) {
+      console.error("Erro ao cancelar pedido balcao:", e);
+      mostrarAlerta("Erro de conexão ao cancelar pedido.", "Erro", "❌");
+    }
+  } else {
+    // 'voltar' -> permanece no modal de fechamento
   }
 }
 
