@@ -7246,8 +7246,14 @@ app.get('/api/debug-fcm', ensureDbInitialized, async (req, res) => {
 });
 
 const SYSTEM_VERSION = '1.3.1';
-app.get('/api/versao', (req, res) => {
-  res.json({ versao: SYSTEM_VERSION });
+app.get('/api/versao', ensureDbInitialized, async (req, res) => {
+  try {
+    const row = (await query("SELECT valor FROM sistema_config WHERE chave = 'config_web_version'")).rows[0];
+    const versao = (row && row.valor) ? row.valor : SYSTEM_VERSION;
+    res.json({ versao });
+  } catch (e) {
+    res.json({ versao: SYSTEM_VERSION });
+  }
 });
 
 app.get('/api/time', (req, res) => {

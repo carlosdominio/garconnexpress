@@ -482,28 +482,65 @@ document.addEventListener('DOMContentLoaded', async () => {
   setInterval(verificarVersaoSistema, 5 * 60 * 1000);
 });
 
-const CLIENT_VERSION = '1.3.1';
+let recargaEmAndamento = false;
+
+async function limparCacheERecarregar() {
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const registration of registrations) {
+        await registration.update();
+      }
+    }
+  } catch(e) {
+    console.warn('Erro ao limpar caches do SW:', e);
+  }
+  window.location.reload(true);
+}
+
+function executarRecargaPorAtualizacao(novaVersao) {
+  if (recargaEmAndamento) return;
+  recargaEmAndamento = true;
+
+  if (novaVersao) {
+    localStorage.setItem('versao_web_admin', String(novaVersao));
+  }
+
+  if (typeof Swal !== 'undefined') {
+    Swal.fire({
+      title: 'Sistema Atualizado! 🚀',
+      text: novaVersao ? `Nova versão (${novaVersao}) aplicada. Recarregando painel administrativo...` : 'Estamos aplicando melhorias e atualizando o painel administrativo...',
+      icon: 'info',
+      showConfirmButton: false,
+      allowOutsideClick: false,
+      timer: 2200
+    }).then(() => {
+      limparCacheERecarregar();
+    });
+  } else {
+    alert('O painel administrativo foi atualizado e será recarregado.');
+    limparCacheERecarregar();
+  }
+}
+
 async function verificarVersaoSistema() {
   try {
     const res = await fetch('/api/versao?_t=' + Date.now());
     if (!res.ok) return;
     const data = await res.json();
-    if (data && data.versao && data.versao !== CLIENT_VERSION) {
-      console.log(`🔄 Nova versão do sistema encontrada (${data.versao}). Recarregando...`);
-      if (typeof Swal !== 'undefined') {
-        Swal.fire({
-          title: 'Sistema Atualizado! 🚀',
-          text: 'Estamos aplicando melhorias e atualizando o painel administrativo...',
-          icon: 'info',
-          showConfirmButton: false,
-          allowOutsideClick: false,
-          timer: 2500
-        }).then(() => {
-          window.location.reload(true);
-        });
-      } else {
-        alert('O estabelecimento foi atualizado. O painel administrativo será recarregado.');
-        window.location.reload(true);
+    if (data && data.versao) {
+      const versaoSalva = localStorage.getItem('versao_web_admin');
+      if (!versaoSalva) {
+        localStorage.setItem('versao_web_admin', String(data.versao));
+        return;
+      }
+      if (String(data.versao) !== String(versaoSalva)) {
+        console.log(`🔄 Nova versão do sistema encontrada (${data.versao} vs ${versaoSalva}). Recarregando...`);
+        executarRecargaPorAtualizacao(data.versao);
       }
     }
   } catch (e) {
@@ -9081,6 +9118,11 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
           mostrarToast("O rascunho desta mesa foi processado/cancelado.", "info");
         }
       }
+    });
+
+    channel.bind('versao-app-atualizada', (data) => {
+      console.log('🔄 Versão do código web atualizada via Pusher!', data);
+      executarRecargaPorAtualizacao(data?.web_version);
     });
 
     } catch (e) {
