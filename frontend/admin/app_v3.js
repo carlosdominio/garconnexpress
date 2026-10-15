@@ -2206,23 +2206,20 @@ function limparCarrinhoLancarStorage() {
 function atualizarBadgeCarrinhoLancar() {
   const badge = document.getElementById('badge-lancar-contador');
   const icon = document.getElementById('lancar-tab-icon');
+  if (!badge) return;
+
   const totalItens = (carrinhoLancar || []).reduce((acc, i) => acc + (parseInt(i.quantidade) || 1), 0);
   if (totalItens > 0) {
-    if (badge) {
-      badge.innerText = totalItens;
-      badge.classList.remove('hidden');
-      badge.style.display = 'inline-flex';
-    }
+    badge.textContent = totalItens;
+    badge.classList.remove('hidden');
+    badge.style.display = '';
     if (icon) {
       icon.classList.add('hidden');
-      icon.style.display = 'none';
+      icon.style.display = '';
     }
   } else {
-    if (badge) {
-      badge.innerText = '0';
-      badge.classList.add('hidden');
-      badge.style.display = 'none';
-    }
+    badge.classList.add('hidden');
+    badge.style.display = '';
     if (icon) {
       icon.classList.remove('hidden');
       icon.style.display = '';
