@@ -7,8 +7,7 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     try {
       const numOuNome = String(req.body.numero || '').trim();
       const tipo = String(req.body.tipo || 'mesa').trim();
-      const numVal = parseInt(numOuNome, 10);
-      const isComanda = (req.body.is_comanda || tipo === 'comanda' || numOuNome.toLowerCase().startsWith('comanda') || (!isNaN(numVal) && numVal >= 12 && String(numVal) === numOuNome)) ? 1 : 0;
+      const isComanda = (req.body.is_comanda || tipo === 'comanda' || numOuNome.toLowerCase().startsWith('comanda')) ? 1 : 0;
       if (!numOuNome) return res.status(400).json({ error: 'Informe o número ou nome da mesa/comanda' });
 
       // TRAVA DE DUPLICIDADE (Case-insensitive)
@@ -45,11 +44,9 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       const m = mRes.rows[0];
 
       if (m) {
-        const numVal = parseInt(m.numero, 10);
         const isCom = (Number(m.is_comanda) === 1) || 
                       (m.tipo && String(m.tipo).toLowerCase().includes('comanda')) || 
-                      String(m.numero || '').toLowerCase().startsWith('comanda') ||
-                      (/^\d+$/.test(String(m.numero).trim()) && numVal >= 12);
+                      String(m.numero || '').toLowerCase().startsWith('comanda');
 
         if (isCom) {
           await query("DELETE FROM mesas WHERE id = ?", [m.id]);
@@ -138,6 +135,12 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       try {
         const comandasLivre = await query("SELECT id, numero, tipo, is_comanda FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%')");
         for (const c of (comandasLivre.rows || [])) {
+          const numTrim = String(c.numero || '').trim();
+          // Se for mesa física com número puro (ex: 1 a 100) e não é comanda explícita, protege e repara
+          if (/^\d+$/.test(numTrim) && c.tipo !== 'comanda' && !numTrim.toLowerCase().startsWith('comanda')) {
+            await query("UPDATE mesas SET is_comanda = 0, tipo = 'mesa' WHERE id = ?", [c.id]);
+            continue;
+          }
           const ativos = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado', 'rascunho')", [c.id, c.numero]);
           const codigos = await query("SELECT id FROM codigos_acesso WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'ativo'", [c.id, c.numero]);
           const finalizados = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status IN ('entregue', 'cancelado')", [c.id, c.numero]);
@@ -185,7 +188,18 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
         ) ca ON (CAST(ca.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(ca.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
       `); 
 
-      const mesasRows = mesasResult.rows || [];
+      const mesasRows = (mesasResult.rows || []).map(m => {
+        const numTrim = String(m.numero || '').trim();
+        if (/^\d+$/.test(numTrim) && m.tipo !== 'comanda' && !numTrim.toLowerCase().startsWith('comanda')) {
+          if (Number(m.is_comanda) === 1) {
+            query("UPDATE mesas SET is_comanda = 0, tipo = 'mesa' WHERE id = ?", [m.id]).catch(() => {});
+          }
+          m.is_comanda = 0;
+          if (!m.tipo || m.tipo === '') m.tipo = 'mesa';
+        }
+        return m;
+      });
+
       mesasRows.sort((a, b) => {
         const numA = parseInt(a.numero);
         const numB = parseInt(b.numero);

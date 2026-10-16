@@ -2294,14 +2294,12 @@ function renderizarMesasSelectLancar(mesas) {
   const select = document.getElementById('lancar-mesa-select');
   if (!select) return;
   
-  // Mesas físicas (1 a 11) sempre aparecem (sejam livres ou ocupadas).
+  // Mesas físicas (fixas) sempre aparecem (sejam livres ou ocupadas).
   // Comandas descartáveis só aparecem se tiverem pedido ativo, QR code ativo, status 'ocupada' ou se foram recém-criadas.
   const mesasValidas = (mesas || []).filter(m => {
-    const numVal = parseInt(m.numero, 10);
     const isCom = (Number(m.is_comanda) === 1) || 
                   (m.tipo && String(m.tipo).toLowerCase().includes('comanda')) || 
-                  String(m.numero || '').toLowerCase().startsWith('comanda') ||
-                  (/^\d+$/.test(String(m.numero).trim()) && numVal >= 12);
+                  String(m.numero || '').toLowerCase().startsWith('comanda');
     if (!isCom) return true; // Mesa física fixa: sempre exibe
     if (window.comandaRecemCriadaId && String(m.id) === String(window.comandaRecemCriadaId)) return true;
     return m.pedido_id || m.codigo_acesso || m.status === 'ocupada';
@@ -4843,8 +4841,7 @@ function formatarNomeMesaHistorico(p) {
   if (/^mesa\b/i.test(str)) {
     const numOnly = str.replace(/^mesa\s*/i, '').trim();
     const isNum = /^\d+$/.test(numOnly);
-    const numVal = isNum ? parseInt(numOnly, 10) : 0;
-    if (isCom || (isNum && numVal >= 12) || !isNum) {
+    if (isCom || !isNum) {
       return isNum ? `COMANDA ${numOnly}` : str.toUpperCase();
     }
     return str.toUpperCase();
@@ -4856,8 +4853,7 @@ function formatarNomeMesaHistorico(p) {
 
   const isNum = /^\d+$/.test(str);
   if (isNum) {
-    const numVal = parseInt(str, 10);
-    if (isCom || numVal >= 12) {
+    if (isCom) {
       return `COMANDA ${str}`;
     }
     return `MESA ${str}`;
@@ -10114,16 +10110,9 @@ function isPedidoOuMesaComanda(entity) {
     return false;
   }
 
-  // Se for número puro de mesa física (1 a 11)
+  // Se for número puro de mesa física (qualquer número: 1, 2, 12, 20, etc.)
   if (/^\d+$/.test(nome)) {
-    const num = parseInt(nome, 10);
-    if (num >= 1 && num <= 11) {
-      return false; // Mesa física fixa
-    }
-    // Números >= 12 são tratados como comanda rotativa no sistema
-    if (num >= 12) {
-      return true;
-    }
+    return false; // Mesa física fixa
   }
 
   return false;

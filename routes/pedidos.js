@@ -462,12 +462,10 @@ module.exports = (ctx) => {
         if (pedido && (pedido.mesa_id || pedido.mesa_numero)) {
           const mesaRefId = pedido.mesa_id || null;
           const mesaRefNum = pedido.numero || pedido.mesa_numero || null;
-          const numVal = parseInt(mesaRefNum, 10);
           const ehComanda = (Number(pedido.is_comanda) === 1) ||
                             (Number(pedido.mesa_is_comanda) === 1) ||
                             (pedido.tipo && String(pedido.tipo).toLowerCase().includes('comanda')) ||
-                            String(mesaRefNum || '').toLowerCase().startsWith('comanda') ||
-                            (/^\d+$/.test(String(mesaRefNum).trim()) && numVal >= 12);
+                            String(mesaRefNum || '').toLowerCase().startsWith('comanda');
           if (ehComanda) {
             await query("DELETE FROM mesas WHERE (id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT))", [mesaRefId, mesaRefNum]);
           } else {
@@ -529,12 +527,10 @@ module.exports = (ctx) => {
         if (pedido.status !== 'entregue' && pedido.status !== 'cancelado' && (mesaRefId || mesaRefNum)) {
           const checkAtivos = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND id != ?", [mesaRefId, mesaRefNum, mesaRefNum, id]);
           if (checkAtivos.rows.length === 0) {
-              const numVal = parseInt(mesaRefNum, 10);
               const ehComanda = (Number(pedido.is_comanda) === 1) ||
                                 (Number(pedido.pedido_is_comanda) === 1) ||
                                 (pedido.tipo && String(pedido.tipo).toLowerCase().includes('comanda')) ||
-                                String(mesaRefNum || '').toLowerCase().startsWith('comanda') ||
-                                (/^\d+$/.test(String(mesaRefNum).trim()) && numVal >= 12);
+                                String(mesaRefNum || '').toLowerCase().startsWith('comanda');
               if (ehComanda) {
                 await query("DELETE FROM mesas WHERE (id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT))", [mesaRefId, mesaRefNum]);
               } else {
@@ -1589,12 +1585,10 @@ module.exports = (ctx) => {
           if (checkAtivos.rows.length === 0) {
               await query("UPDATE pedidos SET mesa_numero = ?, is_comanda = ? WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT))", [mesaNum, isCom, mesaTargetId, mesaTargetNum, mesaTargetNum]).catch(() => {});
 
-              const numVal = parseInt(mesaTargetNum, 10);
               const ehComanda = (Number(pm.is_comanda) === 1) ||
                                 (Number(pm.pedido_is_comanda) === 1) ||
                                 (pm.tipo && String(pm.tipo).toLowerCase().includes('comanda')) ||
-                                String(mesaTargetNum || '').toLowerCase().startsWith('comanda') ||
-                                (/^\d+$/.test(String(mesaTargetNum).trim()) && numVal >= 12);
+                                String(mesaTargetNum || '').toLowerCase().startsWith('comanda');
 
               if (ehComanda) {
                 await query("DELETE FROM mesas WHERE (id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT) OR CAST(numero AS TEXT) = CAST(? AS TEXT))", [mesaTargetId, mesaTargetNum, numRaw]);

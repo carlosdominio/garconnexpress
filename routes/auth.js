@@ -132,11 +132,9 @@ module.exports = (ctx) => {
       const m = mRes.rows[0];
 
       if (m) {
-        const numVal = parseInt(m.numero, 10);
         const ehComanda = (Number(m.is_comanda) === 1) ||
                           (m.tipo && String(m.tipo).toLowerCase().includes('comanda')) ||
-                          String(m.numero || '').toLowerCase().startsWith('comanda') ||
-                          (/^\d+$/.test(String(m.numero).trim()) && numVal >= 12);
+                          String(m.numero || '').toLowerCase().startsWith('comanda');
         if (ehComanda) {
           await query("DELETE FROM mesas WHERE id = ?", [m.id]);
         } else {
