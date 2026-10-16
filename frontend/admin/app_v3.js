@@ -10062,6 +10062,58 @@ async function confirmarCancelamentoDesdeOpcoes() {
     }
 }
 
+function isPedidoOuMesaComanda(entity) {
+  if (!entity) return false;
+  // Se for delivery, nunca é comanda
+  if (entity.garcom_id === 'DELIVERY') return false;
+
+  // Flag explícita is_comanda
+  if (entity.is_comanda == 1 || entity.is_comanda === true || String(entity.is_comanda) === '1') {
+    return true;
+  }
+
+  // Tipo explícito
+  const tipo = String(entity.mesa_tipo || entity.tipo || '').toLowerCase();
+  if (tipo.includes('comanda')) {
+    return true;
+  }
+
+  // Se tiver mesa vinculada em mesasPainel
+  if (entity.mesa_id && typeof mesasPainel !== 'undefined' && Array.isArray(mesasPainel)) {
+    const m = mesasPainel.find(x => String(x.id) === String(entity.mesa_id) || String(x.numero) === String(entity.mesa_numero));
+    if (m) {
+      if (m.is_comanda == 1 || m.is_comanda === true || String(m.is_comanda) === '1') return true;
+      if (m.tipo && String(m.tipo).toLowerCase().includes('comanda')) return true;
+      if (String(m.numero || '').trim().toLowerCase().startsWith('comanda')) return true;
+    }
+  }
+
+  // Verifica o nome / identificador
+  const nome = String(entity.mesa_numero || entity.numero || '').trim().toLowerCase();
+  if (nome.startsWith('comanda')) {
+    return true;
+  }
+
+  // Se começar com "mesa " (ex: "mesa 1", "mesa 2"), é mesa fixa
+  if (/^mesa\b/i.test(nome)) {
+    return false;
+  }
+
+  // Se for número puro de mesa física (1 a 11)
+  if (/^\d+$/.test(nome)) {
+    const num = parseInt(nome, 10);
+    if (num >= 1 && num <= 11) {
+      return false; // Mesa física fixa
+    }
+    // Números >= 12 são tratados como comanda rotativa no sistema
+    if (num >= 12) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 async function abrirModalOpcoes(pedidoId) {
   const pedido = pedidos.find(p => p.id == pedidoId);
   if (!pedido) return;
@@ -10081,9 +10133,10 @@ async function abrirModalOpcoes(pedidoId) {
   const isAguardando = pedido.status === 'aguardando_fechamento';
   
   document.getElementById('modal-opcoes-titulo').innerText = mesaNome;
+  const isComanda = isPedidoOuMesaComanda(pedido);
   const btnEditNome = document.getElementById('btn-editar-nome-mesa-modal');
   if (btnEditNome) {
-    btnEditNome.style.display = isDelivery ? 'none' : 'inline-flex';
+    btnEditNome.style.display = isComanda ? 'inline-flex' : 'none';
   }
   document.getElementById('modal-opcoes-info').innerText = `Pedido #${pedido.id} | Garçom: ${pedido.garcom_id || 'Admin'}`;
   
@@ -10345,13 +10398,12 @@ window.editarNomeMesaComandaDesdeModal = async function() {
   const pedido = pedidoEmOpcoes;
   if (!pedido) return;
 
-  const isDelivery = (pedido.garcom_id === 'DELIVERY');
-  if (isDelivery) {
-    mostrarToast("Pedidos de Delivery não utilizam nome de comanda.", "info");
+  if (!isPedidoOuMesaComanda(pedido)) {
+    mostrarToast("Mesas fixas não podem ter sua identificação alterada.", "info");
     return;
   }
 
-  // Identifica o nome atual da mesa/comanda
+  // Identifica o nome atual da comanda
   let nomeAtual = pedido.mesa_numero || '';
   if (!nomeAtual && pedido.mesa_id) {
     const mesaObj = (typeof mesasPainel !== 'undefined' && Array.isArray(mesasPainel)) ? mesasPainel.find(m => m.id == pedido.mesa_id) : null;
@@ -10363,11 +10415,11 @@ window.editarNomeMesaComandaDesdeModal = async function() {
   const targetId = pedido.mesa_id || pedido.id;
 
   const { value: novoNome } = await Swal.fire({
-    title: 'Editar Nome da Comanda / Mesa',
-    text: 'Altere a identificação desta comanda ou mesa:',
+    title: 'Editar Nome da Comanda',
+    text: 'Altere a identificação desta comanda:',
     input: 'text',
     inputValue: nomeAtual,
-    inputPlaceholder: 'Ex: Comanda 10, João, Mesa 04...',
+    inputPlaceholder: 'Ex: Comanda 10, Comanda João...',
     inputAttributes: {
       maxlength: '25',
       autocapitalize: 'words',
@@ -10404,7 +10456,7 @@ window.editarNomeMesaComandaDesdeModal = async function() {
       });
 
       if (res.ok) {
-        mostrarToast(`✅ Comanda/Mesa renomeada para "${nomeLimpo}"!`);
+        mostrarToast(`✅ Comanda renomeada para "${nomeLimpo}"!`);
         
         // Atualiza localmente no objeto do pedido
         pedido.mesa_numero = nomeLimpo;
@@ -10424,10 +10476,10 @@ window.editarNomeMesaComandaDesdeModal = async function() {
         if (typeof exibirMesasConfig === 'function') await exibirMesasConfig();
       } else {
         const errData = await res.json().catch(() => ({}));
-        mostrarAlerta(errData.error || "Erro ao renomear comanda/mesa", "Aviso", "⚠️");
+        mostrarAlerta(errData.error || "Erro ao renomear comanda", "Aviso", "⚠️");
       }
     } catch (err) {
-      console.error('Erro ao renomear comanda/mesa:', err);
+      console.error('Erro ao renomear comanda:', err);
       mostrarAlerta("Erro de conexão ao renomear.", "Erro", "❌");
     }
   }
@@ -10437,14 +10489,19 @@ window.editarNomeMesaAguardandoDesdeModal = async function() {
   const m = (typeof _mesaAguardandoAtual !== 'undefined') ? _mesaAguardandoAtual : null;
   if (!m) return;
 
+  if (!isPedidoOuMesaComanda(m)) {
+    mostrarToast("Mesas fixas não podem ter sua identificação alterada.", "info");
+    return;
+  }
+
   const nomeAtual = m.numero || '';
 
   const { value: novoNome } = await Swal.fire({
-    title: 'Editar Nome da Comanda / Mesa',
-    text: 'Altere a identificação desta comanda ou mesa:',
+    title: 'Editar Nome da Comanda',
+    text: 'Altere a identificação desta comanda:',
     input: 'text',
     inputValue: nomeAtual,
-    inputPlaceholder: 'Ex: Comanda 10, João, Mesa 04...',
+    inputPlaceholder: 'Ex: Comanda 10, Comanda João...',
     inputAttributes: {
       maxlength: '25',
       autocapitalize: 'words',
@@ -10478,23 +10535,23 @@ window.editarNomeMesaAguardandoDesdeModal = async function() {
       });
 
       if (res.ok) {
-        mostrarToast(`✅ Comanda/Mesa renomeada para "${nomeLimpo}"!`);
+        mostrarToast(`✅ Comanda renomeada para "${nomeLimpo}"!`);
         m.numero = nomeLimpo;
 
         const elTitulo = document.getElementById('mma-titulo');
-        if (elTitulo) elTitulo.innerText = `📱 Mesa ${nomeLimpo}`;
+        if (elTitulo) elTitulo.innerText = `📱 ${nomeLimpo.toLowerCase().startsWith('comanda') ? '' : 'Comanda '}${nomeLimpo}`;
         const elSub = document.getElementById('mma-subtitulo');
-        if (elSub) elSub.innerText = `Mesa ${nomeLimpo} — QR Code ativo`;
+        if (elSub) elSub.innerText = `${nomeLimpo} — QR Code ativo`;
 
         if (typeof carregarPedidos === 'function') await carregarPedidos();
         if (typeof carregarMesasLancar === 'function') await carregarMesasLancar();
         if (typeof exibirMesasConfig === 'function') await exibirMesasConfig();
       } else {
         const errData = await res.json().catch(() => ({}));
-        mostrarAlerta(errData.error || "Erro ao renomear comanda/mesa", "Aviso", "⚠️");
+        mostrarAlerta(errData.error || "Erro ao renomear comanda", "Aviso", "⚠️");
       }
     } catch (err) {
-      console.error('Erro ao renomear:', err);
+      console.error('Erro ao renomear comanda:', err);
       mostrarAlerta("Erro de conexão ao renomear.", "Erro", "❌");
     }
   }
@@ -11227,12 +11284,19 @@ function abrirModalMesaAguardando(mesaId) {
   _mesaAguardandoAtual = m;
 
   const minutosEspera = m.codigo_criado_at ? calcularMinutos(m.codigo_criado_at) : 0;
+  const isComandaMesa = isPedidoOuMesaComanda(m);
 
-  document.getElementById('mma-titulo').innerText = `📱 Mesa ${m.numero}`;
-  document.getElementById('mma-subtitulo').innerText = `Mesa ${m.numero} — QR Code ativo`;
+  const prefixo = isComandaMesa ? (String(m.numero).toLowerCase().startsWith('comanda') ? '' : 'Comanda ') : 'Mesa ';
+  document.getElementById('mma-titulo').innerText = `📱 ${prefixo}${m.numero}`;
+  document.getElementById('mma-subtitulo').innerText = `${prefixo}${m.numero} — QR Code ativo`;
   document.getElementById('mma-codigo').innerText = m.codigo_acesso || '----';
   document.getElementById('mma-tempo').innerText = `${minutosEspera} min`;
   document.getElementById('mma-garcom').innerText = m.garcom_id || 'Autônomo';
+
+  const btnEditMma = document.getElementById('btn-editar-mma-nome');
+  if (btnEditMma) {
+    btnEditMma.style.display = isComandaMesa ? 'inline-flex' : 'none';
+  }
 
   document.getElementById('modal-mesa-aguardando').style.display = 'flex';
 }

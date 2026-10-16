@@ -2098,8 +2098,8 @@
           <div>
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
               <h2 id="modal-opcoes-titulo" style="margin: 0; font-size: 1.8rem; font-weight: 900;">Mesa</h2>
-              <button id="btn-editar-nome-mesa-modal" onclick="editarNomeMesaComandaDesdeModal()" style="background: rgba(255,255,255,0.22); border: 1.5px solid rgba(255,255,255,0.5); color: white; padding: 4px 10px; border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s; backdrop-filter: blur(4px);" onmouseover="this.style.background='rgba(255,255,255,0.35)'" onmouseout="this.style.background='rgba(255,255,255,0.22)'" title="Editar nome da comanda ou mesa">
-                ✏️ Editar Nome
+              <button id="btn-editar-nome-mesa-modal" onclick="editarNomeMesaComandaDesdeModal()" style="display: none; background: rgba(255,255,255,0.22); border: 1.5px solid rgba(255,255,255,0.5); color: white; padding: 4px 10px; border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; align-items: center; gap: 5px; transition: all 0.2s; backdrop-filter: blur(4px);" onmouseover="this.style.background='rgba(255,255,255,0.35)'" onmouseout="this.style.background='rgba(255,255,255,0.22)'" title="Editar nome da comanda">
+                ✏️ Editar Comanda
               </button>
             </div>
             <p id="modal-opcoes-info" style="margin: 5px 0 0 0; opacity: 0.9; font-size: 0.9rem; font-weight: bold;"></p>
@@ -2303,7 +2303,7 @@
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="app_v3.js?v=1.3.8-elgin-12"></script>
+  <script src="app_v3.js?v=1.3.8-elgin-14"></script>
   <!-- Modal: Mesa Aguardando Cliente -->
   <div id="modal-mesa-aguardando" class="modal">
     <div class="modal-content" style="max-width: 420px; border-radius: 16px; overflow: hidden; padding: 0;">
@@ -2312,8 +2312,8 @@
         <div>
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <h2 id="mma-titulo" style="margin:0; font-size:1.8rem; font-weight:900;">📱 Mesa</h2>
-            <button id="btn-editar-mma-nome" onclick="editarNomeMesaAguardandoDesdeModal()" style="background: rgba(255,255,255,0.22); border: 1.5px solid rgba(255,255,255,0.5); color: white; padding: 4px 10px; border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s; backdrop-filter: blur(4px);" onmouseover="this.style.background='rgba(255,255,255,0.35)'" onmouseout="this.style.background='rgba(255,255,255,0.22)'" title="Editar nome da comanda ou mesa">
-              ✏️ Editar Nome
+            <button id="btn-editar-mma-nome" onclick="editarNomeMesaAguardandoDesdeModal()" style="display: none; background: rgba(255,255,255,0.22); border: 1.5px solid rgba(255,255,255,0.5); color: white; padding: 4px 10px; border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; align-items: center; gap: 5px; transition: all 0.2s; backdrop-filter: blur(4px);" onmouseover="this.style.background='rgba(255,255,255,0.35)'" onmouseout="this.style.background='rgba(255,255,255,0.22)'" title="Editar nome da comanda">
+              ✏️ Editar Comanda
             </button>
           </div>
           <p id="mma-subtitulo" style="margin:5px 0 0 0; opacity:0.9; font-size:0.9rem;"></p>
