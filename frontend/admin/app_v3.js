@@ -10069,7 +10069,7 @@ async function abrirModalOpcoes(pedidoId) {
   pedidoEmOpcoes = pedido;
   iniciarAutoRefreshModalAdmin();
   const isDelivery = (pedido.garcom_id === 'DELIVERY');
-  const mesaNome = isDelivery ? '🛵 DELIVERY #' + pedido.id : (pedido.mesa_tipo === 'balcao' ? '🏪 Balcão ' + pedido.mesa_numero : (pedido.mesa_numero ? 'Mesa ' + pedido.mesa_numero : 'Balcão'));
+  const mesaNome = isDelivery ? '🛵 DELIVERY #' + pedido.id : (typeof obterNomeExibicaoCard === 'function' ? obterNomeExibicaoCard(pedido) : (pedido.mesa_tipo === 'balcao' ? '🏪 Balcão ' + pedido.mesa_numero : (pedido.mesa_numero ? 'Mesa ' + pedido.mesa_numero : 'Balcão')));
   const mesaId = pedido.mesa_id;
   
   // 1. DADOS BÁSICOS E CORES
@@ -10081,6 +10081,10 @@ async function abrirModalOpcoes(pedidoId) {
   const isAguardando = pedido.status === 'aguardando_fechamento';
   
   document.getElementById('modal-opcoes-titulo').innerText = mesaNome;
+  const btnEditNome = document.getElementById('btn-editar-nome-mesa-modal');
+  if (btnEditNome) {
+    btnEditNome.style.display = isDelivery ? 'none' : 'inline-flex';
+  }
   document.getElementById('modal-opcoes-info').innerText = `Pedido #${pedido.id} | Garçom: ${pedido.garcom_id || 'Admin'}`;
   
   const taxaDeliveryModalVal = (pedido.taxa_entrega !== undefined && pedido.taxa_entrega !== null) ? parseFloat(pedido.taxa_entrega) : 3.00;
@@ -10336,6 +10340,165 @@ function fecharModalOpcoes() {
   }
   pararAutoRefreshModalAdmin();
 }
+
+window.editarNomeMesaComandaDesdeModal = async function() {
+  const pedido = pedidoEmOpcoes;
+  if (!pedido) return;
+
+  const isDelivery = (pedido.garcom_id === 'DELIVERY');
+  if (isDelivery) {
+    mostrarToast("Pedidos de Delivery não utilizam nome de comanda.", "info");
+    return;
+  }
+
+  // Identifica o nome atual da mesa/comanda
+  let nomeAtual = pedido.mesa_numero || '';
+  if (!nomeAtual && pedido.mesa_id) {
+    const mesaObj = (typeof mesasPainel !== 'undefined' && Array.isArray(mesasPainel)) ? mesasPainel.find(m => m.id == pedido.mesa_id) : null;
+    if (mesaObj) nomeAtual = mesaObj.numero;
+  }
+  if (!nomeAtual) nomeAtual = String(pedido.mesa_id || '');
+
+  // Alvo para atualizar na API (ID da mesa ou ID do pedido)
+  const targetId = pedido.mesa_id || pedido.id;
+
+  const { value: novoNome } = await Swal.fire({
+    title: 'Editar Nome da Comanda / Mesa',
+    text: 'Altere a identificação desta comanda ou mesa:',
+    input: 'text',
+    inputValue: nomeAtual,
+    inputPlaceholder: 'Ex: Comanda 10, João, Mesa 04...',
+    inputAttributes: {
+      maxlength: '25',
+      autocapitalize: 'words',
+      autocorrect: 'off'
+    },
+    showCancelButton: true,
+    confirmButtonText: '💾 Salvar',
+    cancelButtonText: 'Cancelar',
+    confirmButtonColor: '#27ae60',
+    cancelButtonColor: '#95a5a6',
+    didOpen: () => {
+      const container = Swal.getContainer();
+      if (container) container.style.zIndex = '9999999';
+    },
+    inputValidator: (value) => {
+      if (!value || !value.trim()) return 'O nome não pode ficar vazio!';
+      if (value.trim().length > 25) return 'Máximo de 25 caracteres!';
+    }
+  });
+
+  if (novoNome && novoNome.trim() && novoNome.trim() !== nomeAtual) {
+    const nomeLimpo = novoNome.trim();
+    try {
+      const res = await fetch(`/api/mesas/${encodeURIComponent(targetId)}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '')
+        },
+        body: JSON.stringify({ 
+          numero: nomeLimpo,
+          pedido_id: pedido.id
+        })
+      });
+
+      if (res.ok) {
+        mostrarToast(`✅ Comanda/Mesa renomeada para "${nomeLimpo}"!`);
+        
+        // Atualiza localmente no objeto do pedido
+        pedido.mesa_numero = nomeLimpo;
+        if (pedidoEmOpcoes && pedidoEmOpcoes.id === pedido.id) {
+          pedidoEmOpcoes.mesa_numero = nomeLimpo;
+        }
+
+        // Atualiza o título do modal aberto imediatamente
+        const elTitulo = document.getElementById('modal-opcoes-titulo');
+        if (elTitulo) {
+          elTitulo.innerText = typeof obterNomeExibicaoCard === 'function' ? obterNomeExibicaoCard(pedido) : nomeLimpo;
+        }
+
+        // Atualiza os dados em background sem fechar o modal
+        if (typeof carregarPedidos === 'function') await carregarPedidos();
+        if (typeof carregarMesasLancar === 'function') await carregarMesasLancar();
+        if (typeof exibirMesasConfig === 'function') await exibirMesasConfig();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        mostrarAlerta(errData.error || "Erro ao renomear comanda/mesa", "Aviso", "⚠️");
+      }
+    } catch (err) {
+      console.error('Erro ao renomear comanda/mesa:', err);
+      mostrarAlerta("Erro de conexão ao renomear.", "Erro", "❌");
+    }
+  }
+};
+
+window.editarNomeMesaAguardandoDesdeModal = async function() {
+  const m = (typeof _mesaAguardandoAtual !== 'undefined') ? _mesaAguardandoAtual : null;
+  if (!m) return;
+
+  const nomeAtual = m.numero || '';
+
+  const { value: novoNome } = await Swal.fire({
+    title: 'Editar Nome da Comanda / Mesa',
+    text: 'Altere a identificação desta comanda ou mesa:',
+    input: 'text',
+    inputValue: nomeAtual,
+    inputPlaceholder: 'Ex: Comanda 10, João, Mesa 04...',
+    inputAttributes: {
+      maxlength: '25',
+      autocapitalize: 'words',
+      autocorrect: 'off'
+    },
+    showCancelButton: true,
+    confirmButtonText: '💾 Salvar',
+    cancelButtonText: 'Cancelar',
+    confirmButtonColor: '#27ae60',
+    cancelButtonColor: '#95a5a6',
+    didOpen: () => {
+      const container = Swal.getContainer();
+      if (container) container.style.zIndex = '9999999';
+    },
+    inputValidator: (value) => {
+      if (!value || !value.trim()) return 'O nome não pode ficar vazio!';
+      if (value.trim().length > 25) return 'Máximo de 25 caracteres!';
+    }
+  });
+
+  if (novoNome && novoNome.trim() && novoNome.trim() !== nomeAtual) {
+    const nomeLimpo = novoNome.trim();
+    try {
+      const res = await fetch(`/api/mesas/${encodeURIComponent(m.id)}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '')
+        },
+        body: JSON.stringify({ numero: nomeLimpo })
+      });
+
+      if (res.ok) {
+        mostrarToast(`✅ Comanda/Mesa renomeada para "${nomeLimpo}"!`);
+        m.numero = nomeLimpo;
+
+        const elTitulo = document.getElementById('mma-titulo');
+        if (elTitulo) elTitulo.innerText = `📱 Mesa ${nomeLimpo}`;
+        const elSub = document.getElementById('mma-subtitulo');
+        if (elSub) elSub.innerText = `Mesa ${nomeLimpo} — QR Code ativo`;
+
+        if (typeof carregarPedidos === 'function') await carregarPedidos();
+        if (typeof carregarMesasLancar === 'function') await carregarMesasLancar();
+        if (typeof exibirMesasConfig === 'function') await exibirMesasConfig();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        mostrarAlerta(errData.error || "Erro ao renomear comanda/mesa", "Aviso", "⚠️");
+      }
+    } catch (err) {
+      console.error('Erro ao renomear:', err);
+      mostrarAlerta("Erro de conexão ao renomear.", "Erro", "❌");
+    }
+  }
+};
 
 async function acaoOpcoesMesa(acao) {
   // Mantido para compatibilidade se houver algum listener direto, mas o abrirModalOpcoes agora é autossuficiente

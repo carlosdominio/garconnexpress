@@ -92,15 +92,34 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  router.put('/:id', ensureDbInitialized, isAdmin, async (req, res) => {
+  router.put('/:id', ensureDbInitialized, isAuthenticated, async (req, res) => {
     try {
       const mesaId = req.params.id;
       const novoNome = String(req.body.numero || '').trim();
+      const pedidoId = req.body.pedido_id;
       if (!novoNome) return res.status(400).json({ error: 'Nome inválido' });
-      await query('UPDATE mesas SET numero = ? WHERE id = ?', [novoNome, mesaId]);
-      safePusherTrigger('garconnexpress', 'menu-atualizado', {}).catch(e=>console.error(e));
-      res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: error.message }); }
+
+      // 1. Atualiza na tabela mesas por ID ou por número
+      await query('UPDATE mesas SET numero = ? WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)', [novoNome, mesaId, mesaId]);
+
+      // 2. Atualiza no pedido específico se fornecido
+      if (pedidoId) {
+        try {
+          await query('UPDATE pedidos SET mesa_numero = ? WHERE id = ?', [novoNome, pedidoId]);
+        } catch(e) {}
+      }
+
+      // 3. Atualiza nos pedidos ativos desta mesa
+      try {
+        await query("UPDATE pedidos SET mesa_numero = ? WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado')", [novoNome, mesaId, mesaId]);
+      } catch(e) {}
+
+      safePusherTrigger('garconnexpress', 'menu-atualizado', {}).catch(e => console.error(e));
+      res.json({ success: true, numero: novoNome });
+    } catch (error) { 
+      console.error('❌ Erro ao atualizar nome da mesa/comanda:', error);
+      res.status(500).json({ error: error.message }); 
+    }
   });
 
   router.get('/', ensureDbInitialized, isAuthenticated, async (req, res) => { 
