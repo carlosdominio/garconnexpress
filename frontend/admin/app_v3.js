@@ -1492,6 +1492,7 @@ function atualizarCronometrosPedidos() {
 }
 
 function resetarMesaLancar() {
+  window.comandaRecemCriadaId = null;
   const selectMesa = document.getElementById('lancar-mesa-select');
   if (selectMesa) {
     selectMesa.value = '';
@@ -2293,10 +2294,23 @@ function renderizarMesasSelectLancar(mesas) {
   const select = document.getElementById('lancar-mesa-select');
   if (!select) return;
   
+  // Mesas físicas (1 a 11) sempre aparecem (sejam livres ou ocupadas).
+  // Comandas descartáveis só aparecem se tiverem pedido ativo, QR code ativo, status 'ocupada' ou se foram recém-criadas.
+  const mesasValidas = (mesas || []).filter(m => {
+    const numVal = parseInt(m.numero, 10);
+    const isCom = (Number(m.is_comanda) === 1) || 
+                  (m.tipo && String(m.tipo).toLowerCase().includes('comanda')) || 
+                  String(m.numero || '').toLowerCase().startsWith('comanda') ||
+                  (/^\d+$/.test(String(m.numero).trim()) && numVal >= 12);
+    if (!isCom) return true; // Mesa física fixa: sempre exibe
+    if (window.comandaRecemCriadaId && String(m.id) === String(window.comandaRecemCriadaId)) return true;
+    return m.pedido_id || m.codigo_acesso || m.status === 'ocupada';
+  });
+
   const optionsHtml = '<option value="">Selecione a Mesa</option>' + 
     '<option value="BALCAO" style="font-weight:bold; color:#27ae60;" data-tipo="balcao">🏪 BALCÃO / VENDA DIRETA</option>' +
     '<option value="DELIVERY" style="font-weight:bold; color:#e67e22;" data-tipo="delivery">🛵 DELIVERY</option>' +
-    mesas.map(m => {
+    mesasValidas.map(m => {
       const isNum = /^\d+$/.test(String(m.numero || '').trim());
       const label = isNum ? `Mesa ${m.numero}` : m.numero;
       const badge = m.tipo === 'balcao' ? ' 🏪 (Balcão)' : '';
@@ -2401,6 +2415,7 @@ async function abrirModalCriarComandaLancar() {
         });
         if (res.ok) {
           const data = await res.json();
+          window.comandaRecemCriadaId = data.id;
           fechar();
           mostrarToast(`✅ Mesa/Comanda "${valor}" criada!`);
           await carregarMesasLancar();

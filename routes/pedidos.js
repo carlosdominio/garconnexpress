@@ -457,13 +457,25 @@ module.exports = (ctx) => {
       await query("DELETE FROM pedido_itens WHERE id = ?", [id]);
       const itensRestantes = (await query("SELECT status FROM pedido_itens WHERE pedido_id = ?", [item.pedido_id])).rows;
       if (itensRestantes.length === 0) {
-        const pedido = (await query("SELECT mesa_id, m.numero, p.garcom_id FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [item.pedido_id])).rows[0];
+        const pedido = (await query("SELECT p.mesa_id, p.mesa_numero, p.is_comanda, m.numero, m.tipo, m.is_comanda as mesa_is_comanda, p.garcom_id FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT) OR CAST(p.mesa_numero AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [item.pedido_id])).rows[0];
         await query("DELETE FROM pedidos WHERE id = ?", [item.pedido_id]);
-        if (pedido && pedido.mesa_id) {
-          await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [pedido.mesa_id]);
-          await query("UPDATE codigos_acesso SET status = 'expirado' WHERE mesa_id = ? AND status = 'ativo'", [pedido.mesa_id]);
+        if (pedido && (pedido.mesa_id || pedido.mesa_numero)) {
+          const mesaRefId = pedido.mesa_id || null;
+          const mesaRefNum = pedido.numero || pedido.mesa_numero || null;
+          const numVal = parseInt(mesaRefNum, 10);
+          const ehComanda = (Number(pedido.is_comanda) === 1) ||
+                            (Number(pedido.mesa_is_comanda) === 1) ||
+                            (pedido.tipo && String(pedido.tipo).toLowerCase().includes('comanda')) ||
+                            String(mesaRefNum || '').toLowerCase().startsWith('comanda') ||
+                            (/^\d+$/.test(String(mesaRefNum).trim()) && numVal >= 12);
+          if (ehComanda) {
+            await query("DELETE FROM mesas WHERE (id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT))", [mesaRefId, mesaRefNum]);
+          } else {
+            await query("UPDATE mesas SET status = 'livre' WHERE (id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT))", [mesaRefId, mesaRefNum]);
+          }
+          await query("UPDATE codigos_acesso SET status = 'expirado' WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'ativo'", [mesaRefId, mesaRefNum]);
           
-          await safePusherTrigger('garconnexpress', `deslogar-mesa-${pedido.mesa_id}`, { 
+          await safePusherTrigger('garconnexpress', `deslogar-mesa-${pedido.mesa_id || mesaRefNum}`, { 
             status: 'cancelado',
             mensagem: "Seu pedido foi cancelado e a mesa liberada. O acesso foi encerrado." 
           });
@@ -500,7 +512,7 @@ module.exports = (ctx) => {
   router.delete('/:id', isAdmin, async (req, res) => {
     const { id } = req.params;
     try {
-      const pedido = (await query("SELECT m.id as mesa_id, p.garcom_id, p.status, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
+      const pedido = (await query("SELECT m.id as mesa_id, p.garcom_id, p.status, m.numero, m.tipo, m.is_comanda, p.mesa_numero, p.is_comanda as pedido_is_comanda FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT) OR CAST(p.mesa_numero AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
       const itens = (await query("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
       
       if (pedido && pedido.status !== 'cancelado' && pedido.status !== 'entregue') {
@@ -512,15 +524,26 @@ module.exports = (ctx) => {
       await query("DELETE FROM pedidos WHERE id = ?", [id]);
       
       if (pedido) {
-        if (pedido.status !== 'entregue' && pedido.status !== 'cancelado' && pedido.mesa_id) {
-          const checkAtivos = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado', 'rascunho')", [pedido.mesa_id, pedido.numero]);
+        const mesaRefId = pedido.mesa_id || null;
+        const mesaRefNum = pedido.numero || pedido.mesa_numero || null;
+        if (pedido.status !== 'entregue' && pedido.status !== 'cancelado' && (mesaRefId || mesaRefNum)) {
+          const checkAtivos = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND id != ?", [mesaRefId, mesaRefNum, mesaRefNum, id]);
           if (checkAtivos.rows.length === 0) {
-              await query("DELETE FROM mesas WHERE (id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)) AND COALESCE(is_comanda, 0) = 1", [pedido.mesa_id, pedido.numero]);
-              await query("UPDATE mesas SET status = 'livre' WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [pedido.mesa_id, pedido.numero]);
+              const numVal = parseInt(mesaRefNum, 10);
+              const ehComanda = (Number(pedido.is_comanda) === 1) ||
+                                (Number(pedido.pedido_is_comanda) === 1) ||
+                                (pedido.tipo && String(pedido.tipo).toLowerCase().includes('comanda')) ||
+                                String(mesaRefNum || '').toLowerCase().startsWith('comanda') ||
+                                (/^\d+$/.test(String(mesaRefNum).trim()) && numVal >= 12);
+              if (ehComanda) {
+                await query("DELETE FROM mesas WHERE (id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT))", [mesaRefId, mesaRefNum]);
+              } else {
+                await query("UPDATE mesas SET status = 'livre' WHERE (id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT))", [mesaRefId, mesaRefNum]);
+              }
           }
-          await query("UPDATE codigos_acesso SET status = 'expirado' WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'ativo'", [pedido.mesa_id, pedido.numero]);
+          await query("UPDATE codigos_acesso SET status = 'expirado' WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'ativo'", [mesaRefId, mesaRefNum]);
 
-          await safePusherTrigger('garconnexpress', `deslogar-mesa-${pedido.mesa_id}`, { 
+          await safePusherTrigger('garconnexpress', `deslogar-mesa-${pedido.mesa_id || mesaRefNum}`, { 
             status: 'cancelado',
             mensagem: "Este pedido foi removido pelo estabelecimento. Seu acesso foi encerrado." 
           });
@@ -1551,24 +1574,38 @@ module.exports = (ctx) => {
       if (txResult.error) return res.status(txResult.code).json({ error: txResult.error });
       if (txResult.already) return res.json({ success: true, already: true });
 
-      const pm = (await query("SELECT m.id as mesa_id, p.garcom_id, m.numero, m.is_comanda FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
-      const numRaw = pm ? (pm.numero || 'BALCÃO') : 'BALCÃO';
-      const isCom = pm ? (pm.is_comanda ? 1 : 0) : 0;
+      const pm = (await query("SELECT m.id as mesa_id, p.garcom_id, m.numero, m.tipo, m.is_comanda, p.mesa_numero, p.is_comanda as pedido_is_comanda FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT) OR CAST(p.mesa_numero AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
+      const numRaw = pm ? (pm.numero || pm.mesa_numero || 'BALCÃO') : 'BALCÃO';
+      const isCom = pm ? ((pm.is_comanda || pm.pedido_is_comanda) ? 1 : 0) : 0;
       const fmtFn = formatarNomeMesaOuComanda || ((n) => n || 'BALCÃO');
       const mesaNum = pm ? (pm.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : fmtFn(numRaw, isCom)) : 'BALCÃO';
       const localStr = mesaNum;
 
-      if ((status === 'cancelado' || status === 'entregue') && pm && pm.mesa_id) {
-          const checkAtivos = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND id != ?", [pm.mesa_id, pm.numero, id]);
+      if ((status === 'cancelado' || status === 'entregue') && pm && (pm.mesa_id || pm.mesa_numero)) {
+          const mesaTargetId = pm.mesa_id || null;
+          const mesaTargetNum = pm.numero || pm.mesa_numero || null;
+          
+          const checkAtivos = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND id != ?", [mesaTargetId, mesaTargetNum, mesaTargetNum, id]);
           if (checkAtivos.rows.length === 0) {
-              await query("UPDATE pedidos SET mesa_numero = ?, is_comanda = ? WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT))", [mesaNum, isCom, pm.mesa_id, pm.numero]).catch(() => {});
-              await query("DELETE FROM mesas WHERE (id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)) AND COALESCE(is_comanda, 0) = 1", [pm.mesa_id, pm.numero]);
-              await query("UPDATE mesas SET status = 'livre' WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [pm.mesa_id, pm.numero]);
+              await query("UPDATE pedidos SET mesa_numero = ?, is_comanda = ? WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT))", [mesaNum, isCom, mesaTargetId, mesaTargetNum, mesaTargetNum]).catch(() => {});
+
+              const numVal = parseInt(mesaTargetNum, 10);
+              const ehComanda = (Number(pm.is_comanda) === 1) ||
+                                (Number(pm.pedido_is_comanda) === 1) ||
+                                (pm.tipo && String(pm.tipo).toLowerCase().includes('comanda')) ||
+                                String(mesaTargetNum || '').toLowerCase().startsWith('comanda') ||
+                                (/^\d+$/.test(String(mesaTargetNum).trim()) && numVal >= 12);
+
+              if (ehComanda) {
+                await query("DELETE FROM mesas WHERE (id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT) OR CAST(numero AS TEXT) = CAST(? AS TEXT))", [mesaTargetId, mesaTargetNum, numRaw]);
+              } else {
+                await query("UPDATE mesas SET status = 'livre' WHERE (id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT) OR CAST(numero AS TEXT) = CAST(? AS TEXT))", [mesaTargetId, mesaTargetNum, numRaw]);
+              }
           }
-          await query("UPDATE codigos_acesso SET status = 'expirado' WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'ativo'", [pm.mesa_id, pm.numero]);
+          await query("UPDATE codigos_acesso SET status = 'expirado' WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'ativo'", [mesaTargetId, mesaTargetNum]);
 
           const msgLogout = status === 'entregue' ? "Sua conta foi finalizada. Obrigado pela preferência!" : "Este pedido foi cancelado pelo estabelecimento. Seu acesso foi encerrado.";
-          await safePusherTrigger('garconnexpress', `deslogar-mesa-${pm.mesa_id}`, { 
+          await safePusherTrigger('garconnexpress', `deslogar-mesa-${mesaTargetId || mesaTargetNum}`, { 
             mensagem: msgLogout,
             status: status,
             mesa_id: pm.mesa_id 

@@ -128,11 +128,16 @@ module.exports = (ctx) => {
     if (!mesa_id) return res.status(400).json({ error: 'Mesa é obrigatória' });
 
     try {
-      const mRes = await query("SELECT id, numero, is_comanda FROM mesas WHERE CAST(id AS TEXT) = CAST(? AS TEXT) OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [mesa_id, mesa_id]);
+      const mRes = await query("SELECT id, numero, tipo, is_comanda FROM mesas WHERE CAST(id AS TEXT) = CAST(? AS TEXT) OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [mesa_id, mesa_id]);
       const m = mRes.rows[0];
 
       if (m) {
-        if (Number(m.is_comanda) === 1) {
+        const numVal = parseInt(m.numero, 10);
+        const ehComanda = (Number(m.is_comanda) === 1) ||
+                          (m.tipo && String(m.tipo).toLowerCase().includes('comanda')) ||
+                          String(m.numero || '').toLowerCase().startsWith('comanda') ||
+                          (/^\d+$/.test(String(m.numero).trim()) && numVal >= 12);
+        if (ehComanda) {
           await query("DELETE FROM mesas WHERE id = ?", [m.id]);
         } else {
           await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [m.id]);

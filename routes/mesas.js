@@ -7,7 +7,8 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     try {
       const numOuNome = String(req.body.numero || '').trim();
       const tipo = String(req.body.tipo || 'mesa').trim();
-      const isComanda = req.body.is_comanda ? 1 : 0;
+      const numVal = parseInt(numOuNome, 10);
+      const isComanda = (req.body.is_comanda || tipo === 'comanda' || numOuNome.toLowerCase().startsWith('comanda') || (!isNaN(numVal) && numVal >= 12 && String(numVal) === numOuNome)) ? 1 : 0;
       if (!numOuNome) return res.status(400).json({ error: 'Informe o número ou nome da mesa/comanda' });
 
       // TRAVA DE DUPLICIDADE (Case-insensitive)
@@ -40,11 +41,17 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
   router.put('/:id/liberar', ensureDbInitialized, isAuthenticated, async (req, res) => { 
     try { 
       const paramId = req.params.id;
-      const mRes = await query("SELECT id, numero, is_comanda FROM mesas WHERE CAST(id AS TEXT) = CAST(? AS TEXT) OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [paramId, paramId]);
+      const mRes = await query("SELECT id, numero, tipo, is_comanda FROM mesas WHERE CAST(id AS TEXT) = CAST(? AS TEXT) OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [paramId, paramId]);
       const m = mRes.rows[0];
 
       if (m) {
-        if (Number(m.is_comanda) === 1) {
+        const numVal = parseInt(m.numero, 10);
+        const isCom = (Number(m.is_comanda) === 1) || 
+                      (m.tipo && String(m.tipo).toLowerCase().includes('comanda')) || 
+                      String(m.numero || '').toLowerCase().startsWith('comanda') ||
+                      (/^\d+$/.test(String(m.numero).trim()) && numVal >= 12);
+
+        if (isCom) {
           await query("DELETE FROM mesas WHERE id = ?", [m.id]);
         } else {
           await query("UPDATE mesas SET status = 'livre' WHERE id = ?", [m.id]);
@@ -127,6 +134,21 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       checkAndNotifyDelayedOrders().catch(err => console.warn('⚠️ Erro background em checkAndNotifyDelayedOrders:', err.message));
     }
     try {
+      // Limpeza automática de comandas finalizadas/canceladas que ficaram órfãs no banco
+      try {
+        const comandasLivre = await query("SELECT id, numero, tipo, is_comanda FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%')");
+        for (const c of (comandasLivre.rows || [])) {
+          const ativos = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado', 'rascunho')", [c.id, c.numero]);
+          const codigos = await query("SELECT id FROM codigos_acesso WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'ativo'", [c.id, c.numero]);
+          const finalizados = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status IN ('entregue', 'cancelado')", [c.id, c.numero]);
+          if ((ativos.rows || []).length === 0 && (codigos.rows || []).length === 0 && (finalizados.rows || []).length > 0) {
+            await query("DELETE FROM mesas WHERE id = ?", [c.id]);
+          }
+        }
+      } catch (cleanErr) {
+        console.warn('⚠️ Erro não-bloqueante na limpeza de comandas finalizadas:', cleanErr.message);
+      }
+
       const mesasResult = await query(`
         SELECT m.*,
           p.id as pedido_id,
