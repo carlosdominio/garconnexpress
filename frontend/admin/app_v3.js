@@ -6007,12 +6007,10 @@ function atualizarSelectMesasAtivas() {
     if (p.garcom_id === 'DELIVERY') return `🛵 DELIVERY #${p.id}`;
     if (p.mesa_tipo === 'balcao') {
       const numTrim = String(p.mesa_numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
-      return numTrim ? `🏪 Comanda Balcão ${numTrim}` : `🏪 Comanda Balcão`;
+      return numTrim ? `🏪 Balcão ${numTrim}` : `🏪 Balcão`;
     }
-    if (p.is_comanda || p.mesa_tipo === 'comanda' || String(p.mesa_numero || '').toLowerCase().startsWith('comanda')) {
-      const numTrim = String(p.mesa_numero || '').replace(/^comanda\s*mesa\s*/i, '').replace(/^comanda\s*/i, '').replace(/^mesa\s*/i, '').trim();
-      return numTrim ? `🍽️ Comanda Mesa ${numTrim}` : `🍽️ Comanda Mesa`;
-    }
+    const numTrim = String(p.mesa_numero || '').replace(/^comanda\s*mesa\s*/i, '').replace(/^comanda\s*/i, '').replace(/^mesa\s*/i, '').trim();
+    if (numTrim) return `Mesa ${numTrim}`;
     return p.mesa_numero ? `Mesa ${p.mesa_numero}` : `BALCÃO #${p.id}`;
   }))].sort((a, b) => {
     if (a.startsWith('BALCÃO') || a.startsWith('Pedido')) return -1;
@@ -6084,12 +6082,10 @@ async function exibirPedidos() {
         mesaNomeExibicao = `🛵 DELIVERY #${pedido.id}`;
       } else if (pedido.mesa_tipo === 'balcao') {
         const numTrim = String(pedido.mesa_numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
-        mesaNomeExibicao = numTrim ? `🏪 Comanda Balcão ${numTrim}` : `🏪 Comanda Balcão`;
-      } else if (pedido.is_comanda || pedido.mesa_tipo === 'comanda' || String(pedido.mesa_numero || '').toLowerCase().startsWith('comanda')) {
-        const numTrim = String(pedido.mesa_numero || '').replace(/^comanda\s*mesa\s*/i, '').replace(/^comanda\s*/i, '').replace(/^mesa\s*/i, '').trim();
-        mesaNomeExibicao = numTrim ? `🍽️ Comanda Mesa ${numTrim}` : `🍽️ Comanda Mesa`;
+        mesaNomeExibicao = numTrim ? `🏪 Balcão ${numTrim}` : `🏪 Balcão`;
       } else if (pedido.mesa_numero) {
-        mesaNomeExibicao = `Mesa ${pedido.mesa_numero}`;
+        const numTrim = String(pedido.mesa_numero || '').replace(/^comanda\s*mesa\s*/i, '').replace(/^comanda\s*/i, '').replace(/^mesa\s*/i, '').trim();
+        mesaNomeExibicao = numTrim ? `Mesa ${numTrim}` : `Mesa ${pedido.mesa_numero}`;
       } else {
         mesaNomeExibicao = `BALCÃO #${pedido.id}`;
       }
