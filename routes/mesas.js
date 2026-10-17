@@ -10,17 +10,29 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       const isComanda = (req.body.is_comanda || tipo === 'comanda' || tipo === 'balcao' || numOuNome.toLowerCase().startsWith('comanda')) ? 1 : 0;
       if (!numOuNome) return res.status(400).json({ error: 'Informe o número ou nome da mesa/comanda' });
 
-      // TRAVA DE DUPLICIDADE (Case-insensitive)
-      const existing = await query('SELECT id FROM mesas WHERE LOWER(CAST(numero AS TEXT)) = LOWER(CAST(? AS TEXT))', [numOuNome]);
+      // TRAVA DE DUPLICIDADE (Case-insensitive) - Separado por tipo para não colidir mesa física com balcão
+      let existing;
+      if (tipo === 'balcao') {
+        existing = await query('SELECT id, status, tipo FROM mesas WHERE LOWER(CAST(numero AS TEXT)) = LOWER(CAST(? AS TEXT)) AND tipo = ?', [numOuNome, 'balcao']);
+      } else {
+        existing = await query('SELECT id, status, tipo FROM mesas WHERE LOWER(CAST(numero AS TEXT)) = LOWER(CAST(? AS TEXT)) AND (tipo != ? OR tipo IS NULL)', [numOuNome, 'balcao']);
+      }
+
       if (existing && existing.rows && existing.rows.length > 0) {
-          return res.status(400).json({ error: 'Já existe uma mesa ou comanda criada com esse número ou nome!' });
+        const row = existing.rows[0];
+        // Se a mesa/comanda já existe e está livre, aproveita ela imediatamente
+        if (row.status === 'livre') {
+          await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
+          return res.json({ success: true, id: row.id, numero: numOuNome, tipo: row.tipo || tipo, is_comanda: isComanda });
+        }
+        return res.status(400).json({ error: `Já existe uma ${tipo === 'balcao' ? 'comanda de balcão' : 'mesa'} aberta com esse número ou nome!` });
       }
 
       let ins;
       try {
-        ins = await query('INSERT INTO mesas (numero, tipo, is_comanda) VALUES (?, ?, ?) RETURNING id', [numOuNome, tipo, isComanda]);
+        ins = await query("INSERT INTO mesas (numero, tipo, is_comanda, status) VALUES (?, ?, ?, 'livre') RETURNING id", [numOuNome, tipo, isComanda]);
       } catch (e) {
-        ins = await query('INSERT INTO mesas (numero, tipo, is_comanda) VALUES (?, ?, ?)', [numOuNome, tipo, isComanda]);
+        ins = await query("INSERT INTO mesas (numero, tipo, is_comanda, status) VALUES (?, ?, ?, 'livre')", [numOuNome, tipo, isComanda]);
       }
 
       let novaId = ins.rows?.[0]?.id || ins.insertId || null;
@@ -136,15 +148,20 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       try {
         const comandasLivre = await query("SELECT id, numero, tipo, is_comanda FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR tipo = 'balcao' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%')");
         for (const c of (comandasLivre.rows || [])) {
+          // Comandas de balcão NUNCA devem ser deletadas pela rotina automática de órfãs
+          if (c.tipo === 'balcao') continue;
+
           const numTrim = String(c.numero || '').trim();
           // Se for mesa física com número puro (ex: 1 a 100) e não é comanda nem balcão, protege e repara
-          if (/^\d+$/.test(numTrim) && c.tipo !== 'comanda' && c.tipo !== 'balcao' && !numTrim.toLowerCase().startsWith('comanda')) {
+          if (/^\d+$/.test(numTrim) && c.tipo !== 'comanda' && !numTrim.toLowerCase().startsWith('comanda')) {
             await query("UPDATE mesas SET is_comanda = 0, tipo = 'mesa' WHERE id = ?", [c.id]);
             continue;
           }
-          const ativos = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado', 'rascunho')", [c.id, c.numero]);
-          const codigos = await query("SELECT id FROM codigos_acesso WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'ativo'", [c.id, c.numero]);
-          const finalizados = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status IN ('entregue', 'cancelado')", [c.id, c.numero]);
+          // Para comandas descartáveis, SÓ exclui se houver pedidos finalizados EXCLUSIVAMENTE vinculados ao seu ID de mesa
+          // NUNCA cruzar por c.numero para não apagar comanda nova cujo nome/número coincidiu com pedidos históricos!
+          const ativos = await query("SELECT id FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status NOT IN ('entregue', 'cancelado', 'rascunho')", [c.id]);
+          const codigos = await query("SELECT id FROM codigos_acesso WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status = 'ativo'", [c.id]);
+          const finalizados = await query("SELECT id FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status IN ('entregue', 'cancelado')", [c.id]);
           if ((ativos.rows || []).length === 0 && (codigos.rows || []).length === 0 && (finalizados.rows || []).length > 0) {
             await query("DELETE FROM mesas WHERE id = ?", [c.id]);
           }

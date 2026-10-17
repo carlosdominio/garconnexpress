@@ -2331,8 +2331,9 @@ function renderizarMesasSelectLancar(mesas) {
   if (select.innerHTML !== optionsHtml) {
     const valAnterior = select.value;
     select.innerHTML = optionsHtml;
-    if (valAnterior && Array.from(select.options).some(o => o.value === valAnterior)) {
-      select.value = valAnterior;
+    const targetToSet = window.comandaRecemCriadaId ? String(window.comandaRecemCriadaId) : valAnterior;
+    if (targetToSet && Array.from(select.options).some(o => String(o.value) === String(targetToSet))) {
+      select.value = targetToSet;
     }
     sincronizarFiltroCustomizadoLancar();
   }
@@ -2432,21 +2433,29 @@ async function abrirModalCriarComandaLancar() {
           const data = await res.json();
           window.comandaRecemCriadaId = data.id;
           fechar();
-          mostrarToast(`✅ Mesa/Comanda "${valor}" criada!`);
+          mostrarToast(`✅ ${tipo === 'balcao' ? 'Comanda Balcão' : 'Mesa'} "${valor}" pronta!`);
           await carregarMesasLancar();
           
-          // Seleciona a mesa recém criada no dropdown
+          // Seleciona a mesa recém criada no dropdown com match exato por ID
           const select = document.getElementById('lancar-mesa-select');
           if (select) {
             const targetId = String(data.id || '');
-            const targetNum = String(valor).trim().toLowerCase();
-            const optToSelect = Array.from(select.options).find(o => 
-              (targetId && o.value === targetId) || 
-              (targetNum && o.innerText.toLowerCase().includes(targetNum))
-            );
+            let optToSelect = null;
+            if (targetId) {
+              optToSelect = Array.from(select.options).find(o => String(o.value) === targetId);
+            }
+            if (!optToSelect) {
+              const targetNum = String(valor).trim().toLowerCase();
+              optToSelect = Array.from(select.options).find(o => 
+                o.value !== '' && o.value !== 'BALCAO' && o.value !== 'DELIVERY' && 
+                o.innerText.toLowerCase().includes(targetNum)
+              );
+            }
             if (optToSelect) {
               select.value = optToSelect.value;
               select.dispatchEvent(new Event('change'));
+              const customLabel = document.getElementById('custom-select-label-lancar');
+              if (customLabel) customLabel.innerText = optToSelect.innerText;
             }
             if (typeof sincronizarFiltroCustomizadoLancar === 'function') {
               sincronizarFiltroCustomizadoLancar();
@@ -5952,7 +5961,10 @@ function atualizarSelectMesasAtivas() {
 
   const nomesMesas = [...new Set(pedidosFiltrados.map(p => {
     if (p.garcom_id === 'DELIVERY') return `🛵 DELIVERY #${p.id}`;
-    if (p.mesa_tipo === 'balcao') return `🏪 Balcão ${p.mesa_numero}`;
+    if (p.mesa_tipo === 'balcao') {
+      const numTrim = String(p.mesa_numero || '').trim();
+      return /balc[aã]o/i.test(numTrim) ? `🏪 ${numTrim}` : `🏪 Balcão ${numTrim}`;
+    }
     return p.mesa_numero ? `Mesa ${p.mesa_numero}` : `BALCÃO #${p.id}`;
   }))].sort((a, b) => {
     if (a.startsWith('BALCÃO') || a.startsWith('Pedido')) return -1;
@@ -6019,7 +6031,17 @@ async function exibirPedidos() {
   try {
     for (const pedido of pedidosOrdenados) {
       const isDelivery = (pedido.garcom_id === 'DELIVERY');
-      const mesaNomeExibicao = isDelivery ? `🛵 DELIVERY #${pedido.id}` : (pedido.mesa_tipo === 'balcao' ? `🏪 Balcão ${pedido.mesa_numero}` : (pedido.mesa_numero ? `Mesa ${pedido.mesa_numero}` : `BALCÃO #${pedido.id}`));
+      let mesaNomeExibicao;
+      if (isDelivery) {
+        mesaNomeExibicao = `🛵 DELIVERY #${pedido.id}`;
+      } else if (pedido.mesa_tipo === 'balcao') {
+        const numTrim = String(pedido.mesa_numero || '').trim();
+        mesaNomeExibicao = /balc[aã]o/i.test(numTrim) ? `🏪 ${numTrim}` : `🏪 Balcão ${numTrim}`;
+      } else if (pedido.mesa_numero) {
+        mesaNomeExibicao = `Mesa ${pedido.mesa_numero}`;
+      } else {
+        mesaNomeExibicao = `BALCÃO #${pedido.id}`;
+      }
       
       // Sincroniza o estado da taxa (preserva atualizações locais otimistas)
       if (pedidosStatusTaxa[pedido.id] === undefined) {
