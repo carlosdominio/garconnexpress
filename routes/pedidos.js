@@ -152,7 +152,7 @@ module.exports = (ctx) => {
         } catch(migErr) {}
         try {
           result = await query(`
-            SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, g.nome as garcom_nome 
+            SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, COALESCE(p.mesa_numero, m.numero) as mesa_numero, m.tipo as mesa_tipo, g.nome as garcom_nome 
             FROM pedidos p 
             LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
             LEFT JOIN garcons g ON p.garcom_id = g.usuario 
@@ -161,7 +161,7 @@ module.exports = (ctx) => {
           `);
         } catch(finalErr) {
           result = await query(`
-            SELECT p.*, m.numero as mesa_numero, g.nome as garcom_nome 
+            SELECT p.*, COALESCE(p.mesa_numero, m.numero) as mesa_numero, m.tipo as mesa_tipo, g.nome as garcom_nome 
             FROM pedidos p 
             LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
             LEFT JOIN garcons g ON p.garcom_id = g.usuario 
@@ -803,11 +803,13 @@ module.exports = (ctx) => {
 
       let mesaNum = 'BALCÃO';
       let isComVal = 0;
+      let mesaTipo = null;
       if (mesa_id) { 
-        const rm = await query("SELECT numero, is_comanda FROM mesas WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [mesa_id, mesa_id]); 
+        const rm = await query("SELECT numero, is_comanda, tipo FROM mesas WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [mesa_id, mesa_id]); 
         if (rm.rows[0]) {
           mesaNum = rm.rows[0].numero || 'BALCÃO';
           isComVal = rm.rows[0].is_comanda ? 1 : 0;
+          mesaTipo = rm.rows[0].tipo || null;
         }
       } else if (garcom_id === 'DELIVERY') {
         mesaNum = `DELIVERY #${pedidoId}`;
@@ -827,15 +829,15 @@ module.exports = (ctx) => {
         return `${item.quantidade}x ${p ? p.nome : 'Item'}`;
       });
       const isDeliv = mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY');
-      const isBalcao = !isDeliv && (!mesa_id || mesaNum === 'BALCÃO' || mesaNum.toString().toUpperCase().includes('BALCÃO') || mesaNum.toString().toUpperCase().includes('BALCAO'));
-      const localLabel = isDeliv ? mesaNum : (isBalcao ? 'BALCÃO' : (mesaNum.startsWith('Mesa ') || mesaNum.startsWith('Comanda ') ? mesaNum : `Mesa ${mesaNum}`));
+      const isBalcao = !isDeliv && (!mesa_id || mesaNum === 'BALCÃO' || mesaNum.toString().toUpperCase().includes('BALCÃO') || mesaNum.toString().toUpperCase().includes('BALCAO') || mesaTipo === 'balcao');
+      const localLabel = isDeliv ? mesaNum : (isBalcao ? (mesaNum.toString().toUpperCase().includes('BALC') ? mesaNum : `Balcão ${mesaNum}`) : (mesaNum.startsWith('Mesa ') || mesaNum.startsWith('Comanda ') ? mesaNum : `Mesa ${mesaNum}`));
       const msgWpp = `🚀 *NOVO PEDIDO #${pedidoId}*\n📍 Local: ${localLabel}\n📝 Itens:\n${itensNomes.join('\n')}\n💰 Total: R$ ${total.toFixed(2)}`;
       
       const temItemCozinha = await checkTemItemCozinha(menuIds);
       const temItemChurrasco = await checkTemItemChurrasco(menuIds);
 
       await Promise.all([
-        notifyStatus(pedidoId, mesa_id, 'recebido', mesaNum),
+        notifyStatus(pedidoId, mesa_id, 'recebido', isBalcao ? localLabel : mesaNum),
         safePusherTrigger('garconnexpress', 'menu-atualizado', {}),
         safePusherTrigger('garconnexpress', `rascunho-processado-mesa-${mesa_id}`, {
           success: true,

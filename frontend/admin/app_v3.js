@@ -2294,15 +2294,19 @@ function renderizarMesasSelectLancar(mesas) {
   const select = document.getElementById('lancar-mesa-select');
   if (!select) return;
   
-  // Mesas físicas (fixas) sempre aparecem (sejam livres ou ocupadas).
-  // Comandas descartáveis só aparecem se tiverem pedido ativo, QR code ativo, status 'ocupada' ou se foram recém-criadas.
+  // Mesas físicas e comandas cadastradas (inclusive de balcão) devem estar disponíveis para seleção.
   const mesasValidas = (mesas || []).filter(m => {
+    // Comandas do tipo 'balcao' SEMPRE aparecem!
+    if (m.tipo === 'balcao') return true;
+    
+    // Mesas físicas fixas sempre aparecem!
     const isCom = (Number(m.is_comanda) === 1) || 
                   (m.tipo && String(m.tipo).toLowerCase().includes('comanda')) || 
                   String(m.numero || '').toLowerCase().startsWith('comanda');
-    if (!isCom) return true; // Mesa física fixa: sempre exibe
-    if (window.comandaRecemCriadaId && String(m.id) === String(window.comandaRecemCriadaId)) return true;
-    return m.pedido_id || m.codigo_acesso || m.status === 'ocupada';
+    if (!isCom) return true;
+
+    // Comandas criadas e ativas no banco: sempre exibe para permitir lançamento!
+    return true;
   });
 
   const optionsHtml = '<option value="">Selecione a Mesa</option>' + 
@@ -2310,13 +2314,26 @@ function renderizarMesasSelectLancar(mesas) {
     '<option value="DELIVERY" style="font-weight:bold; color:#e67e22;" data-tipo="delivery">🛵 DELIVERY</option>' +
     mesasValidas.map(m => {
       const isNum = /^\d+$/.test(String(m.numero || '').trim());
-      const label = isNum ? `Mesa ${m.numero}` : m.numero;
-      const badge = m.tipo === 'balcao' ? ' 🏪 (Balcão)' : '';
-      return `<option value="${m.id}" data-tipo="${m.tipo || 'mesa'}">${label}${badge} (${m.status.toUpperCase()})</option>`;
+      const isBalc = (m.tipo === 'balcao');
+      let label = m.numero;
+      if (isBalc) {
+        label = String(m.numero || '').toLowerCase().startsWith('balc') 
+          ? m.numero 
+          : `Balcão ${m.numero}`;
+      } else if (isNum) {
+        label = `Mesa ${m.numero}`;
+      }
+      const badge = isBalc ? '🏪 ' : '';
+      const statusStr = (m.status || 'livre').toUpperCase();
+      return `<option value="${m.id}" data-tipo="${m.tipo || 'mesa'}">${badge}${label} (${statusStr})</option>`;
     }).join('');
   
   if (select.innerHTML !== optionsHtml) {
+    const valAnterior = select.value;
     select.innerHTML = optionsHtml;
+    if (valAnterior && Array.from(select.options).some(o => o.value === valAnterior)) {
+      select.value = valAnterior;
+    }
     sincronizarFiltroCustomizadoLancar();
   }
 
@@ -3501,9 +3518,15 @@ async function exibirMesasConfig() {
   if (!container) return;
   container.innerHTML = mesas.map(m => {
     const isNum = /^\d+$/.test(String(m.numero || '').trim());
-    const label = isNum ? `Mesa ${m.numero}` : m.numero;
+    const isBalc = (m.tipo === 'balcao');
+    let label = m.numero;
+    if (isBalc) {
+      label = String(m.numero || '').toLowerCase().startsWith('balc') ? m.numero : `Balcão ${m.numero}`;
+    } else if (isNum) {
+      label = `Mesa ${m.numero}`;
+    }
     return `<div class="item-config">
-      <span>${label} ${m.tipo === 'balcao' ? '<small style="color:#27ae60;font-weight:bold;">(Balcão)</small>' : ''}</span>
+      <span>${isBalc ? '🏪 ' : ''}${label} ${isBalc ? '<small style="color:#27ae60;font-weight:bold;">(Balcão)</small>' : ''}</span>
       <div>
         <button class="btn-editar" onclick="editarNomeMesa(${m.id}, '${String(m.numero).replace(/'/g, "\\'")}')" style="background:#f39c12; color:white; border:none; border-radius:5px; padding:5px 10px; cursor:pointer; margin-right:5px; font-weight:bold; font-size:0.8rem;">Editar</button>
         <button class="btn-excluir" onclick="excluirMesa(${m.id})">Excluir</button>

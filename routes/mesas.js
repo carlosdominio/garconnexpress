@@ -7,7 +7,7 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     try {
       const numOuNome = String(req.body.numero || '').trim();
       const tipo = String(req.body.tipo || 'mesa').trim();
-      const isComanda = (req.body.is_comanda || tipo === 'comanda' || numOuNome.toLowerCase().startsWith('comanda')) ? 1 : 0;
+      const isComanda = (req.body.is_comanda || tipo === 'comanda' || tipo === 'balcao' || numOuNome.toLowerCase().startsWith('comanda')) ? 1 : 0;
       if (!numOuNome) return res.status(400).json({ error: 'Informe o número ou nome da mesa/comanda' });
 
       // TRAVA DE DUPLICIDADE (Case-insensitive)
@@ -46,6 +46,7 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       if (m) {
         const isCom = (Number(m.is_comanda) === 1) || 
                       (m.tipo && String(m.tipo).toLowerCase().includes('comanda')) || 
+                      (m.tipo === 'balcao') ||
                       String(m.numero || '').toLowerCase().startsWith('comanda');
 
         if (isCom) {
@@ -133,11 +134,11 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     try {
       // Limpeza automática de comandas finalizadas/canceladas que ficaram órfãs no banco
       try {
-        const comandasLivre = await query("SELECT id, numero, tipo, is_comanda FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%')");
+        const comandasLivre = await query("SELECT id, numero, tipo, is_comanda FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR tipo = 'balcao' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%')");
         for (const c of (comandasLivre.rows || [])) {
           const numTrim = String(c.numero || '').trim();
-          // Se for mesa física com número puro (ex: 1 a 100) e não é comanda explícita, protege e repara
-          if (/^\d+$/.test(numTrim) && c.tipo !== 'comanda' && !numTrim.toLowerCase().startsWith('comanda')) {
+          // Se for mesa física com número puro (ex: 1 a 100) e não é comanda nem balcão, protege e repara
+          if (/^\d+$/.test(numTrim) && c.tipo !== 'comanda' && c.tipo !== 'balcao' && !numTrim.toLowerCase().startsWith('comanda')) {
             await query("UPDATE mesas SET is_comanda = 0, tipo = 'mesa' WHERE id = ?", [c.id]);
             continue;
           }
@@ -190,7 +191,7 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
 
       const mesasRows = (mesasResult.rows || []).map(m => {
         const numTrim = String(m.numero || '').trim();
-        if (/^\d+$/.test(numTrim) && m.tipo !== 'comanda' && !numTrim.toLowerCase().startsWith('comanda')) {
+        if (/^\d+$/.test(numTrim) && m.tipo !== 'comanda' && m.tipo !== 'balcao' && !numTrim.toLowerCase().startsWith('comanda')) {
           if (Number(m.is_comanda) === 1) {
             query("UPDATE mesas SET is_comanda = 0, tipo = 'mesa' WHERE id = ?", [m.id]).catch(() => {});
           }
