@@ -2315,17 +2315,27 @@ function renderizarMesasSelectLancar(mesas) {
     mesasValidas.map(m => {
       const isNum = /^\d+$/.test(String(m.numero || '').trim());
       const isBalc = (m.tipo === 'balcao');
+      const isComMesa = !isBalc && (
+        Number(m.is_comanda) === 1 || 
+        m.tipo === 'comanda' || 
+        String(m.numero || '').toLowerCase().startsWith('comanda')
+      );
       let label = m.numero;
       if (isBalc) {
         label = String(m.numero || '').toLowerCase().startsWith('balc') 
           ? m.numero 
           : `Balcão ${m.numero}`;
+      } else if (isComMesa) {
+        label = String(m.numero || '').toLowerCase().startsWith('comanda')
+          ? m.numero 
+          : `Comanda ${m.numero}`;
       } else if (isNum) {
         label = `Mesa ${m.numero}`;
       }
-      const badge = isBalc ? '🏪 ' : '';
+      const badge = isBalc ? '🏪 ' : (isComMesa ? '🍽️ ' : '');
+      const tagTipoText = isBalc ? ' [BALCÃO]' : (isComMesa ? ' [COMANDA]' : '');
       const statusStr = (m.status || 'livre').toUpperCase();
-      return `<option value="${m.id}" data-tipo="${m.tipo || 'mesa'}">${badge}${label} (${statusStr})</option>`;
+      return `<option value="${m.id}" data-tipo="${m.tipo || 'mesa'}">${badge}${label}${tagTipoText} (${statusStr})</option>`;
     }).join('');
   
   if (select.innerHTML !== optionsHtml) {
@@ -2392,8 +2402,8 @@ async function abrirModalCriarComandaLancar() {
           
           <label style="display: block; font-weight: bold; color: #334155; font-size: 0.9rem; margin-bottom: 6px;">Direcionar para:</label>
           <select id="select-tipo-comanda-novo" style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 2px solid #cbd5e0; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc;">
-            <option value="mesa">🍽️ Mesas</option>
-            <option value="balcao">🏪 Balcão</option>
+            <option value="comanda">🍽️ Comanda de Mesa</option>
+            <option value="balcao">🏪 Comanda de Balcão</option>
           </select>
 
           <p style="font-size: 0.78rem; color: #64748b; margin: 12px 0 0 0;">Ela ficará disponível imediatamente para lançar pedidos no Admin e nos Garçons.</p>
@@ -3528,17 +3538,51 @@ async function exibirMesasConfig() {
   container.innerHTML = mesas.map(m => {
     const isNum = /^\d+$/.test(String(m.numero || '').trim());
     const isBalc = (m.tipo === 'balcao');
+    const isComMesa = !isBalc && (
+      Number(m.is_comanda) === 1 || 
+      m.tipo === 'comanda' || 
+      String(m.numero || '').toLowerCase().startsWith('comanda')
+    );
+
     let label = m.numero;
     if (isBalc) {
       label = String(m.numero || '').toLowerCase().startsWith('balc') ? m.numero : `Balcão ${m.numero}`;
+    } else if (isComMesa) {
+      label = String(m.numero || '').toLowerCase().startsWith('comanda') ? m.numero : `Comanda ${m.numero}`;
     } else if (isNum) {
       label = `Mesa ${m.numero}`;
     }
-    return `<div class="item-config">
-      <span>${isBalc ? '🏪 ' : ''}${label} ${isBalc ? '<small style="color:#27ae60;font-weight:bold;">(Balcão)</small>' : ''}</span>
-      <div>
-        <button class="btn-editar" onclick="editarNomeMesa(${m.id}, '${String(m.numero).replace(/'/g, "\\'")}')" style="background:#f39c12; color:white; border:none; border-radius:5px; padding:5px 10px; cursor:pointer; margin-right:5px; font-weight:bold; font-size:0.8rem;">Editar</button>
-        <button class="btn-excluir" onclick="excluirMesa(${m.id})">Excluir</button>
+
+    // TAG DO TIPO (Visual moderna e destacada)
+    let tagTipoHtml = '';
+    if (isBalc) {
+      tagTipoHtml = `<span style="background: #e8f8f0; color: #16a34a; border: 1px solid #bbf7d0; font-size: 0.72rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; letter-spacing: 0.3px;">🏪 COMANDA DE BALCÃO</span>`;
+    } else if (isComMesa) {
+      tagTipoHtml = `<span style="background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe; font-size: 0.72rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; letter-spacing: 0.3px;">🍽️ COMANDA DE MESA</span>`;
+    } else {
+      tagTipoHtml = `<span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; letter-spacing: 0.3px;">🪑 MESA FÍSICA</span>`;
+    }
+
+    // TAG DO STATUS
+    const statusLower = String(m.status || 'livre').toLowerCase();
+    let tagStatusHtml = '';
+    if (statusLower === 'ocupada') {
+      tagStatusHtml = `<span style="background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa; font-size: 0.72rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 3px;">🟠 OCUPADA</span>`;
+    } else if (statusLower === 'fechando') {
+      tagStatusHtml = `<span style="background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; font-size: 0.72rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 3px;">🟡 FECHANDO</span>`;
+    } else {
+      tagStatusHtml = `<span style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; font-size: 0.72rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 3px;">🟢 LIVRE</span>`;
+    }
+
+    return `<div class="item-config" style="padding: 10px 14px; margin-bottom: 8px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <strong style="font-size: 0.98rem; color: #1e293b; min-width: 90px;">${isBalc ? '🏪 ' : (isComMesa ? '🍽️ ' : '🪑 ')}${label}</strong>
+        ${tagTipoHtml}
+        ${tagStatusHtml}
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <button class="btn-editar" onclick="editarNomeMesa(${m.id}, '${String(m.numero).replace(/'/g, "\\'")}')" style="background:#f39c12; color:white; border:none; border-radius:6px; padding:6px 12px; cursor:pointer; font-weight:bold; font-size:0.8rem; box-shadow: 0 2px 0 #d68910;">Editar</button>
+        <button class="btn-excluir" onclick="excluirMesa(${m.id})" style="background:#e74c3c; color:white; border:none; border-radius:6px; padding:6px 12px; cursor:pointer; font-weight:bold; font-size:0.8rem; box-shadow: 0 2px 0 #c0392b;">Excluir</button>
       </div>
     </div>`;
   }).join('');

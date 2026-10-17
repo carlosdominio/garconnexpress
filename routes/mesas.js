@@ -6,8 +6,11 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
   router.post('/', ensureDbInitialized, isAuthenticated, async (req, res) => { 
     try {
       const numOuNome = String(req.body.numero || '').trim();
-      const tipo = String(req.body.tipo || 'mesa').trim();
+      let tipo = String(req.body.tipo || 'mesa').trim();
       const isComanda = (req.body.is_comanda || tipo === 'comanda' || tipo === 'balcao' || numOuNome.toLowerCase().startsWith('comanda')) ? 1 : 0;
+      if (isComanda && tipo === 'mesa') {
+        tipo = 'comanda';
+      }
       if (!numOuNome) return res.status(400).json({ error: 'Informe o número ou nome da mesa/comanda' });
 
       // TRAVA DE DUPLICIDADE (Case-insensitive) - Separado por tipo para não colidir mesa física com balcão
