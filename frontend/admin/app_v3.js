@@ -2333,9 +2333,8 @@ function renderizarMesasSelectLancar(mesas) {
         label = `Mesa ${m.numero}`;
       }
       const badge = isBalc ? '🏪 ' : (isComMesa ? '🍽️ ' : '');
-      const tagTipoText = isBalc ? ' [BALCÃO]' : (isComMesa ? ' [COMANDA]' : '');
       const statusStr = (m.status || 'livre').toUpperCase();
-      return `<option value="${m.id}" data-tipo="${m.tipo || 'mesa'}">${badge}${label}${tagTipoText} (${statusStr})</option>`;
+      return `<option value="${m.id}" data-tipo="${m.tipo || 'mesa'}">${badge}${label} (${statusStr})</option>`;
     }).join('');
   
   if (select.innerHTML !== optionsHtml) {
