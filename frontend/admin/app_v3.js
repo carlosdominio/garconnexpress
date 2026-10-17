@@ -2322,13 +2322,11 @@ function renderizarMesasSelectLancar(mesas) {
       );
       let label = m.numero;
       if (isBalc) {
-        label = String(m.numero || '').toLowerCase().startsWith('balc') 
-          ? m.numero 
-          : `Balcão ${m.numero}`;
+        const numLimpo = String(m.numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
+        label = numLimpo ? `Comanda Balcão ${numLimpo}` : 'Comanda Balcão';
       } else if (isComMesa) {
-        label = String(m.numero || '').toLowerCase().startsWith('comanda')
-          ? m.numero 
-          : `Comanda ${m.numero}`;
+        const numLimpo = String(m.numero || '').replace(/^comanda\s*/i, '').trim();
+        label = numLimpo ? `Comanda ${numLimpo}` : 'Comanda';
       } else if (isNum) {
         label = `Mesa ${m.numero}`;
       }
@@ -3545,9 +3543,11 @@ async function exibirMesasConfig() {
 
     let label = m.numero;
     if (isBalc) {
-      label = String(m.numero || '').toLowerCase().startsWith('balc') ? m.numero : `Balcão ${m.numero}`;
+      const numLimpo = String(m.numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
+      label = numLimpo ? `Comanda Balcão ${numLimpo}` : 'Comanda Balcão';
     } else if (isComMesa) {
-      label = String(m.numero || '').toLowerCase().startsWith('comanda') ? m.numero : `Comanda ${m.numero}`;
+      const numLimpo = String(m.numero || '').replace(/^comanda\s*/i, '').trim();
+      label = numLimpo ? `Comanda ${numLimpo}` : 'Comanda';
     } else if (isNum) {
       label = `Mesa ${m.numero}`;
     }
@@ -6005,8 +6005,8 @@ function atualizarSelectMesasAtivas() {
   const nomesMesas = [...new Set(pedidosFiltrados.map(p => {
     if (p.garcom_id === 'DELIVERY') return `🛵 DELIVERY #${p.id}`;
     if (p.mesa_tipo === 'balcao') {
-      const numTrim = String(p.mesa_numero || '').trim();
-      return /balc[aã]o/i.test(numTrim) ? `🏪 ${numTrim}` : `🏪 Balcão ${numTrim}`;
+      const numTrim = String(p.mesa_numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
+      return numTrim ? `🏪 Comanda Balcão ${numTrim}` : `🏪 Comanda Balcão`;
     }
     return p.mesa_numero ? `Mesa ${p.mesa_numero}` : `BALCÃO #${p.id}`;
   }))].sort((a, b) => {
@@ -6078,8 +6078,8 @@ async function exibirPedidos() {
       if (isDelivery) {
         mesaNomeExibicao = `🛵 DELIVERY #${pedido.id}`;
       } else if (pedido.mesa_tipo === 'balcao') {
-        const numTrim = String(pedido.mesa_numero || '').trim();
-        mesaNomeExibicao = /balc[aã]o/i.test(numTrim) ? `🏪 ${numTrim}` : `🏪 Balcão ${numTrim}`;
+        const numTrim = String(pedido.mesa_numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
+        mesaNomeExibicao = numTrim ? `🏪 Comanda Balcão ${numTrim}` : `🏪 Comanda Balcão`;
       } else if (pedido.mesa_numero) {
         mesaNomeExibicao = `Mesa ${pedido.mesa_numero}`;
       } else {
