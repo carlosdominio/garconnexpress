@@ -5098,6 +5098,158 @@ app.put('/api/pedidos/:id/transferir', isAuthenticated, async (req, res) => {
   }
 });
 
+const transferirMesaServerHandler = async (req, res) => {
+  if (req.user && req.user.role === 'cliente') return res.status(403).json({ error: 'Acesso negado.' });
+  const pedidoId = req.params.id || req.body.pedido_id;
+  let { mesa_origem_id, mesa_destino_id, mesa_destino_numero, novo_nome_comanda, tipo } = req.body;
+
+  try {
+    let pedido = null;
+    if (pedidoId) {
+      pedido = (await query("SELECT * FROM pedidos WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [pedidoId])).rows[0];
+    } else if (mesa_origem_id) {
+      const pAtivos = (await query("SELECT * FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY id DESC LIMIT 1", [mesa_origem_id, mesa_origem_id])).rows;
+      pedido = pAtivos[0];
+    }
+
+    if (!pedido) {
+      return res.status(404).json({ error: 'Nenhum pedido ativo encontrado para transferir.' });
+    }
+
+    const mesaOrigemId = pedido.mesa_id || mesa_origem_id;
+    const mesaOrigemNumero = pedido.mesa_numero;
+
+    let mesaDestino = null;
+    if (mesa_destino_id) {
+      mesaDestino = (await query("SELECT * FROM mesas WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [mesa_destino_id])).rows[0];
+    }
+
+    if (!mesaDestino && mesa_destino_numero) {
+      const destNumRes = await query("SELECT * FROM mesas WHERE LOWER(CAST(numero AS TEXT)) = LOWER(CAST(? AS TEXT)) LIMIT 1", [mesa_destino_numero]);
+      mesaDestino = destNumRes.rows[0];
+    }
+
+    if (!mesaDestino && novo_nome_comanda) {
+      const nomeTrim = String(novo_nome_comanda).trim();
+      const tipoMesa = tipo || (nomeTrim.toLowerCase().includes('balc') ? 'balcao' : (nomeTrim.toLowerCase().includes('comanda') ? 'comanda' : 'mesa'));
+      const isCom = (tipoMesa === 'balcao' || tipoMesa === 'comanda' || nomeTrim.toLowerCase().startsWith('comanda')) ? 1 : 0;
+      
+      let ins;
+      try {
+        ins = await query("INSERT INTO mesas (numero, tipo, is_comanda, status) VALUES (?, ?, ?, 'livre') RETURNING id", [nomeTrim, tipoMesa, isCom]);
+      } catch (e) {
+        ins = await query("INSERT INTO mesas (numero, tipo, is_comanda, status) VALUES (?, ?, ?, 'livre')", [nomeTrim, tipoMesa, isCom]);
+      }
+      const novaId = ins.rows?.[0]?.id || ins.insertId || (await query("SELECT id FROM mesas WHERE numero = ? ORDER BY id DESC LIMIT 1", [nomeTrim])).rows?.[0]?.id;
+      mesaDestino = (await query("SELECT * FROM mesas WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [novaId])).rows[0];
+    }
+
+    if (!mesaDestino) {
+      return res.status(400).json({ error: 'Mesa de destino não informada ou não encontrada.' });
+    }
+
+    if (String(mesaDestino.id) === String(mesaOrigemId) || 
+        (mesaOrigemNumero && String(mesaDestino.numero).trim().toLowerCase() === String(mesaOrigemNumero).trim().toLowerCase())) {
+      return res.status(400).json({ error: 'A mesa de destino não pode ser a mesma mesa de origem.' });
+    }
+
+    const pDestinoAtivos = (await query("SELECT * FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY id DESC", [mesaDestino.id, mesaDestino.numero])).rows;
+    const pedidoDestino = pDestinoAtivos[0];
+
+    let merged = false;
+    let finalPedidoId = pedido.id;
+
+    if (pedidoDestino && String(pedidoDestino.id) !== String(pedido.id)) {
+      merged = true;
+      finalPedidoId = pedidoDestino.id;
+
+      await query("UPDATE pedido_itens SET pedido_id = ? WHERE CAST(pedido_id AS TEXT) = CAST(? AS TEXT)", [pedidoDestino.id, pedido.id]);
+
+      const todosItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE CAST(i.pedido_id AS TEXT) = CAST(? AS TEXT) AND (i.status IS NULL OR LOWER(i.status) != 'cancelado')", [pedidoDestino.id])).rows;
+      const subtotal = todosItens.reduce((sum, i) => sum + ((parseFloat(i.preco) || 0) * i.quantidade), 0);
+      const cobrarTaxa = (pedidoDestino.cobrar_taxa == 1 || pedidoDestino.cobrar_taxa === true);
+      const taxaMultiplicador = cobrarTaxa ? await getTaxaServicoMultiplicador() : 1;
+      const total = Math.round(subtotal * taxaMultiplicador * 100) / 100;
+
+      await query("UPDATE pedidos SET total = ? WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [total, pedidoDestino.id]);
+
+      const obsTransf = ` [Itens transferidos para Pedido #${pedidoDestino.id} - Mesa ${mesaDestino.numero}]`;
+      await query("UPDATE pedidos SET status = 'cancelado', observacao = COALESCE(observacao, '') || ? WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [obsTransf, pedido.id]);
+
+      await query("UPDATE mesas SET status = 'ocupada' WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [mesaDestino.id]);
+    } else {
+      await query("UPDATE pedidos SET mesa_id = ?, mesa_numero = ?, mesa_tipo = ? WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [
+        mesaDestino.id,
+        mesaDestino.numero,
+        mesaDestino.tipo || 'mesa',
+        pedido.id
+      ]);
+
+      await query("UPDATE mesas SET status = 'ocupada', garcom_id = COALESCE(?, garcom_id) WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [
+        pedido.garcom_id,
+        mesaDestino.id
+      ]);
+    }
+
+    if (mesaOrigemId) {
+      const ativosRestantes = (await query("SELECT id FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND CAST(id AS TEXT) != CAST(? AS TEXT)", [mesaOrigemId, pedido.id])).rows;
+      if (ativosRestantes.length === 0) {
+        await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [mesaOrigemId]);
+      }
+    }
+
+    if (mesaOrigemId || mesaOrigemNumero) {
+      await query("UPDATE codigos_acesso SET mesa_id = ? WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'ativo'", [
+        mesaDestino.id,
+        mesaOrigemId || '',
+        mesaOrigemNumero || ''
+      ]);
+    }
+
+    await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
+    await safePusherTrigger('garconnexpress', 'pedidos-atualizados', {});
+    await safePusherTrigger('garconnexpress', 'pedido-atualizado', {
+      id: finalPedidoId,
+      mesa_id: mesaDestino.id,
+      mesa_numero: mesaDestino.numero
+    });
+
+    if (mesaOrigemId) {
+      await safePusherTrigger('garconnexpress', `mesa-transferida-${mesaOrigemId}`, {
+        nova_mesa_id: mesaDestino.id,
+        novo_numero: mesaDestino.numero,
+        mensagem: `Transferência realizada para a Mesa ${mesaDestino.numero}.`
+      });
+    }
+    if (mesaOrigemNumero && mesaOrigemNumero != mesaOrigemId) {
+      await safePusherTrigger('garconnexpress', `mesa-transferida-${mesaOrigemNumero}`, {
+        nova_mesa_id: mesaDestino.id,
+        novo_numero: mesaDestino.numero,
+        mensagem: `Transferência realizada para a Mesa ${mesaDestino.numero}.`
+      });
+    }
+
+    await notifyStatus(finalPedidoId, mesaDestino.id, 'transferido');
+
+    res.json({
+      success: true,
+      merged,
+      pedido_id: finalPedidoId,
+      mesa_origem: mesaOrigemNumero || mesaOrigemId,
+      mesa_destino: mesaDestino.numero,
+      mensagem: merged 
+        ? `Itens transferidos e unificados com sucesso na Mesa ${mesaDestino.numero}!` 
+        : `Pedido transferido com sucesso para a Mesa ${mesaDestino.numero}!`
+    });
+  } catch (error) {
+    console.error('❌ ERRO AO TRANSFERIR MESA:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+app.put('/api/pedidos/:id/transferir-mesa', isAuthenticated, transferirMesaServerHandler);
+app.post('/api/pedidos/transferir-mesa', isAuthenticated, transferirMesaServerHandler);
+
 app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, res) => {
   if (req.user && req.user.role === 'cliente') return res.status(403).json({ error: 'Clientes não podem alterar status de pedidos.' });
   const { id } = req.params;

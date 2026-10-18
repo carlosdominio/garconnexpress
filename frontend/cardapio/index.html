@@ -883,6 +883,24 @@
                     });
                 }
             });
+
+            pusherChannel.bind(`mesa-transferida-${sessionMesa.mesa_id}`, (d) => {
+                if (d && d.nova_mesa_id) {
+                    sessionMesa.mesa_id = d.nova_mesa_id;
+                    if (d.novo_numero) sessionMesa.numero = d.novo_numero;
+                    localStorage.setItem('sessionMesa', JSON.stringify(sessionMesa));
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'Mesa Transferida',
+                            text: d.mensagem || `Sua conta foi transferida para a Mesa ${d.novo_numero || d.nova_mesa_id}.`,
+                            timer: 2500,
+                            showConfirmButton: false
+                        });
+                    }
+                    setTimeout(() => location.reload(), 1500);
+                }
+            });
             
             pusherChannel.bind(`deslogar-mesa-${sessionMesa.mesa_id}`, (d) => {
                 if (isClosingSession) return;

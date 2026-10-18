@@ -10477,6 +10477,178 @@ async function abrirModalOpcoes(pedidoId) {
     }
   }
 
+  // Configuração do bloco de transferência de mesa
+  const divTransferirMesa = document.getElementById('modal-opcoes-transferir-mesa');
+  if (divTransferirMesa) {
+    if (!isDelivery) {
+      divTransferirMesa.style.display = 'flex';
+      try {
+        const resM = await fetch('/api/mesas?t=' + Date.now());
+        if (resM.ok) {
+          const mesas = await resM.json();
+          const selectM = document.getElementById('select-transferir-mesa');
+          if (selectM) {
+            selectM.innerHTML = '<option value="">Selecione a Mesa de Destino...</option>';
+            
+            // Mesas disponíveis (exceto a mesa atual do pedido)
+            const outrasMesas = (mesas || []).filter(m => {
+              if (pedido.mesa_id && String(m.id) === String(pedido.mesa_id)) return false;
+              if (pedido.mesa_numero && String(m.numero).trim().toLowerCase() === String(pedido.mesa_numero).trim().toLowerCase()) return false;
+              return true;
+            });
+
+            // Separa livres de ocupadas
+            const livres = outrasMesas.filter(m => (m.status || 'livre').toLowerCase() === 'livre');
+            const ocupadas = outrasMesas.filter(m => (m.status || 'livre').toLowerCase() !== 'livre');
+
+            if (livres.length > 0) {
+              const grpLivre = document.createElement('optgroup');
+              grpLivre.label = '🟢 MESAS LIVRES';
+              livres.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                opt.dataset.status = 'livre';
+                opt.dataset.numero = m.numero;
+                opt.textContent = `${m.tipo === 'balcao' ? '🏪 Balcão ' : '🍽️ Mesa '}${m.numero} (LIVRE)`;
+                grpLivre.appendChild(opt);
+              });
+              selectM.appendChild(grpLivre);
+            }
+
+            if (ocupadas.length > 0) {
+              const grpOcupada = document.createElement('optgroup');
+              grpOcupada.label = '🟡 MESAS OCUPADAS (JUNTAR/UNIR)';
+              ocupadas.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                opt.dataset.status = 'ocupada';
+                opt.dataset.numero = m.numero;
+                opt.textContent = `${m.tipo === 'balcao' ? '🏪 Balcão ' : '🍽️ Mesa '}${m.numero} (OCUPADA - JUNTAR)`;
+                grpOcupada.appendChild(opt);
+              });
+              selectM.appendChild(grpOcupada);
+            }
+
+            // Opção para criar nova comanda/mesa
+            const grpNova = document.createElement('optgroup');
+            grpNova.label = '✨ NOVA COMANDA / BALCÃO';
+            const optNova = document.createElement('option');
+            optNova.value = '__NOVA__';
+            optNova.textContent = '➕ Nova Comanda / Balcão...';
+            grpNova.appendChild(optNova);
+            selectM.appendChild(grpNova);
+          }
+        }
+      } catch (errM) {
+        console.error("Erro ao carregar mesas para transferência:", errM);
+      }
+
+      document.getElementById('btn-transferir-mesa').onclick = async () => {
+        const selectM = document.getElementById('select-transferir-mesa');
+        const mesaDestinoVal = selectM ? selectM.value : '';
+        if (!mesaDestinoVal) {
+          return Swal.fire('Aviso', 'Selecione uma mesa ou comanda de destino para transferir.', 'warning');
+        }
+
+        let mesaDestinoId = mesaDestinoVal;
+        let novoNomeComanda = null;
+        let isOcupada = false;
+        let nomeExibicaoDestino = '';
+
+        if (mesaDestinoVal === '__NOVA__') {
+          const { value: nomeDigitado } = await Swal.fire({
+            title: 'Nova Comanda / Mesa',
+            text: 'Digite o número ou nome da nova comanda/mesa de destino:',
+            input: 'text',
+            inputPlaceholder: 'Ex: 15, Balcão 2, VIP 3',
+            showCancelButton: true,
+            confirmButtonText: 'Criar e Transferir',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#3498db',
+            inputValidator: (v) => (!v || !v.trim()) ? 'Informe o nome ou número!' : undefined
+          });
+
+          if (!nomeDigitado) return;
+          novoNomeComanda = nomeDigitado.trim();
+          mesaDestinoId = null;
+          nomeExibicaoDestino = novoNomeComanda;
+        } else {
+          const selectedOpt = selectM.options[selectM.selectedIndex];
+          isOcupada = selectedOpt && selectedOpt.dataset.status === 'ocupada';
+          nomeExibicaoDestino = selectedOpt ? selectedOpt.textContent : 'Mesa selecionada';
+
+          if (isOcupada) {
+            const confirmMerge = await Swal.fire({
+              title: 'Juntar Pedidos?',
+              html: `A <b>${nomeExibicaoDestino}</b> já está ocupada.<br><br>Deseja <b>juntar os itens</b> deste pedido na mesa de destino e unificar a conta?`,
+              icon: 'question',
+              showCancelButton: true,
+              confirmButtonText: 'Sim, Juntar Mesas',
+              cancelButtonText: 'Cancelar',
+              confirmButtonColor: '#e67e22'
+            });
+            if (!confirmMerge.isConfirmed) return;
+          } else {
+            const confirmTransf = await Swal.fire({
+              title: 'Confirmar Transferência',
+              html: `Deseja transferir este pedido para <b>${nomeExibicaoDestino}</b>?`,
+              icon: 'question',
+              showCancelButton: true,
+              confirmButtonText: 'Sim, Transferir',
+              cancelButtonText: 'Cancelar',
+              confirmButtonColor: '#3498db'
+            });
+            if (!confirmTransf.isConfirmed) return;
+          }
+        }
+
+        try {
+          const btnTransf = document.getElementById('btn-transferir-mesa');
+          btnTransf.disabled = true;
+          btnTransf.innerText = 'Transferindo...';
+
+          const resTransf = await fetch(`/api/pedidos/${pedidoId}/transferir-mesa`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mesa_destino_id: mesaDestinoId,
+              novo_nome_comanda: novoNomeComanda
+            })
+          });
+
+          const dataRes = await resTransf.json();
+          btnTransf.disabled = false;
+          btnTransf.innerText = 'Transferir';
+
+          if (resTransf.ok) {
+            fecharModalOpcoes();
+            await Swal.fire({
+              icon: 'success',
+              title: dataRes.merged ? 'Mesas Unidas!' : 'Transferido!',
+              text: dataRes.mensagem || `Pedido transferido com sucesso para ${nomeExibicaoDestino}!`,
+              timer: 2000,
+              showConfirmButton: false
+            });
+            carregarPedidos();
+            if (typeof carregarMesasLancar === 'function') carregarMesasLancar();
+          } else {
+            Swal.fire('Erro', dataRes.error || 'Erro ao realizar a transferência de mesa.', 'error');
+          }
+        } catch (err) {
+          console.error("Erro na transferência de mesa:", err);
+          const btnTransf = document.getElementById('btn-transferir-mesa');
+          if (btnTransf) {
+            btnTransf.disabled = false;
+            btnTransf.innerText = 'Transferir';
+          }
+          Swal.fire('Erro de Conexão', 'Não foi possível conectar ao servidor.', 'error');
+        }
+      };
+    } else {
+      divTransferirMesa.style.display = 'none';
+    }
+  }
+
   document.getElementById('modal-opcoes-mesa').style.display = 'flex';
   document.body.classList.add('modal-open');
 }
