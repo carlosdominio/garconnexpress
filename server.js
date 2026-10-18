@@ -4338,8 +4338,16 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
 
       // 3. Cálculo Seguro do Subtotal
       const precoOficial = parseFloat(p.preco) || 0;
-      item.preco_unitario = precoOficial;
-      subtotalReal += (precoOficial * item.quantidade);
+      let precoFinal = precoOficial;
+      const isAdminUser = req.user && (req.user.role === 'admin' || req.user.role === 'administrador');
+      if (isAdminUser && item.preco !== undefined && item.preco !== null && item.preco !== '') {
+        const parsed = parseFloat(item.preco);
+        if (!isNaN(parsed) && parsed >= 0) {
+          precoFinal = Math.round(parsed * 100) / 100;
+        }
+      }
+      item.preco_unitario = precoFinal;
+      subtotalReal += (precoFinal * item.quantidade);
     }
 
     // 4. Cálculo do Total e Frete Seguro (Ignora req.body.total, req.body.taxa_entrega e req.body.distancia_km)
@@ -4650,17 +4658,23 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
     await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [id]);
     let novoSub = 0;
     if (itens.length > 0) {
-      const placeholders = itens.map(() => '(?, ?, ?, ?, ?)').join(', ');
+      const isAdminUser = req.user && (req.user.role === 'admin' || req.user.role === 'administrador');
+      const placeholders = itens.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
       const values = [];
       for (const item of itens) {
-        values.push(id, item.menu_id, item.quantidade, item.observacao || '', item.status || 'pendente');
-      }
-      await query(`INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES ${placeholders}`, values);
-
-      for (const item of itens) {
         const pMenu = (await query("SELECT preco FROM menu WHERE id = ?", [item.menu_id])).rows[0];
-        if (pMenu) novoSub += (parseFloat(pMenu.preco) * item.quantidade); // ANTIFRAUDE: usa sempre o preço do banco, ignora item.preco do cliente
+        const precoPadrao = pMenu ? (parseFloat(pMenu.preco) || 0) : 0;
+        let precoFinal = precoPadrao;
+        if (isAdminUser && item.preco !== undefined && item.preco !== null && item.preco !== '') {
+          const parsed = parseFloat(item.preco);
+          if (!isNaN(parsed) && parsed >= 0) {
+            precoFinal = Math.round(parsed * 100) / 100;
+          }
+        }
+        values.push(id, item.menu_id, item.quantidade, item.observacao || '', item.status || 'pendente', precoFinal);
+        novoSub += (precoFinal * item.quantidade);
       }
+      await query(`INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status, preco) VALUES ${placeholders}`, values);
     }
     const pedido = (await query("SELECT cobrar_taxa FROM pedidos WHERE id = ?", [id])).rows[0];
     const taxaMultiplicador = await getTaxaServicoMultiplicador();
@@ -4757,10 +4771,18 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
 
       const pMenu = menuMap[item.menu_id];
       const precoOficial = pMenu ? (parseFloat(pMenu.preco) || 0) : 0;
+      let precoFinal = precoOficial;
+      const isAdminUser = req.user && (req.user.role === 'admin' || req.user.role === 'administrador');
+      if (isAdminUser && item.preco !== undefined && item.preco !== null && item.preco !== '') {
+        const parsed = parseFloat(item.preco);
+        if (!isNaN(parsed) && parsed >= 0) {
+          precoFinal = Math.round(parsed * 100) / 100;
+        }
+      }
 
-      const exist = await query('SELECT id, quantidade FROM pedido_itens WHERE pedido_id = ? AND menu_id = ? AND observacao = ? AND status = ?', [id, item.menu_id, item.observacao || '', 'pendente']);
+      const exist = await query('SELECT id, quantidade, preco FROM pedido_itens WHERE pedido_id = ? AND menu_id = ? AND observacao = ? AND status = ? AND ABS(COALESCE(preco, ?) - ?) < 0.01', [id, item.menu_id, item.observacao || '', 'pendente', precoFinal, precoFinal]);
       if (exist.rows.length > 0) await query('UPDATE pedido_itens SET quantidade = ? WHERE id = ?', [exist.rows[0].quantidade + item.quantidade, exist.rows[0].id]);
-      else await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status, preco) VALUES (?, ?, ?, ?, ?, ?)', [id, item.menu_id, item.quantidade, item.observacao || '', 'pendente', precoOficial]);
+      else await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status, preco) VALUES (?, ?, ?, ?, ?, ?)', [id, item.menu_id, item.quantidade, item.observacao || '', 'pendente', precoFinal]);
       await abaterEstoquePorFichaTecnica(item.menu_id, item.quantidade);
     }
     const tItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;

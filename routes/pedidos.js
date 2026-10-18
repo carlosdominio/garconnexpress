@@ -439,7 +439,7 @@ module.exports = (ctx) => {
     try {
       const pedidoRes = await query("SELECT garcom_id FROM pedidos WHERE id = ?", [req.params.id]);
       if (pedidoRes.rows.length === 0) return res.status(404).json({ error: 'Pedido não encontrado' });
-      const result = await query(`SELECT pi.*, m.nome, COALESCE(pi.preco, m.preco) as preco, m.categoria, m.enviar_cozinha, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [req.params.id]);
+      const result = await query(`SELECT pi.*, m.nome, COALESCE(pi.preco, m.preco) as preco, m.categoria, m.enviar_cozinha, m.enviar_churrasco, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [req.params.id]);
       res.json(result.rows);
     } catch (error) {
       console.error('Erro ao buscar itens do pedido:', error);
@@ -683,6 +683,7 @@ module.exports = (ctx) => {
       }
 
       // ── Calcula subtotal com preços do banco (pré-transação, não precisa de lock) ──
+      const isAdminUser = req.user && (req.user.role === 'admin' || req.user.role === 'administrador');
       for (const item of (itens || [])) {
         if (!item.quantidade || item.quantidade <= 0) {
           return res.status(400).json({ error: `Quantidade inválida (menor ou igual a zero) detectada.` });
@@ -690,8 +691,15 @@ module.exports = (ctx) => {
         const p = (await query("SELECT nome, estoque, preco FROM menu WHERE id = ?", [item.menu_id])).rows[0];
         if (!p) return res.status(400).json({ error: `Produto não encontrado: ID ${item.menu_id}` });
         const precoOficial = parseFloat(p.preco) || 0;
-        item.preco_unitario = precoOficial;
-        subtotalReal += (precoOficial * item.quantidade);
+        let precoFinal = precoOficial;
+        if (isAdminUser && item.preco !== undefined && item.preco !== null && item.preco !== '') {
+          const parsed = parseFloat(item.preco);
+          if (!isNaN(parsed) && parsed >= 0) {
+            precoFinal = Math.round(parsed * 100) / 100;
+          }
+        }
+        item.preco_unitario = precoFinal;
+        subtotalReal += (precoFinal * item.quantidade);
       }
 
       if (isDelivery) {
@@ -950,17 +958,23 @@ module.exports = (ctx) => {
       await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [id]);
       let novoSub = 0;
       if (itens && itens.length > 0) {
-        const placeholders = itens.map(() => '(?, ?, ?, ?, ?)').join(', ');
+        const isAdminUser = req.user && (req.user.role === 'admin' || req.user.role === 'administrador');
+        const placeholders = itens.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
         const values = [];
         for (const item of itens) {
-          values.push(id, item.menu_id, item.quantidade, item.observacao || '', item.status || 'pendente');
-        }
-        await query(`INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status) VALUES ${placeholders}`, values);
-
-        for (const item of itens) {
           const pMenu = (await query("SELECT preco FROM menu WHERE id = ?", [item.menu_id])).rows[0];
-          if (pMenu) novoSub += (parseFloat(pMenu.preco) * item.quantidade);
+          const precoPadrao = pMenu ? (parseFloat(pMenu.preco) || 0) : 0;
+          let precoFinal = precoPadrao;
+          if (isAdminUser && item.preco !== undefined && item.preco !== null && item.preco !== '') {
+            const parsed = parseFloat(item.preco);
+            if (!isNaN(parsed) && parsed >= 0) {
+              precoFinal = Math.round(parsed * 100) / 100;
+            }
+          }
+          values.push(id, item.menu_id, item.quantidade, item.observacao || '', item.status || 'pendente', precoFinal);
+          novoSub += (precoFinal * item.quantidade);
         }
+        await query(`INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status, preco) VALUES ${placeholders}`, values);
       }
       const pedido = (await query("SELECT cobrar_taxa FROM pedidos WHERE id = ?", [id])).rows[0];
       const taxaMultiplicador = await getTaxaServicoMultiplicador();
@@ -1047,10 +1061,18 @@ module.exports = (ctx) => {
 
         const pMenu = menuMap[item.menu_id];
         const precoOficial = pMenu ? (parseFloat(pMenu.preco) || 0) : 0;
+        let precoFinal = precoOficial;
+        const isAdminUser = req.user && (req.user.role === 'admin' || req.user.role === 'administrador');
+        if (isAdminUser && item.preco !== undefined && item.preco !== null && item.preco !== '') {
+          const parsed = parseFloat(item.preco);
+          if (!isNaN(parsed) && parsed >= 0) {
+            precoFinal = Math.round(parsed * 100) / 100;
+          }
+        }
 
-        const exist = await query('SELECT id, quantidade FROM pedido_itens WHERE pedido_id = ? AND menu_id = ? AND observacao = ? AND status = ?', [id, item.menu_id, item.observacao || '', 'pendente']);
+        const exist = await query('SELECT id, quantidade, preco FROM pedido_itens WHERE pedido_id = ? AND menu_id = ? AND observacao = ? AND status = ? AND ABS(COALESCE(preco, ?) - ?) < 0.01', [id, item.menu_id, item.observacao || '', 'pendente', precoFinal, precoFinal]);
         if (exist.rows.length > 0) await query('UPDATE pedido_itens SET quantidade = ? WHERE id = ?', [exist.rows[0].quantidade + item.quantidade, exist.rows[0].id]);
-        else await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status, preco) VALUES (?, ?, ?, ?, ?, ?)', [id, item.menu_id, item.quantidade, item.observacao || '', 'pendente', precoOficial]);
+        else await query('INSERT INTO pedido_itens (pedido_id, menu_id, quantidade, observacao, status, preco) VALUES (?, ?, ?, ?, ?, ?)', [id, item.menu_id, item.quantidade, item.observacao || '', 'pendente', precoFinal]);
         await abaterEstoquePorFichaTecnica(item.menu_id, item.quantidade);
       }
       const tItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;

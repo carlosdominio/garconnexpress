@@ -2649,10 +2649,14 @@ function renderizarCarrinhoLancar() {
   
   let subtotal = 0;
   container.innerHTML = carrinhoLancar.map((item, index) => {
-    subtotal += item.preco * item.quantidade;
     // Busca a imagem do item no cardápio global
     const itemMenu = cardapio.find(m => m.id === item.menu_id);
     const imagemUrl = itemMenu ? itemMenu.imagem : 'https://placehold.co/50';
+    const precoPadrao = (itemMenu && itemMenu.preco !== undefined && itemMenu.preco !== null) ? parseFloat(itemMenu.preco) : parseFloat(item.preco || 0);
+    const precoUnitario = (item.preco !== undefined && item.preco !== null) ? parseFloat(item.preco) : precoPadrao;
+    const isPrecoEspecial = Math.abs(precoUnitario - precoPadrao) > 0.001;
+
+    subtotal += precoUnitario * item.quantidade;
 
     return `
       <div class="item-edicao" style="padding: 10px; margin-bottom: 10px; border-radius: 12px; background: #fff; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
@@ -2663,7 +2667,15 @@ function renderizarCarrinhoLancar() {
           
           <div style="flex: 1; min-width: 0; text-align: left;">
             <strong style="font-size: 0.9rem; color: #1e293b; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.nome}</strong>
-            <span style="font-size: 0.8rem; color: #64748b; font-weight: bold;">R$ ${item.preco.toFixed(2)} un.</span>
+            <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+              <button type="button" 
+                      onclick="abrirModalPrecoEspecialCarrinho(${index})" 
+                      title="Clique para definir um preço especial" 
+                      style="display: inline-flex; align-items: center; gap: 4px; background: ${isPrecoEspecial ? '#eff6ff' : '#f8fafc'}; color: ${isPrecoEspecial ? '#1d4ed8' : '#475569'}; border: 1px ${isPrecoEspecial ? 'solid #3b82f6' : 'dashed #cbd5e1'}; border-radius: 5px; padding: 1px 6px; font-size: 0.75rem; font-weight: 800; cursor: pointer; transition: all 0.2s;">
+                <span>${isPrecoEspecial ? '🏷️ Especial:' : '🏷️'} R$ ${precoUnitario.toFixed(2)} un.</span>
+                <span style="font-size: 0.65rem; opacity: 0.7;">✏️</span>
+              </button>
+            </div>
           </div>
 
           <button onclick="removerDoCarrinhoLancar(${index})" style="width: 28px; height: 28px; border-radius: 6px; border: none; background: #fef2f2; color: #ef4444; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; transition: all 0.2s ease; flex-shrink: 0;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fef2f2'">✕</button>
@@ -2688,7 +2700,10 @@ function renderizarCarrinhoLancar() {
             <button onclick="alterarQtdCarrinhoLancar(${index}, ${item.quantidade + 1})" 
                     style="width: 32px; height: 100%; border: none; background: #fff; color: #22c55e; font-weight: bold; cursor: pointer; border-left: 1.5px solid #e2e8f0;">+</button>
           </div>
-          <strong style="color: #166534; font-size: 1rem; font-weight: 800;">R$ ${(item.preco * item.quantidade).toFixed(2)}</strong>
+          <div style="text-align: right;">
+            ${isPrecoEspecial ? `<small style="font-size: 0.65rem; color: #94a3b8; text-decoration: line-through; display: block; margin-bottom: -2px;">R$ ${(precoPadrao * item.quantidade).toFixed(2)}</small>` : ''}
+            <strong style="color: ${isPrecoEspecial ? '#1d4ed8' : '#166534'}; font-size: 1rem; font-weight: 800;">R$ ${(precoUnitario * item.quantidade).toFixed(2)}</strong>
+          </div>
         </div>
       </div>`;
   }).join('');
@@ -2709,6 +2724,71 @@ function renderizarCarrinhoLancar() {
   }
   
   atualizarResumoDeliveryModal();
+}
+
+async function abrirModalPrecoEspecialCarrinho(index) {
+  const item = carrinhoLancar[index];
+  if (!item) return;
+
+  const itemMenu = cardapio.find(m => m.id === item.menu_id) || {};
+  const precoPadrao = (itemMenu.preco !== undefined && itemMenu.preco !== null) ? parseFloat(itemMenu.preco) : parseFloat(item.preco || 0);
+  const precoAtual = (item.preco !== undefined && item.preco !== null) ? parseFloat(item.preco) : precoPadrao;
+  const isPersonalizado = Math.abs(precoAtual - precoPadrao) > 0.001;
+
+  const result = await Swal.fire({
+    title: '🏷️ Preço Especial do Item',
+    html: `
+      <div style="text-align: left; font-size: 0.9rem; color: #334155; margin-bottom: 12px;">
+        <div style="font-weight: 800; font-size: 1.05rem; color: #0f172a; margin-bottom: 6px;">${item.nome}</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 6px;">
+          <span style="color: #64748b;">Preço do cardápio:</span>
+          <strong style="color: #0f172a;">R$ ${precoPadrao.toFixed(2)}</strong>
+        </div>
+        ${isPersonalizado ? `
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #eff6ff; padding: 6px 10px; border-radius: 6px; border: 1px solid #bfdbfe; margin-bottom: 6px;">
+          <span style="color: #1d4ed8; font-weight: 700;">Preço especial atual:</span>
+          <strong style="color: #1d4ed8;">R$ ${precoAtual.toFixed(2)}</strong>
+        </div>` : ''}
+        <label style="display: block; font-weight: 700; color: #1e293b; margin-top: 10px; margin-bottom: 4px;">Novo preço unitário (R$):</label>
+      </div>
+    `,
+    input: 'number',
+    inputValue: precoAtual.toFixed(2),
+    inputAttributes: {
+      step: '0.01',
+      min: '0',
+      placeholder: '0.00'
+    },
+    showDenyButton: isPersonalizado,
+    denyButtonText: '🔄 Restaurar Padrão',
+    denyButtonColor: '#64748b',
+    showCancelButton: true,
+    confirmButtonText: '💾 Salvar Preço',
+    confirmButtonColor: '#2563eb',
+    cancelButtonText: 'Cancelar',
+    inputValidator: (value) => {
+      if (value === '' || isNaN(value)) return 'Digite um valor válido!';
+      if (parseFloat(value) < 0) return 'O preço não pode ser negativo!';
+    }
+  });
+
+  if (result.isDenied) {
+    item.preco = precoPadrao;
+    renderizarCarrinhoLancar();
+    mostrarToast(`🔄 Preço restaurado para o padrão (R$ ${precoPadrao.toFixed(2)})`);
+  } else if (result.isConfirmed) {
+    const novoPreco = parseFloat(result.value);
+    if (!isNaN(novoPreco) && novoPreco >= 0) {
+      item.preco = Math.round(novoPreco * 100) / 100;
+      renderizarCarrinhoLancar();
+      const dif = item.preco - precoPadrao;
+      if (Math.abs(dif) > 0.001) {
+        mostrarToast(`🏷️ Preço especial definido: R$ ${item.preco.toFixed(2)}`);
+      } else {
+        mostrarToast(`Preço igual ao padrão: R$ ${item.preco.toFixed(2)}`);
+      }
+    }
+  }
 }
 
 function atualizarResumoDeliveryModal() {
@@ -6941,6 +7021,7 @@ function gerarSnapshotItens(itens) {
       id: i.id || null,
       menu_id: Number(i.menu_id),
       quantidade: Number(i.quantidade),
+      preco: (i.preco !== undefined && i.preco !== null) ? Number(parseFloat(i.preco).toFixed(2)) : null,
       observacao: String(i.observacao || '').trim(),
       status: i.status || 'pendente'
     }))
@@ -7044,6 +7125,10 @@ function renderizarItensEdicao() {
     const infoMenu = cardapio.find(m => m.id === item.menu_id) || {};
     const urlImagem = infoMenu.imagem || 'https://placehold.co/50';
 
+    const precoPadrao = (infoMenu.preco !== undefined && infoMenu.preco !== null) ? parseFloat(infoMenu.preco) : parseFloat(item.preco || 0);
+    const precoUnitario = (item.preco !== undefined && item.preco !== null) ? parseFloat(item.preco) : precoPadrao;
+    const isPrecoEspecial = Math.abs(precoUnitario - precoPadrao) > 0.001;
+
     const uniqueId = item.id ? 'db-' + item.id : 'new-' + index;
     return `
     <div id="card-item-edicao-${uniqueId}" class="item-edicao" style="${isEntregue ? 'background: #f0fff4; border-left: 3px solid #27ae60;' : (item.status === 'pronto' ? 'background: #e8f8f5; border-left: 3px solid #2ecc71;' : 'border-left: 3px solid #e67e22;')} padding: 6px 10px; margin-bottom: 6px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #edf2f7; display: flex; flex-direction: column; gap: 4px; transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;">
@@ -7062,9 +7147,12 @@ function renderizarItensEdicao() {
             <button onclick="removerItemEdicao(${index})" 
                     style="background: #fef2f2; color: #ef4444; border: none; width: 22px; height: 22px; border-radius: 5px; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.7rem;">✕</button>
           </div>
-          <span id="badge-item-status-${uniqueId}" style="display: inline-block; padding: 0px 5px; border-radius: 3px; font-size: 0.6rem; font-weight: 900; text-transform: uppercase; background: ${isEntregue ? '#dcfce7' : (item.status === 'pronto' ? '#e8f8f5' : '#fef3c7')}; color: ${isEntregue ? '#166534' : (item.status === 'pronto' ? '#27ae60' : '#92400e')}; transition: all 0.3s ease;">
-            ${isEntregue ? '✅ Entregue' : (item.status === 'pronto' ? '🔥 Pronto' : '⏳ Pendente')}
-          </span>
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <span id="badge-item-status-${uniqueId}" style="display: inline-block; padding: 0px 5px; border-radius: 3px; font-size: 0.6rem; font-weight: 900; text-transform: uppercase; background: ${isEntregue ? '#dcfce7' : (item.status === 'pronto' ? '#e8f8f5' : '#fef3c7')}; color: ${isEntregue ? '#166534' : (item.status === 'pronto' ? '#27ae60' : '#92400e')}; transition: all 0.3s ease;">
+              ${isEntregue ? '✅ Entregue' : (item.status === 'pronto' ? '🔥 Pronto' : '⏳ Pendente')}
+            </span>
+            ${isPrecoEspecial ? `<span style="display: inline-block; padding: 0px 5px; border-radius: 3px; font-size: 0.6rem; font-weight: 900; background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe;">🏷️ Preço Especial</span>` : ''}
+          </div>
         </div>
       </div>
       <!-- OBSERVAÇÃO -->
@@ -7078,8 +7166,8 @@ function renderizarItensEdicao() {
       </div>
 
       <!-- LINHA 2: CONTROLES + PREÇO TOTAL -->
-      <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 4px; border-top: 1px solid #f1f5f9;">
-        <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 4px; border-top: 1px solid #f1f5f9; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
           <!-- SELETOR DE QTD -->
           <div style="display: flex; align-items: center; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #fff; height: 28px;">
             <button onclick="mudarQtdItem(${index}, ${item.quantidade - 1})" 
@@ -7090,21 +7178,101 @@ function renderizarItensEdicao() {
             <button onclick="mudarQtdItem(${index}, ${item.quantidade + 1})" 
                     style="width: 28px; height: 100%; border: none; background: #fff; color: #22c55e; font-size: 1.1rem; font-weight: bold; cursor: pointer; border-left: 1px solid #e2e8f0;">+</button>
           </div>
+
+          <!-- BOTÃO PREÇO UNITÁRIO / PREÇO ESPECIAL -->
+          <button type="button" 
+                  onclick="abrirModalPrecoEspecialEdicao(${index})" 
+                  title="Clique para definir um preço especial para este item" 
+                  style="display: inline-flex; align-items: center; gap: 4px; background: ${isPrecoEspecial ? '#eff6ff' : '#f8fafc'}; color: ${isPrecoEspecial ? '#1d4ed8' : '#334155'}; border: 1.5px ${isPrecoEspecial ? 'solid #3b82f6' : 'dashed #cbd5e1'}; border-radius: 6px; padding: 2px 7px; height: 28px; font-size: 0.75rem; font-weight: 800; cursor: pointer; transition: all 0.2s;">
+            <span>${isPrecoEspecial ? '🏷️' : '🏷️'} R$ ${precoUnitario.toFixed(2)}</span>
+            <span style="font-size: 0.65rem; opacity: 0.7;">✏️</span>
+          </button>
         </div>
 
         <!-- PREÇO TOTAL DO ITEM -->
-        <div style="text-align: right;">
+        <div style="text-align: right; min-width: 65px;">
           <small style="display: block; font-size: 0.6rem; color: #64748b; font-weight: bold; margin-bottom: -4px;">TOTAL</small>
-          <strong style="color: #166534; font-size: 1.0rem; font-weight: 900;">R$ ${(item.preco * item.quantidade).toFixed(2)}</strong>
+          ${isPrecoEspecial ? `<small style="font-size: 0.65rem; color: #94a3b8; text-decoration: line-through; display: block; margin-bottom: -2px;">R$ ${(precoPadrao * item.quantidade).toFixed(2)}</small>` : ''}
+          <strong style="color: ${isPrecoEspecial ? '#1d4ed8' : '#166534'}; font-size: 1.0rem; font-weight: 900;">R$ ${(precoUnitario * item.quantidade).toFixed(2)}</strong>
         </div>
       </div>
 
     </div>`;
   }).join('');
   
-  const subtotal = itensEmEdicao.reduce((s, i) => s + (i.preco * i.quantidade), 0);
+  const subtotal = itensEmEdicao.reduce((s, i) => {
+    const p = (i.preco !== undefined && i.preco !== null) ? parseFloat(i.preco) : 0;
+    return s + (p * i.quantidade);
+  }, 0);
   document.getElementById('modal-total').textContent = `Total: R$ ${subtotal.toFixed(2)}`;
   atualizarEstadoBotaoSalvarEdicao();
+}
+
+async function abrirModalPrecoEspecialEdicao(index) {
+  const item = itensEmEdicao[index];
+  if (!item) return;
+
+  const infoMenu = cardapio.find(m => m.id === item.menu_id) || {};
+  const precoPadrao = (infoMenu.preco !== undefined && infoMenu.preco !== null) ? parseFloat(infoMenu.preco) : parseFloat(item.preco || 0);
+  const precoAtual = (item.preco !== undefined && item.preco !== null) ? parseFloat(item.preco) : precoPadrao;
+  const isPersonalizado = Math.abs(precoAtual - precoPadrao) > 0.001;
+
+  const result = await Swal.fire({
+    title: '🏷️ Preço Especial do Item',
+    html: `
+      <div style="text-align: left; font-size: 0.9rem; color: #334155; margin-bottom: 12px;">
+        <div style="font-weight: 800; font-size: 1.05rem; color: #0f172a; margin-bottom: 6px;">${item.nome}</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 6px;">
+          <span style="color: #64748b;">Preço do cardápio:</span>
+          <strong style="color: #0f172a;">R$ ${precoPadrao.toFixed(2)}</strong>
+        </div>
+        ${isPersonalizado ? `
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #eff6ff; padding: 6px 10px; border-radius: 6px; border: 1px solid #bfdbfe; margin-bottom: 6px;">
+          <span style="color: #1d4ed8; font-weight: 700;">Preço especial atual:</span>
+          <strong style="color: #1d4ed8;">R$ ${precoAtual.toFixed(2)}</strong>
+        </div>` : ''}
+        <label style="display: block; font-weight: 700; color: #1e293b; margin-top: 10px; margin-bottom: 4px;">Novo preço unitário (R$):</label>
+      </div>
+    `,
+    input: 'number',
+    inputValue: precoAtual.toFixed(2),
+    inputAttributes: {
+      step: '0.01',
+      min: '0',
+      placeholder: '0.00'
+    },
+    showDenyButton: isPersonalizado,
+    denyButtonText: '🔄 Restaurar Padrão',
+    denyButtonColor: '#64748b',
+    showCancelButton: true,
+    confirmButtonText: '💾 Salvar Preço',
+    confirmButtonColor: '#2563eb',
+    cancelButtonText: 'Cancelar',
+    inputValidator: (value) => {
+      if (value === '' || isNaN(value)) return 'Digite um valor válido!';
+      if (parseFloat(value) < 0) return 'O preço não pode ser negativo!';
+    }
+  });
+
+  if (result.isDenied) {
+    item.preco = precoPadrao;
+    temEdicoesLocaisNaoSalvas = true;
+    renderizarItensEdicao();
+    mostrarToast(`🔄 Preço restaurado para o padrão (R$ ${precoPadrao.toFixed(2)})`);
+  } else if (result.isConfirmed) {
+    const novoPreco = parseFloat(result.value);
+    if (!isNaN(novoPreco) && novoPreco >= 0) {
+      item.preco = Math.round(novoPreco * 100) / 100;
+      temEdicoesLocaisNaoSalvas = true;
+      renderizarItensEdicao();
+      const dif = item.preco - precoPadrao;
+      if (Math.abs(dif) > 0.001) {
+        mostrarToast(`🏷️ Preço especial definido: R$ ${item.preco.toFixed(2)}`);
+      } else {
+        mostrarToast(`Preço igual ao padrão: R$ ${item.preco.toFixed(2)}`);
+      }
+    }
+  }
 }
 
 function alternarSelecaoItemEdicao(index) {
