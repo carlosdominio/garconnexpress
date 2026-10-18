@@ -1382,10 +1382,11 @@ module.exports = (ctx) => {
 
         await query("UPDATE mesas SET status = 'ocupada' WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [mesaDestino.id]);
       } else {
-        await query("UPDATE pedidos SET mesa_id = ?, mesa_numero = ?, mesa_tipo = ? WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [
+        const isComandaDest = (Number(mesaDestino.is_comanda) === 1 || mesaDestino.tipo === 'balcao' || mesaDestino.tipo === 'comanda') ? 1 : 0;
+        await query("UPDATE pedidos SET mesa_id = ?, mesa_numero = ?, is_comanda = ? WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [
           mesaDestino.id,
           mesaDestino.numero,
-          mesaDestino.tipo || 'mesa',
+          isComandaDest,
           pedido.id
         ]);
 
