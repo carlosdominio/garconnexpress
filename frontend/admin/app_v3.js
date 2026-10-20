@@ -273,6 +273,8 @@ let configCozinhaLoaded = false;
 let configChurrascoCategorias = []; // Estado global das categorias do churrasqueiro
 let configChurrascoLoaded = false;
 let mensagensNaoLidasWhatsapp = 0; // Controle local do badge do WhatsApp
+const pedidosCanceladosRecentemente = new Set();
+let abrirModalOpcoesSeqToken = 0;
 
 function isItemParaCozinha(item) {
     if (!item) return false;
@@ -5835,30 +5837,53 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
   // 2. Modal de Opções do Pedido (#modal-opcoes-mesa)
   const modalOpcoes = document.getElementById('modal-opcoes-mesa');
   if (modalOpcoes && (modalOpcoes.style.display === 'flex' || modalOpcoes.style.display === 'block') && typeof pedidoEmOpcoes !== 'undefined' && pedidoEmOpcoes && pedidoEmOpcoes.id) {
+    if (pedidosCanceladosRecentemente.has(Number(pedidoEmOpcoes.id))) {
+      fecharModalOpcoes();
+      return;
+    }
     if (typeof abrirModalOpcoes === 'function') {
       try {
         const pAtual = Array.isArray(pedidos) ? pedidos.find(p => p && String(p.id) === String(pedidoEmOpcoes.id)) : null;
         if (pAtual) {
+          if (pAtual.status === 'cancelado' || pAtual.status === 'entregue' || pedidosCanceladosRecentemente.has(Number(pAtual.id))) {
+            fecharModalOpcoes();
+            return;
+          }
           const resItens = await fetch(`/api/pedidos/${pAtual.id}/itens?t=` + Date.now());
           if (resItens.ok) {
+            if (pedidosCanceladosRecentemente.has(Number(pAtual.id)) || !pedidoEmOpcoes || pedidoEmOpcoes.id != pAtual.id) {
+              fecharModalOpcoes();
+              return;
+            }
             const novosItens = (await resItens.json()) || [];
             const itensAnteriores = Array.isArray(pedidoEmOpcoes.itens) ? pedidoEmOpcoes.itens : [];
             const statusMudou = JSON.stringify(novosItens.filter(Boolean).map(i => ({ id: i.id, status: i.status || '' }))) !== JSON.stringify(itensAnteriores.filter(Boolean).map(i => ({ id: i.id, status: i.status || '' })));
             if (statusMudou || (pAtual.status && pedidoEmOpcoes.status && pAtual.status !== pedidoEmOpcoes.status)) {
-              pAtual.itens = novosItens;
-              abrirModalOpcoes(pAtual.id);
+              if (pAtual.status === 'cancelado' || pAtual.status === 'entregue' || pedidosCanceladosRecentemente.has(Number(pAtual.id))) {
+                fecharModalOpcoes();
+              } else {
+                pAtual.itens = novosItens;
+                abrirModalOpcoes(pAtual.id);
+              }
             }
           }
+        } else {
+          // Pedido não existe mais na lista de pedidos ativos (cancelado ou finalizado)
+          fecharModalOpcoes();
         }
       } catch(e){}
     }
   }
 
-  // 3. Modal de Mesa Aguardando Fechamento (#modal-mesa-aguardando)
+  // 3. Modal de Mesa Aguardando Cliente (#modal-mesa-aguardando)
   const modalMesaAguardando = document.getElementById('modal-mesa-aguardando');
-  if (modalMesaAguardando && modalMesaAguardando.style.display === 'flex' && window.mesaAguardandoIdAtual) {
-    if (typeof abrirModalMesaAguardando === 'function') {
-      abrirModalMesaAguardando(window.mesaAguardandoIdAtual);
+  if (modalMesaAguardando && modalMesaAguardando.style.display === 'flex' && (window.mesaAguardandoIdAtual || (_mesaAguardandoAtual && _mesaAguardandoAtual.id))) {
+    const idMesaAg = window.mesaAguardandoIdAtual || (_mesaAguardandoAtual && _mesaAguardandoAtual.id);
+    const mesaExiste = (mesasPainel || []).find(x => x.id == idMesaAg && x.status === 'ocupada' && !x.pedido_id);
+    if (!mesaExiste) {
+      fecharModalMesaAguardando();
+    } else if (typeof abrirModalMesaAguardando === 'function') {
+      abrirModalMesaAguardando(idMesaAg);
     }
   }
 }
@@ -6418,6 +6443,7 @@ async function exibirPedidos() {
         card.dataset.mesa = mesaNomeExibicao;
         card.addEventListener('click', (e) => {
           if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('label') || e.target.closest('.slider')) return;
+          if (pedidosCanceladosRecentemente.has(Number(pedido.id))) return;
           abrirModalOpcoes(pedido.id);
         });
         card.innerHTML = cardInnerHTML;
@@ -6765,6 +6791,11 @@ async function atualizarStatus(id, status) {
       ? "Deseja realmente CANCELAR este pedido Delivery?"
       : "Deseja realmente CANCELAR este pedido? A mesa será liberada.";
     if (!await mostrarConfirmacao(confirmPrompt, "Cancelar Pedido", "Confirmar", "Cancelar", "🗑️")) return;
+    pedidosCanceladosRecentemente.add(Number(id));
+    setTimeout(() => pedidosCanceladosRecentemente.delete(Number(id)), 20000);
+    fecharModalOpcoes();
+    if (typeof fecharModalFechamentoAdmin === 'function') fecharModalFechamentoAdmin(true);
+    if (typeof fecharModal === 'function') fecharModal();
   }
   
   const isCancel = status === 'cancelado';
@@ -7577,14 +7608,30 @@ async function salvarAlteracoes() {
 async function confirmarCancelamento() {
   if (!pedidoEmEdicao) return;
   if (await mostrarConfirmacao("Deseja realmente CANCELAR este pedido inteiro?", "Atenção", "SIM, CANCELAR", "NÃO")) {
-    const res = await fetch(`/api/pedidos/${pedidoEmEdicao.id}/status`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'cancelado' })
-    });
-    if (res.ok) {
-      fecharModal();
-      carregarPedidos();
+    const idCancel = pedidoEmEdicao.id;
+    pedidosCanceladosRecentemente.add(Number(idCancel));
+    setTimeout(() => pedidosCanceladosRecentemente.delete(Number(idCancel)), 20000);
+    fecharModal();
+    fecharModalOpcoes();
+    pedidoEmEdicao = null;
+    itensEmEdicao = [];
+    try {
+      const res = await fetch(`/api/pedidos/${idCancel}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelado' }),
+        showLoadingTitle: "Cancelando Pedido...",
+        showLoadingMsg: "Cancelando o pedido e liberando a mesa, aguarde por favor..."
+      });
+      if (res.ok) {
+        carregarPedidos();
+      } else {
+        pedidosCanceladosRecentemente.delete(Number(idCancel));
+        mostrarAlerta("Erro ao cancelar pedido.");
+      }
+    } catch (e) {
+      pedidosCanceladosRecentemente.delete(Number(idCancel));
+      mostrarAlerta("Erro de conexão ao cancelar.");
     }
   }
 }
@@ -7991,14 +8038,29 @@ async function confirmarCancelamentoDesdeFechamento() {
   }
 
   if (await mostrarConfirmacao(mensagemConfirmacao, temEntregues ? "ALERTA CRÍTICO" : "Atenção", "SIM, CANCELAR", "NÃO")) {
-    const res = await fetch(`/api/pedidos/${pedidoParaFecharAdmin.id}/status`, { 
-      method: 'PUT', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify({ status: 'cancelado' }) 
-    });
-    if (res.ok) { 
-      fecharModalFechamentoAdmin(true); 
-      carregarPedidos(); 
+    const idParaCancelar = pedidoParaFecharAdmin.id;
+    pedidosCanceladosRecentemente.add(Number(idParaCancelar));
+    setTimeout(() => pedidosCanceladosRecentemente.delete(Number(idParaCancelar)), 20000);
+    fecharModalFechamentoAdmin(true);
+    fecharModalOpcoes();
+    pedidoParaFecharAdmin = null;
+    try {
+      const res = await fetch(`/api/pedidos/${idParaCancelar}/status`, { 
+        method: 'PUT', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ status: 'cancelado' }),
+        showLoadingTitle: "Cancelando Pedido...",
+        showLoadingMsg: "Cancelando o pedido e liberando a mesa, aguarde por favor..."
+      });
+      if (res.ok) { 
+        carregarPedidos(); 
+      } else {
+        pedidosCanceladosRecentemente.delete(Number(idParaCancelar));
+        mostrarAlerta("Erro ao cancelar pedido.");
+      }
+    } catch (e) {
+      pedidosCanceladosRecentemente.delete(Number(idParaCancelar));
+      mostrarAlerta("Erro de conexão ao cancelar.");
     }
   }
 }
@@ -8714,14 +8776,20 @@ async function tratarSaidaFechamentoBalcao() {
     await irParaEdicaoDestePedido();
   } else if (acaoEscolhida === 'cancelar') {
     window.isFechamentoImediatoBalcao = false;
+    pedidosCanceladosRecentemente.add(Number(idPedido));
+    setTimeout(() => pedidosCanceladosRecentemente.delete(Number(idPedido)), 20000);
+    fecharModalFechamentoAdmin(true);
+    fecharModalOpcoes();
+    pedidoParaFecharAdmin = null;
     try {
       const res = await fetch(`/api/pedidos/${idPedido}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'cancelado' })
+        body: JSON.stringify({ status: 'cancelado' }),
+        showLoadingTitle: "Cancelando Pedido...",
+        showLoadingMsg: "Cancelando o pedido de balcão e liberando o estoque..."
       });
       if (res.ok) {
-        fecharModalFechamentoAdmin(true);
         if (abaAtiva === 'lancar') {
           await carregarMesasLancar();
         } else {
@@ -8729,9 +8797,11 @@ async function tratarSaidaFechamentoBalcao() {
         }
         mostrarToast("❌ Pedido de Balcão cancelado com sucesso.", "warning", "Cancelado");
       } else {
+        pedidosCanceladosRecentemente.delete(Number(idPedido));
         mostrarAlerta("Erro ao cancelar pedido no servidor.", "Erro", "❌");
       }
     } catch (e) {
+      pedidosCanceladosRecentemente.delete(Number(idPedido));
       console.error("Erro ao cancelar pedido balcao:", e);
       mostrarAlerta("Erro de conexão ao cancelar pedido.", "Erro", "❌");
     }
@@ -9304,6 +9374,19 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
         mostrarToast(`🛎️ Fechamento: ${nMesa}`);
       }
       else if (data.status === 'cancelado') {
+        if (data.pedido_id) {
+          pedidosCanceladosRecentemente.add(Number(data.pedido_id));
+          setTimeout(() => pedidosCanceladosRecentemente.delete(Number(data.pedido_id)), 20000);
+        }
+        if (pedidoEmOpcoes && String(pedidoEmOpcoes.id) === String(data.pedido_id)) {
+          fecharModalOpcoes();
+        }
+        if (pedidoParaFecharAdmin && String(pedidoParaFecharAdmin.id) === String(data.pedido_id)) {
+          fecharModalFechamentoAdmin(true);
+        }
+        if (pedidoEmEdicao && String(pedidoEmEdicao.id) === String(data.pedido_id)) {
+          fecharModal();
+        }
         adicionarNotificacao('❌ PEDIDO CANCELADO', `${nMesa}: Pedido cancelado.`, '❌');
         tocarNotificacao();
         exibirNotificacaoNativa('❌ Cancelado', `${nMesa}: Pedido cancelado.`, tagMesa);
@@ -10383,8 +10466,15 @@ async function confirmarCancelamentoDesdeOpcoes() {
       : "⚠️ DESEJA REALMENTE CANCELAR TODO O PEDIDO?\n\nA mesa será liberada e o pedido irá para o histórico como CANCELADO.";
 
     if (await mostrarConfirmacao(confirmPrompt, "Atenção", "SIM, CANCELAR", "NÃO")) {
+        const idParaCancelar = pedidoEmOpcoes.id;
+        pedidosCanceladosRecentemente.add(Number(idParaCancelar));
+        setTimeout(() => pedidosCanceladosRecentemente.delete(Number(idParaCancelar)), 20000);
+
+        // Fecha o modal e invalida execuções assíncronas pendentes imediatamente antes do fetch
+        fecharModalOpcoes();
+
         try {
-            const res = await fetch(`/api/pedidos/${pedidoEmOpcoes.id}/status`, {
+            const res = await fetch(`/api/pedidos/${idParaCancelar}/status`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: 'cancelado' }),
@@ -10395,9 +10485,11 @@ async function confirmarCancelamentoDesdeOpcoes() {
                 fecharModalOpcoes();
                 carregarPedidos();
             } else {
+                pedidosCanceladosRecentemente.delete(Number(idParaCancelar));
                 mostrarAlerta("Erro ao cancelar pedido.");
             }
         } catch (e) {
+            pedidosCanceladosRecentemente.delete(Number(idParaCancelar));
             mostrarAlerta("Erro de conexão ao cancelar.");
         }
     }
@@ -10449,9 +10541,17 @@ function isPedidoOuMesaComanda(entity) {
 }
 
 async function abrirModalOpcoes(pedidoId) {
+  if (pedidosCanceladosRecentemente.has(Number(pedidoId))) {
+    fecharModalOpcoes();
+    return;
+  }
   const pedido = pedidos.find(p => p.id == pedidoId);
-  if (!pedido) return;
+  if (!pedido || pedido.status === 'cancelado' || pedido.status === 'entregue') {
+    fecharModalOpcoes();
+    return;
+  }
   
+  const thisSeqToken = ++abrirModalOpcoesSeqToken;
   pedidoEmOpcoes = pedido;
   iniciarAutoRefreshModalAdmin();
   const isDelivery = (pedido.garcom_id === 'DELIVERY');
@@ -10463,6 +10563,11 @@ async function abrirModalOpcoes(pedidoId) {
   if (modalOpcoes) modalOpcoes.dataset.pedidoId = pedidoId;
   const headerBg = document.getElementById('modal-opcoes-header-bg');
   const itens = (pedido.itens && pedido.itens.length > 0) ? pedido.itens : await fetch(`/api/pedidos/${pedidoId}/itens`).then(res => res.json()).catch(() => []);
+  
+  if (thisSeqToken !== abrirModalOpcoesSeqToken || !pedidoEmOpcoes || pedidoEmOpcoes.id != pedidoId || pedidosCanceladosRecentemente.has(Number(pedidoId))) {
+    fecharModalOpcoes();
+    return;
+  }
   const hasPend = itens.some(i => i.status === 'pendente' || i.status === 'pronto');
   const isAguardando = pedido.status === 'aguardando_fechamento';
   
@@ -10655,6 +10760,7 @@ async function abrirModalOpcoes(pedidoId) {
       // Buscar garçons online
       try {
         const resG = await fetch('/api/garcons');
+        if (thisSeqToken !== abrirModalOpcoesSeqToken || !pedidoEmOpcoes || pedidosCanceladosRecentemente.has(Number(pedidoId))) return;
         if (resG.ok) {
           const garcons = await resG.json();
           const garconsOnline = garcons.filter(g => g.is_online === true || g.is_online === 1);
@@ -10722,6 +10828,7 @@ async function abrirModalOpcoes(pedidoId) {
       divTransferirMesa.style.display = 'flex';
       try {
         const resM = await fetch('/api/mesas?t=' + Date.now());
+        if (thisSeqToken !== abrirModalOpcoesSeqToken || !pedidoEmOpcoes || pedidosCanceladosRecentemente.has(Number(pedidoId))) return;
         if (resM.ok) {
           const mesas = await resM.json();
           const selectM = document.getElementById('select-transferir-mesa');
@@ -10887,12 +10994,21 @@ async function abrirModalOpcoes(pedidoId) {
     }
   }
 
+  if (thisSeqToken !== abrirModalOpcoesSeqToken || !pedidoEmOpcoes || pedidoEmOpcoes.id != pedidoId || pedidosCanceladosRecentemente.has(Number(pedidoId))) {
+    return;
+  }
+
   document.getElementById('modal-opcoes-mesa').style.display = 'flex';
   document.body.classList.add('modal-open');
 }
 
 function fecharModalOpcoes() {
-  document.getElementById('modal-opcoes-mesa').style.display = 'none';
+  abrirModalOpcoesSeqToken++;
+  const m = document.getElementById('modal-opcoes-mesa');
+  if (m) {
+    m.style.display = 'none';
+    delete m.dataset.pedidoId;
+  }
   pedidoEmOpcoes = null;
   if (abaAtiva !== 'lancar' && abaAtiva !== 'ativos') {
       document.body.classList.remove('modal-open');
@@ -11788,6 +11904,7 @@ function abrirModalMesaAguardando(mesaId) {
   if (!m) return;
 
   _mesaAguardandoAtual = m;
+  window.mesaAguardandoIdAtual = mesaId;
 
   const minutosEspera = m.codigo_criado_at ? calcularMinutos(m.codigo_criado_at) : 0;
   const isComandaMesa = isPedidoOuMesaComanda(m);
@@ -11913,6 +12030,7 @@ function renderizarTemplatesToasts() {
 function fecharModalMesaAguardando() {
   document.getElementById('modal-mesa-aguardando').style.display = 'none';
   _mesaAguardandoAtual = null;
+  window.mesaAguardandoIdAtual = null;
 }
 
 async function liberarMesaSemPedidoFromModal() {
