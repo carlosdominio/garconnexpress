@@ -3106,6 +3106,48 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false, skipConfirmation 
 
       const nomeMesa = textoMesaOriginal.replace('Mesa ', '').split(' ')[0] || '';
 
+      // Otimização Balcão Direto: pré-monta os dados do pedido recém-criado em memória para abrir o modal instantaneamente
+      let dadosPrecarregadosBalcao = null;
+      if (isBalcaoDireto) {
+        const itensPrecarregados = (carrinhoLancar || []).map((i, idx) => {
+          const menuItem = (typeof cardapio !== 'undefined' && Array.isArray(cardapio)) ? (cardapio.find(m => m.id === i.menu_id) || {}) : {};
+          return {
+            id: i.id || ('temp-' + idx),
+            menu_id: i.menu_id,
+            nome: i.nome || menuItem.nome || 'Item',
+            preco: (i.preco !== undefined && i.preco !== null) ? Number(i.preco) : (Number(menuItem.preco) || 0),
+            quantidade: Number(i.quantidade) || 1,
+            observacao: i.observacao || '',
+            status: 'pendente',
+            categoria: menuItem.categoria || '',
+            enviar_cozinha: menuItem.enviar_cozinha,
+            enviar_churrasco: menuItem.enviar_churrasco,
+            imagem: menuItem.imagem || 'https://placehold.co/50',
+            selecionadoFechamento: true
+          };
+        });
+
+        dadosPrecarregadosBalcao = {
+          pedido: {
+            id: novoPedidoId,
+            mesa_id: null,
+            mesa_numero: 'BALCÃO',
+            mesa_tipo: 'balcao',
+            garcom_id: 'ADMIN',
+            status: 'recebido',
+            total: totalEstimado,
+            cobrar_taxa: cobrarTaxa,
+            itens: itensPrecarregados,
+            forma_pagamento: 'Dinheiro',
+            num_pessoas: 1,
+            acrescimo: 0,
+            desconto: 0,
+            pago_parcial: 0
+          },
+          itens: itensPrecarregados
+        };
+      }
+
       carrinhoLancar = [];
       limparCarrinhoLancarStorage();
       renderizarCarrinhoLancar();
@@ -3120,7 +3162,7 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false, skipConfirmation 
       } else if (isBalcaoDireto) {
         window.isFechamentoImediatoBalcao = true;
         mostrarToast("🚀 Pedido de Balcão lançado com sucesso!");
-        await aprovarFechamento(novoPedidoId, mesaId, 'BALCÃO');
+        await aprovarFechamento(novoPedidoId, mesaId, 'BALCÃO', dadosPrecarregadosBalcao);
       } else if (isComandaBalcao) {
         window.isFechamentoImediatoBalcao = false;
         const labelNome = nomeMesa ? ` (${nomeMesa})` : '';
@@ -7552,19 +7594,25 @@ let pedidoParaFecharAdmin = null;
 let subtotalConsumoAdmin = 0;
 let itensFechamentoAdmin = [];
 
-async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
+async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null, dadosPrecarregados = null) {
   if (mesaNomeForcado === null) {
     window.isFechamentoImediatoBalcao = false;
   }
-  pedidoParaFecharAdmin = pedidos.find(p => p.id === idPedido);
-  if (!pedidoParaFecharAdmin) {
-    try {
-      const resP = await fetch(`/api/pedidos/${idPedido}`);
-      if (resP.ok) pedidoParaFecharAdmin = await resP.json();
-    } catch (e) {
-      console.error("Erro ao carregar dados do pedido:", e);
+  
+  if (dadosPrecarregados && dadosPrecarregados.pedido) {
+    pedidoParaFecharAdmin = dadosPrecarregados.pedido;
+  } else {
+    pedidoParaFecharAdmin = pedidos.find(p => p.id === idPedido);
+    if (!pedidoParaFecharAdmin) {
+      try {
+        const resP = await fetch(`/api/pedidos/${idPedido}`);
+        if (resP.ok) pedidoParaFecharAdmin = await resP.json();
+      } catch (e) {
+        console.error("Erro ao carregar dados do pedido:", e);
+      }
     }
   }
+
   if (!pedidoParaFecharAdmin) {
     pedidoParaFecharAdmin = { 
       id: idPedido, 
@@ -7573,8 +7621,10 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
     };
   }
 
-  // USAR ITENS QUE JÁ TEMOS SE POSSÍVEL
-  if (pedidoParaFecharAdmin && pedidoParaFecharAdmin.itens && pedidoParaFecharAdmin.itens.length > 0) {
+  // USAR ITENS QUE JÁ TEMOS SE POSSÍVEL (OU PRÉ-CARREGADOS)
+  if (dadosPrecarregados && dadosPrecarregados.itens && dadosPrecarregados.itens.length > 0) {
+    itensFechamentoAdmin = dadosPrecarregados.itens;
+  } else if (pedidoParaFecharAdmin && pedidoParaFecharAdmin.itens && pedidoParaFecharAdmin.itens.length > 0) {
     itensFechamentoAdmin = pedidoParaFecharAdmin.itens;
   } else {
     const resItens = await fetch(`/api/pedidos/${idPedido}/itens`);
@@ -7690,29 +7740,35 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null) {
   // ------------------------------------
   
   // Busca pagamentos já realizados para esta mesa
-  try {
-    const resPagos = await fetch(`/api/pedidos/${idPedido}/pagamentos`);
-    const pagamentos = await resPagos.json();
+  if (dadosPrecarregados) {
+    // Pedido novo de balcão imediato: não possui pagamentos parciais prévios
     const containerPagos = document.getElementById('fechamento-historico-pagamentos-container');
-    const listaPagos = document.getElementById('fechamento-lista-pagamentos-admin');
-    const totalPagoExib = document.getElementById('fechamento-total-ja-pago');
+    if (containerPagos) containerPagos.style.display = 'none';
+  } else {
+    try {
+      const resPagos = await fetch(`/api/pedidos/${idPedido}/pagamentos`);
+      const pagamentos = await resPagos.json();
+      const containerPagos = document.getElementById('fechamento-historico-pagamentos-container');
+      const listaPagos = document.getElementById('fechamento-lista-pagamentos-admin');
+      const totalPagoExib = document.getElementById('fechamento-total-ja-pago');
 
-    if (pagamentos && pagamentos.length > 0) {
-      if (containerPagos) containerPagos.style.display = 'block';
-      const totalJaPago = pagamentos.reduce((s, p) => s + p.valor, 0);
-      if (totalPagoExib) totalPagoExib.textContent = `R$ ${totalJaPago.toFixed(2)}`;
-      if (listaPagos) {
-        listaPagos.innerHTML = pagamentos.map((p, i) => `
-          <div style="display:flex; justify-content:space-between; padding:2px 0; border-bottom:1px dashed #eee; color:#27ae60;">
-            <span>${i+1}ª Parte (${p.forma_pagamento})</span>
-            <span style="font-weight:bold;">R$ ${p.valor.toFixed(2)}</span>
-          </div>
-        `).join('');
+      if (pagamentos && pagamentos.length > 0) {
+        if (containerPagos) containerPagos.style.display = 'block';
+        const totalJaPago = pagamentos.reduce((s, p) => s + p.valor, 0);
+        if (totalPagoExib) totalPagoExib.textContent = `R$ ${totalJaPago.toFixed(2)}`;
+        if (listaPagos) {
+          listaPagos.innerHTML = pagamentos.map((p, i) => `
+            <div style="display:flex; justify-content:space-between; padding:2px 0; border-bottom:1px dashed #eee; color:#27ae60;">
+              <span>${i+1}ª Parte (${p.forma_pagamento})</span>
+              <span style="font-weight:bold;">R$ ${p.valor.toFixed(2)}</span>
+            </div>
+          `).join('');
+        }
+      } else {
+        if (containerPagos) containerPagos.style.display = 'none';
       }
-    } else {
-      if (containerPagos) containerPagos.style.display = 'none';
-    }
-  } catch (e) { console.error("Erro ao carregar pagamentos:", e); }
+    } catch (e) { console.error("Erro ao carregar pagamentos:", e); }
+  }
 
   // Marca todos como selecionados por padrão
   itensFechamentoAdmin.forEach(i => i.selecionadoFechamento = true);
