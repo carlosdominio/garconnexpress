@@ -445,6 +445,19 @@ function desbloquearAudio() {
 // Escuta qualquer clique na página para desbloquear o som
 document.addEventListener('click', desbloquearAudio, { once: true });
 document.addEventListener('touchstart', desbloquearAudio, { once: true });
+
+// Tecla Enter global na tela de login (funciona em qualquer lugar da página)
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const telaLogin = document.getElementById('tela-login-admin');
+  if (!telaLogin) return;
+  const estaVisivel = telaLogin.style.display !== 'none' && !telaLogin.classList.contains('hidden');
+  if (!estaVisivel) return;
+  // Ignora se um SweetAlert2 estiver aberto
+  if (document.querySelector('.swal2-container')) return;
+  e.preventDefault();
+  realizarLoginAdmin();
+});
 let intervalPiscaTitulo = null;
 const tituloOriginal = "Admin - GarçomExpress";
 
