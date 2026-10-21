@@ -816,26 +816,33 @@
           <!-- Sub-seção: Mesas -->
           <div id="config-sub-mesas" class="config-sub-section active">
             <div class="config-card">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px;">
                 <h3>Mesas do Bar</h3>
-                <div style="display: flex; align-items: center; gap: 18px; flex-wrap: wrap;">
-                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: bold; color: #4a5568;" title="Ativa ou desativa a realização de pedidos pelo Cardápio Digital">
-                      <span style="font-size: 0.9rem;">Aceitar Pedidos (Cardápio Digital):</span>
-                      <div class="switch">
-                        <input type="checkbox" id="check-cardapio" onchange="alternarCardapio()">
-                        <span class="slider round"></span>
-                      </div>
-                    </label>
-                    <button onclick="abrirModalAgendamentoCardapio()" style="background: #e2e8f0; color: #4a5568; border: none; border-radius: 50%; width: 35px; height: 35px; cursor: pointer; transition: 0.3s; display: flex; align-items: center; justify-content: center;" title="Configurar Agendamento Automático">
-                        <i class="fa-solid fa-clock"></i>
-                    </button>
-                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: bold; color: #2b6cb0;" title="Quando ativado, qualquer garçom da equipe pode abrir, lançar pedidos e atender qualquer mesa da fila">
-                      <span style="font-size: 0.9rem;">👥 Liberar Mesas p/ Todos os Garçons:</span>
-                      <div class="switch">
-                        <input type="checkbox" id="check-mesas-compartilhadas" onchange="alternarMesasCompartilhadas()">
-                        <span class="slider round"></span>
-                      </div>
-                    </label>
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                    <!-- Linha 1: Aceitar Pedidos (Cardápio Digital) -->
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: bold; color: #4a5568;" title="Ativa ou desativa a realização de pedidos pelo Cardápio Digital">
+                          <span style="font-size: 0.9rem;">Aceitar Pedidos (Cardápio Digital):</span>
+                          <div class="switch">
+                            <input type="checkbox" id="check-cardapio" onchange="alternarCardapio()">
+                            <span class="slider round"></span>
+                          </div>
+                        </label>
+                        <button onclick="abrirModalAgendamentoCardapio()" style="background: #e2e8f0; color: #4a5568; border: none; border-radius: 50%; width: 35px; height: 35px; cursor: pointer; transition: 0.3s; display: flex; align-items: center; justify-content: center;" title="Configurar Agendamento Automático">
+                            <i class="fa-solid fa-clock"></i>
+                        </button>
+                    </div>
+                    <!-- Linha 2: Liberar Mesas p/ Todos os Garçons -->
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: bold; color: #2b6cb0;" title="Quando ativado, qualquer garçom da equipe pode abrir, lançar pedidos e atender qualquer mesa da fila">
+                          <span style="font-size: 0.9rem;">👥 Liberar Mesas p/ Todos os Garçons:</span>
+                          <div class="switch">
+                            <input type="checkbox" id="check-mesas-compartilhadas" onchange="alternarMesasCompartilhadas()">
+                            <span class="slider round"></span>
+                          </div>
+                        </label>
+                        <div style="width: 35px;"></div>
+                    </div>
                 </div>
               </div>
               <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
