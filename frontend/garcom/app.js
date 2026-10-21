@@ -1640,7 +1640,9 @@ async function configurarPusher() {
     channel.bind('config-mesas-compartilhadas-atualizada', (data) => {
       console.log('📢 Configuração de mesas compartilhadas atualizada:', data);
       mesasCompartilhadasAtivas = !!data.mesas_compartilhadas;
+      window.ultimoEstadoMesasKey = null; // Invalida o cache de render para redesenhar na hora
       exibirMesas();
+      carregarMesas();
     });
 
     // Desbloqueia áudio no primeiro clique do usuário
@@ -2167,7 +2169,7 @@ function exibirMesas() {
       tem_rascunho: m.tem_rascunho,
       minutos: minutos
     };
-  })) + filtroMesaAtual + String(caixaAberto);
+  })) + filtroMesaAtual + String(caixaAberto) + String(mesasCompartilhadasAtivas);
 
   if (estadoAtualKey === window.ultimoEstadoMesasKey) {
     return;
