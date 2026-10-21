@@ -1,4 +1,4 @@
-const CACHE_NAME = 'admin-cache-v15'; // PWA do Admin
+const CACHE_NAME = 'admin-cache-v16'; // PWA do Admin
 const urlsToCache = [
   'index.html',
   'style.css',

@@ -317,6 +317,34 @@ function isItemParaChurrasco(item) {
     return (cat.includes('CHURRASCO') || cat.includes('ESPET') || cat.includes('ESPETINHO') || cat.includes('CARNE') || cat.includes('GRELH'));
 }
 
+function calcularLimiteAtrasoPedido(pedido) {
+    if (!pedido) return { limite: 10, setor: 'balcao', icone: '⚡', label: 'Bar/Bebidas' };
+    
+    const isAguardando = (pedido.status === 'aguardando_fechamento' || !!pedido.solicitou_fechamento);
+    if (isAguardando) {
+        return { limite: 5, setor: 'fechamento', icone: '🛎️', label: 'Fechamento' };
+    }
+
+    const itens = Array.isArray(pedido.itens) ? pedido.itens : [];
+    const itensAtivos = itens.filter(i => {
+        const s = String(i.status || 'pendente').toLowerCase();
+        return s !== 'cancelado' && s !== 'entregue';
+    });
+
+    // Se tiver churrasco ativo/pendente: tolerância maior (25 min)
+    if (itensAtivos.some(i => isItemParaChurrasco(i))) {
+        return { limite: 25, setor: 'churrasco', icone: '🍢', label: 'Churrasco' };
+    }
+
+    // Se tiver cozinha ativa/pendente (sem churrasco): tolerância média (20 min)
+    if (itensAtivos.some(i => isItemParaCozinha(i))) {
+        return { limite: 20, setor: 'cozinha', icone: '🍳', label: 'Cozinha' };
+    }
+
+    // Apenas bebidas/bar/balcão rápido: tolerância padrão (10 min)
+    return { limite: 10, setor: 'balcao', icone: '⚡', label: 'Bar/Bebidas' };
+}
+
 async function carregarConfigCategoriasCozinha() {
   try {
     const resConfig = await fetch('/api/config/categorias-cozinha');
@@ -1468,11 +1496,17 @@ function atualizarCronometrosPedidos() {
     }
 
     const minutos = calcularMinutos(createdAt);
-    span.textContent = `⏱️ ${minutos} min`;
+    
+    // ALERTA DE ATRASO: 5 minutos para fechamento (amarelo), diferenciado por setor para pedidos (churrasco 25m, cozinha 20m, bebidas 10m)
+    const limiteAtraso = isFechamento ? 5 : (parseInt(card.dataset.limiteAtraso) || 10);
+    const setorIcone = card.dataset.setorIcone || '';
+    if (setorIcone && !isFechamento) {
+      span.innerHTML = `⏱️ ${minutos} min <small style="opacity:0.85; margin-left:3px; font-size:0.75rem;">${setorIcone} ${limiteAtraso}m</small>`;
+    } else {
+      span.textContent = `⏱️ ${minutos} min`;
+    }
     span.style.display = '';
     
-    // ALERTA DE ATRASO: 5 minutos para fechamento (amarelo), 10 minutos para cozinha (vermelho)
-    const limiteAtraso = isFechamento ? 5 : 10;
     const classeAlerta = isFechamento ? 'alerta-borda-pisca-amarela' : 'alerta-borda-pisca';
     const classeLimpar = isFechamento ? 'alerta-borda-pisca' : 'alerta-borda-pisca-amarela';
 
@@ -1482,12 +1516,12 @@ function atualizarCronometrosPedidos() {
       
       // Toca som e mostra notificação apenas uma vez por pedido quando atinge o atraso
       if (pedidoId && !pedidosAtrasadosNotificados.has(pedidoId)) {
-        console.log(`🚨 ALERTA: Pedido #${pedidoId} esperando há ${minutos} min!`);
+        console.log(`🚨 ALERTA: Pedido #${pedidoId} (${card.dataset.setorAtraso || 'Pendente'}) esperando há ${minutos} min! (Limite: ${limiteAtraso} min)`);
         tocarNotificacao('windows'); // Som de alerta curto
         
         const isVirtual = card.id && card.id.startsWith('mesa-virtual-card-');
         const mesaNome = card.dataset.mesa || (isVirtual ? `Mesa` : `Pedido #${pedidoId}`);
-        let motivo = isFechamento ? 'SOLICITOU CONTA' : 'PEDIDO PENDENTE';
+        let motivo = isFechamento ? 'SOLICITOU CONTA' : (card.dataset.setorAtraso ? `PEDIDO ${card.dataset.setorAtraso.toUpperCase()}` : 'PEDIDO PENDENTE');
         if (isVirtual) {
           motivo = 'AGUARDANDO PEDIDO';
         }
@@ -6273,6 +6307,7 @@ async function exibirPedidos() {
 
       let minutosCronometro = null;
       let classeAlertaAtraso = '';
+      const infoAtraso = calcularLimiteAtrasoPedido(pedido);
 
       // ALERTA DE ATRASO: Para pedidos recebidos ou mesas aguardando fechamento (pendências)
       let dataBaseCronometro = pedido.created_at;
@@ -6284,7 +6319,7 @@ async function exibirPedidos() {
         if (isAguardando) {
           if (minutosCronometro >= 5) classeAlertaAtraso = 'alerta-borda-pisca-amarela';
         } else {
-          if (minutosCronometro >= 10) classeAlertaAtraso = 'alerta-borda-pisca';
+          if (minutosCronometro >= infoAtraso.limite) classeAlertaAtraso = 'alerta-borda-pisca';
         }
       }
 
@@ -6343,7 +6378,7 @@ async function exibirPedidos() {
             <h3 style="display:flex; align-items:center; gap:8px;">
               ${mesaNomeExibicao}
               <span class="pedido-cronometro" data-created-at="${dataBaseCronometro || ''}" style="font-size:0.8rem; background:#2c3e50; padding:2px 8px; border-radius:12px; color:#fff; ${minutosCronometro === null ? 'display:none;' : ''}">
-                ⏱️ ${minutosCronometro === null ? '' : `${minutosCronometro} min`}
+                ⏱️ ${minutosCronometro === null ? '' : `${minutosCronometro} min`}${infoAtraso.icone && !isAguardando ? ` <small style="opacity:0.85; margin-left:3px; font-size:0.75rem;">${infoAtraso.icone} ${infoAtraso.limite}m</small>` : ''}
               </span>
             </h3>
             <span class="status-badge ${statusGeral}">${statusBadgeLabel}</span>
@@ -6441,6 +6476,9 @@ async function exibirPedidos() {
         card.className = newClassName;
         card.dataset.pedidoId = pedido.id;
         card.dataset.mesa = mesaNomeExibicao;
+        card.dataset.limiteAtraso = infoAtraso.limite;
+        card.dataset.setorAtraso = infoAtraso.label;
+        card.dataset.setorIcone = infoAtraso.icone || '';
         card.addEventListener('click', (e) => {
           if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('label') || e.target.closest('.slider')) return;
           if (pedidosCanceladosRecentemente.has(Number(pedido.id))) return;
@@ -6452,8 +6490,11 @@ async function exibirPedidos() {
       } else {
         if (card.className !== newClassName) card.className = newClassName;
         if (card.dataset.mesa !== mesaNomeExibicao) card.dataset.mesa = mesaNomeExibicao;
+        if (card.dataset.limiteAtraso !== String(infoAtraso.limite)) card.dataset.limiteAtraso = infoAtraso.limite;
+        if (card.dataset.setorAtraso !== infoAtraso.label) card.dataset.setorAtraso = infoAtraso.label;
+        if (card.dataset.setorIcone !== (infoAtraso.icone || '')) card.dataset.setorIcone = infoAtraso.icone || '';
         const currentSig = card.getAttribute('data-content-signature');
-        const newSig = `${newClassName}_${mesaNomeExibicao}_${itens.length}_${itensPendentes.length}_${itensProntos.length}_${itensEntregues.length}_${totalExibicao}_${pedido.status}_${pedido.forma_pagamento}_${minutosCronometro}`;
+        const newSig = `${newClassName}_${mesaNomeExibicao}_${itens.length}_${itensPendentes.length}_${itensProntos.length}_${itensEntregues.length}_${totalExibicao}_${pedido.status}_${pedido.forma_pagamento}_${minutosCronometro}_${infoAtraso.limite}`;
         if (currentSig !== newSig) {
           card.innerHTML = cardInnerHTML;
           card.setAttribute('data-content-signature', newSig);
@@ -6646,7 +6687,8 @@ function verificarAlertasSubTabs() {
       const parsedDate = new Date(dateStr);
       const diffMinutes = (now - parsedDate) / 60000;
 
-      const isDelayed = isAguardando ? (diffMinutes >= 5) : (diffMinutes >= 10);
+      const info = calcularLimiteAtrasoPedido(pedido);
+      const isDelayed = isAguardando ? (diffMinutes >= 5) : (diffMinutes >= info.limite);
       if (isDelayed) {
         if (group === 'garcom') atrasoGarcom = true;
         else if (group === 'balcao') atrasoBalcao = true;
