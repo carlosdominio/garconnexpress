@@ -5088,9 +5088,16 @@ async function confirmarRenomearCategoria() {
   }
 }
 
+function isPedidoRetiradaLocal(p) {
+  if (!p) return false;
+  const obs = String(p.observacao || '').toUpperCase();
+  const end = String(p.endereco || '').toUpperCase();
+  return obs.includes('RETIRAR NO LOCAL') || obs.includes('RETIRADA') || end.includes('RETIRAR');
+}
+
 function formatarNomeMesaHistorico(p) {
   if (!p) return 'BALCÃO';
-  if (p.garcom_id === 'DELIVERY') return 'DELIVERY';
+  if (p.garcom_id === 'DELIVERY') return isPedidoRetiradaLocal(p) ? 'RETIRADA' : 'DELIVERY';
   const numRaw = p.mesa_numero || (p.mesa_id && String(p.mesa_id).toLowerCase() !== 'null' ? String(p.mesa_id) : '');
   if (!numRaw) return `BALCÃO #${p.id}`;
   let str = String(numRaw).trim();
@@ -5237,7 +5244,7 @@ function renderizarColunaHistorico(tipo, lista, pagina, container) {
     card.style.minHeight = '65px';
     
     const rawMesa = formatarNomeMesaHistorico(p);
-    const mesaIcon = p.garcom_id === 'DELIVERY' ? '🚚' : (rawMesa.includes('BALCÃO') ? '🛍️' : '🪑');
+    const mesaIcon = p.garcom_id === 'DELIVERY' ? (isPedidoRetiradaLocal(p) ? '🛍️' : '🚚') : (rawMesa.includes('BALCÃO') ? '🛍️' : '🪑');
     const mesaNome = `${mesaIcon} ${rawMesa}`;
     const valor = (p.total || 0) + (p.pago_parcial || 0);
 
@@ -6211,7 +6218,7 @@ function atualizarSelectMesasAtivas() {
   });
 
   const nomesMesas = [...new Set(pedidosFiltrados.map(p => {
-    if (p.garcom_id === 'DELIVERY') return `🛵 DELIVERY #${p.id}`;
+    if (p.garcom_id === 'DELIVERY') return isPedidoRetiradaLocal(p) ? `🛍️ RETIRADA #${p.id}` : `🛵 DELIVERY #${p.id}`;
     if (p.mesa_tipo === 'balcao') {
       const numTrim = String(p.mesa_numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
       return numTrim ? `🏪 Balcão ${numTrim}` : `🏪 Balcão`;
@@ -6284,8 +6291,11 @@ async function exibirPedidos() {
   try {
     for (const pedido of pedidosOrdenados) {
       const isDelivery = (pedido.garcom_id === 'DELIVERY');
+      const isRetirada = isDelivery && isPedidoRetiradaLocal(pedido);
       let mesaNomeExibicao;
-      if (isDelivery) {
+      if (isRetirada) {
+        mesaNomeExibicao = `🛍️ RETIRADA #${pedido.id}`;
+      } else if (isDelivery) {
         mesaNomeExibicao = `🛵 DELIVERY #${pedido.id}`;
       } else if (pedido.mesa_tipo === 'balcao') {
         const numTrim = String(pedido.mesa_numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
@@ -6378,8 +6388,8 @@ async function exibirPedidos() {
       const isExpanded = expandedPedidoIds.has(String(pedido.id));
       let statusBadgeLabel = statusGeral === 'servido' ? 'EM ANDAMENTO' : 'PENDENTE';
       if (isDelivery) {
-        if (isAguardando) statusBadgeLabel = 'ENTREGUE';
-        else if (statusGeral === 'servido') statusBadgeLabel = 'A CAMINHO';
+        if (isAguardando) statusBadgeLabel = isRetirada ? 'RETIRADO' : 'ENTREGUE';
+        else if (statusGeral === 'servido') statusBadgeLabel = isRetirada ? 'PRONTO P/ RETIRADA' : 'A CAMINHO';
       }
 
       const newClassName = `pedido-card ${isExpanded ? '' : 'minimized'} status-${statusGeral} ${pedido.id === pedidoAtualizadoId ? 'destaque-atualizacao' : ''} ${classeAlertaAtraso} ${isAguardando ? 'alerta-fechamento' : ''} ${isPronto ? 'pedido-pronto-admin' : ''}`;
@@ -6409,7 +6419,7 @@ async function exibirPedidos() {
               </button>
 
               <div class="toggle-container">
-                <span style="font-size:0.7rem;">${isDelivery ? 'R$ 3.00 ENTREGA' : '10% TAXA'}</span>
+                <span style="font-size:0.7rem;">${isDelivery ? (isRetirada ? 'TAXA GRÁTIS' : `R$ ${taxaDeliveryVal.toFixed(2)} ENTREGA`) : '10% TAXA'}</span>
                 <label class="switch" style="${pagoParcial > 0 ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
                   <input type="checkbox" ${cobrarTaxaNoPedido ? 'checked' : ''} ${pagoParcial > 0 ? 'disabled' : ''} onchange="alternarTaxaPedido(${pedido.id}, this)">
                   <span class="slider"></span>
@@ -6437,7 +6447,7 @@ async function exibirPedidos() {
 
           ${itensEntregues.length > 0 ? `
             <div style="opacity: 0.7;">
-              <small style="color: #27ae60; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; display:block; margin-bottom:5px;">${isDelivery ? (isAguardando ? '✅ JÁ ENTREGUE:' : '🛵 A CAMINHO:') : '✅ JÁ NA MESA:'}</small>
+              <small style="color: #27ae60; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; display:block; margin-bottom:5px;">${isDelivery ? (isAguardando ? (isRetirada ? '✅ JÁ RETIRADO:' : '✅ JÁ ENTREGUE:') : (isRetirada ? '🛍️ PRONTO NO BALCÃO:' : '🛵 A CAMINHO:')) : '✅ JÁ NA MESA:'}</small>
               ${itensEntregues.map(item => `
                 <div class="pedido-item" style="border-left:4px solid #27ae60; background:#f0fff4; border-radius:6px; padding:4px 10px; margin-bottom:4px; text-decoration: line-through;">
                   <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -6454,10 +6464,10 @@ async function exibirPedidos() {
           <div class="pedido-actions" style="width: 100%; margin-top: 8px;">
             ${isDelivery ?
               (isAguardando ?
-                `<button style="background:#f1c40f; color:white; font-weight: 900; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #d68910; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 FINALIZAR DELIVERY</button>` :
+                `<button style="background:#f1c40f; color:white; font-weight: 900; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #d68910; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">${isRetirada ? '💰 FINALIZAR RETIRADA' : '💰 FINALIZAR DELIVERY'}</button>` :
                 (hasPend ?
-                  `<button style="background:#e74c3c; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #c0392b; border:none; color:white; cursor:pointer;" onclick="marcarPedidoEntregue(${pedido.id})">🛵 ENVIAR PARA ENTREGA</button>` :
-                  `<button style="background:#e67e22; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #d35400; border:none; color:white; cursor:pointer;" onclick="confirmarEntregaDelivery(${pedido.id})">✅ CONFIRMAR ENTREGA</button>`
+                  `<button style="background:#e74c3c; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #c0392b; border:none; color:white; cursor:pointer;" onclick="marcarPedidoEntregue(${pedido.id})">${isRetirada ? '🛍️ PRONTO P/ RETIRADA' : '🛵 ENVIAR PARA ENTREGA'}</button>` :
+                  `<button style="background:#e67e22; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #d35400; border:none; color:white; cursor:pointer;" onclick="confirmarEntregaDelivery(${pedido.id})">${isRetirada ? '✅ CONFIRMAR RETIRADA' : '✅ CONFIRMAR ENTREGA'}</button>`
                 )
               ) :
               (isAguardando ? 
@@ -6878,16 +6888,22 @@ async function atualizarStatus(id, status) {
 }
 
 async function confirmarEntregaDelivery(id) {
-  if (await mostrarConfirmacao("Confirmar que o pedido foi ENTREGUE pelo motoboy?", "Confirmação de Entrega", "Sim, Entregue", "Não", "🛵")) {
+  const pedido = pedidos.find(p => p.id == id);
+  const isRetirada = pedido && isPedidoRetiradaLocal(pedido);
+  const promptMsg = isRetirada ? "Confirmar que o cliente RETIROU o pedido no balcão?" : "Confirmar que o pedido foi ENTREGUE pelo motoboy?";
+  const confirmBtn = isRetirada ? "Sim, Retirado" : "Sim, Entregue";
+  const icon = isRetirada ? "🛍️" : "🛵";
+
+  if (await mostrarConfirmacao(promptMsg, isRetirada ? "Confirmação de Retirada" : "Confirmação de Entrega", confirmBtn, "Não", icon)) {
     try {
-      // Move para aguardando_fechamento, que no Delivery chamamos de "ENTREGUE"
+      // Move para aguardando_fechamento, que no Delivery/Retirada indica que o produto já está com o cliente
       const res = await fetch(`/api/pedidos/${id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'aguardando_fechamento' })
       });
       if (res.ok) {
-        mostrarToast("✅ Pedido marcado como ENTREGUE!");
+        mostrarToast(isRetirada ? "✅ Pedido marcado como RETIRADO!" : "✅ Pedido marcado como ENTREGUE!");
         carregarPedidos();
       }
     } catch (e) {
@@ -7045,19 +7061,25 @@ async function marcarPedidoEntregue(id) {
     }
 
     // CASO 2: Não há nada na cozinha em preparo, mas pode haver itens 'prontos' ou 'bebidas'
-    const confirmPrompt = isDelivery ? "Confirmar o envio deste pedido para entrega com o motoboy?" : "Confirmar a entrega de todos os itens deste pedido?";
-    if (await mostrarConfirmacao(confirmPrompt, isDelivery ? "Enviar para Entrega" : "Entregar Tudo", "Confirmar", "Cancelar", "🚚")) {
+    const isRetirada = isDelivery && isPedidoRetiradaLocal(pedido);
+    const confirmPrompt = isDelivery 
+      ? (isRetirada ? "Confirmar que este pedido está PRONTO para o cliente retirar no balcão?" : "Confirmar o envio deste pedido para entrega com o motoboy?") 
+      : "Confirmar a entrega de todos os itens deste pedido?";
+    const titlePrompt = isDelivery ? (isRetirada ? "Pronto p/ Retirada" : "Enviar para Entrega") : "Entregar Tudo";
+    const iconPrompt = isRetirada ? "🛍️" : "🚚";
+
+    if (await mostrarConfirmacao(confirmPrompt, titlePrompt, "Confirmar", "Cancelar", iconPrompt)) {
       window.ultimoPedidoServidoPeloAdmin = id;
       setTimeout(() => { window.ultimoPedidoServidoPeloAdmin = null; }, 7000);
       const res = await fetch(`/api/pedidos/${id}/marcar-entregue`, { 
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apenasProntos: false }),
-        showLoadingTitle: isDelivery ? "Despachando Delivery..." : "Confirmando Entrega...",
-        showLoadingMsg: isDelivery ? "Registrando que o pedido saiu para entrega com o motoboy, aguarde por favor..." : "Registrando a entrega dos itens e atualizando o consumo, aguarde por favor..."
+        showLoadingTitle: isDelivery ? (isRetirada ? "Avisando Retirada..." : "Despachando Delivery...") : "Confirmando Entrega...",
+        showLoadingMsg: isDelivery ? (isRetirada ? "Atualizando status para pronto p/ retirada no balcão..." : "Registrando que o pedido saiu para entrega com o motoboy, aguarde por favor...") : "Registrando a entrega dos itens e atualizando o consumo, aguarde por favor..."
       });
       if (res.ok) {
-        mostrarToast(isDelivery ? "🛵 Enviado para entrega!" : "✅ Pedido entregue!");
+        mostrarToast(isDelivery ? (isRetirada ? "🛍️ Pedido pronto para retirada no balcão!" : "🛵 Enviado para entrega!") : "✅ Pedido entregue!");
         carregarPedidos();
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -10611,7 +10633,8 @@ async function abrirModalOpcoes(pedidoId) {
   pedidoEmOpcoes = pedido;
   iniciarAutoRefreshModalAdmin();
   const isDelivery = (pedido.garcom_id === 'DELIVERY');
-  const mesaNome = isDelivery ? '🛵 DELIVERY #' + pedido.id : (typeof obterNomeExibicaoCard === 'function' ? obterNomeExibicaoCard(pedido) : (pedido.mesa_tipo === 'balcao' ? '🏪 Balcão ' + pedido.mesa_numero : (pedido.mesa_numero ? 'Mesa ' + pedido.mesa_numero : 'Balcão')));
+  const isRetirada = isDelivery && isPedidoRetiradaLocal(pedido);
+  const mesaNome = isDelivery ? (isRetirada ? '🛍️ RETIRADA #' + pedido.id : '🛵 DELIVERY #' + pedido.id) : (typeof obterNomeExibicaoCard === 'function' ? obterNomeExibicaoCard(pedido) : (pedido.mesa_tipo === 'balcao' ? '🏪 Balcão ' + pedido.mesa_numero : (pedido.mesa_numero ? 'Mesa ' + pedido.mesa_numero : 'Balcão')));
   const mesaId = pedido.mesa_id;
   
   // 1. DADOS BÁSICOS E CORES
@@ -10637,7 +10660,7 @@ async function abrirModalOpcoes(pedidoId) {
   
   const taxaDeliveryModalVal = (pedido.taxa_entrega !== undefined && pedido.taxa_entrega !== null) ? parseFloat(pedido.taxa_entrega) : 3.00;
   const lblTaxa = document.getElementById('modal-taxa-label-text');
-  if (lblTaxa) lblTaxa.innerText = isDelivery ? `R$ ${taxaDeliveryModalVal.toFixed(2)} ENTREGA` : '10% TAXA';
+  if (lblTaxa) lblTaxa.innerText = isDelivery ? (isRetirada ? 'TAXA GRÁTIS' : `R$ ${taxaDeliveryModalVal.toFixed(2)} ENTREGA`) : '10% TAXA';
 
   // Exibir observação do pedido se existir
   const infoExtra = document.getElementById('modal-opcoes-info-extra');
@@ -10735,7 +10758,7 @@ async function abrirModalOpcoes(pedidoId) {
   if (itensEntregues.length > 0) {
     let tituloEntregues = '✅ NA MESA:';
     if (isDelivery) {
-        tituloEntregues = isAguardando ? '✅ ENTREGUE:' : '🛵 A CAMINHO:';
+        tituloEntregues = isAguardando ? (isRetirada ? '✅ JÁ RETIRADO:' : '✅ ENTREGUE:') : (isRetirada ? '🛍️ PRONTO NO BALCÃO:' : '🛵 A CAMINHO:');
     }
     
     htmlItens += `<small style="color: #27ae60; font-weight: 900; display:block; margin: 10px 0 5px 0;">${tituloEntregues}</small>`;
@@ -10762,7 +10785,7 @@ async function abrirModalOpcoes(pedidoId) {
     if (isDelivery) {
       htmlFooter = `
         <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#f1c40f; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #d68910; cursor:pointer;">
-          💰 FINALIZAR DELIVERY
+          ${isRetirada ? '💰 FINALIZAR RETIRADA' : '💰 FINALIZAR DELIVERY'}
         </button>
       `;
     } else {
@@ -10777,7 +10800,7 @@ async function abrirModalOpcoes(pedidoId) {
       if (isDelivery) {
         htmlFooter = `
           <button onclick="fecharModalOpcoes(); marcarPedidoEntregue(${pedidoId})" style="background:#e74c3c; color:white; border:none; padding: 1.2rem; width: 100%; font-weight: 900; border-radius:12px; font-size: 1.1rem; box-shadow:0 5px 0 #c0392b; cursor:pointer;">
-            🛵 ENVIAR PARA ENTREGA
+            ${isRetirada ? '🛍️ PRONTO P/ RETIRADA' : '🛵 ENVIAR PARA ENTREGA'}
           </button>
         `;
       } else {
@@ -10793,7 +10816,7 @@ async function abrirModalOpcoes(pedidoId) {
       if (isDelivery) {
         htmlFooter = `
           <button onclick="fecharModalOpcoes(); confirmarEntregaDelivery(${pedidoId})" style="background:#e67e22; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #d35400; cursor:pointer;">
-            ✅ CONFIRMAR ENTREGA
+            ${isRetirada ? '✅ CONFIRMAR RETIRADA' : '✅ CONFIRMAR ENTREGA'}
           </button>
         `;
       } else {
