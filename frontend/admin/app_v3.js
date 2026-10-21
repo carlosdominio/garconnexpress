@@ -1250,6 +1250,7 @@ async function iniciarPainelAdmin() {
   carregarStatusCaixa();
   carregarStatusDelivery();
   carregarStatusCardapio();
+  carregarStatusMesasCompartilhadas();
   carregarStatusWhatsApp(); 
   setInterval(carregarStatusWhatsApp, 300000); // Sincroniza o status da conexão a cada 5 minutos
 
@@ -1774,7 +1775,11 @@ function switchConfigSubTab(subTab) {
   const section = document.getElementById(`config-sub-${subTab}`);
   if (section) section.classList.add('active');
 
-  if (subTab === 'fcm') carregarNotificacoesFCM();
+  if (subTab === 'mesas') {
+    carregarStatusCardapio();
+    carregarStatusMesasCompartilhadas();
+  }
+  else if (subTab === 'fcm') carregarNotificacoesFCM();
   else if (subTab === 'cozinha') {
     exibirConfigCategoriasCozinha();
   }
@@ -9534,7 +9539,9 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
     });
 
     // EVENTO: STATUS DO DELIVERY
-    channel.bind('cardapio-status-atualizado', (data) => { const check = document.getElementById('check-cardapio'); if (check) check.checked = data.cardapio_aberto; }); channel.bind('delivery-status-atualizado', (data) => {
+    channel.bind('cardapio-status-atualizado', (data) => { const check = document.getElementById('check-cardapio'); if (check) check.checked = data.cardapio_aberto; });
+    channel.bind('config-mesas-compartilhadas-atualizada', (data) => { const check = document.getElementById('check-mesas-compartilhadas'); if (check) check.checked = !!data.mesas_compartilhadas; });
+    channel.bind('delivery-status-atualizado', (data) => {
       console.log('📢 Status do Delivery atualizado:', data);
       const check = document.getElementById('check-delivery');
       if (check) {
@@ -11383,6 +11390,43 @@ async function alternarCardapio() {
     }
   } catch (e) {
     console.error('Erro ao alternar cardápio:', e);
+    check.checked = !enabled;
+  }
+}
+
+// Controle de Mesas Compartilhadas (Liberar para Todos os Garçons)
+async function carregarStatusMesasCompartilhadas() {
+  try {
+    const res = await fetch('/api/configs/mesas-compartilhadas-status');
+    const data = await res.json();
+    const check = document.getElementById('check-mesas-compartilhadas');
+    if (check) {
+      check.checked = !!data.mesas_compartilhadas;
+    }
+  } catch (e) {
+    console.error('Erro ao carregar status de mesas compartilhadas:', e);
+  }
+}
+
+async function alternarMesasCompartilhadas() {
+  const check = document.getElementById('check-mesas-compartilhadas');
+  if (!check) return;
+  const enabled = check.checked;
+  
+  try {
+    const res = await fetch('/api/configs/mesas-compartilhadas-toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled })
+    });
+    const data = await res.json();
+    if (data.success) {
+      mostrarToast(`Mesas ${enabled ? 'Liberadas para Todos os Garçons' : 'Bloqueadas por Garçom da Fila'}!`);
+    } else {
+      check.checked = !enabled; // reverte em caso de falha
+    }
+  } catch (e) {
+    console.error('Erro ao alternar mesas compartilhadas:', e);
     check.checked = !enabled;
   }
 }

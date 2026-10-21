@@ -5,6 +5,7 @@ let mesas = [];
 let timeoutPusher = null;
 let configCozinhaCategorias = []; // Estado global das categorias da cozinha
 let configChurrascoCategorias = []; // Estado global das categorias do churrasco
+let mesasCompartilhadasAtivas = false; // Permite todos os garçons atenderem qualquer mesa
 
 // --- INTEGRAÇÃO CAPACITOR NATIVA ---
 let isNativeApp = (window.Capacitor && window.Capacitor.isNativePlatform()) || 
@@ -905,6 +906,7 @@ async function iniciarApp() {
   await Promise.all([
     carregarConfigCozinha(),
     carregarConfigChurrasco(),
+    carregarConfigMesasCompartilhadas(),
     carregarSomGlobalGarcom(),
     carregarConfiguracoesToasts(),
     atualizarStatusCaixa(),
@@ -964,6 +966,17 @@ async function carregarConfigChurrasco() {
             }
         }
     } catch (e) { console.error("Erro ao carregar configs churrasco:", e); }
+}
+
+async function carregarConfigMesasCompartilhadas() {
+    try {
+        const res = await fetch('/api/configs/mesas-compartilhadas-status');
+        if (res.ok) {
+            const data = await res.json();
+            mesasCompartilhadasAtivas = !!data.mesas_compartilhadas;
+            console.log("👥 Configurações de mesas compartilhadas:", mesasCompartilhadasAtivas);
+        }
+    } catch (e) { console.error("Erro ao carregar configs mesas compartilhadas:", e); }
 }
 
 async function atualizarStatusCaixa() {
@@ -1623,6 +1636,12 @@ async function configurarPusher() {
       }
     });
 
+    channel.bind('config-mesas-compartilhadas-atualizada', (data) => {
+      console.log('📢 Configuração de mesas compartilhadas atualizada:', data);
+      mesasCompartilhadasAtivas = !!data.mesas_compartilhadas;
+      exibirMesas();
+    });
+
     // Desbloqueia áudio no primeiro clique do usuário
     document.addEventListener('click', () => {
       if (audioDesbloqueado) return;
@@ -2182,14 +2201,14 @@ function exibirMesas() {
         else if (mesa.forma_pagamento === 'Múltiplas') icone = '🧾';
         statusTexto = `${icone} SOLICITAÇÃO FECHAMENTO (${mesa.forma_pagamento || '...'})`;
       } else if (!mesa.pedido_created_at && !mesa.pedido_status && mesa.status === 'ocupada') {
-        if (!eMeuPedido && mesa.garcom_id) {
+        if (!eMeuPedido && mesa.garcom_id && !mesasCompartilhadasAtivas) {
           classeBloqueada = 'bloqueada';
           statusTexto = `🔒 AGUARDANDO CLIENTE (${mesa.garcom_id})`;
         } else {
-          statusTexto = '📱 AGUARDANDO CLIENTE';
+          statusTexto = '📱 AGUARDANDO CLIENTE' + (mesa.garcom_id && !eMeuPedido ? ` (${mesa.garcom_id})` : '');
           classeAlerta = 'cliente-acessando';
         }
-      } else if (!eMeuPedido && mesa.garcom_id) {
+      } else if (!eMeuPedido && mesa.garcom_id && !mesasCompartilhadasAtivas) {
         // SE NÃO É MEU E TEM GARÇOM, BLOQUEIA IMEDIATAMENTE (Independente de pedido_created_at)
         classeBloqueada = 'bloqueada';
         statusTexto = `🔒 OCUPADA (${mesa.garcom_id})`;
@@ -2202,7 +2221,7 @@ function exibirMesas() {
         statusTexto = `${icone} AGUARDANDO CAIXA (${mesa.forma_pagamento || '...'})`;
         classeAlerta = 'aguardando-fechamento';
       } else if (mesa.pedido_status === 'servido') {
-        statusTexto = 'OCUPADA';
+        statusTexto = 'OCUPADA' + (mesasCompartilhadasAtivas && mesa.garcom_id && !eMeuPedido ? ` (${mesa.garcom_id})` : '');
       }
       
       // DESTAQUE PARA PEDIDO PRONTO NA COZINHA (Se não estiver solicitando fechamento)
@@ -2251,8 +2270,8 @@ function exibirMesas() {
       
       if (mesaSelecionada.status === 'ocupada' || mesaSelecionada.status === 'fechando') {
         const eMeuPedido = mesaSelecionada.garcom_id === garcomLogado.usuario;
-        // BLOQUEIO REFORÇADO: Se a mesa tem um garçom e não é você, bloqueia o clique
-        if (!eMeuPedido && mesaSelecionada.garcom_id) {
+        // BLOQUEIO REFORÇADO: Se a mesa tem um garçom e não é você, bloqueia o clique (a menos que a opção de liberar para todos esteja ativa)
+        if (!eMeuPedido && mesaSelecionada.garcom_id && !mesasCompartilhadasAtivas) {
           await mostrarAlerta(`🔒 MESA BLOQUEADA\nO garçom selecionado na fila (${mesaSelecionada.garcom_id}) deve atender esta mesa.`, "Acesso Negado", "🚫");
           return;
         }

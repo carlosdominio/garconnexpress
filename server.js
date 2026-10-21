@@ -271,6 +271,34 @@ app.post('/api/configs/cardapio-toggle', ensureDbInitialized, isAdmin, async (re
   }
 });
 
+// --- CONFIGURAÇÃO: LIBERAR MESAS PARA TODOS OS GARÇONS NA FILA ---
+app.get('/api/configs/mesas-compartilhadas-status', ensureDbInitialized, async (req, res) => {
+  try {
+    const result = await query("SELECT valor FROM sistema_config WHERE chave = 'mesas_compartilhadas_garcons'");
+    const status = result.rows && result.rows.length > 0 ? result.rows[0].valor === 'true' : false; // Padrão é false (modo estrito)
+    res.json({ mesas_compartilhadas: status });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/configs/mesas-compartilhadas-toggle', ensureDbInitialized, isAdmin, async (req, res) => {
+  const { enabled } = req.body;
+  try {
+    const valor = enabled ? 'true' : 'false';
+    if (isPostgres) {
+      await query("INSERT INTO sistema_config (chave, valor) VALUES ('mesas_compartilhadas_garcons', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [valor]);
+    } else {
+      await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('mesas_compartilhadas_garcons', ?)", [valor]);
+    }
+    
+    await safePusherTrigger('garconnexpress', 'config-mesas-compartilhadas-atualizada', { mesas_compartilhadas: !!enabled });
+    res.json({ success: true, mesas_compartilhadas: !!enabled });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- AGENDAMENTO AUTOMÁTICO DO CARDÁPIO ---
 app.get('/api/configs/cardapio-horarios', ensureDbInitialized, async (req, res) => {
   try {

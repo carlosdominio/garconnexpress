@@ -818,8 +818,8 @@
             <div class="config-card">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                 <h3>Mesas do Bar</h3>
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: bold; color: #4a5568;">
+                <div style="display: flex; align-items: center; gap: 18px; flex-wrap: wrap;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: bold; color: #4a5568;" title="Ativa ou desativa a realização de pedidos pelo Cardápio Digital">
                       <span style="font-size: 0.9rem;">Aceitar Pedidos (Cardápio Digital):</span>
                       <div class="switch">
                         <input type="checkbox" id="check-cardapio" onchange="alternarCardapio()">
@@ -829,6 +829,13 @@
                     <button onclick="abrirModalAgendamentoCardapio()" style="background: #e2e8f0; color: #4a5568; border: none; border-radius: 50%; width: 35px; height: 35px; cursor: pointer; transition: 0.3s; display: flex; align-items: center; justify-content: center;" title="Configurar Agendamento Automático">
                         <i class="fa-solid fa-clock"></i>
                     </button>
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: bold; color: #2b6cb0;" title="Quando ativado, qualquer garçom da equipe pode abrir, lançar pedidos e atender qualquer mesa da fila">
+                      <span style="font-size: 0.9rem;">👥 Liberar Mesas p/ Todos os Garçons:</span>
+                      <div class="switch">
+                        <input type="checkbox" id="check-mesas-compartilhadas" onchange="alternarMesasCompartilhadas()">
+                        <span class="slider round"></span>
+                      </div>
+                    </label>
                 </div>
               </div>
               <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
@@ -2317,7 +2324,7 @@
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="app_v3.js?v=1.4.6-tempo-diferenciado-setor"></script>
+  <script src="app_v3.js?v=1.4.7-mesas-compartilhadas"></script>
   <!-- Modal: Mesa Aguardando Cliente -->
   <div id="modal-mesa-aguardando" class="modal">
     <div class="modal-content" style="max-width: 420px; border-radius: 16px; overflow: hidden; padding: 0;">
