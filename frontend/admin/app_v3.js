@@ -511,7 +511,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const salvo = localStorage.getItem('admin_logado');
   if (salvo) {
     adminLogado = JSON.parse(salvo);
-    document.getElementById('tela-login-admin').classList.add('hidden');
+    const telaLogin = document.getElementById('tela-login-admin');
+    if (telaLogin) telaLogin.remove();
     
     // Exibe o widget do WhatsApp apenas quando logado
     const waWidgetContainer = document.getElementById('wa-widget');

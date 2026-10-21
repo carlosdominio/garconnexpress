@@ -190,7 +190,7 @@
 
   <!-- Modal de Login Admin -->
   <div id="tela-login-admin" class="tela-login-admin">
-    <form class="login-box" onsubmit="event.preventDefault(); realizarLoginAdmin();">
+    <div class="login-box">
       <h1>Painel Admin</h1>
       <p>Acesso Restrito</p>
       <input type="text" id="admin-usuario" placeholder="Usuário Admin" onkeydown="if(event.key==='Enter'){event.preventDefault();realizarLoginAdmin();}">
@@ -198,8 +198,8 @@
         <input type="password" id="admin-senha" placeholder="Senha" style="margin-bottom: 0; padding-right: 40px; width: 100%;" onkeydown="if(event.key==='Enter'){event.preventDefault();realizarLoginAdmin();}">
         <button type="button" onclick="toggleMostrarSenha('admin-senha', this)" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; color: #7f8c8d; padding: 0; font-size: 1rem; width: auto; height: auto; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-eye"></i></button>
       </div>
-      <button type="submit" id="btn-login-admin" onclick="realizarLoginAdmin()" style="background-color: #2c3e50; transition: all 0.2s ease;">Entrar no Sistema</button>
-    </form>
+      <button type="button" id="btn-login-admin" onclick="realizarLoginAdmin()" style="background-color: #2c3e50; transition: all 0.2s ease;">Entrar no Sistema</button>
+    </div>
   </div>
 
   <header>
@@ -528,6 +528,7 @@
 
             <div style="flex: 1; min-width: 200px; position: relative;">
               <input type="text" id="filtro-mesas" placeholder="Buscar mesa específica..." 
+                     autocomplete="off"
                      oninput="filtrarMesasAtivas(this.value)"
                      style="width: 100%; padding: 10px 15px; border-radius: 8px; border: 2px solid #edf2f7; font-size: 0.95rem; outline: none; transition: 0.2s; box-sizing: border-box;">
             </div>
@@ -889,7 +890,7 @@
                     <button type="button" onclick="gerarSenhaAleatoriaGarcom()" style="background: none; border: none; color: #3498db; font-size: 0.85rem; cursor: pointer; font-weight: bold; padding: 0; text-decoration: underline; transition: color 0.2s;" onmouseover="this.style.color='#2980b9'" onmouseout="this.style.color='#3498db'">Gerar Senha</button>
                   </div>
                   <div style="position: relative; display: flex; align-items: center; width: 100%; margin-top: 5px;">
-                    <input type="password" id="garcom-senha" placeholder="Senha" style="padding-right: 40px !important; width: 100%;">
+                    <input type="password" id="garcom-senha" autocomplete="new-password" placeholder="Senha" style="padding-right: 40px !important; width: 100%;">
                     <button type="button" onclick="toggleMostrarSenha('garcom-senha', this)" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; color: #7f8c8d; padding: 0; font-size: 1rem; width: auto; height: auto; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-eye"></i></button>
                   </div>
                 </div>
@@ -2331,7 +2332,7 @@
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="app_v3.js?v=1.4.7-mesas-compartilhadas"></script>
+  <script src="app_v3.js?v=1.4.9-login-dom-removal"></script>
   <!-- Modal: Mesa Aguardando Cliente -->
   <div id="modal-mesa-aguardando" class="modal">
     <div class="modal-content" style="max-width: 420px; border-radius: 16px; overflow: hidden; padding: 0;">
