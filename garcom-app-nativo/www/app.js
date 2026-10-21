@@ -2401,6 +2401,7 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
 
 async function abrirModalTransferirMesaGarcom() {
   if (!mesaAtual) return;
+  const mesaOrigemSnapshot = mesaAtual;
   try {
     showLoading(true, 'Carregando mesas...');
     const res = await fetch('/api/mesas?t=' + Date.now());
@@ -2409,14 +2410,17 @@ async function abrirModalTransferirMesaGarcom() {
     showLoading(false);
 
     const outrasMesas = (mesas || []).filter(m => {
-      if (String(m.id) === String(mesaAtual.id)) return false;
-      if (mesaAtual.numero && String(m.numero).trim().toLowerCase() === String(mesaAtual.numero).trim().toLowerCase()) return false;
+      if (String(m.id) === String(mesaOrigemSnapshot.id)) return false;
+      if (mesaOrigemSnapshot.numero && String(m.numero).trim().toLowerCase() === String(mesaOrigemSnapshot.numero).trim().toLowerCase()) return false;
       return true;
     });
 
     if (outrasMesas.length === 0) {
       return await mostrarAlerta('Não há outras mesas cadastradas para transferir.', 'Aviso', '⚠️');
     }
+
+    // Fecha o modal inferior de opções para que o modal de transferência apareça limpo e na frente
+    fecharOpcoes();
 
     const optionsHtml = outrasMesas.map(m => {
       const isLivre = (m.status || 'livre').toLowerCase() === 'livre';
@@ -2429,8 +2433,8 @@ async function abrirModalTransferirMesaGarcom() {
     const { value: mesaDestinoId } = await Swal.fire({
       title: '🔄 Transferir de Mesa',
       html: `
-        <p style="font-size:0.95rem; color:#64748b; margin-bottom:12px;">Selecione a mesa de destino para transferir a <b>Mesa ${mesaAtual.numero}</b>:</p>
-        <select id="swal-select-transferir-garcom" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-weight:bold; font-size:1rem; background:#f8fafc; color:#334155;">
+        <p style="font-size:0.95rem; color:#64748b; margin-bottom:12px;">Selecione a mesa de destino para transferir a <b>Mesa ${mesaOrigemSnapshot.numero}</b>:</p>
+        <select id="swal-select-transferir-garcom" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; font-weight:bold; font-size:1rem; background:#f8fafc; color:#334155; box-sizing:border-box;">
           <option value="">Selecione a Mesa de Destino...</option>
           ${optionsHtml}
         </select>
@@ -2439,6 +2443,8 @@ async function abrirModalTransferirMesaGarcom() {
       confirmButtonText: 'Transferir',
       cancelButtonText: 'Cancelar',
       confirmButtonColor: '#3498db',
+      cancelButtonColor: '#95a5a6',
+      heightAuto: false,
       preConfirm: () => {
         const sel = document.getElementById('swal-select-transferir-garcom');
         if (!sel || !sel.value) {
@@ -2449,7 +2455,11 @@ async function abrirModalTransferirMesaGarcom() {
       }
     });
 
-    if (!mesaDestinoId) return;
+    if (!mesaDestinoId) {
+      // Reabre as opções caso o garçom cancele
+      mostrarOpcoesMesa(mesaOrigemSnapshot);
+      return;
+    }
 
     const mesaDestinoObj = outrasMesas.find(m => String(m.id) === String(mesaDestinoId));
     const isOcupada = mesaDestinoObj && (mesaDestinoObj.status || 'livre').toLowerCase() !== 'livre';
@@ -2462,9 +2472,14 @@ async function abrirModalTransferirMesaGarcom() {
         showCancelButton: true,
         confirmButtonText: 'Sim, Juntar',
         cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#e67e22'
+        confirmButtonColor: '#e67e22',
+        cancelButtonColor: '#95a5a6',
+        heightAuto: false
       });
-      if (!confMerge.isConfirmed) return;
+      if (!confMerge.isConfirmed) {
+        mostrarOpcoesMesa(mesaOrigemSnapshot);
+        return;
+      }
     }
 
     showLoading(true, 'Transferindo mesa...');
@@ -2474,7 +2489,7 @@ async function abrirModalTransferirMesaGarcom() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         pedido_id: pedidoId,
-        mesa_origem_id: mesaAtual.id,
+        mesa_origem_id: mesaOrigemSnapshot.id,
         mesa_destino_id: mesaDestinoId
       })
     });
@@ -2483,22 +2498,35 @@ async function abrirModalTransferirMesaGarcom() {
     showLoading(false);
 
     if (resTransf.ok) {
-      fecharOpcoes();
       await Swal.fire({
         icon: 'success',
         title: dataRes.merged ? 'Mesas Unidas!' : 'Transferido!',
         text: dataRes.mensagem || `Mesa transferida com sucesso!`,
         timer: 2000,
-        showConfirmButton: false
+        showConfirmButton: false,
+        heightAuto: false
       });
+      mesaAtual = null;
       carregarMesas();
     } else {
-      Swal.fire('Erro', dataRes.error || 'Erro ao transferir mesa.', 'error');
+      await Swal.fire({
+        icon: 'error',
+        title: 'Erro',
+        text: dataRes.error || 'Erro ao transferir mesa.',
+        heightAuto: false
+      });
+      mostrarOpcoesMesa(mesaOrigemSnapshot);
     }
   } catch (err) {
     showLoading(false);
     console.error('Erro ao transferir mesa garçom:', err);
-    Swal.fire('Erro de Conexão', 'Não foi possível transferir a mesa.', 'error');
+    await Swal.fire({
+      icon: 'error',
+      title: 'Erro de Conexão',
+      text: 'Não foi possível transferir a mesa.',
+      heightAuto: false
+    });
+    if (mesaOrigemSnapshot) mostrarOpcoesMesa(mesaOrigemSnapshot);
   }
 }
 

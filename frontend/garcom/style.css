@@ -2450,3 +2450,8 @@ header {
 .mesa.rascunho-pendente-alert p {
   color: #ffffff !important;
 }
+
+/* SweetAlert2 Modal sempre acima de todos os elementos e modais */
+.swal2-container {
+  z-index: 999999 !important;
+}
