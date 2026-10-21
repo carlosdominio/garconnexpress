@@ -4308,15 +4308,19 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
 
       // TRAVA DE FILA (RODÍZIO) - BACKEND LOCKOUT
       if (mesaObj && mesaObj.status === 'ocupada' && mesaObj.garcom_id && !isDelivery) {
-        // Se a mesa tem um garçom atribuído e não é o garçom atual, bloqueia.
+        // Se a mesa tem um garçom atribuído e não é o garçom atual, bloqueia (a menos que a opção de liberar mesas p/ todos esteja ativa).
         const isAdmin = req.user && req.user.role === 'admin';
         const isClient = req.user && req.user.role === 'cliente';
         if (!isAdmin && !isClient && mesaObj.garcom_id !== garcom_id) {
+          const cfgComp = (await query("SELECT valor FROM sistema_config WHERE chave = 'mesas_compartilhadas_garcons'")).rows[0];
+          const mesasCompartilhadas = cfgComp && (cfgComp.valor === 'true' || cfgComp.valor === true);
+          if (!mesasCompartilhadas) {
             console.log(`🔒 [BLOQUEIO DE ACESSO] Garçom ${garcom_id} tentou acessar a mesa ${mesa_id} que está bloqueada para o garçom ${mesaObj.garcom_id}`);
             return res.status(403).json({
                 error: 'MESA_ATENDIDA_POR_OUTRO',
                 message: `MESA BLOQUEADA! O garçom selecionado na fila (${mesaObj.garcom_id}) deve atender esta mesa.`
             });
+          }
         }
       }
 
@@ -4774,11 +4778,15 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
         const isClient = req.user && req.user.role === 'cliente';
         const garcom_id = req.user ? (req.user.usuario || req.user.nome) : null;
         if (!isAdmin && !isClient && pOrig.garcom_id !== garcom_id) {
+          const cfgComp = (await query("SELECT valor FROM sistema_config WHERE chave = 'mesas_compartilhadas_garcons'")).rows[0];
+          const mesasCompartilhadas = cfgComp && (cfgComp.valor === 'true' || cfgComp.valor === true);
+          if (!mesasCompartilhadas) {
             console.log(`🔒 [BLOQUEIO DE ACESSO] Garçom ${garcom_id} tentou adicionar itens ao pedido ${id} bloqueado para o garçom ${pOrig.garcom_id}`);
             return res.status(403).json({
                 error: 'MESA_ATENDIDA_POR_OUTRO',
                 message: `MESA BLOQUEADA! O garçom selecionado na fila (${pOrig.garcom_id}) deve atender esta mesa.`
             });
+          }
         }
     }
 
