@@ -4023,6 +4023,7 @@ function coletarEstadoFormularioItemMenu() {
   const enviar_cozinha = !!document.getElementById('menu-enviar-cozinha')?.checked;
   const enviar_churrasco = !!document.getElementById('menu-enviar-churrasco')?.checked;
   const visivel = !!document.getElementById('menu-visivel')?.checked;
+  const visivel_delivery = !!document.getElementById('menu-visivel-delivery')?.checked;
   const em_promocao = !!document.getElementById('menu-promocao')?.checked;
   
   // Ficha técnica
@@ -4051,6 +4052,7 @@ function coletarEstadoFormularioItemMenu() {
     enviar_cozinha,
     enviar_churrasco,
     visivel,
+    visivel_delivery,
     em_promocao,
     fichaAtivo,
     fichaLinhas
@@ -4225,6 +4227,7 @@ async function abrirModalItemMenu(item = null) {
         document.getElementById('menu-enviar-churrasco').checked = isItemParaChurrasco(item);
     }
     if (document.getElementById('menu-visivel')) document.getElementById('menu-visivel').checked = (item.visivel === true || item.visivel === 1 || item.visivel === null || item.visivel === undefined);
+    if (document.getElementById('menu-visivel-delivery')) document.getElementById('menu-visivel-delivery').checked = (item.visivel_delivery === true || item.visivel_delivery === 1 || item.visivel_delivery === null || item.visivel_delivery === undefined);
     if (document.getElementById('menu-promocao')) document.getElementById('menu-promocao').checked = (item.em_promocao === true || item.em_promocao === 1);
 
     // ✅ Carrega preço de custo e unidade corretamente
@@ -4259,6 +4262,7 @@ async function abrirModalItemMenu(item = null) {
     if (document.getElementById('menu-enviar-cozinha')) document.getElementById('menu-enviar-cozinha').checked = true;
     if (document.getElementById('menu-enviar-churrasco')) document.getElementById('menu-enviar-churrasco').checked = false;
     if (document.getElementById('menu-visivel')) document.getElementById('menu-visivel').checked = true;
+    if (document.getElementById('menu-visivel-delivery')) document.getElementById('menu-visivel-delivery').checked = true;
     if (document.getElementById('menu-promocao')) document.getElementById('menu-promocao').checked = false;
     if (selectCat) selectCat.value = '';
   }
@@ -4353,6 +4357,7 @@ async function processarAcaoMenu() {
   const checkCozinhaVal = document.getElementById('menu-enviar-cozinha').checked;
   const checkChurrascoVal = document.getElementById('menu-enviar-churrasco') ? document.getElementById('menu-enviar-churrasco').checked : false;
   const visivel = document.getElementById('menu-visivel').checked;
+  const visivel_delivery = document.getElementById('menu-visivel-delivery') ? document.getElementById('menu-visivel-delivery').checked : true;
   const em_promocao = document.getElementById('menu-promocao').checked;
 
   if (!nome || !categoria || isNaN(preco) || isNaN(estoque)) {
@@ -4388,7 +4393,7 @@ async function processarAcaoMenu() {
   }
 
   try {
-    const payload = { nome, descricao, categoria: categoria.toUpperCase(), preco, preco_original, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, em_promocao, preco_custo, unidade };
+    const payload = { nome, descricao, categoria: categoria.toUpperCase(), preco, preco_original, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, visivel_delivery, em_promocao, preco_custo, unidade };
     const method = idItemEdicaoMenu ? 'PUT' : 'POST';
     const url = idItemEdicaoMenu ? `/api/menu/${idItemEdicaoMenu}` : '/api/menu';
 
@@ -4938,13 +4943,14 @@ function renderizarListaMenuConfig(rebuildCategories = false) {
               }
             }
 
-            const hasStatus = m.em_promocao || isItemParaCozinha(m) || isItemParaChurrasco(m) || (m.visivel === false || m.visivel === 0);
+            const hasStatus = m.em_promocao || isItemParaCozinha(m) || isItemParaChurrasco(m) || (m.visivel === false || m.visivel === 0) || (m.visivel_delivery === false || m.visivel_delivery === 0);
             const statusHeader = hasStatus ? `
               <div style="display: flex; width: 100%; height: 22px;">
                 ${m.em_promocao ? '<div style="flex: 1; background: #f1c40f; color: #2c3e50; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🔥 PROMOÇÃO</div>' : ''}
                 ${isItemParaCozinha(m) ? '<div style="flex: 1; background: #3498db; color: white; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🍳 COZINHA</div>' : ''}
                 ${isItemParaChurrasco(m) ? '<div style="flex: 1; background: #e67e22; color: white; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🍢 CHURRASCO</div>' : ''}
                 ${(m.visivel === false || m.visivel === 0) ? '<div style="flex: 1; background: #e74c3c; color: white; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🚫 OCULTO</div>' : ''}
+                ${(m.visivel_delivery === false || m.visivel_delivery === 0) ? '<div style="flex: 1; background: #64748b; color: white; font-size: 0.65rem; font-weight: 900; display: flex; align-items: center; justify-content: center; letter-spacing: 0.5px;">🚫 S/ DELIVERY</div>' : ''}
               </div>` : '';
 
             return `

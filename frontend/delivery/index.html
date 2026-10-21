@@ -227,24 +227,49 @@
             <div id="modal-cart-items" style="margin-bottom: 20px;"></div>
             
             <div id="delivery-form">
-                <div class="form-group"><label>Seu Nome</label><input type="text" id="cust-name" placeholder="Como te chamamos?"></div>
-                <div class="form-group"><label>WhatsApp / Telefone</label><input type="tel" id="cust-phone" placeholder="(00) 00000-0000"></div>
-                
-                <div class="form-group">
-                    <label>CEP</label>
-                    <div style="position: relative; display: flex; align-items: center;">
-                        <input type="text" id="cust-cep" placeholder="Ex: 57014-290" onchange="calcularFreteCliente()" style="padding-right: 100px;">
-                        <button onclick="buscarCEP()" style="position: absolute; right: 5px; width: auto; padding: 8px 15px; background: var(--primary); color: #fff; margin-bottom: 0; font-size: 0.8rem; border-radius: 8px;">BUSCAR</button>
+                <!-- Seletor Tipo de Atendimento: Entrega vs Retirar no Local -->
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-weight: 800; font-size: 0.88rem; margin-bottom: 8px; color: var(--text);">Como deseja receber o pedido?</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #e2e8f0; padding: 4px; border-radius: 12px;">
+                        <button type="button" id="btn-tipo-delivery" onclick="setTipoPedido('delivery')" style="padding: 10px 8px; border-radius: 10px; border: none; background: var(--primary); color: white; font-weight: 800; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: 0.2s;">
+                            <i class="fas fa-motorcycle"></i> Entrega (Delivery)
+                        </button>
+                        <button type="button" id="btn-tipo-retirada" onclick="setTipoPedido('retirada')" style="padding: 10px 8px; border-radius: 10px; border: none; background: transparent; color: #475569; font-weight: 800; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: 0.2s;">
+                            <i class="fas fa-store"></i> Retirar no Local
+                        </button>
                     </div>
                 </div>
 
-                <div style="display: flex; gap: 10px;">
-                    <div class="form-group" style="flex: 3;"><label>Endereço</label><input type="text" id="cust-address" placeholder="Rua / Avenida" onchange="calcularFreteCliente()" onblur="calcularFreteCliente()"></div>
-                    <div class="form-group" style="flex: 1;"><label>Nº</label><input type="text" id="cust-number" placeholder="123"></div>
+                <div class="form-group"><label>Seu Nome</label><input type="text" id="cust-name" placeholder="Como te chamamos?"></div>
+                <div class="form-group"><label>WhatsApp / Telefone</label><input type="tel" id="cust-phone" placeholder="(00) 00000-0000"></div>
+                
+                <!-- Container de Endereço (somente no Delivery) -->
+                <div id="container-endereco">
+                    <div class="form-group">
+                        <label>CEP</label>
+                        <div style="position: relative; display: flex; align-items: center;">
+                            <input type="text" id="cust-cep" placeholder="Ex: 57014-290" onchange="calcularFreteCliente()" style="padding-right: 100px;">
+                            <button onclick="buscarCEP()" style="position: absolute; right: 5px; width: auto; padding: 8px 15px; background: var(--primary); color: #fff; margin-bottom: 0; font-size: 0.8rem; border-radius: 8px;">BUSCAR</button>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px;">
+                        <div class="form-group" style="flex: 3;"><label>Endereço</label><input type="text" id="cust-address" placeholder="Rua / Avenida" onchange="calcularFreteCliente()" onblur="calcularFreteCliente()"></div>
+                        <div class="form-group" style="flex: 1;"><label>Nº</label><input type="text" id="cust-number" placeholder="123"></div>
+                    </div>
+
+                    <div class="form-group"><label>Bairro / Complemento / Ref</label><input type="text" id="cust-bairro" placeholder="Ex: Centro - Próximo ao mercado" onchange="calcularFreteCliente()" onblur="calcularFreteCliente()"></div>
                 </div>
 
-                <div class="form-group"><label>Bairro / Complemento / Ref</label><input type="text" id="cust-bairro" placeholder="Ex: Centro - Próximo ao mercado" onchange="calcularFreteCliente()" onblur="calcularFreteCliente()"></div>
-                <div class="form-group"><label>Observações do Pedido</label><textarea id="cust-obs" rows="2" placeholder="Alguma preferência? (Ex: sem cebola, ponto da carne...)"></textarea></div>
+                <!-- Aviso amigável quando Retirada -->
+                <div id="aviso-retirada-local" style="display: none; background: #ecfdf5; border: 1.5px dashed #10b981; border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; color: #065f46; font-size: 0.85rem;">
+                    <div style="display: flex; align-items: center; gap: 8px; font-weight: 800; margin-bottom: 4px;">
+                        <i class="fas fa-store" style="font-size: 1rem; color: #10b981;"></i> Retirada no Estabelecimento / Balcão
+                    </div>
+                    <span>Você retira seu pedido diretamente em nosso local sem custo de taxa de entrega! Avisaremos assim que estiver pronto.</span>
+                </div>
+
+                <div class="form-group"><label>Observações do Pedido</label><textarea id="cust-obs" rows="2" placeholder="Alguma preferência? (Ex: sem gelo, ponto da carne...)"></textarea></div>
                 
                 <div class="form-group">
                     <label>Forma de Pagamento</label>
@@ -282,7 +307,9 @@
         let pedidoAtivoId = localStorage.getItem('pedidoAtivoId') || null;
 
         const ADMIN_NUMBER = '558293157048'; // Número do Admin para o WhatsApp
+        let TIPO_PEDIDO = 'delivery'; // 'delivery' ou 'retirada'
         let TAXA_ENTREGA = 5.00;
+        let TAXA_ENTREGA_BASE = 5.00;
         let DISTANCIA_KM = 0;
         let DENTRO_DO_RAIO = true;
         let LAT_CLIENTE = null;
@@ -302,9 +329,12 @@
                 if (res.ok) {
                     const data = await res.json();
                     if (data.frete_taxa_base) {
-                        TAXA_ENTREGA = data.frete_taxa_base;
-                        const elVal = document.getElementById('val-taxa-entrega');
-                        if (elVal) elVal.textContent = `R$ ${TAXA_ENTREGA.toFixed(2)}`;
+                        TAXA_ENTREGA_BASE = data.frete_taxa_base;
+                        if (TIPO_PEDIDO === 'delivery') {
+                            TAXA_ENTREGA = data.frete_taxa_base;
+                            const elVal = document.getElementById('val-taxa-entrega');
+                            if (elVal) elVal.textContent = `R$ ${TAXA_ENTREGA.toFixed(2)}`;
+                        }
                     }
                 }
             } catch (e) {
@@ -387,14 +417,27 @@
             // Reseta steps
             document.querySelectorAll('.step').forEach(s => s.classList.remove('active', 'completed'));
 
+            const isRetirada = (localStorage.getItem('pedidoTipo_' + id) === 'retirada') || (localStorage.getItem('pedidoTipo_ativo') === 'retirada');
+
+            const labelStep3 = document.querySelector('#step-3 .step-label');
+            const iconStep3 = document.querySelector('#step-3 .step-circle i');
+            if (labelStep3) labelStep3.innerText = isRetirada ? 'Pronto' : 'A Caminho';
+            if (iconStep3) iconStep3.className = isRetirada ? 'fas fa-store' : 'fas fa-motorcycle';
+
             const statusMap = {
                 'pendente': { step: 1, title: 'Pedido Recebido!', msg: 'Seu pedido já chegou para nós e em breve entrará em preparo.', icon: '✅' },
                 'recebido': { step: 1, title: 'Pedido Recebido!', msg: 'Seu pedido já chegou para nós e em breve entrará em preparo.', icon: '✅' },
-                'preparando': { step: 2, title: 'Em Preparação', msg: 'Nossa cozinha já está preparando seus itens com todo carinho.', icon: '🍳' },
-                'pronto': { step: 2, title: 'Pedido Pronto!', msg: 'Tudo pronto! Seu pedido está aguardando o motoboy para sair.', icon: '🍱' },
-                'servido': { step: 3, title: 'Saiu para Entrega!', msg: 'O motoboy já pegou seu pedido e está a caminho do seu endereço.', icon: '🛵' },
-                'saiu_entrega': { step: 3, title: 'Saiu para Entrega!', msg: 'O motoboy já pegou seu pedido e está a caminho do seu endereço.', icon: '🛵' },
-                'aguardando_fechamento': { step: 4, title: 'Entregue!', msg: 'O motoboy confirmou a entrega. Aproveite sua refeição!', icon: '😋' },
+                'preparando': { step: 2, title: 'Em Preparação', msg: 'Nossa equipe já está preparando seus itens com todo carinho.', icon: '🍳' },
+                'pronto': isRetirada
+                    ? { step: 3, title: 'Pronto p/ Retirada!', msg: 'Tudo pronto! Seu pedido está aguardando você no balcão.', icon: '🛍️' }
+                    : { step: 2, title: 'Pedido Pronto!', msg: 'Tudo pronto! Seu pedido está aguardando o motoboy para sair.', icon: '🍱' },
+                'servido': isRetirada
+                    ? { step: 3, title: 'Disponível no Balcão!', msg: 'Seu pedido já está no balcão para retirada.', icon: '🛍️' }
+                    : { step: 3, title: 'Saiu para Entrega!', msg: 'O motoboy já pegou seu pedido e está a caminho do seu endereço.', icon: '🛵' },
+                'saiu_entrega': isRetirada
+                    ? { step: 3, title: 'Disponível no Balcão!', msg: 'Seu pedido já está no balcão para retirada.', icon: '🛍️' }
+                    : { step: 3, title: 'Saiu para Entrega!', msg: 'O motoboy já pegou seu pedido e está a caminho do seu endereço.', icon: '🛵' },
+                'aguardando_fechamento': { step: 4, title: isRetirada ? 'Retirado!' : 'Entregue!', msg: isRetirada ? 'Pedido entregue no balcão. Aproveite!' : 'O motoboy confirmou a entrega. Aproveite sua refeição!', icon: '😋' },
                 'entregue': { step: 4, title: 'Concluído!', msg: 'Pedido finalizado com sucesso. Obrigado pela preferência!', icon: '✨' },
                 'cancelado': { step: 0, title: 'Pedido Cancelado', msg: 'Infelizmente seu pedido foi cancelado. Entre em contato para mais detalhes.', icon: '❌' }
             };
@@ -428,6 +471,10 @@
         }
 
         function voltarAoMenu() {
+            if (pedidoAtivoId) {
+                localStorage.removeItem('pedidoTipo_' + pedidoAtivoId);
+            }
+            localStorage.removeItem('pedidoTipo_ativo');
             localStorage.removeItem('pedidoAtivoId');
             localStorage.removeItem('ultimoScriptEncoded');
             pedidoAtivoId = null;
@@ -544,7 +591,7 @@
 
         async function loadMenu() {
             try {
-                const res = await fetch('/api/menu');
+                const res = await fetch('/api/menu?delivery=true');
                 fullMenu = await res.json();
                 renderCategories();
                 renderMenu();
@@ -697,8 +744,69 @@
             const subtotal = cart.reduce((s, x) => s + (x.qty*x.preco), 0);
             document.getElementById('modal-subtotal').innerText = `R$ ${subtotal.toFixed(2)}`;
             const valTaxaEl = document.getElementById('val-taxa-entrega');
-            if (valTaxaEl) valTaxaEl.innerText = `R$ ${TAXA_ENTREGA.toFixed(2)}`;
-            document.getElementById('modal-cart-total').innerText = `R$ ${(subtotal + TAXA_ENTREGA).toFixed(2)}`;
+            const labelTaxa = document.getElementById('label-taxa-entrega');
+
+            if (TIPO_PEDIDO === 'retirada') {
+                if (labelTaxa) labelTaxa.innerText = 'Modalidade:';
+                if (valTaxaEl) {
+                    valTaxaEl.innerText = 'Retirada no Local (Grátis)';
+                    valTaxaEl.style.color = '#10b981';
+                }
+                document.getElementById('modal-cart-total').innerText = `R$ ${subtotal.toFixed(2)}`;
+            } else {
+                if (labelTaxa && !labelTaxa.innerHTML.includes('km')) labelTaxa.innerText = 'Taxa de Entrega:';
+                if (valTaxaEl) {
+                    valTaxaEl.innerText = `R$ ${TAXA_ENTREGA.toFixed(2)}`;
+                    valTaxaEl.style.color = 'var(--primary)';
+                }
+                document.getElementById('modal-cart-total').innerText = `R$ ${(subtotal + TAXA_ENTREGA).toFixed(2)}`;
+            }
+        }
+
+        function setTipoPedido(tipo) {
+            TIPO_PEDIDO = tipo;
+            const btnDel = document.getElementById('btn-tipo-delivery');
+            const btnRet = document.getElementById('btn-tipo-retirada');
+            const boxEnd = document.getElementById('container-endereco');
+            const avisoRet = document.getElementById('aviso-retirada-local');
+            const labelTaxa = document.getElementById('label-taxa-entrega');
+            const valTaxaEl = document.getElementById('val-taxa-entrega');
+
+            if (tipo === 'retirada') {
+                if (btnDel) {
+                    btnDel.style.background = 'transparent';
+                    btnDel.style.color = '#475569';
+                    btnDel.style.boxShadow = 'none';
+                }
+                if (btnRet) {
+                    btnRet.style.background = 'var(--primary)';
+                    btnRet.style.color = '#fff';
+                    btnRet.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                }
+                if (boxEnd) boxEnd.style.display = 'none';
+                if (avisoRet) avisoRet.style.display = 'block';
+
+                TAXA_ENTREGA = 0;
+            } else {
+                if (btnRet) {
+                    btnRet.style.background = 'transparent';
+                    btnRet.style.color = '#475569';
+                    btnRet.style.boxShadow = 'none';
+                }
+                if (btnDel) {
+                    btnDel.style.background = 'var(--primary)';
+                    btnDel.style.color = '#fff';
+                    btnDel.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                }
+                if (boxEnd) boxEnd.style.display = 'block';
+                if (avisoRet) avisoRet.style.display = 'none';
+
+                TAXA_ENTREGA = TAXA_ENTREGA_BASE;
+                const address = document.getElementById('cust-address')?.value.trim();
+                if (address) calcularFreteCliente();
+            }
+
+            renderCartModal();
         }
 
         async function calcularFreteCliente() {
@@ -708,7 +816,7 @@
             const fullAddress = [address, bairro].filter(Boolean).join(', ');
             
             const labelTaxa = document.getElementById('label-taxa-entrega');
-            if (labelTaxa) labelTaxa.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando frete...';
+            if (labelTaxa && TIPO_PEDIDO === 'delivery') labelTaxa.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando frete...';
 
             try {
                 const res = await fetch('/api/frete/calcular', {
@@ -719,12 +827,15 @@
                 if (res.ok) {
                     const data = await res.json();
                     if (data.success) {
-                        TAXA_ENTREGA = data.valor_taxa;
+                        TAXA_ENTREGA_BASE = data.valor_taxa;
+                        if (TIPO_PEDIDO === 'delivery') {
+                            TAXA_ENTREGA = data.valor_taxa;
+                        }
                         DISTANCIA_KM = data.distancia_km;
                         DENTRO_DO_RAIO = data.dentro_do_raio;
                         LAT_CLIENTE = data.lat;
                         LNG_CLIENTE = data.lng;
-                        if (labelTaxa) {
+                        if (TIPO_PEDIDO === 'delivery' && labelTaxa) {
                             if (data.dentro_do_raio) {
                                 labelTaxa.innerHTML = `Taxa de Entrega (${data.distancia_km} km):`;
                             } else {
@@ -760,32 +871,41 @@
             const payment = document.getElementById('cust-payment').value;
             const change = document.getElementById('cust-change').value;
 
-            if (!name || !phone || !address || !number) return Swal.fire('Aviso', 'Preencha Nome, WhatsApp/Telefone, Endereço e Número.', 'warning');
             if (cart.length === 0) return Swal.fire('Aviso', 'Seu carrinho está vazio.', 'warning');
-            if (!DENTRO_DO_RAIO) return Swal.fire('Atenção', 'Infelizmente o seu endereço está fora do nosso raio de atendimento para delivery.', 'warning');
+            if (!name || !phone) return Swal.fire('Aviso', 'Preencha Nome e WhatsApp/Telefone.', 'warning');
+
+            if (TIPO_PEDIDO === 'delivery') {
+                if (!address || !number) return Swal.fire('Aviso', 'Preencha Endereço e Número para entrega.', 'warning');
+                if (!DENTRO_DO_RAIO) return Swal.fire('Atenção', 'Infelizmente o seu endereço está fora do nosso raio de atendimento para delivery.', 'warning');
+            }
 
             const btn = document.getElementById('btn-finalizar');
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENVIANDO...';
 
             const subtotal = cart.reduce((s, x) => s + (x.qty*x.preco), 0);
-            const totalFinal = subtotal + TAXA_ENTREGA;
+            const taxaCobrada = (TIPO_PEDIDO === 'retirada') ? 0 : TAXA_ENTREGA;
+            const totalFinal = subtotal + taxaCobrada;
             
-            let orderObs = `🛵 DELIVERY\n`;
+            let orderObs = (TIPO_PEDIDO === 'retirada') ? `🛍️ RETIRAR NO LOCAL / BALCÃO\n` : `🛵 DELIVERY\n`;
             orderObs += `👤 Cliente: ${name}\n`;
-            if(phone) orderObs += `📞 Tel: ${phone}\n`;
-            orderObs += `🏠 End: ${address}, ${number}\n`;
-            if(bairro) orderObs += `📍 Bairro/Ref: ${bairro}\n`;
+            if (phone) orderObs += `📞 Tel: ${phone}\n`;
+            if (TIPO_PEDIDO === 'delivery') {
+                orderObs += `🏠 End: ${address}, ${number}\n`;
+                if (bairro) orderObs += `📍 Bairro/Ref: ${bairro}\n`;
+            } else {
+                orderObs += `🏪 Retirada: Balcão / Estabelecimento\n`;
+            }
             orderObs += `💳 Pagamento: ${payment}`;
-            if(payment === 'Dinheiro' && change) orderObs += ` (Troco R$ ${parseFloat(change).toFixed(2)})`;
-            if(obs) orderObs += `\n📝 Obs: ${obs}`;
+            if (payment === 'Dinheiro' && change) orderObs += ` (Troco R$ ${parseFloat(change).toFixed(2)})`;
+            if (obs) orderObs += `\n📝 Obs: ${obs}`;
 
             const itemsPayload = cart.map(i => ({
                 menu_id: i.id,
                 quantidade: i.qty,
                 preco: i.preco,
                 nome: i.nome,
-                observacao: "" // Observações individuais de itens poderiam ir aqui se houvesse campo
+                observacao: ""
             }));
 
             try {
@@ -795,14 +915,15 @@
                     body: JSON.stringify({
                         mesa_id: null,
                         garcom_id: 'DELIVERY',
+                        tipo_entrega: TIPO_PEDIDO,
                         cliente_telefone: phone.replace(/\D/g, ''),
                         itens: itemsPayload,
-                        cobrar_taxa: true,
-                        taxa_entrega: TAXA_ENTREGA,
-                        distancia_km: DISTANCIA_KM,
-                        lat_cliente: LAT_CLIENTE,
-                        lng_cliente: LNG_CLIENTE,
-                        endereco: `${address}, ${number}${bairro ? ' - ' + bairro : ''}`,
+                        cobrar_taxa: (TIPO_PEDIDO === 'delivery'),
+                        taxa_entrega: taxaCobrada,
+                        distancia_km: (TIPO_PEDIDO === 'retirada') ? 0 : DISTANCIA_KM,
+                        lat_cliente: (TIPO_PEDIDO === 'retirada') ? null : LAT_CLIENTE,
+                        lng_cliente: (TIPO_PEDIDO === 'retirada') ? null : LNG_CLIENTE,
+                        endereco: (TIPO_PEDIDO === 'retirada') ? 'Retirar no Estabelecimento (Balcão)' : `${address}, ${number}${bairro ? ' - ' + bairro : ''}`,
                         total: totalFinal,
                         observacao: orderObs,
                         forma_pagamento: payment,
@@ -816,14 +937,20 @@
                     const pedidoId = d.pedidoId || d.id || '...';
 
                     // Prepara a mensagem para o WhatsApp
-                    let msg = `🛍️ *NOVO PEDIDO - DELIVERY*\n`;
+                    let msg = (TIPO_PEDIDO === 'retirada')
+                        ? `🛍️ *NOVO PEDIDO - RETIRADA NO LOCAL*\n`
+                        : `🛍️ *NOVO PEDIDO - DELIVERY*\n`;
                     msg += `🔖 *ID:* #${pedidoId}\n`;
                     msg += `------------------------------\n`;
                     msg += `👤 *Cliente:* ${name}\n`;
-                    if(phone) msg += `📞 *Tel:* ${phone}\n`;
-                    msg += `🏠 *Endereço:* ${address}, ${number}\n`;
-                    if(bairro) msg += `📍 *Bairro/Ref:* ${bairro}\n`;
-                    if(obs) msg += `📝 *Obs:* ${obs}\n\n`;
+                    if (phone) msg += `📞 *Tel:* ${phone}\n`;
+                    if (TIPO_PEDIDO === 'delivery') {
+                        msg += `🏠 *Endereço:* ${address}, ${number}\n`;
+                        if (bairro) msg += `📍 *Bairro/Ref:* ${bairro}\n`;
+                    } else {
+                        msg += `🏪 *Modalidade:* Retirar no Local (Balcão)\n`;
+                    }
+                    if (obs) msg += `📝 *Obs:* ${obs}\n\n`;
                     
                     msg += `🛒 *ITENS:*\n`;
                     cart.forEach(i => {
@@ -831,10 +958,14 @@
                     });
                     
                     msg += `\n💵 *Subtotal:* R$ ${subtotal.toFixed(2)}\n`;
-                    msg += `🛵 *Taxa de Entrega:* R$ ${TAXA_ENTREGA.toFixed(2)}\n`;
+                    if (TIPO_PEDIDO === 'delivery') {
+                        msg += `🛵 *Taxa de Entrega:* R$ ${TAXA_ENTREGA.toFixed(2)}\n`;
+                    } else {
+                        msg += `🛵 *Taxa de Entrega:* Grátis (Retirada)\n`;
+                    }
                     msg += `💰 *TOTAL: R$ ${totalFinal.toFixed(2)}*\n`;
                     msg += `💳 *Pagamento:* ${payment}`;
-                    if(payment === 'Dinheiro' && change) msg += ` (Troco para R$ ${parseFloat(change).toFixed(2)})`;
+                    if (payment === 'Dinheiro' && change) msg += ` (Troco para R$ ${parseFloat(change).toFixed(2)})`;
                     msg += `\n------------------------------\n`;
                     msg += `_Enviado via Cardápio Digital_`;
 
@@ -842,6 +973,8 @@
                     ultimoScriptEncoded = encoded; 
                     localStorage.setItem('ultimoScriptEncoded', encoded);
                     localStorage.setItem('pedidoAtivoId', pedidoId);
+                    localStorage.setItem('pedidoTipo_' + pedidoId, TIPO_PEDIDO);
+                    localStorage.setItem('pedidoTipo_ativo', TIPO_PEDIDO);
                     
                     window.open(`https://wa.me/${ADMIN_NUMBER}?text=${encoded}`, '_blank');
 

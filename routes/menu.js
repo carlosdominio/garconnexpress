@@ -14,13 +14,15 @@ module.exports = (ctx) => {
   // GET /api/menu
   router.get('/', ensureDbInitialized, async (req, res) => {
     try {
-      const { admin, garcom } = req.query;
+      const { admin, garcom, delivery } = req.query;
       let querySql = 'SELECT * FROM menu';
 
       if (admin !== 'true') {
         const visivelValue = isPostgres ? 'TRUE' : '1';
         if (garcom === 'true') {
           querySql += ` WHERE visivel = ${visivelValue}`;
+        } else if (delivery === 'true') {
+          querySql += ` WHERE visivel = ${visivelValue} AND (visivel_delivery IS NULL OR visivel_delivery = ${visivelValue}) AND (estoque = -1 OR (estoque IS NOT NULL AND estoque > 0))`;
         } else {
           querySql += ` WHERE visivel = ${visivelValue} AND (estoque = -1 OR (estoque IS NOT NULL AND estoque > 0))`;
         }
@@ -34,7 +36,12 @@ module.exports = (ctx) => {
       if (admin !== 'true' && garcom !== 'true') {
         menu = menu.filter(item => {
           const est = parseInt(item.estoque);
-          return item.visivel && (est === -1 || est > 0);
+          const okEstoque = (est === -1 || est > 0);
+          if (!item.visivel || !okEstoque) return false;
+          if (delivery === 'true') {
+            return item.visivel_delivery === undefined || item.visivel_delivery === null || item.visivel_delivery === true || item.visivel_delivery === 1 || item.visivel_delivery === 'true';
+          }
+          return true;
         });
       }
 
@@ -177,7 +184,7 @@ module.exports = (ctx) => {
 
   // PUT /api/menu/:id
   router.put('/:id', isAdmin, async (req, res) => {
-    const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, em_promocao, unidade, preco_custo } = req.body;
+    const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, visivel_delivery, em_promocao, unidade, preco_custo } = req.body;
     const valPreco = parseFloat(preco) || 0;
     const valPrecoOriginal = parseFloat(preco_original) || 0;
     const custo = parseFloat(preco_custo) || 0;
@@ -186,21 +193,24 @@ module.exports = (ctx) => {
     const envCozinha = enviar_cozinha !== undefined && enviar_cozinha !== null ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
     const envChurrasco = enviar_churrasco !== undefined && enviar_churrasco !== null ? (isPostgres ? enviar_churrasco : (enviar_churrasco ? 1 : 0)) : null;
     const isVisivel = visivel !== undefined ? (isPostgres ? visivel : (visivel ? 1 : 0)) : (isPostgres ? true : 1);
+    const isVisivelDelivery = visivel_delivery !== undefined ? (isPostgres ? visivel_delivery : (visivel_delivery ? 1 : 0)) : (isPostgres ? true : 1);
     const emPromocao = em_promocao !== undefined ? (isPostgres ? em_promocao : (em_promocao ? 1 : 0)) : (isPostgres ? false : 0);
     const und = unidade || 'un';
     try {
       try {
-        await query('UPDATE menu SET nome = ?, categoria = ?, preco = ?, preco_original = ?, descricao = ?, imagem = ?, estoque = ?, validade = ?, enviar_cozinha = ?, enviar_churrasco = ?, visivel = ?, em_promocao = ?, unidade = ?, preco_custo = ? WHERE id = ?', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque, dataValidade, envCozinha, envChurrasco, isVisivel, emPromocao, und, custo, req.params.id]);
+        await query('UPDATE menu SET nome = ?, categoria = ?, preco = ?, preco_original = ?, descricao = ?, imagem = ?, estoque = ?, validade = ?, enviar_cozinha = ?, enviar_churrasco = ?, visivel = ?, visivel_delivery = ?, em_promocao = ?, unidade = ?, preco_custo = ? WHERE id = ?', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque, dataValidade, envCozinha, envChurrasco, isVisivel, isVisivelDelivery, emPromocao, und, custo, req.params.id]);
       } catch (errCol) {
-        if (errCol.message && (errCol.message.includes('enviar_churrasco') || errCol.message.includes('no column'))) {
+        if (errCol.message && (errCol.message.includes('enviar_churrasco') || errCol.message.includes('visivel_delivery') || errCol.message.includes('no column'))) {
           try {
             if (isPostgres) {
               await query("ALTER TABLE menu ADD COLUMN IF NOT EXISTS enviar_churrasco BOOLEAN DEFAULT FALSE;");
+              await query("ALTER TABLE menu ADD COLUMN IF NOT EXISTS visivel_delivery BOOLEAN DEFAULT TRUE;");
             } else {
-              await query("ALTER TABLE menu ADD COLUMN enviar_churrasco BOOLEAN DEFAULT FALSE;");
+              try { await query("ALTER TABLE menu ADD COLUMN enviar_churrasco BOOLEAN DEFAULT FALSE;"); } catch(e){}
+              try { await query("ALTER TABLE menu ADD COLUMN visivel_delivery BOOLEAN DEFAULT 1;"); } catch(e){}
             }
           } catch(e){}
-          await query('UPDATE menu SET nome = ?, categoria = ?, preco = ?, preco_original = ?, descricao = ?, imagem = ?, estoque = ?, validade = ?, enviar_cozinha = ?, enviar_churrasco = ?, visivel = ?, em_promocao = ?, unidade = ?, preco_custo = ? WHERE id = ?', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque, dataValidade, envCozinha, envChurrasco, isVisivel, emPromocao, und, custo, req.params.id]);
+          await query('UPDATE menu SET nome = ?, categoria = ?, preco = ?, preco_original = ?, descricao = ?, imagem = ?, estoque = ?, validade = ?, enviar_cozinha = ?, enviar_churrasco = ?, visivel = ?, visivel_delivery = ?, em_promocao = ?, unidade = ?, preco_custo = ? WHERE id = ?', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque, dataValidade, envCozinha, envChurrasco, isVisivel, isVisivelDelivery, emPromocao, und, custo, req.params.id]);
         } else {
           throw errCol;
         }
@@ -212,7 +222,7 @@ module.exports = (ctx) => {
 
   // POST /api/menu
   router.post('/', isAdmin, async (req, res) => {
-    const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, em_promocao, unidade, preco_custo } = req.body;
+    const { nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, visivel_delivery, em_promocao, unidade, preco_custo } = req.body;
     const valPreco = parseFloat(preco) || 0;
     const valPrecoOriginal = parseFloat(preco_original) || 0;
     const custo = parseFloat(preco_custo) || 0;
@@ -220,16 +230,17 @@ module.exports = (ctx) => {
     const envCozinha = enviar_cozinha !== undefined && enviar_cozinha !== null ? (isPostgres ? enviar_cozinha : (enviar_cozinha ? 1 : 0)) : null;
     const envChurrasco = enviar_churrasco !== undefined && enviar_churrasco !== null ? (isPostgres ? enviar_churrasco : (enviar_churrasco ? 1 : 0)) : null;
     const isVisivel = visivel !== undefined ? (isPostgres ? visivel : (visivel ? 1 : 0)) : (isPostgres ? true : 1);
+    const isVisivelDelivery = visivel_delivery !== undefined ? (isPostgres ? visivel_delivery : (visivel_delivery ? 1 : 0)) : (isPostgres ? true : 1);
     const emPromocao = em_promocao !== undefined ? (isPostgres ? em_promocao : (em_promocao ? 1 : 0)) : (isPostgres ? false : 0);
     const und = unidade || 'un';
     try {
       let newId = null;
       const doInsert = async () => {
         if (isPostgres) {
-          const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, em_promocao, unidade, preco_custo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque || -1, validade || null, envCozinha, envChurrasco, isVisivel, emPromocao, und, custo]);
+          const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, visivel_delivery, em_promocao, unidade, preco_custo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque || -1, validade || null, envCozinha, envChurrasco, isVisivel, isVisivelDelivery, emPromocao, und, custo]);
           return result.rows && result.rows[0] ? result.rows[0].id : null;
         } else {
-          const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, em_promocao, unidade, preco_custo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque || -1, validade || null, envCozinha, envChurrasco, isVisivel, emPromocao, und, custo]);
+          const result = await query('INSERT INTO menu (nome, categoria, preco, preco_original, descricao, imagem, estoque, validade, enviar_cozinha, enviar_churrasco, visivel, visivel_delivery, em_promocao, unidade, preco_custo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [nome, categoria, valPreco, valPrecoOriginal, descricao, imagem, estoque || -1, validade || null, envCozinha, envChurrasco, isVisivel, isVisivelDelivery, emPromocao, und, custo]);
           return result.lastInsertRowid || result.lastID || null;
         }
       };
@@ -237,12 +248,14 @@ module.exports = (ctx) => {
       try {
         newId = await doInsert();
       } catch (errCol) {
-        if (errCol.message && (errCol.message.includes('enviar_churrasco') || errCol.message.includes('no column'))) {
+        if (errCol.message && (errCol.message.includes('enviar_churrasco') || errCol.message.includes('visivel_delivery') || errCol.message.includes('no column'))) {
           try {
             if (isPostgres) {
               await query("ALTER TABLE menu ADD COLUMN IF NOT EXISTS enviar_churrasco BOOLEAN DEFAULT FALSE;");
+              await query("ALTER TABLE menu ADD COLUMN IF NOT EXISTS visivel_delivery BOOLEAN DEFAULT TRUE;");
             } else {
-              await query("ALTER TABLE menu ADD COLUMN enviar_churrasco BOOLEAN DEFAULT FALSE;");
+              try { await query("ALTER TABLE menu ADD COLUMN enviar_churrasco BOOLEAN DEFAULT FALSE;"); } catch(e){}
+              try { await query("ALTER TABLE menu ADD COLUMN visivel_delivery BOOLEAN DEFAULT 1;"); } catch(e){}
             }
           } catch(e){}
           newId = await doInsert();

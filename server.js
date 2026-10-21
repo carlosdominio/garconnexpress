@@ -2678,7 +2678,7 @@ let dbInitError = null;
 async function initDb() {
   const tables = [
     `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero TEXT NOT NULL, status TEXT DEFAULT 'livre', garcom_id TEXT, is_comanda INTEGER DEFAULT 0)`,
-    `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, preco_original REAL, descricao TEXT, imagem TEXT, estoque INTEGER DEFAULT -1, validade DATE, enviar_cozinha BOOLEAN DEFAULT TRUE, enviar_churrasco BOOLEAN DEFAULT NULL, visivel BOOLEAN DEFAULT TRUE, em_promocao BOOLEAN DEFAULT FALSE)`,
+    `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, preco_original REAL, descricao TEXT, imagem TEXT, estoque INTEGER DEFAULT -1, validade DATE, enviar_cozinha BOOLEAN DEFAULT TRUE, enviar_churrasco BOOLEAN DEFAULT NULL, visivel BOOLEAN DEFAULT TRUE, visivel_delivery BOOLEAN DEFAULT TRUE, em_promocao BOOLEAN DEFAULT FALSE)`,
     `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
     `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
@@ -2829,6 +2829,7 @@ async function initDb() {
     await addCol('menu', 'enviar_cozinha', 'BOOLEAN DEFAULT NULL');
     await addCol('menu', 'enviar_churrasco', 'BOOLEAN DEFAULT NULL');
     await addCol('menu', 'visivel', 'BOOLEAN DEFAULT TRUE');
+    await addCol('menu', 'visivel_delivery', 'BOOLEAN DEFAULT TRUE');
     await addCol('menu', 'em_promocao', 'BOOLEAN DEFAULT FALSE');
     await addCol('menu', 'preco_original', 'REAL');
     await addCol('menu', 'descricao', 'TEXT');
@@ -2946,6 +2947,7 @@ async function lazyInitDb() {
               ALTER TABLE codigos_acesso ADD COLUMN IF NOT EXISTS notificado_atraso_registro INTEGER DEFAULT 0;
               ALTER TABLE mesas ADD COLUMN IF NOT EXISTS tipo TEXT DEFAULT 'mesa';
               ALTER TABLE menu ADD COLUMN IF NOT EXISTS enviar_churrasco BOOLEAN DEFAULT NULL;
+              ALTER TABLE menu ADD COLUMN IF NOT EXISTS visivel_delivery BOOLEAN DEFAULT TRUE;
             `);
           } catch(e) {}
 
@@ -4402,7 +4404,10 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
       let destLat = parseFloat(req.body.lat_cliente || req.body.lat);
       let destLng = parseFloat(req.body.lng_cliente || req.body.lng);
 
-      if (req.body.taxa_entrega !== undefined && !isNaN(parseFloat(req.body.taxa_entrega))) {
+      if (req.body.tipo_entrega === 'retirada' || req.body.is_retirada) {
+        taxaEntrega = 0;
+        distKm = 0;
+      } else if (req.body.taxa_entrega !== undefined && !isNaN(parseFloat(req.body.taxa_entrega))) {
         taxaEntrega = Math.max(0, parseFloat(req.body.taxa_entrega));
       } else {
         if ((isNaN(destLat) || isNaN(destLng)) && (req.body.endereco || req.body.cep)) {
@@ -7513,7 +7518,7 @@ app.get('/api/diag', isAdmin, async (req, res) => {
     try {
       const tables = [
         `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero TEXT NOT NULL, status TEXT DEFAULT 'livre', garcom_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, preco_original REAL, descricao TEXT, imagem TEXT, estoque INTEGER DEFAULT -1, validade DATE, enviar_cozinha BOOLEAN DEFAULT TRUE, visivel BOOLEAN DEFAULT TRUE, em_promocao BOOLEAN DEFAULT FALSE)`,
+        `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, preco_original REAL, descricao TEXT, imagem TEXT, estoque INTEGER DEFAULT -1, validade DATE, enviar_cozinha BOOLEAN DEFAULT TRUE, visivel BOOLEAN DEFAULT TRUE, visivel_delivery BOOLEAN DEFAULT TRUE, em_promocao BOOLEAN DEFAULT FALSE)`,
         `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
         `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
         `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
