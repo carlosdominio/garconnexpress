@@ -6292,6 +6292,8 @@ async function exibirPedidos() {
     for (const pedido of pedidosOrdenados) {
       const isDelivery = (pedido.garcom_id === 'DELIVERY');
       const isRetirada = isDelivery && isPedidoRetiradaLocal(pedido);
+      const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '') && (pedido.mesa_tipo !== 'balcao');
+      const isBalcao = !isDelivery && (!isMesa || pedido.mesa_tipo === 'balcao' || pedido.garcom_id === 'ADMIN' || !pedido.mesa_numero || String(pedido.mesa_numero).toUpperCase().includes('BALC'));
       let mesaNomeExibicao;
       if (isRetirada) {
         mesaNomeExibicao = `🛍️ RETIRADA #${pedido.id}`;
@@ -6447,7 +6449,7 @@ async function exibirPedidos() {
 
           ${itensEntregues.length > 0 ? `
             <div style="opacity: 0.7;">
-              <small style="color: #27ae60; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; display:block; margin-bottom:5px;">${isDelivery ? (isAguardando ? (isRetirada ? '✅ JÁ RETIRADO:' : '✅ JÁ ENTREGUE:') : (isRetirada ? '🛍️ PRONTO NO BALCÃO:' : '🛵 A CAMINHO:')) : '✅ JÁ NA MESA:'}</small>
+              <small style="color: #27ae60; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; display:block; margin-bottom:5px;">${isDelivery ? (isAguardando ? (isRetirada ? '✅ JÁ RETIRADO:' : '✅ JÁ ENTREGUE:') : (isRetirada ? '🛍️ PRONTO NO BALCÃO:' : '🛵 A CAMINHO:')) : (isBalcao ? '✅ NO BALCÃO:' : '✅ JÁ NA MESA:')}</small>
               ${itensEntregues.map(item => `
                 <div class="pedido-item" style="border-left:4px solid #27ae60; background:#f0fff4; border-radius:6px; padding:4px 10px; margin-bottom:4px; text-decoration: line-through;">
                   <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -6471,17 +6473,16 @@ async function exibirPedidos() {
                 )
               ) :
               (isAguardando ? 
-                `<button style="background:#f1c40f; color:white; font-weight: 900; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #d68910; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 CONFIRMAR PAGAMENTO E LIBERAR</button>` : 
+                `<button style="background:#f1c40f; color:white; font-weight: 900; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #d68910; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">${isBalcao ? '💰 CONFIRMAR PAGAMENTO E FINALIZAR' : '💰 CONFIRMAR PAGAMENTO E LIBERAR'}</button>` : 
                 (hasPend ? 
                   `<button style="background:${pedido.garcom_id === 'ADMIN' ? '#e74c3c' : '#e67e22'}; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 ${pedido.garcom_id === 'ADMIN' ? '#c0392b' : '#d35400'}; border:none; color:white; cursor:pointer;" onclick="marcarPedidoEntregue(${pedido.id})">🚚 ENTREGAR TUDO AGORA</button>` :
-                  `<button style="background:#27ae60; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #219150; border:none; color:white; cursor:pointer;" onclick="liberarMesa(${pedido.id}, ${pedido.mesa_id}, false)">🔓 LIBERAR MESA</button>`
+                  `<button style="background:#27ae60; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #219150; border:none; color:white; cursor:pointer;" onclick="liberarMesa(${pedido.id}, ${pedido.mesa_id}, false)">${isBalcao ? '🔓 LIBERAR BALCÃO' : '🔓 LIBERAR MESA'}</button>`
                 )
               )
             }
           </div>
         </div>`;
       
-      const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '') && (pedido.mesa_tipo !== 'balcao');
       const group = isDelivery ? 'delivery' : (isMesa ? 'garcom' : 'balcao');
       let targetCol = 'pendentes';
       if (isAguardando) targetCol = 'fechamento';
@@ -6849,12 +6850,16 @@ async function excluirPedido(id) {
 async function atualizarStatus(id, status) {
   const pedido = pedidos.find(p => p.id == id);
   const isDelivery = pedido && pedido.garcom_id === 'DELIVERY';
+  const isMesa = pedido && (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '') && (pedido.mesa_tipo !== 'balcao');
+  const isBalcao = pedido && !isDelivery && ((pedido.mesa_tipo === 'balcao') || (pedido.garcom_id === 'ADMIN' && !isMesa) || !pedido.mesa_numero || String(pedido.mesa_numero).toUpperCase().includes('BALC'));
 
   if (status === 'cancelado') {
     const confirmPrompt = isDelivery 
       ? "Deseja realmente CANCELAR este pedido Delivery?"
-      : "Deseja realmente CANCELAR este pedido? A mesa será liberada.";
-    if (!await mostrarConfirmacao(confirmPrompt, "Cancelar Pedido", "Confirmar", "Cancelar", "🗑️")) return;
+      : (isBalcao 
+          ? "Deseja realmente CANCELAR este pedido de Balcão? O balcão será liberado."
+          : "Deseja realmente CANCELAR este pedido? A mesa será liberada.");
+    if (!await mostrarConfirmacao(confirmPrompt, isBalcao ? "Cancelar Pedido Balcão" : "Cancelar Pedido", "Confirmar", "Cancelar", "🗑️")) return;
     pedidosCanceladosRecentemente.add(Number(id));
     setTimeout(() => pedidosCanceladosRecentemente.delete(Number(id)), 20000);
     fecharModalOpcoes();
@@ -6867,9 +6872,9 @@ async function atualizarStatus(id, status) {
     method: 'PUT', 
     headers: { 'Content-Type': 'application/json' }, 
     body: JSON.stringify({ status }),
-    showLoadingTitle: isCancel ? (isDelivery ? "Cancelando Delivery..." : "Cancelando Pedido...") : "Atualizando Status...",
+    showLoadingTitle: isCancel ? (isDelivery ? "Cancelando Delivery..." : (isBalcao ? "Cancelando Balcão..." : "Cancelando Pedido...")) : "Atualizando Status...",
     showLoadingMsg: isCancel 
-      ? (isDelivery ? "Processando o cancelamento do delivery, aguarde por favor..." : "Processando o cancelamento do pedido e liberando a mesa...")
+      ? (isDelivery ? "Processando o cancelamento do delivery, aguarde por favor..." : (isBalcao ? "Cancelando o pedido e liberando o balcão, aguarde por favor..." : "Processando o cancelamento do pedido e liberando a mesa..."))
       : "Processando atualização de status do pedido..."
   });
 
@@ -7108,11 +7113,28 @@ async function marcarPedidoEntregue(id) {
 }
 
 async function liberarMesa(idPedido, idMesa, temPendentes = false) {
-  let msg = "Liberar mesa agora?";
+  const pedidoObj = (Array.isArray(pedidos) ? pedidos.find(p => p.id === idPedido) : null);
+  const isDelivery = pedidoObj && pedidoObj.garcom_id === 'DELIVERY';
+  const isMesa = pedidoObj && (pedidoObj.mesa_id !== null && pedidoObj.mesa_id !== undefined && pedidoObj.mesa_id !== '') && (pedidoObj.mesa_tipo !== 'balcao');
+  const isBalcao = !isDelivery && (
+    !idMesa ||
+    (pedidoObj && (
+      pedidoObj.mesa_tipo === 'balcao' ||
+      pedidoObj.garcom_id === 'ADMIN' ||
+      !pedidoObj.mesa_numero ||
+      String(pedidoObj.mesa_numero).toUpperCase().includes('BALC') ||
+      String(pedidoObj.mesa_numero).includes('🏪')
+    ))
+  );
+
+  const tituloModal = isBalcao ? "Liberar Balcão" : "Liberar Mesa";
+  let msg = isBalcao ? "Liberar balcão agora?" : "Liberar mesa agora?";
   if (temPendentes) {
-    msg = "⚠️ ATENÇÃO: Esta mesa possui itens PENDENTES de entrega! Tem certeza que deseja LIBERAR a mesa e encerrar o pedido sem entregar tudo?";
+    msg = isBalcao
+      ? "⚠️ ATENÇÃO: Este pedido de Balcão possui itens PENDENTES de entrega! Tem certeza que deseja LIBERAR e encerrar o pedido sem entregar tudo?"
+      : "⚠️ ATENÇÃO: Esta mesa possui itens PENDENTES de entrega! Tem certeza que deseja LIBERAR a mesa e encerrar o pedido sem entregar tudo?";
   }
-  if (await mostrarConfirmacao(msg, "Liberar Mesa", "Confirmar", "Cancelar", "🔓")) {
+  if (await mostrarConfirmacao(msg, tituloModal, "Confirmar", "Cancelar", "🔓")) {
     // Agora chama o modal de fechamento para conferência antes de liberar
     aprovarFechamento(idPedido, idMesa);
   }
@@ -7766,6 +7788,8 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null, dados
   const isDelivery = (pedidoParaFecharAdmin.garcom_id === 'DELIVERY');
   const isBalcao = (
     pedidoParaFecharAdmin.mesa_tipo === 'balcao' ||
+    !pedidoParaFecharAdmin.mesa_id ||
+    pedidoParaFecharAdmin.garcom_id === 'ADMIN' ||
     !pedidoParaFecharAdmin.mesa_numero || 
     String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('BALC') ||
     String(pedidoParaFecharAdmin.mesa_numero).includes('🏪')
@@ -7908,8 +7932,13 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null, dados
   }
   
   const spanMesaAdmin = document.getElementById('fechamento-mesa-admin');
-  if (spanMesaAdmin && spanMesaAdmin.parentElement) {
-      spanMesaAdmin.parentElement.innerHTML = titleHTML;
+  const tituloHeaderAdmin = document.getElementById('fechamento-titulo-admin') || (spanMesaAdmin ? spanMesaAdmin.parentElement : null);
+  if (tituloHeaderAdmin) {
+      tituloHeaderAdmin.innerHTML = titleHTML;
+  }
+  const lblPagoParcial = document.getElementById('lbl-fechamento-pago-parcial');
+  if (lblPagoParcial) {
+      lblPagoParcial.textContent = isBalcao ? '(-) JÁ PAGO NESTE BALCÃO:' : (isDelivery ? '(-) JÁ PAGO NESTE DELIVERY:' : '(-) JÁ PAGO NESTA MESA:');
   }
 
   const lblTaxaFechamento = document.getElementById('lbl-fechamento-taxa');
@@ -8100,17 +8129,35 @@ function mudarPessoasFechamento(delta) {
 async function confirmarCancelamentoDesdeFechamento() {
   if (!pedidoParaFecharAdmin) return;
   
+  const isDelivery = pedidoParaFecharAdmin.garcom_id === 'DELIVERY';
+  const isMesaAdmin = (pedidoParaFecharAdmin.mesa_id !== null && pedidoParaFecharAdmin.mesa_id !== undefined && pedidoParaFecharAdmin.mesa_id !== '') && (pedidoParaFecharAdmin.mesa_tipo !== 'balcao');
+  const isBalcao = !isDelivery && (
+    window.isFechamentoImediatoBalcao ||
+    pedidoParaFecharAdmin.mesa_tipo === 'balcao' ||
+    pedidoParaFecharAdmin.garcom_id === 'ADMIN' ||
+    !pedidoParaFecharAdmin.mesa_id ||
+    !pedidoParaFecharAdmin.mesa_numero || 
+    String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('BALC') ||
+    String(pedidoParaFecharAdmin.mesa_numero).includes('🏪')
+  );
+
   const pagoParcial = pedidoParaFecharAdmin.pago_parcial || 0;
   if (pagoParcial > 0) {
-    return await mostrarAlerta("⚠️ Esta mesa já possui pagamentos parciais (R$ "+pagoParcial.toFixed(2)+"). Não é possível cancelar o pedido inteiro. Você deve concluir o recebimento ou estornar os pagamentos manualmente no banco.", "Aviso de Segurança", "⚠️");
+    const nomeDestino = isDelivery ? "Este delivery" : (isBalcao ? "Este balcão" : "Esta mesa");
+    return await mostrarAlerta(`⚠️ ${nomeDestino} já possui pagamentos parciais (R$ ${pagoParcial.toFixed(2)}). Não é possível cancelar o pedido inteiro. Você deve concluir o recebimento ou estornar os pagamentos manualmente no banco.`, "Aviso de Segurança", "⚠️");
   }
 
   // NOVA TRAVA: Verifica se existem itens já entregues (servidos)
   const temEntregues = itensFechamentoAdmin.some(i => i.status === 'entregue');
-  let mensagemConfirmacao = "⚠️ DESEJA REALMENTE CANCELAR TODO O PEDIDO?\n\nA mesa será liberada e o pedido irá para o histórico como CANCELADO.";
+  let mensagemConfirmacao = isDelivery
+    ? "⚠️ DESEJA REALMENTE CANCELAR ESTE DELIVERY?\n\nO pedido será cancelado e irá para o histórico como CANCELADO."
+    : (isBalcao
+        ? "⚠️ DESEJA REALMENTE CANCELAR ESTE PEDIDO DE BALCÃO?\n\nO balcão será liberado e o pedido irá para o histórico como CANCELADO."
+        : "⚠️ DESEJA REALMENTE CANCELAR TODO O PEDIDO?\n\nA mesa será liberada e o pedido irá para o histórico como CANCELADO.");
   
   if (temEntregues) {
-    mensagemConfirmacao = "🚨 ATENÇÃO: EXISTEM ITENS JÁ SERVIDOS NESTA MESA!\n\nSe você cancelar, esses produtos terão saído do estoque sem registro de venda. \n\nCONFIRMA O CANCELAMENTO MESMO ASSIM?";
+    const localTexto = isDelivery ? "NESTE DELIVERY" : (isBalcao ? "NESTE BALCÃO" : "NESTA MESA");
+    mensagemConfirmacao = `🚨 ATENÇÃO: EXISTEM ITENS JÁ SERVIDOS ${localTexto}!\n\nSe você cancelar, esses produtos terão saído do estoque sem registro de venda. \n\nCONFIRMA O CANCELAMENTO MESMO ASSIM?`;
   }
 
   if (await mostrarConfirmacao(mensagemConfirmacao, temEntregues ? "ALERTA CRÍTICO" : "Atenção", "SIM, CANCELAR", "NÃO")) {
@@ -8125,8 +8172,10 @@ async function confirmarCancelamentoDesdeFechamento() {
         method: 'PUT', 
         headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ status: 'cancelado' }),
-        showLoadingTitle: "Cancelando Pedido...",
-        showLoadingMsg: "Cancelando o pedido e liberando a mesa, aguarde por favor..."
+        showLoadingTitle: isDelivery ? "Cancelando Delivery..." : (isBalcao ? "Cancelando Balcão..." : "Cancelando Pedido..."),
+        showLoadingMsg: isDelivery 
+          ? "Processando o cancelamento do delivery, aguarde por favor..." 
+          : (isBalcao ? "Cancelando o pedido e liberando o balcão, aguarde por favor..." : "Cancelando o pedido e liberando a mesa, aguarde por favor...")
       });
       if (res.ok) { 
         carregarPedidos(); 
@@ -8527,10 +8576,20 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
       }, 7000);
 
       const isDelivery = pedidoParaFecharAdmin && pedidoParaFecharAdmin.garcom_id === 'DELIVERY';
-      const loadingTitle = isDelivery ? "Finalizando Delivery..." : "Finalizando Conta...";
+      const isMesaAdmin = pedidoParaFecharAdmin && (pedidoParaFecharAdmin.mesa_id !== null && pedidoParaFecharAdmin.mesa_id !== undefined && pedidoParaFecharAdmin.mesa_id !== '') && (pedidoParaFecharAdmin.mesa_tipo !== 'balcao');
+      const isBalcao = pedidoParaFecharAdmin && !isDelivery && (
+        window.isFechamentoImediatoBalcao ||
+        pedidoParaFecharAdmin.mesa_tipo === 'balcao' ||
+        pedidoParaFecharAdmin.garcom_id === 'ADMIN' ||
+        !pedidoParaFecharAdmin.mesa_id ||
+        !pedidoParaFecharAdmin.mesa_numero ||
+        String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('BALC') ||
+        String(pedidoParaFecharAdmin.mesa_numero).includes('🏪')
+      );
+      const loadingTitle = isDelivery ? "Finalizando Delivery..." : (isBalcao ? "Finalizando Balcão..." : "Finalizando Conta...");
       const loadingMsg = isDelivery 
         ? "Processando fechamento do delivery e registrando o pagamento, aguarde..." 
-        : "Fechando conta e liberando mesa, aguarde por favor...";
+        : (isBalcao ? "Fechando pedido e liberando o balcão, aguarde por favor..." : "Fechando conta e liberando mesa, aguarde por favor...");
       mostrarLoading(loadingTitle, loadingMsg);
       try {
         const resFechamento = await fetch(`/api/pedidos/${idPedido}/solicitar-fechamento`, {
@@ -8562,7 +8621,7 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
       
       if (pedidoParaFecharAdmin && (pedidoParaFecharAdmin.garcom_id === 'DELIVERY' || (pedidoParaFecharAdmin.mesa_numero && String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('DELIVERY')))) {
         mostrarToast(`✅ DELIVERY #${idPedido} Concluído e Pago!`);
-      } else if (window.isFechamentoImediatoBalcao || (pedidoParaFecharAdmin && (pedidoParaFecharAdmin.mesa_tipo === 'balcao' || String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('BALC')))) {
+      } else if (isBalcao || window.isFechamentoImediatoBalcao || (pedidoParaFecharAdmin && (pedidoParaFecharAdmin.mesa_tipo === 'balcao' || String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('BALC')))) {
         mostrarToast(`✅ Pedido de Balcão #${idPedido} Concluído e Pago!`);
       } else {
         const localNome = (pedidoParaFecharAdmin && pedidoParaFecharAdmin.mesa_numero) ? `Mesa ${pedidoParaFecharAdmin.mesa_numero}` : `Mesa`;
@@ -10539,11 +10598,15 @@ async function confirmarCancelamentoDesdeOpcoes() {
     if (!pedidoEmOpcoes) return;
 
     const isDelivery = pedidoEmOpcoes && pedidoEmOpcoes.garcom_id === 'DELIVERY';
+    const isMesa = pedidoEmOpcoes && (pedidoEmOpcoes.mesa_id !== null && pedidoEmOpcoes.mesa_id !== undefined && pedidoEmOpcoes.mesa_id !== '') && (pedidoEmOpcoes.mesa_tipo !== 'balcao');
+    const isBalcao = pedidoEmOpcoes && !isDelivery && ((pedidoEmOpcoes.mesa_tipo === 'balcao') || (pedidoEmOpcoes.garcom_id === 'ADMIN' && !isMesa) || !pedidoEmOpcoes.mesa_numero || String(pedidoEmOpcoes.mesa_numero).toUpperCase().includes('BALC'));
     const confirmPrompt = isDelivery 
       ? "⚠️ DESEJA REALMENTE CANCELAR ESTE PEDIDO DELIVERY?\n\nO pedido irá para o histórico como CANCELADO."
-      : "⚠️ DESEJA REALMENTE CANCELAR TODO O PEDIDO?\n\nA mesa será liberada e o pedido irá para o histórico como CANCELADO.";
+      : (isBalcao 
+          ? "⚠️ DESEJA REALMENTE CANCELAR ESTE PEDIDO DE BALCÃO?\n\nO balcão será liberado e o pedido irá para o histórico como CANCELADO."
+          : "⚠️ DESEJA REALMENTE CANCELAR TODO O PEDIDO?\n\nA mesa será liberada e o pedido irá para o histórico como CANCELADO.");
 
-    if (await mostrarConfirmacao(confirmPrompt, "Atenção", "SIM, CANCELAR", "NÃO")) {
+    if (await mostrarConfirmacao(confirmPrompt, isBalcao ? "Cancelar Balcão" : "Atenção", "SIM, CANCELAR", "NÃO")) {
         const idParaCancelar = pedidoEmOpcoes.id;
         pedidosCanceladosRecentemente.add(Number(idParaCancelar));
         setTimeout(() => pedidosCanceladosRecentemente.delete(Number(idParaCancelar)), 20000);
@@ -10556,8 +10619,10 @@ async function confirmarCancelamentoDesdeOpcoes() {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: 'cancelado' }),
-                showLoadingTitle: isDelivery ? "Cancelando Delivery..." : "Cancelando Pedido...",
-                showLoadingMsg: isDelivery ? "Processando o cancelamento do delivery, aguarde por favor..." : "Cancelando o pedido e liberando a mesa, aguarde por favor..."
+                showLoadingTitle: isDelivery ? "Cancelando Delivery..." : (isBalcao ? "Cancelando Balcão..." : "Cancelando Pedido..."),
+                showLoadingMsg: isDelivery 
+                    ? "Processando o cancelamento do delivery, aguarde por favor..." 
+                    : (isBalcao ? "Cancelando o pedido e liberando o balcão, aguarde por favor..." : "Cancelando o pedido e liberando a mesa, aguarde por favor...")
             });
             if (res.ok) {
                 fecharModalOpcoes();
@@ -10634,6 +10699,8 @@ async function abrirModalOpcoes(pedidoId) {
   iniciarAutoRefreshModalAdmin();
   const isDelivery = (pedido.garcom_id === 'DELIVERY');
   const isRetirada = isDelivery && isPedidoRetiradaLocal(pedido);
+  const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '') && (pedido.mesa_tipo !== 'balcao');
+  const isBalcao = !isDelivery && ((pedido.mesa_tipo === 'balcao') || (pedido.garcom_id === 'ADMIN' && !isMesa) || !pedido.mesa_numero || String(pedido.mesa_numero).toUpperCase().includes('BALC'));
   const mesaNome = isDelivery ? (isRetirada ? '🛍️ RETIRADA #' + pedido.id : '🛵 DELIVERY #' + pedido.id) : (typeof obterNomeExibicaoCard === 'function' ? obterNomeExibicaoCard(pedido) : (pedido.mesa_tipo === 'balcao' ? '🏪 Balcão ' + pedido.mesa_numero : (pedido.mesa_numero ? 'Mesa ' + pedido.mesa_numero : 'Balcão')));
   const mesaId = pedido.mesa_id;
   
@@ -10756,7 +10823,7 @@ async function abrirModalOpcoes(pedidoId) {
     });
   }
   if (itensEntregues.length > 0) {
-    let tituloEntregues = '✅ NA MESA:';
+    let tituloEntregues = isBalcao ? '✅ NO BALCÃO:' : '✅ NA MESA:';
     if (isDelivery) {
         tituloEntregues = isAguardando ? (isRetirada ? '✅ JÁ RETIRADO:' : '✅ ENTREGUE:') : (isRetirada ? '🛍️ PRONTO NO BALCÃO:' : '🛵 A CAMINHO:');
     }
@@ -10791,7 +10858,7 @@ async function abrirModalOpcoes(pedidoId) {
     } else {
       htmlFooter = `
         <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#f1c40f; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #d68910; cursor:pointer;">
-          💰 CONFIRMAR PAGAMENTO E LIBERAR
+          ${isBalcao ? '💰 CONFIRMAR PAGAMENTO E FINALIZAR' : '💰 CONFIRMAR PAGAMENTO E LIBERAR'}
         </button>
       `;
     }
@@ -10804,8 +10871,6 @@ async function abrirModalOpcoes(pedidoId) {
           </button>
         `;
       } else {
-        const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '') && (pedido.mesa_tipo !== 'balcao');
-        const isBalcao = (pedido.mesa_tipo === 'balcao') || (pedido.garcom_id === 'ADMIN' && !isMesa);
         htmlFooter = `
           <button onclick="fecharModalOpcoes(); marcarPedidoEntregue(${pedidoId})" style="background:${isBalcao ? '#e74c3c' : '#e67e22'}; color:white; border:none; padding: 1.2rem; width: 100%; font-weight: 900; border-radius:12px; font-size: 1.1rem; box-shadow:0 5px 0 ${isBalcao ? '#c0392b' : '#d35400'}; cursor:pointer;">
             🚚 ENTREGAR TUDO AGORA
@@ -10820,10 +10885,10 @@ async function abrirModalOpcoes(pedidoId) {
           </button>
         `;
       } else {
-        // Se tudo já foi entregue, mostra apenas o botão de Liberar Mesa em destaque (Laranja Em Consumo)
+        // Se tudo já foi entregue, mostra apenas o botão de Liberar Mesa / Balcão em destaque (Laranja Em Consumo)
         htmlFooter = `
           <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#e67e22; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #d35400; cursor:pointer;">
-            🔓 LIBERAR MESA
+            ${isBalcao ? '🔓 LIBERAR BALCÃO' : '🔓 LIBERAR MESA'}
           </button>
         `;
       }
