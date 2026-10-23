@@ -2198,6 +2198,44 @@ app.get('/api/debug/push-subs', isAdmin, ensureDbInitialized, async (req, res) =
   }
 });
 
+// --- LIMPEZA AUTOMÁTICA DE PEDIDOS ANTIGOS (RETENÇÃO DE 30 DIAS) ---
+async function purgarHistoricoAntigo30Dias() {
+  try {
+    const dataCorte = new Date();
+    dataCorte.setDate(dataCorte.getDate() - 30);
+    const dataCorteIso = dataCorte.toISOString();
+
+    const checkRes = await query(
+      "SELECT id FROM pedidos WHERE status IN ('entregue', 'cancelado') AND created_at < ? LIMIT 1",
+      [dataCorteIso]
+    );
+
+    if (!checkRes.rows || checkRes.rows.length === 0) {
+      return { removidos: 0 };
+    }
+
+    await query(
+      "DELETE FROM pedido_itens WHERE pedido_id IN (SELECT id FROM pedidos WHERE status IN ('entregue', 'cancelado') AND created_at < ?)",
+      [dataCorteIso]
+    );
+    await query(
+      "DELETE FROM pagamentos WHERE pedido_id IN (SELECT id FROM pedidos WHERE status IN ('entregue', 'cancelado') AND created_at < ?)",
+      [dataCorteIso]
+    );
+    const delRes = await query(
+      "DELETE FROM pedidos WHERE status IN ('entregue', 'cancelado') AND created_at < ?",
+      [dataCorteIso]
+    );
+
+    const count = delRes.changes || (delRes.rows ? delRes.rows.length : 0);
+    console.log(`🧹 [Histórico 30 Dias] Auto-limpeza concluída: ${count} pedido(s) com mais de 30 dias removido(s).`);
+    return { removidos: count };
+  } catch (err) {
+    console.error('⚠️ [Histórico 30 Dias] Falha na auto-limpeza de 30 dias:', err.message);
+    return { removidos: 0, erro: err.message };
+  }
+}
+
 // --- ROTA CRON MANUAL DE MONITORAMENTO DE PEDIDOS ATRASADOS (>10 MIN) ---
 app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) => {
   const cronSecret = process.env.CRON_SECRET;
@@ -2209,6 +2247,7 @@ app.get('/api/cron/check-delayed-orders', ensureDbInitialized, async (req, res) 
   }
   await checkAndNotifyDelayedOrders();
   await checkAndSendScheduledFCM();
+  await purgarHistoricoAntigo30Dias();
   res.json({ message: "Verificação de atrasos e agendamentos executada." });
 });
 
@@ -4016,6 +4055,8 @@ app.get('/api/pedidos/:id/pagamentos', isAuthenticated, async (req, res) => {
 });
 
 app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, isAuthenticated, async (req, res) => {
+  // Dispara purga automática de pedidos com mais de 30 dias em background (não trava a resposta)
+  purgarHistoricoAntigo30Dias().catch(console.error);
   try {
     let pedidosRes;
     try {
@@ -4103,9 +4144,19 @@ app.get('/api/pedidos/historico', isAuthenticated, async (req, res) => {
 app.delete('/api/pedidos/limpar', isAdmin, async (req, res) => {
   try {
     await query("DELETE FROM pedido_itens WHERE pedido_id IN (SELECT id FROM pedidos WHERE status IN ('entregue', 'cancelado'))");
+    await query("DELETE FROM pagamentos WHERE pedido_id IN (SELECT id FROM pedidos WHERE status IN ('entregue', 'cancelado'))");
     await query("DELETE FROM pedidos WHERE status IN ('entregue', 'cancelado')");
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: "Erro ao limpar: " + error.message }); }
+});
+
+app.post('/api/pedidos/purgar-30-dias', isAdmin, async (req, res) => {
+  try {
+    const result = await purgarHistoricoAntigo30Dias();
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.get('/api/pedidos/ativo-telefone/:telefone', ensureDbInitialized, isAuthenticated, async (req, res) => {
@@ -5719,6 +5770,7 @@ const routerCtx = {
     whatsappSocket: typeof whatsappSocket !== 'undefined' ? whatsappSocket : null,
     botUrlFinal: typeof botUrlFinal !== 'undefined' ? botUrlFinal : null
   }),
+  purgarHistoricoAntigo30Dias,
   cachedOrdemCategorias: null
 };
 

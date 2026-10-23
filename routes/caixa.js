@@ -82,6 +82,9 @@ module.exports = (ctx) => {
                        `🏁 Valor Final: R$ ${Number(valor_final || 0).toFixed(2)}`;
         await sendWhatsAppMessage(msgWpp).catch(e => console.error('Erro Wpp:', e.message));
       }
+      if (ctx.purgarHistoricoAntigo30Dias) {
+        ctx.purgarHistoricoAntigo30Dias().catch(console.error);
+      }
       res.json({ success: true });
     } catch (error) { res.status(500).json({ error: 'Erro ao fechar caixa' }); }
   });
