@@ -1116,7 +1116,7 @@ async function safePusherTrigger(channel, event, data) {
           const itemsList = setor === 'cozinha' ? resumoCozinha : (setor === 'churrasqueiro' ? resumoChurrasco : resumoTodos);
           const mapVars = (str) => {
             if (!str) return '';
-            return str
+            let resStr = str
               .replace(/{mesa}/g, mesaFormatada)
               .replace(/{status}/g, data.status === 'fechado' ? '🔴 O caixa foi FECHADO. Atendimento encerrado.' : '🟢 O caixa foi ABERTO. Bom trabalho!')
               .replace(/{itens}/g, itemsList)
@@ -1124,6 +1124,10 @@ async function safePusherTrigger(channel, event, data) {
               .replace(/{qtd}/g, (data.qtd !== undefined && data.qtd !== null) ? data.qtd : ((data.estoque !== undefined && data.estoque !== null) ? data.estoque : '1'))
               .replace(/{detalhes}/g, data.detalhes_edicao || '')
               .replace(/{pedido_id}/g, String(data.pedido_id || data.id || ''));
+            if (itemsList && !str.includes('{itens}') && (evt === 'novo-pedido' || evt === 'item-adicionado')) {
+              resStr += ` • ${itemsList}`;
+            }
+            return resStr;
           };
           return { title: mapVars(t), body: mapVars(b), som: s };
         };
@@ -6965,7 +6969,7 @@ app.post('/api/config/som-global', ensureDbInitialized, isAdmin, async (req, res
 // ─── ROTAS FCM (BLINDADAS PARA VERCEL) ───────────────────────────────────────
 
 const FCM_DEFAULTS = [
-  { evento: 'novo-pedido', tituloPadrao: 'GarçomExpress', corpoPadrao: '🍕 Novo pedido #{pedido_id} recebido da {mesa}! 📋', destinatario: 'garcom, cozinha, churrasqueiro', variaveis: ['mesa', 'itens', 'pedido_id'] },
+  { evento: 'novo-pedido', tituloPadrao: 'GarçomExpress', corpoPadrao: '{mesa} • {itens}', destinatario: 'garcom, cozinha, churrasqueiro', variaveis: ['mesa', 'itens', 'pedido_id'] },
   { evento: 'item-adicionado', tituloPadrao: 'GarçomExpress', corpoPadrao: '➕ Novos itens adicionados no pedido #{pedido_id} ({mesa})!', destinatario: 'garcom, cozinha, churrasqueiro', variaveis: ['mesa', 'item', 'qtd', 'pedido_id'] },
   { evento: 'pedido-cancelado', tituloPadrao: 'CozinhaExpress', corpoPadrao: '❌ Atenção: O pedido #{pedido_id} ({mesa}) foi cancelado!', destinatario: 'cozinha, churrasqueiro', variaveis: ['mesa', 'item', 'pedido_id'] },
   { evento: 'chamado-garcom', tituloPadrao: 'GarçomExpress', corpoPadrao: '🛎️ Chamado de atendimento na {mesa}! Atenda o cliente.', destinatario: 'garcom', variaveis: ['mesa'] },
@@ -7361,7 +7365,7 @@ app.post('/api/fcm-config/testar', ensureDbInitialized, isAdmin, async (req, res
 
 // --- CONFIGURAÇÃO DE TOASTS/POPUPS DO APLICATIVO ---
 const TOAST_DEFAULTS = [
-  { evento: 'novo-pedido', textoPadrao: '🍕 Novo pedido #{pedido_id} recebido da {mesa}! 📋', label: 'Novo Pedido', tipo: 'info', variaveis: ['mesa', 'cliente', 'itens', 'pedido_id'] },
+  { evento: 'novo-pedido', textoPadrao: '{mesa} • {itens}', label: 'Novo Pedido', tipo: 'info', variaveis: ['mesa', 'cliente', 'itens', 'pedido_id'] },
   { evento: 'chamado-garcom', textoPadrao: '🛎️ Chamado de atendimento na {mesa}! Atenda o cliente.', label: 'Chamado de Garçom', tipo: 'erro', variaveis: ['mesa'] },
   { evento: 'pedido-pronto', textoPadrao: '🍳 O pedido #{pedido_id} ({mesa}) está pronto para servir!', label: 'Pedido Pronto', tipo: 'sucesso', variaveis: ['mesa', 'pedido_id'] },
   { evento: 'pedido-cancelado', textoPadrao: '❌ Atenção: O pedido #{pedido_id} ({mesa}) foi cancelado!', label: 'Pedido Cancelado', tipo: 'erro', variaveis: ['mesa', 'pedido_id'] },

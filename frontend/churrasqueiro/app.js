@@ -353,7 +353,7 @@ async function carregarPedidos(opcoes = {}) {
                     const mesa = primeiroNovo?.mesa_numero || 'BALCÃO';
                     const labelMesa = (String(mesa).includes('DELIVERY') || String(mesa).startsWith('Mesa')) ? mesa : `Mesa ${mesa}`;
                     const itensNovosChurrasco = itensValidos.filter(i => novosIds.includes(i.pedido_id));
-                    const nomesItens = itensNovosChurrasco.slice(0, 3).map(i => `${i.quantidade || 1}x ${i.nome || 'Item'}`);
+                    const nomesItens = itensNovosChurrasco.slice(0, 3).map(i => `${i.quantidade || 1}x ${i.item_nome || i.nome || 'Item'}`);
                     const restantes = itensNovosChurrasco.length - nomesItens.length;
                     const resumoItens = nomesItens.length > 0 
                         ? (restantes > 0 ? `${nomesItens.join(', ')} (+${restantes} ${restantes === 1 ? 'item' : 'itens'})` : nomesItens.join(', '))
@@ -1454,6 +1454,10 @@ function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTip
     .replace(/{status}/g, statusVal)
     .replace(/{pedido_id}/g, pedidoIdVal)
     .replace(/{mensagem}/g, msgVal);
+
+  if (itensVal && !template.includes('{itens}')) {
+    msgFinal += ` • ${itensVal}`;
+  }
     
   const tipo = config ? (config.tipo === 'erro' ? 'error' : (config.tipo === 'sucesso' ? 'success' : 'info')) : fallbackTipo;
   mostrarToast(msgFinal, tipo);
