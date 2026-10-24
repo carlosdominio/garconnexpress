@@ -2779,7 +2779,7 @@ let dbInitError = null;
 
 async function initDb() {
   const tables = [
-    `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero TEXT NOT NULL, status TEXT DEFAULT 'livre', garcom_id TEXT, is_comanda INTEGER DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero TEXT NOT NULL, status TEXT DEFAULT 'livre', garcom_id TEXT, is_comanda INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, preco_original REAL, descricao TEXT, imagem TEXT, estoque INTEGER DEFAULT -1, validade DATE, enviar_cozinha BOOLEAN DEFAULT TRUE, enviar_churrasco BOOLEAN DEFAULT NULL, visivel BOOLEAN DEFAULT TRUE, visivel_delivery BOOLEAN DEFAULT TRUE, em_promocao BOOLEAN DEFAULT FALSE)`,
     `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
@@ -2861,6 +2861,20 @@ async function initDb() {
       }
     } catch (e) {
       console.error('Erro na migração de is_comanda:', e.message);
+    }
+
+    // Migração da coluna created_at na tabela mesas
+    try {
+      if (isPostgres) {
+        await query("ALTER TABLE mesas ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+      } else {
+        const columns = await query("PRAGMA table_info(mesas)");
+        if (!columns.rows.find(c => c.name === 'created_at')) {
+          await query("ALTER TABLE mesas ADD COLUMN created_at TIMESTAMP");
+        }
+      }
+    } catch (e) {
+      console.error('Erro na migração de created_at em mesas:', e.message);
     }
 
     // LIMPEZA E REGISTRO DO NÃšMERO DE WHATSAPP (CONSOLIDADO)
@@ -3870,6 +3884,20 @@ app.post('/api/caixa/fechar', isAdmin, async (req, res) => {
 
     // Expira todos os códigos de acesso ativos ao fechar o caixa
     await query("UPDATE codigos_acesso SET status = 'expirado' WHERE status = 'ativo'");
+
+    // Limpa todas as comandas descartáveis livres ao fechar o caixa (mantém mesas físicas fixas e balcão)
+    try {
+      const comandasParaLimpar = await query("SELECT id, numero, tipo, is_comanda FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%')");
+      for (const c of (comandasParaLimpar.rows || [])) {
+        if (c.tipo === 'balcao') continue;
+        const numTrim = String(c.numero || '').trim();
+        if (/^\d+$/.test(numTrim) && c.tipo !== 'comanda' && !numTrim.toLowerCase().startsWith('comanda')) continue;
+        await query("DELETE FROM mesas WHERE id = ?", [c.id]);
+      }
+      await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
+    } catch (errCleanMesas) {
+      console.warn('⚠️ Erro ao limpar comandas ao fechar caixa:', errCleanMesas.message);
+    }
     
     // Força a desconexão de todos os garçons
     await safePusherTrigger('garconnexpress', 'caixa-encerrado', {});
@@ -7720,7 +7748,7 @@ app.get('/api/diag', isAdmin, async (req, res) => {
   app.post('/api/init-db-force', isAdmin, async (req, res) => {
     try {
       const tables = [
-        `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero TEXT NOT NULL, status TEXT DEFAULT 'livre', garcom_id TEXT)`,
+        `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero TEXT NOT NULL, status TEXT DEFAULT 'livre', garcom_id TEXT, is_comanda INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
         `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, preco_original REAL, descricao TEXT, imagem TEXT, estoque INTEGER DEFAULT -1, validade DATE, enviar_cozinha BOOLEAN DEFAULT TRUE, visivel BOOLEAN DEFAULT TRUE, visivel_delivery BOOLEAN DEFAULT TRUE, em_promocao BOOLEAN DEFAULT FALSE)`,
         `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
         `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
