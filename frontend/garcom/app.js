@@ -487,7 +487,12 @@ function isItemParaCozinha(item) {
         return configCozinhaCategorias.includes(cat);
     }
 
-    // 3. Fallback: Se não há categorias configuradas e é NULL, por padrão vai para a cozinha.
+    // 3. Bloqueio de Bebidas/Bar quando não houver categorias específicas configuradas
+    if (cat.includes('BEBIDA') || cat.includes('CERVEJA') || cat.includes('REFRIGERANTE') || cat.includes('SUCO') || cat.includes('DRINK') || cat.includes('AGUA') || cat.includes('ÁGUA') || cat.includes('DOSE') || cat.includes('BAR') || cat.includes('VINHO') || cat.includes('WHISKY') || cat.includes('VODKA') || cat.includes('CACHAÇA') || cat.includes('CACHACA') || cat.includes('CHOPP') || cat.includes('ENERGÉTICO') || cat.includes('ENERGETICO') || cat.includes('SOBREMESA')) {
+        return false;
+    }
+
+    // 4. Fallback: Se não há categorias configuradas e não é bebida/bar, por padrão vai para a cozinha.
     return true;
 }
 

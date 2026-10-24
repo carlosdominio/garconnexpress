@@ -777,6 +777,10 @@ async function configurarPusher() {
 
         canal.bind('novo-pedido', (data) => {
             console.log('🍢 [Churrasco] novo-pedido recebido. para_churrasco=', data?.para_churrasco);
+            if (data && data.para_churrasco === false) {
+                console.log('🍢 [Churrasco] Ignorando novo-pedido: pedido sem itens para o churrasco.');
+                return;
+            }
             // A notificação é controlada pelo carregarPedidos: só dispara se a API retornar itens NOVOS
             // Isso é 100% confiável pois usa o mesmo filtro SQL do endpoint /api/pedidos/churrasco
             clearTimeout(timeoutPusher);

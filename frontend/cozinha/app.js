@@ -825,6 +825,10 @@ async function configurarPusher() {
 
         canal.bind('novo-pedido', (data) => {
             console.log('🍳 [Cozinha] novo-pedido recebido. para_cozinha=', data?.para_cozinha);
+            if (data && data.para_cozinha === false) {
+                console.log('🍳 [Cozinha] Ignorando novo-pedido: pedido sem itens para a cozinha.');
+                return;
+            }
             // A notificação é controlada pelo carregarPedidos: só dispara se a API retornar itens NOVOS
             // Isso é 100% confiável pois usa o mesmo filtro SQL do endpoint /api/pedidos/cozinha
             clearTimeout(timeoutPusher);
@@ -833,6 +837,10 @@ async function configurarPusher() {
 
         canal.bind('pedido-cancelado', (data) => {
             console.log('📢 Pedido cancelado recebido:', data);
+            if (data && data.para_cozinha === false) {
+                console.log('🍳 [Cozinha] Ignorando cancelamento: pedido sem itens para a cozinha.');
+                return;
+            }
             const idParaCancelar = data.id || data.pedido_id || (data.pedido ? data.pedido.id : null);
             if (idParaCancelar) {
                 mostrarNotificacaoCancelamento(data.mensagem || `Pedido #${idParaCancelar} cancelado`, idParaCancelar);

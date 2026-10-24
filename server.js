@@ -973,7 +973,7 @@ async function safePusherTrigger(channel, event, data) {
                 const ids = itensRes.rows.map(i => i.menu_id);
                 enviaCozinha = await checkTemItemCozinha(ids);
               } catch (e) {
-                enviaCozinha = true;
+                enviaCozinha = false;
               }
             }
           }
@@ -1000,7 +1000,7 @@ async function safePusherTrigger(channel, event, data) {
             enviaCozinha = await checkTemItemCozinha(itensIds);
             enviaChurrasco = await checkTemItemChurrasco(itensIds);
           } catch (e) {
-            enviaCozinha = true; // Fallback se der erro
+            enviaCozinha = false; // Fallback se der erro
             enviaChurrasco = false;
           }
         }
@@ -3216,25 +3216,63 @@ async function checkTemItemCozinha(itensIds) {
   const catsChurrasco = configC.rows[0]?.valor ? JSON.parse(configC.rows[0].valor).map(c => String(c).trim().toUpperCase()) : [];
 
   const uniqueIds = [...new Set(itensIds)];
-  const menuItemsRes = await query(`SELECT enviar_cozinha, categoria FROM menu WHERE id IN (${uniqueIds.map(() => '?').join(',')})`, uniqueIds);
+  const menuItemsRes = await query(`SELECT id, enviar_cozinha, enviar_churrasco, categoria FROM menu WHERE id IN (${uniqueIds.map(() => '?').join(',')})`, uniqueIds);
   
   for (const m of menuItemsRes.rows) {
     const envCozinha = m.enviar_cozinha;
+    const envChurrasco = m.enviar_churrasco;
+    const categoria = String(m.categoria || '').trim().toUpperCase();
+
+    // Se estiver explicitamente marcado para churrasco, pertence ao churrasqueiro e não à cozinha
+    const isChurrascoExplicit = (envChurrasco === 1 || envChurrasco === true || envChurrasco === '1' || envChurrasco === 'true');
+    if (isChurrascoExplicit) continue;
+
+    // Se a categoria pertencer ao churrasco (configurada ou fallback textual), não é da cozinha
+    if (catsChurrasco.length > 0) {
+      if (catsChurrasco.includes(categoria)) continue;
+    } else if (categoria.includes('CHURRASCO') || categoria.includes('ESPET') || categoria.includes('CARNE') || categoria.includes('GRELH')) {
+      continue;
+    }
+
+    // Se o item estiver explicitamente desmarcado da cozinha, ignora
     const isExplicitNo = (envCozinha === 0 || envCozinha === false || envCozinha === '0' || envCozinha === 'false');
     if (isExplicitNo) continue;
     
+    // Se estiver explicitamente marcado para a cozinha, envia
     const isExplicitYes = (envCozinha === 1 || envCozinha === true || envCozinha === '1' || envCozinha === 'true');
-    const categoria = String(m.categoria || '').trim().toUpperCase();
-    
-    if (catsChurrasco.length > 0 && catsChurrasco.includes(categoria)) continue;
-    
     if (isExplicitYes) return true;
 
+    // Se houver categorias configuradas para cozinha no sistema_config
     if (catsCozinha.length > 0) {
       if (catsCozinha.includes(categoria)) return true;
-    } else {
-      return true;
+      continue; // Não está na lista de categorias da cozinha
     }
+
+    // Se NÃO houver categorias configuradas (lista vazia), bloqueia categorias conhecidas de bar / bebidas / sobremesas
+    const isBebidaOuBar = (
+      categoria.includes('BEBIDA') || 
+      categoria.includes('CERVEJA') || 
+      categoria.includes('REFRIGERANTE') || 
+      categoria.includes('SUCO') || 
+      categoria.includes('DRINK') || 
+      categoria.includes('AGUA') || 
+      categoria.includes('ÁGUA') || 
+      categoria.includes('DOSE') || 
+      categoria.includes('BAR') || 
+      categoria.includes('VINHO') || 
+      categoria.includes('WHISKY') || 
+      categoria.includes('VODKA') || 
+      categoria.includes('CACHAÇA') || 
+      categoria.includes('CACHACA') || 
+      categoria.includes('CHOPP') || 
+      categoria.includes('ENERGÉTICO') || 
+      categoria.includes('ENERGETICO') || 
+      categoria.includes('SOBREMESA')
+    );
+    if (isBebidaOuBar) continue;
+
+    // Caso não seja bebida nem churrasco, assume que é comida/cozinha
+    return true;
   }
   return false;
 }
@@ -3243,27 +3281,34 @@ async function checkTemItemChurrasco(itensIds) {
   if (!itensIds || itensIds.length === 0) return false;
   const configC = await query("SELECT valor FROM sistema_config WHERE chave = 'categorias_churrasco'");
   const catsChurrasco = configC.rows[0]?.valor ? JSON.parse(configC.rows[0].valor).map(c => c.trim().toUpperCase()) : [];
-  
-  // Se não houver categorias de churrasco configuradas no painel, não envia para o churrasco
-  if (catsChurrasco.length === 0) {
-    console.log(`🍢 [checkTemItemChurrasco] Nenhuma categoria de churrasco configurada → false`);
-    return false;
-  }
 
   const uniqueIds = [...new Set(itensIds)];
-  const menuItemsRes = await query(`SELECT id, categoria FROM menu WHERE id IN (${uniqueIds.map(() => '?').join(',')})`, uniqueIds);
-  
-  const categoriasItens = menuItemsRes.rows.map(m => String(m.categoria || '').trim().toUpperCase());
-  console.log(`🍢 [checkTemItemChurrasco] catsChurrasco=${JSON.stringify(catsChurrasco)} | categoriasItens=${JSON.stringify(categoriasItens)}`);
+  const menuItemsRes = await query(`SELECT id, enviar_churrasco, categoria FROM menu WHERE id IN (${uniqueIds.map(() => '?').join(',')})`, uniqueIds);
 
-  for (const categoria of categoriasItens) {
-    // Comparação EXATA: evita falsos positivos por substring
-    if (catsChurrasco.includes(categoria)) {
-      console.log(`🍢 [checkTemItemChurrasco] MATCH EXATO: "${categoria}" → true`);
+  for (const m of menuItemsRes.rows) {
+    const envChurrasco = m.enviar_churrasco;
+    const categoria = String(m.categoria || '').trim().toUpperCase();
+
+    // 1. Override explícito de item
+    if (envChurrasco === 1 || envChurrasco === true || envChurrasco === '1' || envChurrasco === 'true') {
       return true;
     }
+    if (envChurrasco === 0 || envChurrasco === false || envChurrasco === '0' || envChurrasco === 'false') {
+      continue;
+    }
+
+    // 2. Regra por categorias configuradas
+    if (catsChurrasco.length > 0) {
+      if (catsChurrasco.includes(categoria)) {
+        return true;
+      }
+    } else {
+      // Fallback sem configuração: apenas termos explícitos de churrascaria
+      if (categoria.includes('CHURRASCO') || categoria.includes('ESPET') || categoria.includes('CARNE') || categoria.includes('GRELH')) {
+        return true;
+      }
+    }
   }
-  console.log(`🍢 [checkTemItemChurrasco] Nenhum item é churrasco → false`);
   return false;
 }
 
@@ -3393,7 +3438,27 @@ async function getFilterCozinha() {
       matchCozinhaCat = '0'; // Se configurado e vazio, não envia nada da cozinha por categoria
     }
   } else {
-    matchCozinhaCat = '1'; // Se não configurado, assume Sim por padrão
+    // Se não configurado, assume Cozinha por padrão EXCETO para bebidas, bar e sobremesas conhecidas
+    matchCozinhaCat = `(
+      UPPER(TRIM(m.categoria)) NOT LIKE '%BEBIDA%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%CERVEJA%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%REFRIGERANTE%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%SUCO%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%DRINK%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%AGUA%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%ÁGUA%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%DOSE%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%BAR%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%VINHO%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%WHISKY%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%VODKA%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%CACHAÇA%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%CACHACA%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%CHOPP%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%ENERGÉTICO%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%ENERGETICO%' AND
+      UPPER(TRIM(m.categoria)) NOT LIKE '%SOBREMESA%'
+    )`;
   }
 
   let isChurrascoCat = '0';
@@ -7789,6 +7854,12 @@ app.use((err, req, res, next) => {
 if (require.main === module) {
   app.listen(PORT, () => console.log(`Rodando na porta ${PORT}`));
 }
+
+app.checkTemItemCozinha = checkTemItemCozinha;
+app.checkTemItemChurrasco = checkTemItemChurrasco;
+app.getFilterCozinha = getFilterCozinha;
+app.getFilterChurrasco = getFilterChurrasco;
+app.routerCtx = routerCtx;
 
 module.exports = app;
 
