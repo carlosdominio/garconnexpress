@@ -153,7 +153,12 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     try {
       // Limpeza automática de comandas finalizadas/canceladas ou abandonadas sem itens
       try {
-        const comandasLivre = await query("SELECT id, numero, tipo, is_comanda, created_at FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR tipo = 'balcao' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%' OR LOWER(CAST(numero AS TEXT)) LIKE 'balc%')");
+        let comandasLivre;
+        try {
+          comandasLivre = await query("SELECT id, numero, tipo, is_comanda, created_at FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR tipo = 'balcao' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%' OR LOWER(CAST(numero AS TEXT)) LIKE 'balc%')");
+        } catch (eCol) {
+          comandasLivre = await query("SELECT id, numero, tipo, is_comanda FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR tipo = 'balcao' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%' OR LOWER(CAST(numero AS TEXT)) LIKE 'balc%')");
+        }
         let limpouAlguma = false;
 
         for (const c of (comandasLivre.rows || [])) {

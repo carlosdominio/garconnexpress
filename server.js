@@ -3062,6 +3062,8 @@ async function lazyInitDb() {
               ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS distancia_km REAL DEFAULT 0;
               ALTER TABLE codigos_acesso ADD COLUMN IF NOT EXISTS notificado_atraso_registro INTEGER DEFAULT 0;
               ALTER TABLE mesas ADD COLUMN IF NOT EXISTS tipo TEXT DEFAULT 'mesa';
+              ALTER TABLE mesas ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0;
+              ALTER TABLE mesas ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
               ALTER TABLE menu ADD COLUMN IF NOT EXISTS enviar_churrasco BOOLEAN DEFAULT NULL;
               ALTER TABLE menu ADD COLUMN IF NOT EXISTS visivel_delivery BOOLEAN DEFAULT TRUE;
             `);
