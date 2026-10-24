@@ -728,7 +728,7 @@ async function confirmarConclusaoPedido() {
     }
 }
 
-function mostrarNotificacaoCancelamento(mensagem, pedidoId) {
+function mostrarNotificacaoCancelamento(mensagem, pedidoId, dadosEvento = null) {
     console.log(`🗑️ Verificando cancelamento do pedido ${pedidoId}...`);
     
     let estavaNaTela = false;
@@ -750,7 +750,23 @@ function mostrarNotificacaoCancelamento(mensagem, pedidoId) {
     }
 
     if (estavaNaTela) {
-        mostrarToast(`❌ PEDIDO CANCELADO: Mesa ${mensagem.split('Mesa ')[1] || pedidoId}`, 'erro');
+        let localIdentificado = '';
+        if (dadosEvento && dadosEvento.mesa_numero) {
+            localIdentificado = dadosEvento.mesa_numero;
+        } else {
+            const parenMatch = mensagem && mensagem.match(/\((.*?)\)/);
+            if (parenMatch && parenMatch[1]) {
+                localIdentificado = parenMatch[1];
+            } else if (mensagem && mensagem.includes('Mesa ')) {
+                localIdentificado = `Mesa ${mensagem.split('Mesa ')[1].split(' ')[0]}`;
+            } else if (mensagem && mensagem.includes('Comanda ')) {
+                localIdentificado = `Comanda ${mensagem.split('Comanda ')[1].split(' ')[0]}`;
+            } else {
+                localIdentificado = pedidoId ? `#${pedidoId}` : 'Pedido';
+            }
+        }
+
+        mostrarToast(`❌ PEDIDO CANCELADO: ${localIdentificado}`, 'erro');
         const modal = document.getElementById('modal-cancelamento');
         const modalMsg = document.getElementById('modal-mensagem');
         
@@ -844,13 +860,15 @@ async function configurarPusher() {
 
         canal.bind('pedido-cancelado', (data) => {
             console.log('📢 Pedido cancelado recebido:', data);
-            if (data && data.para_cozinha === false) {
+            const idParaCancelar = data && (data.id || data.pedido_id || (data.pedido ? data.pedido.id : null));
+            const cardExisteNaTela = idParaCancelar && (document.getElementById(`pedido-card-${idParaCancelar}`) || Array.from(document.querySelectorAll('.card-pedido')).some(c => c.innerText.includes(`#${idParaCancelar}`)));
+
+            if (data && data.para_cozinha === false && !cardExisteNaTela) {
                 console.log('🍳 [Cozinha] Ignorando cancelamento: pedido sem itens para a cozinha.');
                 return;
             }
-            const idParaCancelar = data.id || data.pedido_id || (data.pedido ? data.pedido.id : null);
             if (idParaCancelar) {
-                mostrarNotificacaoCancelamento(data.mensagem || `Pedido #${idParaCancelar} cancelado`, idParaCancelar);
+                mostrarNotificacaoCancelamento(data.mensagem || `Pedido #${idParaCancelar} cancelado`, idParaCancelar, data);
             }
             
             clearTimeout(timeoutPusher);

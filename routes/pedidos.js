@@ -479,11 +479,16 @@ module.exports = (ctx) => {
           });
         }
         
-        const mesaNum = pedido ? (pedido.garcom_id === 'DELIVERY' ? `DELIVERY #${item.pedido_id}` : (pedido.numero || 'BALCÃO')) : 'BALCÃO';
-        const localStr = pedido && pedido.garcom_id === 'DELIVERY' ? `${mesaNum}` : `Mesa ${mesaNum}`;
+        const numRaw = pedido ? (pedido.numero || pedido.mesa_numero || 'BALCÃO') : 'BALCÃO';
+        const isCom = ehComanda ? 1 : 0;
+        const fmtFn = formatarNomeMesaOuComanda || ((n, c) => (Number(c) === 1 ? `Comanda ${n}` : `Mesa ${n}`));
+        const mesaNum = pedido ? (pedido.garcom_id === 'DELIVERY' ? `DELIVERY #${item.pedido_id}` : fmtFn(numRaw, isCom)) : 'BALCÃO';
+        const localStr = mesaNum;
         await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
+          id: item.pedido_id,
           pedido_id: item.pedido_id, 
           mesa_numero: mesaNum,
+          is_comanda: isCom,
           garcom_id: pedido ? pedido.garcom_id : null,
           mensagem: `🚨 O Pedido #${item.pedido_id} (${localStr}) foi CANCELADO.` 
         });
@@ -516,6 +521,9 @@ module.exports = (ctx) => {
       if (pedido && pedido.status !== 'cancelado' && pedido.status !== 'entregue') {
         for (const item of itens) await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
       }
+
+      const temCozinha = await checkTemItemCozinha(itens.map(i => i.menu_id));
+      const temChurrasco = await checkTemItemChurrasco(itens.map(i => i.menu_id));
       
       await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [id]);
       await query("DELETE FROM pagamentos WHERE pedido_id = ?", [id]);
@@ -524,13 +532,14 @@ module.exports = (ctx) => {
       if (pedido) {
         const mesaRefId = pedido.mesa_id || null;
         const mesaRefNum = pedido.numero || pedido.mesa_numero || null;
+        const ehComanda = (Number(pedido.is_comanda) === 1) ||
+                          (Number(pedido.pedido_is_comanda) === 1) ||
+                          (pedido.tipo && String(pedido.tipo).toLowerCase().includes('comanda')) ||
+                          String(mesaRefNum || '').toLowerCase().startsWith('comanda');
+
         if (pedido.status !== 'entregue' && pedido.status !== 'cancelado' && (mesaRefId || mesaRefNum)) {
           const checkAtivos = await query("SELECT id FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND id != ?", [mesaRefId, mesaRefNum, mesaRefNum, id]);
           if (checkAtivos.rows.length === 0) {
-              const ehComanda = (Number(pedido.is_comanda) === 1) ||
-                                (Number(pedido.pedido_is_comanda) === 1) ||
-                                (pedido.tipo && String(pedido.tipo).toLowerCase().includes('comanda')) ||
-                                String(mesaRefNum || '').toLowerCase().startsWith('comanda');
               if (ehComanda) {
                 await query("DELETE FROM mesas WHERE (id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT))", [mesaRefId, mesaRefNum]);
               } else {
@@ -544,11 +553,18 @@ module.exports = (ctx) => {
             mensagem: "Este pedido foi removido pelo estabelecimento. Seu acesso foi encerrado." 
           });
         }
-        const mesaNum = pedido.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : (pedido.numero || 'BALCÃO');
-        const localStr = pedido.garcom_id === 'DELIVERY' ? `${mesaNum}` : `Mesa ${mesaNum}`;
+        const numRaw = pedido ? (pedido.numero || pedido.mesa_numero || 'BALCÃO') : 'BALCÃO';
+        const isCom = ehComanda ? 1 : 0;
+        const fmtFn = formatarNomeMesaOuComanda || ((n, c) => (Number(c) === 1 ? `Comanda ${n}` : `Mesa ${n}`));
+        const mesaNum = pedido.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : fmtFn(numRaw, isCom);
+        const localStr = mesaNum;
         await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
+          id: id, 
           pedido_id: id, 
           mesa_numero: mesaNum,
+          is_comanda: isCom,
+          para_cozinha: temCozinha,
+          para_churrasco: temChurrasco,
           garcom_id: pedido.garcom_id,
           mensagem: `🚨 O Pedido #${id} (${localStr}) foi REMOVIDO pelo Admin.` 
         });
@@ -828,9 +844,21 @@ module.exports = (ctx) => {
       }
 
       const menuIds = [...new Set((itens || []).map(i => i.menu_id))];
-      const menuItemsRes = await query(`SELECT id, nome, enviar_cozinha, categoria FROM menu WHERE id IN (${menuIds.map(() => '?').join(',')})`, menuIds);
+      const menuItemsRes = await query(`SELECT id, nome, enviar_cozinha, enviar_churrasco, categoria FROM menu WHERE id IN (${menuIds.map(() => '?').join(',')})`, menuIds);
       const menuMap = {};
       menuItemsRes.rows.forEach(m => { menuMap[m.id] = m; });
+
+      const itensCompletos = (itens || []).map(item => {
+        const p = menuMap[item.menu_id];
+        return {
+          menu_id: item.menu_id,
+          nome: p ? p.nome : 'Item',
+          qtd: item.quantidade,
+          categoria: p ? p.categoria : '',
+          enviar_cozinha: p ? p.enviar_cozinha : 1,
+          enviar_churrasco: p ? p.enviar_churrasco : 0
+        };
+      });
 
       const itensNomes = (itens || []).map(item => {
         const p = menuMap[item.menu_id];
@@ -854,7 +882,10 @@ module.exports = (ctx) => {
         safePusherTrigger('garconnexpress', 'novo-pedido', {
           para_cozinha: temItemCozinha,
           para_churrasco: temItemChurrasco,
-          pedido: { id: pedidoId, mesa_id, mesa_numero: mesaNum, status: 'recebido', garcom_id: garcom_id }
+          itens: itensCompletos,
+          is_comanda: isComVal,
+          mesa_numero: mesaNum,
+          pedido: { id: pedidoId, mesa_id, mesa_numero: mesaNum, is_comanda: isComVal, status: 'recebido', garcom_id: garcom_id }
         })
       ]);
 
@@ -994,8 +1025,10 @@ module.exports = (ctx) => {
           await query("UPDATE pedidos SET total = ?, status = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0 WHERE id = ?", [total, novoStatusPedido, observacao || '', id]);
         }
         
-        const resMesa = await query("SELECT m.id, m.numero FROM pedidos p JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id]);
-        const mesaNum = resMesa.rows[0] ? resMesa.rows[0].numero : 'BALCÃO';
+        const resMesa = await query("SELECT m.id, m.numero, m.is_comanda FROM pedidos p JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id]);
+        const isCom = resMesa.rows[0] ? (resMesa.rows[0].is_comanda ? 1 : 0) : 0;
+        const fmtFn = formatarNomeMesaOuComanda || ((n, c) => (Number(c) === 1 ? `Comanda ${n}` : `Mesa ${n}`));
+        const mesaNum = resMesa.rows[0] ? fmtFn(resMesa.rows[0].numero, isCom) : 'BALCÃO';
         if (resMesa.rows[0] && resMesa.rows[0].id) {
           await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [resMesa.rows[0].id]);
         }
@@ -1012,7 +1045,10 @@ module.exports = (ctx) => {
             para_churrasco: temItemChurrasco,
             is_addition: true,
             detalhes_edicao: detalhesEdicao,
-            pedido: { id: id, mesa_numero: mesaNum, status: 'recebido', garcom_id: pMesa ? pMesa.garcom_id : null } 
+            itens: adicionados,
+            is_comanda: isCom,
+            mesa_numero: mesaNum,
+            pedido: { id: id, mesa_numero: mesaNum, is_comanda: isCom, status: 'recebido', garcom_id: pMesa ? pMesa.garcom_id : null } 
           })
         ]);
       } else {
@@ -1047,7 +1083,7 @@ module.exports = (ctx) => {
       }
 
       const menuIds = [...new Set((itens || []).map(i => i.menu_id))];
-      const menuItemsRes = await query(`SELECT id, preco, nome FROM menu WHERE id IN (${menuIds.map(() => '?').join(',')})`, menuIds);
+      const menuItemsRes = await query(`SELECT id, preco, nome, enviar_cozinha, enviar_churrasco, categoria FROM menu WHERE id IN (${menuIds.map(() => '?').join(',')})`, menuIds);
       const menuMap = {};
       menuItemsRes.rows.forEach(m => { menuMap[m.id] = m; });
 
@@ -1089,7 +1125,7 @@ module.exports = (ctx) => {
       } else {
         await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0 WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), observacao || '', id]);
       }
-      const pMesa = (await query("SELECT p.mesa_id, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
+      const pMesa = (await query("SELECT p.mesa_id, p.garcom_id, m.numero, m.is_comanda FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
       if (pMesa && pMesa.mesa_id) {
         const mesaIdNum = pMesa.mesa_id;
         await query("UPDATE mesas SET status = 'ocupada' WHERE id = ?", [mesaIdNum]);
@@ -1103,15 +1139,26 @@ module.exports = (ctx) => {
         safePusherTrigger('garconnexpress', `rascunho-processado-mesa-${mesaIdNum}`, { success: true }).catch(console.error);
       }
       
-      const mesaNum = pMesa ? pMesa.numero || 'BALCÃO' : 'BALCÃO';
+      const isCom = pMesa ? (pMesa.is_comanda ? 1 : 0) : 0;
+      const fmtFn = formatarNomeMesaOuComanda || ((n, c) => (Number(c) === 1 ? `Comanda ${n}` : `Mesa ${n}`));
+      const mesaNum = pMesa ? fmtFn(pMesa.numero, isCom) : 'BALCÃO';
       const temItemCozinha = await checkTemItemCozinha((itens || []).map(i => i.menu_id));
       const temItemChurrasco = await checkTemItemChurrasco((itens || []).map(i => i.menu_id));
 
       const alteracoes = [];
+      const itensAdicionadosPayload = [];
       for (const item of (itens || [])) {
         const pMenu = menuMap[item.menu_id];
         const nomeItem = pMenu ? pMenu.nome : `Item #${item.menu_id}`;
         alteracoes.push(`➕ ${item.quantidade}x ${nomeItem}`);
+        itensAdicionadosPayload.push({
+          menu_id: item.menu_id,
+          nome: nomeItem,
+          qtd: item.quantidade,
+          categoria: pMenu ? pMenu.categoria : '',
+          enviar_cozinha: pMenu ? pMenu.enviar_cozinha : 1,
+          enviar_churrasco: pMenu ? pMenu.enviar_churrasco : 0
+        });
       }
       const detalhesEdicao = alteracoes.join(', ');
 
@@ -1123,8 +1170,11 @@ module.exports = (ctx) => {
           para_churrasco: temItemChurrasco,
           is_addition: true,
           detalhes_edicao: detalhesEdicao,
+          itens: itensAdicionadosPayload,
+          is_comanda: isCom,
+          mesa_numero: mesaNum,
           garcom_id: pMesa ? (pMesa.garcom_id || 'ADMIN') : 'ADMIN',
-          pedido: { id: id, mesa_numero: mesaNum, status: 'recebido', garcom_id: pMesa ? (pMesa.garcom_id || 'ADMIN') : 'ADMIN' } 
+          pedido: { id: id, mesa_numero: mesaNum, is_comanda: isCom, status: 'recebido', garcom_id: pMesa ? (pMesa.garcom_id || 'ADMIN') : 'ADMIN' } 
         })
       ]);
 
@@ -1792,6 +1842,7 @@ module.exports = (ctx) => {
           id: id,
           pedido_id: id, 
           mesa_numero: mesaNum,
+          is_comanda: isCom,
           garcom_id: pm ? pm.garcom_id : null,
           mensagem: `🚨 O Pedido #${id} (${localStr}) foi CANCELADO pelo Admin.` 
         });

@@ -1521,8 +1521,11 @@ async function configurarPusher() {
 
       const msg = data.mensagem || `🚨 Pedido #${data.pedido_id} foi REMOVIDO pelo Admin.`;
 
-      // Extrai número da mesa se disponível
-      const mesaStr = data.mesa_numero ? `Mesa ${data.mesa_numero}` : (data.mesa_id ? `Mesa ${data.mesa_id}` : 'Mesa');
+      // Extrai identificador da mesa/comanda se disponível
+      const mesaRaw = data.mesa_numero || data.mesa_id || 'Mesa';
+      const mesaStr = /^(mesa|comanda|balcão|balcao|delivery)\b/i.test(String(mesaRaw).trim())
+        ? String(mesaRaw).trim()
+        : (Number(data.is_comanda) === 1 ? `Comanda ${mesaRaw}` : `Mesa ${mesaRaw}`);
 
       if (deveTocarSom('pedido-cancelado')) tocarCampainha(); // Som normal (mais forte) para cancelamento
       dispararToastSistema('pedido-cancelado', { mesa: mesaStr }, msg, 'error');

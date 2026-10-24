@@ -994,14 +994,19 @@ async function safePusherTrigger(channel, event, data) {
             }
           }
         } else if (event === 'pedido-cancelado') {
-          try {
-            const itensCancelados = (await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [pId])).rows;
-            const itensIds = itensCancelados.map(i => i.menu_id);
-            enviaCozinha = await checkTemItemCozinha(itensIds);
-            enviaChurrasco = await checkTemItemChurrasco(itensIds);
-          } catch (e) {
-            enviaCozinha = false; // Fallback se der erro
-            enviaChurrasco = false;
+          if (data.para_cozinha !== undefined && data.para_churrasco !== undefined) {
+            enviaCozinha = data.para_cozinha;
+            enviaChurrasco = data.para_churrasco;
+          } else {
+            try {
+              const itensCancelados = (await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [pId])).rows;
+              const itensIds = itensCancelados.map(i => i.menu_id);
+              enviaCozinha = await checkTemItemCozinha(itensIds);
+              enviaChurrasco = await checkTemItemChurrasco(itensIds);
+            } catch (e) {
+              enviaCozinha = true;
+              enviaChurrasco = true;
+            }
           }
         }
       }
@@ -1054,11 +1059,10 @@ async function safePusherTrigger(channel, event, data) {
         }
         if (enviaChurrasco === undefined) enviaChurrasco = false;
 
+        const isComFlag = (data.is_comanda !== undefined && Number(data.is_comanda) === 1) ||
+                          (data.pedido && Number(data.pedido.is_comanda) === 1);
         const mesaRaw = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : 'BALCÃO');
-        let mesaFormatada = mesaRaw;
-        if (mesaRaw !== 'BALCÃO' && !String(mesaRaw).toUpperCase().includes('DELIVERY') && !String(mesaRaw).toUpperCase().includes('MESA')) {
-            mesaFormatada = `Mesa ${mesaRaw}`;
-        }
+        const mesaFormatada = formatarNomeMesaOuComanda(mesaRaw, isComFlag ? 1 : 0);
  
         const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_title_%' OR chave LIKE 'fcm_body_%' OR chave IN ('config_som_garcom', 'config_som_cozinha', 'config_som_motoboy', 'config_som_churrasco')")).rows;
         const configMap = {};
@@ -1073,7 +1077,7 @@ async function safePusherTrigger(channel, event, data) {
               `SELECT pi.quantidade as qtd, m.nome, m.categoria, m.enviar_cozinha, m.enviar_churrasco 
                FROM pedido_itens pi 
                JOIN menu m ON pi.menu_id = m.id 
-               WHERE pi.pedido_id = ? AND (pi.cancelado = 0 OR pi.cancelado IS NULL) AND (pi.entregue = 0 OR pi.entregue IS NULL)`,
+               WHERE pi.pedido_id = ? AND LOWER(COALESCE(pi.status, 'pendente')) NOT IN ('cancelado', 'entregue')`,
               [pIdPush]
             );
             if (qItens.rows && qItens.rows.length > 0) {
@@ -1146,15 +1150,15 @@ async function safePusherTrigger(channel, event, data) {
           const defT = data.is_addition ? '➕ ITEM ADICIONADO' : '🚀 NOVO PEDIDO';
           
           const defB_Garcom = data.is_addition 
-            ? (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : (resumoTodos ? `{mesa} • ➕ {itens}` : '{mesa} pediu mais itens!'))
+            ? (resumoTodos ? `{mesa} • ➕ {itens}` : (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : '{mesa} pediu mais itens!'))
             : (resumoTodos ? `{mesa} • {itens}` : '{mesa}');
 
           const defB_Cozinha = data.is_addition 
-            ? (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : (resumoCozinha ? `{mesa} • ➕ {itens}` : '{mesa} pediu mais itens!'))
+            ? (resumoCozinha ? `{mesa} • ➕ {itens}` : (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : '{mesa} pediu mais itens!'))
             : (resumoCozinha ? `{mesa} • {itens}` : '{mesa}');
 
           const defB_Churrasco = data.is_addition 
-            ? (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : (resumoChurrasco ? `{mesa} • ➕ {itens}` : '{mesa} pediu mais itens!'))
+            ? (resumoChurrasco ? `{mesa} • ➕ {itens}` : (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : '{mesa} pediu mais itens!'))
             : (resumoChurrasco ? `{mesa} • {itens}` : '{mesa}');
 
           msgGarcom = resolveTemplate(evKey, defT, defB_Garcom, 'todos');
@@ -2570,7 +2574,7 @@ function formatarNomeMesaOuComanda(numero, isComanda = 0) {
   if (isNum) {
     return Number(isComanda) === 1 ? `Comanda ${str}` : `Mesa ${str}`;
   }
-  return str;
+  return Number(isComanda) === 1 ? `Comanda ${str}` : str;
 }
 
 const recentAdminWhatsAppMap = new Map();
@@ -4394,11 +4398,15 @@ app.delete('/api/pedidos/itens/:id', isAuthenticated, async (req, res) => {
         });
       }
       
-      const mesaNum = pedido ? (pedido.garcom_id === 'DELIVERY' ? `DELIVERY #${item.pedido_id}` : (pedido.numero || 'BALCÃO')) : 'BALCÃO';
-      const localStr = pedido && pedido.garcom_id === 'DELIVERY' ? `${mesaNum}` : `Mesa ${mesaNum}`;
+      const numRaw = pedido ? (pedido.numero || 'BALCÃO') : 'BALCÃO';
+      const isCom = pedido ? (pedido.is_comanda ? 1 : 0) : 0;
+      const mesaNum = pedido ? (pedido.garcom_id === 'DELIVERY' ? `DELIVERY #${item.pedido_id}` : formatarNomeMesaOuComanda(numRaw, isCom)) : 'BALCÃO';
+      const localStr = mesaNum;
       await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
+        id: item.pedido_id,
         pedido_id: item.pedido_id, 
         mesa_numero: mesaNum,
+        is_comanda: isCom,
         garcom_id: pedido ? pedido.garcom_id : null,
         mensagem: `🚨 O Pedido #${item.pedido_id} (${localStr}) foi CANCELADO.` 
       });
@@ -4424,13 +4432,16 @@ app.delete('/api/pedidos/itens/:id', isAuthenticated, async (req, res) => {
 app.delete('/api/pedidos/:id', isAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    const pedido = (await query("SELECT m.id as mesa_id, p.garcom_id, p.status, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
+    const pedido = (await query("SELECT m.id as mesa_id, p.garcom_id, p.status, m.numero, m.is_comanda FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
     const itens = (await query("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
     
     if (pedido && pedido.status !== 'cancelado' && pedido.status !== 'entregue') {
       for (const item of itens) await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
     }
     
+    const temCozinha = await checkTemItemCozinha(itens.map(i => i.menu_id));
+    const temChurrasco = await checkTemItemChurrasco(itens.map(i => i.menu_id));
+
     await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [id]);
     await query("DELETE FROM pagamentos WHERE pedido_id = ?", [id]);
     await query("DELETE FROM pedidos WHERE id = ?", [id]);
@@ -4450,11 +4461,17 @@ app.delete('/api/pedidos/:id', isAdmin, async (req, res) => {
           mensagem: "Este pedido foi removido pelo estabelecimento. Seu acesso foi encerrado." 
         });
       }
-      const mesaNum = pedido.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : (pedido.numero || 'BALCÃO');
-      const localStr = pedido.garcom_id === 'DELIVERY' ? `${mesaNum}` : `Mesa ${mesaNum}`;
+      const numRaw = pedido ? (pedido.numero || 'BALCÃO') : 'BALCÃO';
+      const isCom = pedido ? (pedido.is_comanda ? 1 : 0) : 0;
+      const mesaNum = pedido.garcom_id === 'DELIVERY' ? `DELIVERY #${id}` : formatarNomeMesaOuComanda(numRaw, isCom);
+      const localStr = mesaNum;
       await safePusherTrigger('garconnexpress', 'pedido-cancelado', { 
+        id: id,
         pedido_id: id, 
         mesa_numero: mesaNum,
+        is_comanda: isCom,
+        para_cozinha: temCozinha,
+        para_churrasco: temChurrasco,
         garcom_id: pedido.garcom_id,
         mensagem: `🚨 O Pedido #${id} (${localStr}) foi REMOVIDO pelo Admin.` 
       });
@@ -5675,6 +5692,7 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
         id: id,
         pedido_id: id, 
         mesa_numero: mesaNum,
+        is_comanda: isCom,
         garcom_id: pm ? pm.garcom_id : null,
         mensagem: `🚨 O Pedido #${id} (${localStr}) foi CANCELADO pelo Admin.` 
       });
