@@ -153,16 +153,13 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     try {
       // Limpeza automática de comandas finalizadas/canceladas ou abandonadas sem itens
       try {
-        const comandasLivre = await query("SELECT id, numero, tipo, is_comanda, created_at FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR tipo = 'balcao' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%')");
+        const comandasLivre = await query("SELECT id, numero, tipo, is_comanda, created_at FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR tipo = 'balcao' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%' OR LOWER(CAST(numero AS TEXT)) LIKE 'balc%')");
         let limpouAlguma = false;
 
         for (const c of (comandasLivre.rows || [])) {
-          // Comandas de balcão NUNCA devem ser deletadas pela rotina automática de órfãs
-          if (c.tipo === 'balcao') continue;
-
           const numTrim = String(c.numero || '').trim();
           // Se for mesa física com número puro (ex: 1 a 100) e não é comanda nem balcão, protege e repara
-          if (/^\d+$/.test(numTrim) && c.tipo !== 'comanda' && !numTrim.toLowerCase().startsWith('comanda')) {
+          if (/^\d+$/.test(numTrim) && c.tipo !== 'comanda' && c.tipo !== 'balcao' && !numTrim.toLowerCase().startsWith('comanda') && !numTrim.toLowerCase().startsWith('balc')) {
             await query("UPDATE mesas SET is_comanda = 0, tipo = 'mesa' WHERE id = ?", [c.id]);
             continue;
           }

@@ -70,13 +70,12 @@ module.exports = (ctx) => {
       await query("UPDATE fluxo_caixa SET valor_final = ?, status = 'fechado', data_fechamento = ? WHERE id = ?", [valor_final, dataLocal, id]);
       await query("UPDATE codigos_acesso SET status = 'expirado' WHERE status = 'ativo'");
 
-      // Limpa todas as comandas descartáveis livres ao fechar o caixa (mantém mesas físicas fixas e balcão)
+      // Limpa todas as comandas descartáveis livres (mesa e balcão) ao fechar o caixa (mantém mesas físicas fixas)
       try {
-        const comandasParaLimpar = await query("SELECT id, numero, tipo, is_comanda FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%')");
+        const comandasParaLimpar = await query("SELECT id, numero, tipo, is_comanda FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR tipo = 'balcao' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%' OR LOWER(CAST(numero AS TEXT)) LIKE 'balc%')");
         for (const c of (comandasParaLimpar.rows || [])) {
-          if (c.tipo === 'balcao') continue;
           const numTrim = String(c.numero || '').trim();
-          if (/^\d+$/.test(numTrim) && c.tipo !== 'comanda' && !numTrim.toLowerCase().startsWith('comanda')) continue;
+          if (/^\d+$/.test(numTrim) && c.tipo !== 'comanda' && c.tipo !== 'balcao' && !numTrim.toLowerCase().startsWith('comanda') && !numTrim.toLowerCase().startsWith('balc')) continue;
           await query("DELETE FROM mesas WHERE id = ?", [c.id]);
         }
         await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
