@@ -12,7 +12,7 @@
     })();
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <base href="/app-garcom/">
+  <base href="/garcom/">
   <title>GarçomExpress - Garçom</title>
   <script>
     window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
@@ -260,6 +260,9 @@
       </div>
     </section>
   </main>
+
+  <!-- Backdrop Escuro Bloqueador para Modais de Mesa/Opções -->
+  <div id="modal-opcoes-backdrop" class="modal-opcoes-backdrop" style="display:none;" onclick="fecharOpcoesOuResumo()"></div>
 
   <!-- Modal de Opções da Mesa Ocupada -->
   <div id="modal-opcoes" class="modal-opcoes">

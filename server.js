@@ -1063,14 +1063,59 @@ async function safePusherTrigger(channel, event, data) {
         const configData = (await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'fcm_title_%' OR chave LIKE 'fcm_body_%' OR chave IN ('config_som_garcom', 'config_som_cozinha', 'config_som_motoboy', 'config_som_churrasco')")).rows;
         const configMap = {};
         for (const r of configData) configMap[r.chave] = r.valor;
- 
-        const resolveTemplate = (evt, defaultT, defaultB) => {
+
+        // Recupera ou busca itens do pedido para montar o resumo inteligente nas notificações
+        let listaItensPush = data.itens;
+        const pIdPush = data.pedido_id || data.id || (data.pedido ? (data.pedido.id || data.pedido.pedido_id) : null);
+        if ((!listaItensPush || !Array.isArray(listaItensPush) || listaItensPush.length === 0) && pIdPush) {
+          try {
+            const qItens = await query(
+              `SELECT pi.quantidade as qtd, m.nome, m.categoria, m.enviar_cozinha, m.enviar_churrasco 
+               FROM pedido_itens pi 
+               JOIN menu m ON pi.menu_id = m.id 
+               WHERE pi.pedido_id = ? AND (pi.cancelado = 0 OR pi.cancelado IS NULL) AND (pi.entregue = 0 OR pi.entregue IS NULL)`,
+              [pIdPush]
+            );
+            if (qItens.rows && qItens.rows.length > 0) {
+              listaItensPush = qItens.rows;
+            }
+          } catch (errItens) {
+            console.error("Erro ao carregar itens para resumo de push:", errItens.message);
+          }
+        }
+
+        // Formata o resumo de itens filtrando estritamente pelo setor de preparo
+        const formatarResumoItens = (itens, setor = 'todos', maxItens = 3) => {
+          if (!Array.isArray(itens) || itens.length === 0) return '';
+          let filtrados = itens;
+          if (setor === 'cozinha') {
+            const catsBebidas = ['BEBIDAS', 'BEBIDA', 'CERVEJAS', 'CERVEJA', 'REFRIGERANTES', 'REFRIGERANTE', 'SUCOS', 'SUCO', 'DRINKS', 'DRINK', 'AGUA', 'ÁGUA', 'DOSES', 'DOSE', 'SOBREMESAS', 'SOBREMESA'];
+            filtrados = itens.filter(i => {
+              const cat = (i.categoria || '').toUpperCase().trim();
+              if (catsBebidas.includes(cat)) return false;
+              if (i.enviar_cozinha === 0 || i.enviar_cozinha === false) return false;
+              return true;
+            });
+          } else if (setor === 'churrasqueiro') {
+            filtrados = itens.filter(i => i.enviar_churrasco === 1 || i.enviar_churrasco === true);
+          }
+          if (filtrados.length === 0) return '';
+          const primeiros = filtrados.slice(0, maxItens).map(i => `${i.qtd || i.quantidade || 1}x ${i.nome || i.titulo || 'Item'}`);
+          const restantes = filtrados.length - primeiros.length;
+          return restantes > 0 ? `${primeiros.join(', ')} (+${restantes} ${restantes === 1 ? 'item' : 'itens'})` : primeiros.join(', ');
+        };
+
+        const resumoTodos = formatarResumoItens(listaItensPush, 'todos');
+        const resumoCozinha = formatarResumoItens(listaItensPush, 'cozinha');
+        const resumoChurrasco = formatarResumoItens(listaItensPush, 'churrasqueiro');
+
+        const resolveTemplate = (evt, defaultT, defaultB, setor = 'todos') => {
           let t = configMap[`fcm_title_${evt}`] || defaultT;
           let b = configMap[`fcm_body_${evt}`] || defaultB;
           let s = configMap[`fcm_sound_${evt}`] !== 'false';
+          const itemsList = setor === 'cozinha' ? resumoCozinha : (setor === 'churrasqueiro' ? resumoChurrasco : resumoTodos);
           const mapVars = (str) => {
             if (!str) return '';
-            const itemsList = data.itens ? data.itens.map(i => `${i.qtd || 1}x ${i.nome || i.titulo || ''}`).join(', ') : '';
             return str
               .replace(/{mesa}/g, mesaFormatada)
               .replace(/{status}/g, data.status === 'fechado' ? '🔴 O caixa foi FECHADO. Atendimento encerrado.' : '🟢 O caixa foi ABERTO. Bom trabalho!')
@@ -1095,11 +1140,23 @@ async function safePusherTrigger(channel, event, data) {
         if (event === 'novo-pedido') {
           const evKey = data.is_addition ? 'item-adicionado' : 'novo-pedido';
           const defT = data.is_addition ? '➕ ITEM ADICIONADO' : '🚀 NOVO PEDIDO';
-          const defB = data.is_addition ? '{mesa} pediu mais itens!' : '{mesa}';
-          msgGarcom = resolveTemplate(evKey, defT, defB);
-          msgCozinha = resolveTemplate(evKey, defT, defB);
-          msgChurrasco = resolveTemplate(evKey, defT, defB);
-          msgMotoboy = resolveTemplate(evKey, data.is_addition ? '➕ ITEM ADICIONADO' : '🚀 NOVO DELIVERY', data.is_addition ? '{mesa} pediu mais itens!' : 'Novo pedido #{pedido_id} recebido!');
+          
+          const defB_Garcom = data.is_addition 
+            ? (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : (resumoTodos ? `{mesa} • ➕ ${resumoTodos}` : '{mesa} pediu mais itens!'))
+            : (resumoTodos ? `{mesa} • ${resumoTodos}` : '{mesa}');
+
+          const defB_Cozinha = data.is_addition 
+            ? (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : (resumoCozinha ? `{mesa} • ➕ ${resumoCozinha}` : '{mesa} pediu mais itens!'))
+            : (resumoCozinha ? `{mesa} • ${resumoCozinha}` : '{mesa}');
+
+          const defB_Churrasco = data.is_addition 
+            ? (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : (resumoChurrasco ? `{mesa} • ➕ ${resumoChurrasco}` : '{mesa} pediu mais itens!'))
+            : (resumoChurrasco ? `{mesa} • ${resumoChurrasco}` : '{mesa}');
+
+          msgGarcom = resolveTemplate(evKey, defT, defB_Garcom, 'todos');
+          msgCozinha = resolveTemplate(evKey, defT, defB_Cozinha, 'cozinha');
+          msgChurrasco = resolveTemplate(evKey, defT, defB_Churrasco, 'churrasqueiro');
+          msgMotoboy = resolveTemplate(evKey, data.is_addition ? '➕ ITEM ADICIONADO' : '🚀 NOVO DELIVERY', defB_Garcom, 'todos');
         } else if (event === 'pedido-cancelado') {
           msgGarcom = resolveTemplate('pedido-cancelado', '❌ PEDIDO CANCELADO', '{mesa}');
           msgCozinha = resolveTemplate('pedido-cancelado', '❌ PEDIDO CANCELADO', '{mesa}');
@@ -4682,17 +4739,25 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
       await query("UPDATE pedidos SET mesa_numero = ?, is_comanda = ? WHERE id = ?", [mesaNum, isComVal, pedidoId]).catch(() => {});
     }
 
-    // OTIMIZAÇÃO EM LOTE: Busca nomes, cozinha e categorias de todos os itens do menu em lote (uma única query)
+    // OTIMIZAÇÃO EM LOTE: Busca nomes, cozinha, churrasco e categorias de todos os itens do menu em lote (uma única query)
     const menuIds = [...new Set(itens.map(i => i.menu_id))];
-    const menuItemsRes = await query(`SELECT id, nome, enviar_cozinha, categoria FROM menu WHERE id IN (${menuIds.map(() => '?').join(',')})`, menuIds);
+    const menuItemsRes = await query(`SELECT id, nome, enviar_cozinha, enviar_churrasco, categoria FROM menu WHERE id IN (${menuIds.map(() => '?').join(',')})`, menuIds);
     const menuMap = {};
     menuItemsRes.rows.forEach(m => { menuMap[m.id] = m; });
 
-    // 1. Nomes para WhatsApp
-    const itensNomes = itens.map(item => {
+    // 1. Nomes para WhatsApp e Payload completo
+    const itensCompletos = itens.map(item => {
       const p = menuMap[item.menu_id];
-      return `${item.quantidade}x ${p ? p.nome : 'Item'}`;
+      return {
+        menu_id: item.menu_id,
+        nome: p ? p.nome : 'Item',
+        qtd: item.quantidade,
+        categoria: p ? p.categoria : '',
+        enviar_cozinha: p ? p.enviar_cozinha : 1,
+        enviar_churrasco: p ? p.enviar_churrasco : 0
+      };
     });
+    const itensNomes = itensCompletos.map(i => `${i.qtd}x ${i.nome}`);
     const isDeliv = mesaNum && mesaNum.toString().toUpperCase().startsWith('DELIVERY');
     const isBalcao = !isDeliv && (!mesa_id || mesaNum === 'BALCÃO' || mesaNum.toString().toUpperCase().includes('BALCÃO') || mesaNum.toString().toUpperCase().includes('BALCAO'));
     const localLabel = isDeliv ? mesaNum : (isBalcao ? 'BALCÃO' : (mesaNum.startsWith('Mesa ') || mesaNum.startsWith('Comanda ') ? mesaNum : `Mesa ${mesaNum}`));
@@ -4713,6 +4778,7 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
       safePusherTrigger('garconnexpress', 'novo-pedido', {
         para_cozinha: temItemCozinha,
         para_churrasco: temItemChurrasco,
+        itens: itensCompletos,
         pedido: { id: pedidoId, mesa_id, mesa_numero: mesaNum, status: 'recebido', garcom_id: garcom_id }
       })
     ]);
@@ -4877,6 +4943,7 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
           para_churrasco: temItemChurrasco,
           is_addition: true,
           detalhes_edicao: detalhesEdicao,
+          itens: adicionados,
           pedido: { id: id, mesa_numero: mesaNum, status: 'recebido', garcom_id: pMesa ? pMesa.garcom_id : null } 
         })
       ]);
@@ -4989,10 +5056,19 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
     const temItemChurrasco = await checkTemItemChurrasco(itens.map(i => i.menu_id));
 
     const alteracoes = [];
+    const itensAdicionadosPayload = [];
     for (const item of itens) {
       const pMenu = menuMap[item.menu_id];
       const nomeItem = pMenu ? pMenu.nome : `Item #${item.menu_id}`;
       alteracoes.push(`➕ ${item.quantidade}x ${nomeItem}`);
+      itensAdicionadosPayload.push({
+        menu_id: item.menu_id,
+        nome: nomeItem,
+        qtd: item.quantidade,
+        categoria: pMenu ? pMenu.categoria : '',
+        enviar_cozinha: pMenu ? pMenu.enviar_cozinha : 1,
+        enviar_churrasco: pMenu ? pMenu.enviar_churrasco : 0
+      });
     }
     const detalhesEdicao = alteracoes.join(', ');
 
@@ -5005,6 +5081,7 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
         para_churrasco: temItemChurrasco,
         is_addition: true,
         detalhes_edicao: detalhesEdicao,
+        itens: itensAdicionadosPayload,
         // garcom_id real do pedido: null = sem garçom atribuído (lançado pelo admin), ADMIN = admin direto
         garcom_id: pMesa ? (pMesa.garcom_id || 'ADMIN') : 'ADMIN',
         pedido: { id: id, mesa_numero: mesaNum, status: 'recebido', garcom_id: pMesa ? (pMesa.garcom_id || 'ADMIN') : 'ADMIN' } 

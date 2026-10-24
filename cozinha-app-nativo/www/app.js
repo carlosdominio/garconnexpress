@@ -380,7 +380,14 @@ async function carregarPedidos(opcoes = {}) {
                     const primeiroNovo = itensValidos.find(i => novosIds.includes(i.pedido_id));
                     const mesa = primeiroNovo?.mesa_numero || 'BALCÃO';
                     const labelMesa = (String(mesa).includes('DELIVERY') || String(mesa).startsWith('Mesa')) ? mesa : `Mesa ${mesa}`;
-                    dispararToastSistema('novo-pedido', { mesa: labelMesa, pedido_id: novosIds[0] }, `🍳 NOVO PEDIDO: ${labelMesa}`, 'success');
+                    const itensNovosCozinha = itensValidos.filter(i => novosIds.includes(i.pedido_id));
+                    const nomesItens = itensNovosCozinha.slice(0, 3).map(i => `${i.quantidade || 1}x ${i.nome || 'Item'}`);
+                    const restantes = itensNovosCozinha.length - nomesItens.length;
+                    const resumoItens = nomesItens.length > 0 
+                        ? (restantes > 0 ? `${nomesItens.join(', ')} (+${restantes} ${restantes === 1 ? 'item' : 'itens'})` : nomesItens.join(', '))
+                        : '';
+                    const fallbackTexto = `🍳 NOVO PEDIDO: ${labelMesa}${resumoItens ? ' • ' + resumoItens : ''}`;
+                    dispararToastSistema('novo-pedido', { mesa: labelMesa, itens: resumoItens, pedido_id: novosIds[0] }, fallbackTexto, 'success');
                     if (deveTocarSom('novo-pedido')) tocarSomNotificacao('campainha');
                 }
                 _cozinhaPedidosConhecidos = idsAtuais;
@@ -825,6 +832,10 @@ async function configurarPusher() {
 
         canal.bind('novo-pedido', (data) => {
             console.log('🍳 [Cozinha] novo-pedido recebido. para_cozinha=', data?.para_cozinha);
+            if (data && data.para_cozinha === false) {
+                console.log('🍳 [Cozinha] Ignorando novo-pedido: pedido sem itens para a cozinha.');
+                return;
+            }
             // A notificação é controlada pelo carregarPedidos: só dispara se a API retornar itens NOVOS
             // Isso é 100% confiável pois usa o mesmo filtro SQL do endpoint /api/pedidos/cozinha
             clearTimeout(timeoutPusher);
@@ -833,6 +844,10 @@ async function configurarPusher() {
 
         canal.bind('pedido-cancelado', (data) => {
             console.log('📢 Pedido cancelado recebido:', data);
+            if (data && data.para_cozinha === false) {
+                console.log('🍳 [Cozinha] Ignorando cancelamento: pedido sem itens para a cozinha.');
+                return;
+            }
             const idParaCancelar = data.id || data.pedido_id || (data.pedido ? data.pedido.id : null);
             if (idParaCancelar) {
                 mostrarNotificacaoCancelamento(data.mensagem || `Pedido #${idParaCancelar} cancelado`, idParaCancelar);
@@ -874,7 +889,8 @@ async function configurarPusher() {
                 const card = document.getElementById(`pedido-card-${data.pedido_id || data.id}`);
                 if (card) {
                     const mesa = data.mesa_numero || 'X';
-                    dispararToastSistema('item-adicionado', { mesa }, `📝 Mesa ${mesa}: Itens atualizados`, 'info');
+                    const detalhes = data.detalhes_edicao ? ` • ${data.detalhes_edicao}` : '';
+                    dispararToastSistema('item-adicionado', { mesa, detalhes: data.detalhes_edicao || '' }, `📝 Mesa ${mesa}: Itens atualizados${detalhes}`, 'info');
                     if (deveTocarSom('status-atualizado')) tocarSomNotificacao('campainha');
                 }
             }

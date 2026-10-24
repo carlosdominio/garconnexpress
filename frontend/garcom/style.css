@@ -650,6 +650,21 @@ main {
   }
 }
 
+/* Backdrop real bloqueador para o Modal de Opções e Resumo */
+.modal-opcoes-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  background-color: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 9999;
+  touch-action: none;
+  pointer-events: auto;
+}
+
 .modal-opcoes {
 
   display: none;
@@ -672,9 +687,7 @@ main {
 
   border-radius: 20px 20px 0 0;
 
-  /* Sombra gigante que escurece todo o fundo (truque para evitar mudar o HTML) */
-
-  box-shadow: 0 0 0 200vmax rgba(0,0,0,0.8); 
+  box-shadow: 0 -10px 30px rgba(0,0,0,0.35); 
 
   z-index: 10000;
 

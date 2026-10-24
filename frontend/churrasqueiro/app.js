@@ -332,7 +332,6 @@ async function carregarPedidos(opcoes = {}) {
                 if (closedScreen) closedScreen.style.display = 'flex';
                 if (header) header.style.opacity = '0.3';
                 if (typeof limparNotificacoes === 'function') limparNotificacoes();
-                _churrascoPedidosConhecidos = new Set();
                 return;
             }
         }
@@ -353,7 +352,14 @@ async function carregarPedidos(opcoes = {}) {
                     const primeiroNovo = itensValidos.find(i => novosIds.includes(i.pedido_id));
                     const mesa = primeiroNovo?.mesa_numero || 'BALCÃO';
                     const labelMesa = (String(mesa).includes('DELIVERY') || String(mesa).startsWith('Mesa')) ? mesa : `Mesa ${mesa}`;
-                    dispararToastSistema('novo-pedido', { mesa: labelMesa, pedido_id: novosIds[0] }, `🍢 NOVO PEDIDO: ${labelMesa}`, 'success');
+                    const itensNovosChurrasco = itensValidos.filter(i => novosIds.includes(i.pedido_id));
+                    const nomesItens = itensNovosChurrasco.slice(0, 3).map(i => `${i.quantidade || 1}x ${i.nome || 'Item'}`);
+                    const restantes = itensNovosChurrasco.length - nomesItens.length;
+                    const resumoItens = nomesItens.length > 0 
+                        ? (restantes > 0 ? `${nomesItens.join(', ')} (+${restantes} ${restantes === 1 ? 'item' : 'itens'})` : nomesItens.join(', '))
+                        : '';
+                    const fallbackTexto = `🍢 NOVO PEDIDO: ${labelMesa}${resumoItens ? ' • ' + resumoItens : ''}`;
+                    dispararToastSistema('novo-pedido', { mesa: labelMesa, itens: resumoItens, pedido_id: novosIds[0] }, fallbackTexto, 'success');
                     if (deveTocarSom('novo-pedido')) tocarSomNotificacao('campainha');
                 }
                 _churrascoPedidosConhecidos = idsAtuais;
@@ -848,24 +854,12 @@ async function configurarPusher() {
                 return;
             }
 
-            // Toasts para interações do Admin no pedido
-            if (data && data.status) {
-                const mesa = data.mesa_numero || 'Mesa';
-                const pid = data.pedido_id || data.id || '';
-                const statusToasts = {
-                    'preparando':             { msg: `🍳 Pedido #${pid} da ${mesa} está sendo PREPARADO!`,            tipo: 'info'    },
-                    'pronto':                 { msg: `🔔 Pedido #${pid} da ${mesa} está PRONTO para servir!`,         tipo: 'success' },
-                    'servido':                { msg: `🍽️ Pedido #${pid} da ${mesa} foi SERVIDO!`,                    tipo: 'success' },
-                    'entregue':               { msg: `✅ Pedido #${pid} da ${mesa} foi ENTREGUE!`,                    tipo: 'success' },
-                    'saiu_entrega':           { msg: `🛵 Pedido #${pid} da ${mesa} saiu para ENTREGA!`,              tipo: 'info'    },
-                    'aguardando_fechamento':  { msg: `💰 Pedido #${pid} da ${mesa} aguardando FECHAMENTO!`,           tipo: 'warning' },
-                    'itens_atualizados':      { msg: `📝 ${mesa}: Itens ATUALIZADOS no pedido!`,                     tipo: 'info'    },
-                    'itens_adicionados':      { msg: `➕ ${mesa}: Novos ITENS adicionados!`,                         tipo: 'info'    },
-                };
-
-                const toastInfo = statusToasts[data.status];
-                if (toastInfo) {
-                    dispararToastSistema('status-atualizado', { mesa, pedido_id: pid }, toastInfo.msg, toastInfo.tipo);
+            if (data && (data.status === 'itens_atualizados' || data.status === 'itens_adicionados')) {
+                const card = document.getElementById(`pedido-card-${data.pedido_id || data.id}`);
+                if (card) {
+                    const mesa = data.mesa_numero || 'X';
+                    const detalhes = data.detalhes_edicao ? ` • ${data.detalhes_edicao}` : '';
+                    dispararToastSistema('item-adicionado', { mesa, detalhes: data.detalhes_edicao || '' }, `📝 Mesa ${mesa}: Itens atualizados${detalhes}`, 'info');
                     if (deveTocarSom('status-atualizado')) tocarSomNotificacao('campainha');
                 }
             }

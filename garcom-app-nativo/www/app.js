@@ -446,6 +446,16 @@ async function subscribeToPush() {
 let configCozinhaLoaded = false; // Flag para saber se já carregou do servidor
 let configChurrascoLoaded = false; // Flag para saber se já carregou do servidor do churrasco
 
+// Helper para fechar modal de opções ou resumo ao tocar no backdrop bloqueador
+function fecharOpcoesOuResumo() {
+  const resumo = document.getElementById('modal-resumo-mesa');
+  if (resumo && resumo.style.display !== 'none' && resumo.style.display !== '') {
+    fecharResumoMesa();
+  } else {
+    fecharOpcoes();
+  }
+}
+
 // Helper para travar/destravar o scroll do fundo de forma robusta
 function atualizarBloqueioScroll() {
   const modais = ['.modal', '.modal-opcoes', '.modal-carrinho'];
@@ -453,6 +463,15 @@ function atualizarBloqueioScroll() {
     const elementos = document.querySelectorAll(seletor);
     return Array.from(elementos).some(el => el.style.display !== 'none' && el.style.display !== '');
   });
+
+  const modalOpcoes = document.getElementById('modal-opcoes');
+  const modalResumo = document.getElementById('modal-resumo-mesa');
+  const opcoesAberto = (modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.style.display !== '') ||
+                       (modalResumo && modalResumo.style.display !== 'none' && modalResumo.style.display !== '');
+  const backdrop = document.getElementById('modal-opcoes-backdrop');
+  if (backdrop) {
+    backdrop.style.display = opcoesAberto ? 'block' : 'none';
+  }
 
   const screenFechado = document.getElementById('closed-screen');
   const estaFechado = screenFechado && screenFechado.style.display === 'flex';
@@ -487,7 +506,12 @@ function isItemParaCozinha(item) {
         return configCozinhaCategorias.includes(cat);
     }
 
-    // 3. Fallback: Se não há categorias configuradas e é NULL, por padrão vai para a cozinha.
+    // 3. Bloqueio de Bebidas/Bar quando não houver categorias específicas configuradas
+    if (cat.includes('BEBIDA') || cat.includes('CERVEJA') || cat.includes('REFRIGERANTE') || cat.includes('SUCO') || cat.includes('DRINK') || cat.includes('AGUA') || cat.includes('ÁGUA') || cat.includes('DOSE') || cat.includes('BAR') || cat.includes('VINHO') || cat.includes('WHISKY') || cat.includes('VODKA') || cat.includes('CACHAÇA') || cat.includes('CACHACA') || cat.includes('CHOPP') || cat.includes('ENERGÉTICO') || cat.includes('ENERGETICO') || cat.includes('SOBREMESA')) {
+        return false;
+    }
+
+    // 4. Fallback: Se não há categorias configuradas e não é bebida/bar, por padrão vai para a cozinha.
     return true;
 }
 
@@ -1620,7 +1644,8 @@ async function configurarPusher() {
 
       if (deveTocarSom('solicitacao-fechamento-cliente')) tocarCampainha();
       const mesaVal = data.mesa_numero || data.mesa_id || 'Mesa';
-      dispararToastSistema('solicitacao-fechamento-cliente', { mesa: mesaVal, pedido_id: data.pedido_id || '' }, `💰 A ${mesaVal} solicitou o fechamento da conta.`, 'info');
+      const fpMsg = data.forma_pagamento ? ` (Forma: ${data.forma_pagamento})` : '';
+      dispararToastSistema('solicitacao-fechamento-cliente', { mesa: mesaVal, pedido_id: data.pedido_id || '' }, `💰 A ${mesaVal} solicitou o fechamento da conta.${fpMsg}`, 'info');
       
       clearTimeout(timeoutPusher);
       timeoutPusher = setTimeout(() => carregarMesas(), 50);
@@ -3096,9 +3121,19 @@ function calcularTrocoGarcom() {
   const valorPessoa = total / pessoas;
   if (elValorPessoa) elValorPessoa.textContent = `R$ ${valorPessoa.toFixed(2).replace('.',',')}`;
 
+  // Se o cliente solicitou uma forma específica via Cardápio Digital (e ainda não digitamos nada)
+  let fpRaw = pedidoAbertoNaMesa ? (pedidoAbertoNaMesa.forma_pagamento || '') : '';
+  let formaDefault = 'Dinheiro';
+  if (fpRaw.toLowerCase() === 'pix' || fpRaw.toLowerCase().includes('pix')) formaDefault = 'Pix';
+  else if (fpRaw === 'Cartão de Crédito') formaDefault = 'Cartão de Crédito';
+  else if (fpRaw === 'Cartão de Débito') formaDefault = 'Cartão de Débito';
+  else if (fpRaw.toLowerCase().includes('cart')) formaDefault = 'Cartão';
+
   // Salva os valores que já estavam preenchidos para não perder ao digitar
   const valoresAtuais = [];
   const formasAtuais = [];
+  let isFirstRun = container.children.length === 0;
+
   for (let i = 0; i < container.children.length; i++) {
     const v = document.getElementById(`valor-recebido-garcom-${i}`);
     const f = document.getElementById(`forma-pagamento-garcom-${i}`);
@@ -3106,12 +3141,20 @@ function calcularTrocoGarcom() {
     formasAtuais.push(f ? f.value : 'Dinheiro');
   }
 
+  let valorPrevDefault = '';
+  if (isFirstRun && formaDefault === 'Dinheiro' && fpRaw.includes('Troco para R$')) {
+    const match = fpRaw.match(/Troco para R\$ ([\d.]+)/);
+    if (match && match[1]) {
+      valorPrevDefault = parseFloat(match[1]).toString();
+    }
+  }
+
   // Gera os campos dinamicamente
   let html = '';
   for (let i = 0; i < pessoas; i++) {
     let titulo = pessoas === 1 ? 'FORMA DE PAGAMENTO:' : `PAGAMENTO PESSOA ${i + 1}:`;
-    let formaPrev = formasAtuais[i] || 'Dinheiro';
-    let valorPrev = valoresAtuais[i] || '';
+    let formaPrev = isFirstRun ? formaDefault : (formasAtuais[i] || 'Dinheiro');
+    let valorPrev = isFirstRun && i === 0 ? valorPrevDefault : (valoresAtuais[i] || '');
     let displayRecebido = formaPrev === 'Dinheiro' ? 'block' : 'none';
 
     html += `
@@ -3120,7 +3163,8 @@ function calcularTrocoGarcom() {
         <select id="forma-pagamento-garcom-${i}" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; font-size:1rem; background: #fff; margin-bottom: 10px;" onchange="alternarCampoTrocoIndex(${i})">
           <option value="Dinheiro" ${formaPrev === 'Dinheiro' ? 'selected' : ''}>💵 Dinheiro</option>
           <option value="Pix" ${formaPrev === 'Pix' ? 'selected' : ''}>📱 Pix</option>
-          <option value="Cartão" ${formaPrev === 'Cartão' ? 'selected' : ''}>💳 Cartão</option>
+          <option value="Cartão de Crédito" ${formaPrev === 'Cartão de Crédito' ? 'selected' : ''}>💳 Cartão de Crédito</option>
+          <option value="Cartão de Débito" ${formaPrev === 'Cartão de Débito' ? 'selected' : ''}>💳 Cartão de Débito</option>
         </select>
         
         <div id="campo-recebido-garcom-${i}" style="display: ${displayRecebido};">

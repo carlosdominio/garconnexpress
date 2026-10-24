@@ -446,6 +446,16 @@ async function subscribeToPush() {
 let configCozinhaLoaded = false; // Flag para saber se já carregou do servidor
 let configChurrascoLoaded = false; // Flag para saber se já carregou do servidor do churrasco
 
+// Helper para fechar modal de opções ou resumo ao tocar no backdrop bloqueador
+function fecharOpcoesOuResumo() {
+  const resumo = document.getElementById('modal-resumo-mesa');
+  if (resumo && resumo.style.display !== 'none' && resumo.style.display !== '') {
+    fecharResumoMesa();
+  } else {
+    fecharOpcoes();
+  }
+}
+
 // Helper para travar/destravar o scroll do fundo de forma robusta
 function atualizarBloqueioScroll() {
   const modais = ['.modal', '.modal-opcoes', '.modal-carrinho'];
@@ -453,6 +463,15 @@ function atualizarBloqueioScroll() {
     const elementos = document.querySelectorAll(seletor);
     return Array.from(elementos).some(el => el.style.display !== 'none' && el.style.display !== '');
   });
+
+  const modalOpcoes = document.getElementById('modal-opcoes');
+  const modalResumo = document.getElementById('modal-resumo-mesa');
+  const opcoesAberto = (modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.style.display !== '') ||
+                       (modalResumo && modalResumo.style.display !== 'none' && modalResumo.style.display !== '');
+  const backdrop = document.getElementById('modal-opcoes-backdrop');
+  if (backdrop) {
+    backdrop.style.display = opcoesAberto ? 'block' : 'none';
+  }
 
   const screenFechado = document.getElementById('closed-screen');
   const estaFechado = screenFechado && screenFechado.style.display === 'flex';
