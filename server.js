@@ -1114,7 +1114,7 @@ async function safePusherTrigger(channel, event, data) {
           let b = configMap[`fcm_body_${evt}`] || defaultB;
           let s = configMap[`fcm_sound_${evt}`] !== 'false';
           const itemsList = setor === 'cozinha' ? resumoCozinha : (setor === 'churrasqueiro' ? resumoChurrasco : resumoTodos);
-          const mapVars = (str) => {
+          const mapVars = (str, isBody = false) => {
             if (!str) return '';
             let resStr = str
               .replace(/{mesa}/g, mesaFormatada)
@@ -1124,12 +1124,12 @@ async function safePusherTrigger(channel, event, data) {
               .replace(/{qtd}/g, (data.qtd !== undefined && data.qtd !== null) ? data.qtd : ((data.estoque !== undefined && data.estoque !== null) ? data.estoque : '1'))
               .replace(/{detalhes}/g, data.detalhes_edicao || '')
               .replace(/{pedido_id}/g, String(data.pedido_id || data.id || ''));
-            if (itemsList && !str.includes('{itens}') && (evt === 'novo-pedido' || evt === 'item-adicionado')) {
+            if (isBody && itemsList && !str.includes('{itens}') && !resStr.includes(itemsList) && (evt === 'novo-pedido' || evt === 'item-adicionado')) {
               resStr += ` • ${itemsList}`;
             }
             return resStr;
           };
-          return { title: mapVars(t), body: mapVars(b), som: s };
+          return { title: mapVars(t, false), body: mapVars(b, true), som: s };
         };
  
         // Determina se o evento é para o Motoboy (Delivery) ou Garçom
@@ -1146,16 +1146,16 @@ async function safePusherTrigger(channel, event, data) {
           const defT = data.is_addition ? '➕ ITEM ADICIONADO' : '🚀 NOVO PEDIDO';
           
           const defB_Garcom = data.is_addition 
-            ? (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : (resumoTodos ? `{mesa} • ➕ ${resumoTodos}` : '{mesa} pediu mais itens!'))
-            : (resumoTodos ? `{mesa} • ${resumoTodos}` : '{mesa}');
+            ? (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : (resumoTodos ? `{mesa} • ➕ {itens}` : '{mesa} pediu mais itens!'))
+            : (resumoTodos ? `{mesa} • {itens}` : '{mesa}');
 
           const defB_Cozinha = data.is_addition 
-            ? (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : (resumoCozinha ? `{mesa} • ➕ ${resumoCozinha}` : '{mesa} pediu mais itens!'))
-            : (resumoCozinha ? `{mesa} • ${resumoCozinha}` : '{mesa}');
+            ? (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : (resumoCozinha ? `{mesa} • ➕ {itens}` : '{mesa} pediu mais itens!'))
+            : (resumoCozinha ? `{mesa} • {itens}` : '{mesa}');
 
           const defB_Churrasco = data.is_addition 
-            ? (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : (resumoChurrasco ? `{mesa} • ➕ ${resumoChurrasco}` : '{mesa} pediu mais itens!'))
-            : (resumoChurrasco ? `{mesa} • ${resumoChurrasco}` : '{mesa}');
+            ? (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : (resumoChurrasco ? `{mesa} • ➕ {itens}` : '{mesa} pediu mais itens!'))
+            : (resumoChurrasco ? `{mesa} • {itens}` : '{mesa}');
 
           msgGarcom = resolveTemplate(evKey, defT, defB_Garcom, 'todos');
           msgCozinha = resolveTemplate(evKey, defT, defB_Cozinha, 'cozinha');

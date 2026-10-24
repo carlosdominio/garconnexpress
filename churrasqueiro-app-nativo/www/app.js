@@ -1455,7 +1455,7 @@ function dispararToastSistema(evento, dados = {}, fallbackText = '', fallbackTip
     .replace(/{pedido_id}/g, pedidoIdVal)
     .replace(/{mensagem}/g, msgVal);
 
-  if (itensVal && !template.includes('{itens}')) {
+  if (itensVal && !template.includes('{itens}') && !msgFinal.includes(itensVal)) {
     msgFinal += ` • ${itensVal}`;
   }
     
