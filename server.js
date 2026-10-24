@@ -969,7 +969,7 @@ async function safePusherTrigger(channel, event, data) {
               enviaCozinha = await checkTemItemCozinha(itensIds);
             } else {
               try {
-                const itensRes = await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [pId]);
+                const itensRes = await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ? AND LOWER(status) NOT IN ('entregue', 'servido', 'cancelado')", [pId]);
                 const ids = itensRes.rows.map(i => i.menu_id);
                 enviaCozinha = await checkTemItemCozinha(ids);
               } catch (e) {
@@ -985,7 +985,7 @@ async function safePusherTrigger(channel, event, data) {
               enviaChurrasco = await checkTemItemChurrasco(itensIds);
             } else {
               try {
-                const itensRes = await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [pId]);
+                const itensRes = await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ? AND LOWER(status) NOT IN ('entregue', 'servido', 'cancelado')", [pId]);
                 const ids = itensRes.rows.map(i => i.menu_id);
                 enviaChurrasco = await checkTemItemChurrasco(ids);
               } catch (e) {
@@ -1025,7 +1025,7 @@ async function safePusherTrigger(channel, event, data) {
           const pId = data.pedido_id || data.id || (data.pedido ? (data.pedido.id || data.pedido.pedido_id) : '');
           if (pId) {
             try {
-              const itensRes = await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [pId]);
+              const itensRes = await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ? AND LOWER(status) NOT IN ('entregue', 'servido', 'cancelado')", [pId]);
               if (itensRes.rows && itensRes.rows.length > 0) {
                 const menuIds = itensRes.rows.map(i => i.menu_id);
                 enviaCozinha = await checkTemItemCozinha(menuIds);
@@ -1042,7 +1042,7 @@ async function safePusherTrigger(channel, event, data) {
           const pId = data.pedido_id || data.id || (data.pedido ? (data.pedido.id || data.pedido.pedido_id) : '');
           if (pId) {
             try {
-              const itensRes = await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [pId]);
+              const itensRes = await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ? AND LOWER(status) NOT IN ('entregue', 'servido', 'cancelado')", [pId]);
               if (itensRes.rows && itensRes.rows.length > 0) {
                 const menuIds = itensRes.rows.map(i => i.menu_id);
                 enviaChurrasco = await checkTemItemChurrasco(menuIds);
@@ -1844,7 +1844,7 @@ async function checkAndNotifyDelayedOrders() {
       let enviaCozinha = false;
       let enviaChurrasco = false;
       try {
-        const itens = (await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [p.id])).rows;
+        const itens = (await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ? AND LOWER(status) NOT IN ('entregue', 'servido', 'cancelado')", [p.id])).rows;
         if (itens && itens.length > 0) {
           const itensIds = itens.map(i => i.menu_id);
           enviaCozinha = await checkTemItemCozinha(itensIds);
@@ -2514,7 +2514,7 @@ function formatarNomeMesaOuComanda(numero, isComanda = 0) {
 
 const recentAdminWhatsAppMap = new Map();
 
-async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null, detalhesEdicao = null) {
+async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null, detalhesEdicao = null, paraCozinha = null, paraChurrasco = null) {
   try {
     let mesaNum = mesaNumPredefined;
     let finalMesaId = mesaDbId;
@@ -2565,7 +2565,9 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
       garcom_id: garcomId,
       detalhes_edicao: detalhesEdicao 
     };
-    console.log(`🔔 [Notificação] ${status.toUpperCase()}: ${mesaNum} (ID Pedido: ${pedidoId || 'N/A'})`);
+    if (paraCozinha !== null && paraCozinha !== undefined) payload.para_cozinha = paraCozinha;
+    if (paraChurrasco !== null && paraChurrasco !== undefined) payload.para_churrasco = paraChurrasco;
+    console.log(`🔔 [Notificação] ${status.toUpperCase()}: ${mesaNum} (ID Pedido: ${pedidoId || 'N/A'}) | para_cozinha=${payload.para_cozinha} | para_churrasco=${payload.para_churrasco}`);
 
     // Dispara Pusher IMEDIATAMENTE (Prioridade)
     await safePusherTrigger('garconnexpress', 'status-atualizado', payload);
@@ -4860,12 +4862,15 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
       // Busca garcom_id para notificação
       const pMesa = (await query("SELECT garcom_id FROM pedidos WHERE id = ?", [id])).rows[0];
 
-      const temItemCozinha = await checkTemItemCozinha(itens.map(i => i.menu_id));
-      const temItemChurrasco = await checkTemItemChurrasco(itens.map(i => i.menu_id));
+      // Apenas itens EFETIVAMENTE ADICIONADOS ou com quantidade aumentada disparam notificação de preparo para Cozinha ou Churrasqueiro!
+      // Itens que já existiam e foram entregues no passado NÃO alertam a cozinha/churrasco novamente.
+      const idsAdicionados = (adicionados || []).map(a => a.menu_id);
+      const temItemCozinha = idsAdicionados.length > 0 ? await checkTemItemCozinha(idsAdicionados) : false;
+      const temItemChurrasco = idsAdicionados.length > 0 ? await checkTemItemChurrasco(idsAdicionados) : false;
       
       // Notifica em paralelo
       await Promise.all([
-        notifyStatus(id, null, 'itens_atualizados', null, detalhesEdicao),
+        notifyStatus(id, null, 'itens_atualizados', null, detalhesEdicao, temItemCozinha, temItemChurrasco),
         safePusherTrigger('garconnexpress', 'menu-atualizado', {}),
         safePusherTrigger('garconnexpress', 'novo-pedido', { 
           para_cozinha: temItemCozinha,
@@ -4878,7 +4883,7 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
     } else {
       await query("UPDATE pedidos SET total = ?, status = ?, observacao = ? WHERE id = ?", [total, novoStatusPedido, observacao || '', id]);
       await Promise.all([
-        notifyStatus(id, null, 'itens_atualizados', null, detalhesEdicao),
+        notifyStatus(id, null, 'itens_atualizados', null, detalhesEdicao, false, false),
         safePusherTrigger('garconnexpress', 'menu-atualizado', {})
       ]);
     }
@@ -4993,7 +4998,7 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
 
     // Notifica em paralelo
     await Promise.all([
-      notifyStatus(id, null, 'itens_atualizados', null, detalhesEdicao),
+      notifyStatus(id, null, 'itens_atualizados', null, detalhesEdicao, temItemCozinha, temItemChurrasco),
       safePusherTrigger('garconnexpress', 'menu-atualizado', {}),
       safePusherTrigger('garconnexpress', 'novo-pedido', { 
         para_cozinha: temItemCozinha,
