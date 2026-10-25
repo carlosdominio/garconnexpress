@@ -7123,6 +7123,78 @@ app.get('/api/debug-fcm', async (req, res, next) => {
   }
 });
 
+app.get('/api/fcm/teste-cozinha', async (req, res, next) => {
+  if (req.query.key === 'garconn2026') return next();
+  return isAdmin(req, res, next);
+}, async (req, res) => {
+  try {
+    const configRes = await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'config_som_%'");
+    const configMap = {};
+    configRes.rows.forEach(row => { configMap[row.chave] = row.valor; });
+
+    const activeSound = configMap['config_som_cozinha'] || 'sino_cristal';
+    const channelName = 'cozinha_canal_' + activeSound;
+    const fcmSoundFile = activeSound === 'original' ? 'notificacao' : activeSound;
+
+    const subs = (await query("SELECT * FROM push_subscriptions WHERE app_type = 'cozinha'")).rows;
+    if (subs.length === 0) {
+      return res.json({ success: false, error: 'Nenhum token FCM registrado para app_type = cozinha' });
+    }
+
+    let firebaseApp = null;
+    if (admin.apps.find(a => a.name === 'cozinha')) {
+      firebaseApp = admin.app('cozinha');
+    } else {
+      return res.json({ success: false, error: 'Firebase Admin (Cozinha) não está inicializado' });
+    }
+
+    const results = [];
+    for (const sub of subs) {
+      const message = {
+        notification: {
+          title: '🍳 TESTE FCM COZINHA',
+          body: `Notificação de teste! Som: ${activeSound} (Canal: ${channelName})`
+        },
+        data: {
+          event: 'teste-fcm-cozinha',
+          sound: fcmSoundFile,
+          pedido_id: '9999'
+        },
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: channelName,
+            sound: fcmSoundFile,
+            notificationPriority: 'PRIORITY_MAX',
+            icon: 'ic_stat_notification',
+            color: '#e74c3c',
+            defaultVibrateTimings: true,
+            defaultLightSettings: true
+          }
+        },
+        token: sub.endpoint
+      };
+
+      try {
+        const response = await firebaseApp.messaging().send(message);
+        results.push({ id: sub.id, endpoint_preview: sub.endpoint.substring(0, 30) + '...', success: true, response });
+      } catch (err) {
+        results.push({ id: sub.id, endpoint_preview: sub.endpoint.substring(0, 30) + '...', success: false, error: err.message, code: err.code });
+      }
+    }
+
+    res.json({
+      success: true,
+      activeSound,
+      channelName,
+      tokens_encontrados: subs.length,
+      results
+    });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
 app.get('/api/fcm/teste-motoboy-som', isAdmin, async (req, res) => {
   try {
     const configRes = await query("SELECT chave, valor FROM sistema_config");
