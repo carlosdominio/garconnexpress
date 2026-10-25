@@ -1088,6 +1088,34 @@ async function safePusherTrigger(channel, event, data) {
           }
         }
 
+        // Se os itens passados não tiverem propriedades de setor (ex: rotas de adição de itens), enriquece com o menu
+        if (Array.isArray(listaItensPush) && listaItensPush.length > 0) {
+          const idsFaltando = listaItensPush
+            .filter(i => i.menu_id && (i.enviar_churrasco === undefined || i.categoria === undefined))
+            .map(i => i.menu_id);
+          if (idsFaltando.length > 0) {
+            try {
+              const uniqueIds = [...new Set(idsFaltando)];
+              const mRes = await query(`SELECT id, nome, categoria, enviar_cozinha, enviar_churrasco FROM menu WHERE id IN (${uniqueIds.map(() => '?').join(',')})`, uniqueIds);
+              const mMap = {};
+              mRes.rows.forEach(m => { mMap[m.id] = m; });
+              listaItensPush = listaItensPush.map(i => {
+                const m = mMap[i.menu_id];
+                if (!m) return i;
+                return {
+                  ...i,
+                  nome: i.nome || m.nome,
+                  categoria: i.categoria !== undefined ? i.categoria : m.categoria,
+                  enviar_cozinha: i.enviar_cozinha !== undefined ? i.enviar_cozinha : m.enviar_cozinha,
+                  enviar_churrasco: i.enviar_churrasco !== undefined ? i.enviar_churrasco : m.enviar_churrasco
+                };
+              });
+            } catch (errM) {
+              console.error("Erro ao enriquecer itens para push:", errM.message);
+            }
+          }
+        }
+
         // Formata o resumo de itens filtrando estritamente pelo setor de preparo
         const formatarResumoItens = (itens, setor = 'todos', maxItens = 3) => {
           if (!Array.isArray(itens) || itens.length === 0) return '';
@@ -1097,11 +1125,18 @@ async function safePusherTrigger(channel, event, data) {
             filtrados = itens.filter(i => {
               const cat = (i.categoria || '').toUpperCase().trim();
               if (catsBebidas.includes(cat)) return false;
-              if (i.enviar_cozinha === 0 || i.enviar_cozinha === false) return false;
+              if (i.enviar_cozinha === 0 || i.enviar_cozinha === false || i.enviar_cozinha === '0') return false;
+              if (i.enviar_churrasco === 1 || i.enviar_churrasco === true || i.enviar_churrasco === '1') return false;
+              if (cat.includes('CHURRAS') || cat.includes('ESPET') || cat.includes('CARNE') || cat.includes('GRELH')) return false;
               return true;
             });
           } else if (setor === 'churrasqueiro') {
-            filtrados = itens.filter(i => i.enviar_churrasco === 1 || i.enviar_churrasco === true);
+            filtrados = itens.filter(i => {
+              if (i.enviar_churrasco === 1 || i.enviar_churrasco === true || i.enviar_churrasco === '1') return true;
+              const cat = (i.categoria || '').toUpperCase().trim();
+              if (cat.includes('CHURRAS') || cat.includes('ESPET') || cat.includes('CARNE') || cat.includes('GRELH')) return true;
+              return false;
+            });
           }
           if (filtrados.length === 0) return '';
           const primeiros = filtrados.slice(0, maxItens).map(i => `${i.qtd || i.quantidade || 1}x ${i.nome || i.titulo || 'Item'}`);
@@ -4851,9 +4886,9 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
     const itensAtuais = (await query("SELECT id, menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
     
     // Calcula as alterações detalhadas da edição realizada
-    const menuItems = (await query("SELECT id, nome FROM menu")).rows;
+    const menuItems = (await query("SELECT id, nome, categoria, enviar_cozinha, enviar_churrasco FROM menu")).rows;
     const menuMap = {};
-    menuItems.forEach(m => { menuMap[m.id] = m.nome; });
+    menuItems.forEach(m => { menuMap[m.id] = m; });
     
     const atuaisMap = {};
     itensAtuais.forEach(i => { atuaisMap[i.menu_id] = (atuaisMap[i.menu_id] || 0) + i.quantidade; });
@@ -4866,20 +4901,26 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
     for (const menuId in novosMap) {
       const novaQtd = novosMap[menuId];
       const antigaQtd = atuaisMap[menuId] || 0;
-      const nomeItem = menuMap[menuId] || `Item #${menuId}`;
+      const pMenu = menuMap[menuId];
+      const nomeItem = pMenu ? pMenu.nome : `Item #${menuId}`;
+      const catItem = pMenu ? pMenu.categoria : '';
+      const envCoz = pMenu ? pMenu.enviar_cozinha : 1;
+      const envChur = pMenu ? pMenu.enviar_churrasco : 0;
       if (antigaQtd === 0) {
-        adicionados.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: novaQtd });
+        adicionados.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: novaQtd, categoria: catItem, enviar_cozinha: envCoz, enviar_churrasco: envChur });
       } else if (novaQtd > antigaQtd) {
-        adicionados.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: novaQtd - antigaQtd });
+        adicionados.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: novaQtd - antigaQtd, categoria: catItem, enviar_cozinha: envCoz, enviar_churrasco: envChur });
       } else if (novaQtd < antigaQtd) {
-        removidos.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: antigaQtd - novaQtd });
+        removidos.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: antigaQtd - novaQtd, categoria: catItem, enviar_cozinha: envCoz, enviar_churrasco: envChur });
       }
     }
     for (const menuId in atuaisMap) {
       if (!novosMap[menuId]) {
         const antigaQtd = atuaisMap[menuId];
-        const nomeItem = menuMap[menuId] || `Item #${menuId}`;
-        removidos.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: antigaQtd });
+        const pMenu = menuMap[menuId];
+        const nomeItem = pMenu ? pMenu.nome : `Item #${menuId}`;
+        const catItem = pMenu ? pMenu.categoria : '';
+        removidos.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: antigaQtd, categoria: catItem });
       }
     }
 

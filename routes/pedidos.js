@@ -913,9 +913,9 @@ module.exports = (ctx) => {
         .map(i => ({ ...i, quantidade: parseInt(i.quantidade, 10) }));
 
       const itensAtuais = (await query("SELECT id, menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
-      const menuItems = (await query("SELECT id, nome FROM menu")).rows;
+      const menuItems = (await query("SELECT id, nome, categoria, enviar_cozinha, enviar_churrasco FROM menu")).rows;
       const menuMap = {};
-      menuItems.forEach(m => { menuMap[m.id] = m.nome; });
+      menuItems.forEach(m => { menuMap[m.id] = m; });
       
       const atuaisMap = {};
       itensAtuais.forEach(i => { atuaisMap[i.menu_id] = (atuaisMap[i.menu_id] || 0) + i.quantidade; });
@@ -928,20 +928,26 @@ module.exports = (ctx) => {
       for (const menuId in novosMap) {
         const novaQtd = novosMap[menuId];
         const antigaQtd = atuaisMap[menuId] || 0;
-        const nomeItem = menuMap[menuId] || `Item #${menuId}`;
+        const pMenu = menuMap[menuId];
+        const nomeItem = pMenu ? pMenu.nome : `Item #${menuId}`;
+        const catItem = pMenu ? pMenu.categoria : '';
+        const envCoz = pMenu ? pMenu.enviar_cozinha : 1;
+        const envChur = pMenu ? pMenu.enviar_churrasco : 0;
         if (antigaQtd === 0) {
-          adicionados.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: novaQtd });
+          adicionados.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: novaQtd, categoria: catItem, enviar_cozinha: envCoz, enviar_churrasco: envChur });
         } else if (novaQtd > antigaQtd) {
-          adicionados.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: novaQtd - antigaQtd });
+          adicionados.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: novaQtd - antigaQtd, categoria: catItem, enviar_cozinha: envCoz, enviar_churrasco: envChur });
         } else if (novaQtd < antigaQtd) {
-          removidos.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: antigaQtd - novaQtd });
+          removidos.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: antigaQtd - novaQtd, categoria: catItem, enviar_cozinha: envCoz, enviar_churrasco: envChur });
         }
       }
       for (const menuId in atuaisMap) {
         if (!novosMap[menuId]) {
           const antigaQtd = atuaisMap[menuId];
-          const nomeItem = menuMap[menuId] || `Item #${menuId}`;
-          removidos.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: antigaQtd });
+          const pMenu = menuMap[menuId];
+          const nomeItem = pMenu ? pMenu.nome : `Item #${menuId}`;
+          const catItem = pMenu ? pMenu.categoria : '';
+          removidos.push({ menu_id: parseInt(menuId, 10), nome: nomeItem, qtd: antigaQtd, categoria: catItem });
         }
       }
 
