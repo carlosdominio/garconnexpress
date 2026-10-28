@@ -50,15 +50,26 @@ module.exports = (ctx) => {
 
       let result;
       try {
-        result = await query('SELECT id, nome, usuario, senha, cargo FROM garcons WHERE usuario = ?', [usuario]);
+        result = await query('SELECT id, nome, usuario, senha, cargo, ativo FROM garcons WHERE usuario = ?', [usuario]);
       } catch (errCol) {
-        result = await query('SELECT id, nome, usuario, senha FROM garcons WHERE usuario = ?', [usuario]);
+        try {
+          result = await query('SELECT id, nome, usuario, senha, cargo FROM garcons WHERE usuario = ?', [usuario]);
+        } catch (e2) {
+          result = await query('SELECT id, nome, usuario, senha FROM garcons WHERE usuario = ?', [usuario]);
+        }
       }
 
       if (result.rows.length > 0 && await bcrypt.compare(senha, result.rows[0].senha)) { 
         const garcom = result.rows[0];
         delete garcom.senha;
         
+        // Validação de bloqueio de conta
+        if (garcom.ativo === false) {
+          return res.status(403).json({
+            error: 'Acesso Bloqueado: Este usuário foi desativado/bloqueado pela gerência. Entre em contato com a administração.'
+          });
+        }
+
         const cargo = (garcom.cargo || 'garcom').toLowerCase().trim();
 
         // Validação de acesso por aplicativo vs cargo do usuário

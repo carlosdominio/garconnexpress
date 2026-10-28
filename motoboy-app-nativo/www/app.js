@@ -768,6 +768,31 @@ const App = {
                 this.instance = new Pusher(config.key, { cluster: config.cluster, forceTLS: true });
                 this.channel = this.instance.subscribe('garconnexpress');
                 
+                this.channel.bind('usuario-bloqueado', (data) => {
+                    console.log('🔒 Evento usuario-bloqueado recebido:', data);
+                    let meuUser = null;
+                    try { meuUser = JSON.parse(localStorage.getItem('motoboy_user') || '{}'); } catch(e) {}
+                    if (data && (data.usuario === (meuUser?.usuario) || (data.garcom_id && data.garcom_id == meuUser?.id))) {
+                        localStorage.removeItem('motoboy_token');
+                        localStorage.removeItem('motoboy_user');
+                        if (typeof Swal !== 'undefined') {
+                            Swal.fire({
+                                title: 'Acesso Bloqueado',
+                                text: 'Seu acesso foi suspenso pela administração do restaurante.',
+                                icon: 'error',
+                                confirmButtonColor: '#e74c3c',
+                                confirmButtonText: 'OK',
+                                allowOutsideClick: false
+                            }).then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            alert('Acesso Bloqueado: Seu acesso foi suspenso pela administração.');
+                            location.reload();
+                        }
+                    }
+                });
+
                 this.channel.bind('teste-toast', (data) => {
                     console.log('📢 Evento recebido: teste-toast', data);
                     if (App.audio && typeof App.audio.playBell === 'function') App.audio.playBell(data.som_tipo);

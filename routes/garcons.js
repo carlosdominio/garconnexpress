@@ -59,16 +59,89 @@ module.exports = (ctx) => {
   router.post('/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
     const { id } = req.params;
     try {
-      const garcom = (await query("SELECT id, is_online FROM garcons WHERE id = ?", [id])).rows[0];
-      if (!garcom) return res.status(404).json({ error: 'Garçom não encontrado' });
+      let garcom;
+      try {
+        garcom = (await query("SELECT id, usuario, cargo, is_online FROM garcons WHERE id = ?", [id])).rows[0];
+      } catch (e1) {
+        garcom = (await query("SELECT id, usuario, is_online FROM garcons WHERE id = ?", [id])).rows[0];
+      }
+
+      if (!garcom) return res.status(404).json({ error: 'Colaborador não encontrado' });
       const novoStatus = garcom.is_online ? (isPostgres ? false : 0) : (isPostgres ? true : 1);
       await query("UPDATE garcons SET is_online = ? WHERE id = ?", [novoStatus, id]);
       const pausado = novoStatus ? false : true;
+
+      // 1. Notifica evento padrão de garçom
       await safePusherTrigger('garconnexpress', 'garcom-status-alterado', {
         garcom_id: id,
         pausado: pausado
       });
+
+      // 2. Se for Cozinha ou Churrasqueiro, sincroniza a fila e push_subscriptions em tempo real
+      const cargo = (garcom.cargo || '').toLowerCase();
+      if (cargo === 'cozinha' || cargo === 'churrasqueiro') {
+        try {
+          await query("UPDATE push_subscriptions SET pausado = ? WHERE app_type = ?", [pausado ? 1 : 0, cargo]);
+        } catch(e) {}
+        await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
+          app_type: cargo,
+          pausado: pausado
+        });
+        console.log(`📡 [Admin] Status de fila do setor ${cargo} alterado para ${pausado ? 'PAUSA' : 'FILA ON'} em tempo real.`);
+      }
+
       res.json({ success: true, is_online: !!novoStatus });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/admin/garcons/:id/toggle-bloqueio
+  router.post('/admin/garcons/:id/toggle-bloqueio', isAdmin, async (req, res) => {
+    const { id } = req.params;
+    try {
+      let garcom;
+      try {
+        garcom = (await query("SELECT id, nome, usuario, cargo, ativo, is_online FROM garcons WHERE id = ?", [id])).rows[0];
+      } catch (errCol) {
+        try {
+          garcom = (await query("SELECT id, nome, usuario, cargo, is_online FROM garcons WHERE id = ?", [id])).rows[0];
+        } catch (e2) {
+          garcom = (await query("SELECT id, nome, usuario, is_online FROM garcons WHERE id = ?", [id])).rows[0];
+        }
+      }
+
+      if (!garcom) return res.status(404).json({ error: 'Colaborador não encontrado' });
+      
+      const estaAtivo = garcom.ativo === false ? false : true;
+      const novoAtivo = !estaAtivo;
+      
+      try {
+        if (!novoAtivo) {
+          // Bloqueado: desativa ativo e desativa is_online
+          await query("UPDATE garcons SET ativo = ?, is_online = ? WHERE id = ?", [isPostgres ? false : 0, isPostgres ? false : 0, id]);
+        } else {
+          // Desbloqueado: ativa ativo
+          await query("UPDATE garcons SET ativo = ? WHERE id = ?", [isPostgres ? true : 1, id]);
+        }
+      } catch (errUp) {
+        console.warn('Fallback update ativo:', errUp.message);
+      }
+
+      const bloqueado = !novoAtivo;
+
+      // Dispara logout imediato no aparelho do usuário caso tenha sido bloqueado
+      if (bloqueado) {
+        await safePusherTrigger('garconnexpress', 'usuario-bloqueado', {
+          garcom_id: id,
+          usuario: garcom.usuario,
+          cargo: garcom.cargo,
+          motivo: 'bloqueio_admin'
+        });
+        console.log(`🔒 Colaborador ${garcom.usuario} bloqueado pelo Admin. Comando de logout enviado via Pusher.`);
+      }
+
+      res.json({ success: true, ativo: novoAtivo, bloqueado: bloqueado });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -79,12 +152,16 @@ module.exports = (ctx) => {
     try {
       let result;
       try {
-        result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online, cargo FROM garcons ORDER BY nome');
+        result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online, cargo, ativo FROM garcons ORDER BY nome');
       } catch (errCol) {
         try {
-          result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online FROM garcons ORDER BY nome');
+          result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online, cargo FROM garcons ORDER BY nome');
         } catch (e2) {
-          result = await query('SELECT id, nome, usuario, telefone, comissao, is_online FROM garcons ORDER BY nome');
+          try {
+            result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online FROM garcons ORDER BY nome');
+          } catch (e3) {
+            result = await query('SELECT id, nome, usuario, telefone, comissao, is_online FROM garcons ORDER BY nome');
+          }
         }
       }
       res.json(result.rows);

@@ -1284,6 +1284,31 @@ async function configurarPusher() {
       mostrarToast(data.mensagem, data.tipo || 'info', data.titulo || 'Teste');
     });
 
+    channel.bind('usuario-bloqueado', (data) => {
+      console.log('🔒 Evento usuario-bloqueado recebido:', data);
+      const meuUsuario = garcomLogado ? (garcomLogado.usuario || '') : '';
+      const meuId = garcomLogado ? garcomLogado.id : null;
+      if (data && (data.usuario === meuUsuario || (data.garcom_id && data.garcom_id == meuId))) {
+        localStorage.removeItem('garcom_logado');
+        localStorage.removeItem('garcom_token');
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            title: 'Acesso Bloqueado',
+            text: 'Seu acesso foi suspenso pela administração do restaurante.',
+            icon: 'error',
+            confirmButtonColor: '#e74c3c',
+            confirmButtonText: 'OK',
+            allowOutsideClick: false
+          }).then(() => {
+            location.reload();
+          });
+        } else {
+          alert('Acesso Bloqueado: Seu acesso foi suspenso pela administração.');
+          location.reload();
+        }
+      }
+    });
+
     channel.bind('comunicado-geral', (data) => {
       console.log('📢 Evento recebido: comunicado-geral', data);
       if (data.destinatario === 'todos' || data.destinatario === 'garcom') {

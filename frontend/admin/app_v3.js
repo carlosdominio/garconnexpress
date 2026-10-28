@@ -3866,6 +3866,7 @@ async function exibirGarconsConfig() {
 
   container.innerHTML = garcons.map((g, index) => {
     const isOnline = !!g.is_online;
+    const estaAtivo = g.ativo !== false;
     const statusLabel = isOnline ? '🟢 DISPONÍVEL' : '🔴 PAUSADO';
     const statusColor = isOnline ? '#27ae60' : '#e74c3c';
 
@@ -3879,23 +3880,34 @@ async function exibirGarconsConfig() {
     const cargoInfo = cargoBadgeMap[g.cargo] || cargoBadgeMap.garcom;
 
     return `
-    <div class="item-config">
+    <div class="item-config" style="${!estaAtivo ? 'opacity: 0.85; background: #fff5f5; border: 1px dashed #fca5a5;' : ''}">
       <div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <strong>${g.nome}</strong> 
           <span style="font-size: 0.68rem; padding: 2px 7px; border-radius: 6px; background: ${cargoInfo.bg}; color: ${cargoInfo.color}; font-weight: 700; border: 1px solid ${cargoInfo.border};">
             ${cargoInfo.label}
           </span>
-          <span style="font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; background: ${statusColor}22; color: ${statusColor}; font-weight: bold; border: 1px solid ${statusColor}44; cursor: pointer;" 
-                onclick="toggleStatusGarcom(${g.id}, ${isOnline})" title="Clique para forçar alteração">
-            ${statusLabel}
-          </span>
+          ${!estaAtivo ? `
+            <span style="font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; background: #fee2e2; color: #b91c1c; font-weight: bold; border: 1px solid #fca5a5;">
+              🔴 BLOQUEADO
+            </span>
+          ` : `
+            <span style="font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; background: ${statusColor}22; color: ${statusColor}; font-weight: bold; border: 1px solid ${statusColor}44; cursor: pointer;" 
+                  onclick="toggleStatusGarcom(${g.id}, ${isOnline})" title="Clique para forçar alteração">
+              ${statusLabel}
+            </span>
+          `}
         </div>
         <small style="color:#7f8c8d;">@${g.usuario}</small>
         ${g.telefone ? `<br><small style="color:#25D366; cursor:pointer;" onclick="window.open('https://wa.me/${g.telefone.replace(/\D/g, '')}', '_blank')">📱 WhatsApp: ${g.telefone}</small>` : ''}
         <br><small style="color:#64748b; font-weight: bold;">💰 Comissão: ${g.comissao !== undefined ? g.comissao : 0}% · 📅 Diária: R$ ${(g.diaria !== undefined && g.diaria !== null ? parseFloat(g.diaria) : 0).toFixed(2)}</small>
       </div>
-      <div style="display:flex; gap:0.5rem">
+      <div style="display:flex; gap:0.5rem; align-items:center;">
+        <button style="background:${estaAtivo ? '#10b981' : '#ef4444'}; color:white; padding:4px 8px; font-size:0.85rem; width:auto; border-radius:6px; cursor:pointer; border:none;" 
+                onclick="toggleBloqueioGarcom(${g.id}, ${estaAtivo})" 
+                title="${estaAtivo ? 'Acesso Ativo - Clique para Bloquear' : 'Acesso Bloqueado - Clique para Desbloquear'}">
+          ${estaAtivo ? '🔓' : '🔒'}
+        </button>
         <button style="background:#3498db; padding:4px 8px; font-size:0.8rem; width:auto;" onclick="prepararEdicaoGarcomByIndex(${index})">✏️</button>
         <button class="btn-excluir" style="width:auto;" onclick="excluirGarcom(${g.id})">X</button>
       </div>
@@ -3904,23 +3916,54 @@ async function exibirGarconsConfig() {
 }
 
 async function toggleStatusGarcom(id, currentStatus) {
+  const garcom = window.listaGarconsAtual ? window.listaGarconsAtual.find(g => g.id === id) : null;
+  const nomeGarcom = garcom ? garcom.nome : "Colaborador";
+  const cargoGarcom = garcom ? (garcom.cargo || 'garcom') : 'garcom';
   const acao = currentStatus ? "PAUSAR" : "ATIVAR";
-  const confirm = await mostrarConfirmacao(`Deseja realmente ${acao} este garçom na fila de atendimento?`, "Controle de Fila", "Confirmar", "Cancelar", "⚙️");
+
+  const labelSetor = (cargoGarcom === 'cozinha' || cargoGarcom === 'churrasqueiro')
+    ? `Deseja realmente ${acao} a disponibilidade de ${nomeGarcom} (${cargoGarcom.toUpperCase()})? Isso atualizará o status da FILA no aplicativo dele em tempo real.`
+    : `Deseja realmente ${acao} este garçom na fila de atendimento?`;
+
+  const confirm = await mostrarConfirmacao(labelSetor, "Controle de Fila / Disponibilidade", "Confirmar", "Cancelar", "⚙️");
   if (!confirm) return;
 
   try {
     const res = await fetch(`/api/admin/garcons/${id}/toggle-status`, { method: 'POST' });
     if (res.ok) {
-      const garcom = window.listaGarconsAtual ? window.listaGarconsAtual.find(g => g.id === id) : null;
-      const nomeGarcom = garcom ? garcom.nome : "Garçom";
       const statusFinal = currentStatus ? "PAUSADO" : "ATIVADO";
-      
-      mostrarToast(`Garçom ${nomeGarcom} foi ${statusFinal}!`, currentStatus ? 'warning' : 'success', '⚙️ STATUS');
-      adicionarNotificacao(`⚙️ STATUS GARÇOM`, `O garçom ${nomeGarcom} foi ${statusFinal} na fila de atendimento.`, "⚙️");
-      
+      mostrarToast(`${nomeGarcom} foi ${statusFinal}!`, currentStatus ? 'warning' : 'success', '⚙️ STATUS');
+      adicionarNotificacao(`⚙️ STATUS FILA`, `${nomeGarcom} foi ${statusFinal} na fila de disponibilidade.`, "⚙️");
       exibirGarconsConfig(); // Recarrega a lista
     } else {
-      mostrarAlerta("Erro ao alterar status do garçom.", "Erro", "❌");
+      mostrarAlerta("Erro ao alterar status.", "Erro", "❌");
+    }
+  } catch (e) {
+    mostrarAlerta("Erro de conexão.", "Erro", "❌");
+  }
+}
+
+async function toggleBloqueioGarcom(id, currentAtivo) {
+  const garcom = window.listaGarconsAtual ? window.listaGarconsAtual.find(g => g.id === id) : null;
+  const nomeGarcom = garcom ? garcom.nome : "Colaborador";
+  const acao = currentAtivo ? "BLOQUEAR" : "DESBLOQUEAR";
+  const textoAviso = currentAtivo 
+    ? `Deseja realmente BLOQUEAR ${nomeGarcom}? Ele será deslogado imediatamente em tempo real e não conseguirá mais acessar o sistema até ser desbloqueado.`
+    : `Deseja DESBLOQUEAR o acesso de ${nomeGarcom}? Ele poderá voltar a fazer login no aplicativo correspondente.`;
+
+  const confirm = await mostrarConfirmacao(textoAviso, `${acao} Colaborador`, "Confirmar", "Cancelar", currentAtivo ? "🔒" : "🔓");
+  if (!confirm) return;
+
+  try {
+    const res = await fetch(`/api/admin/garcons/${id}/toggle-bloqueio`, { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      const msg = data.bloqueado ? `${nomeGarcom} foi BLOQUEADO e desconectado!` : `${nomeGarcom} foi DESBLOQUEADO com sucesso!`;
+      mostrarToast(msg, data.bloqueado ? 'warning' : 'success', '🔒 ACESSO');
+      adicionarNotificacao('🔒 ACESSO EQUIPE', msg, '🔒');
+      exibirGarconsConfig();
+    } else {
+      mostrarAlerta("Erro ao alterar bloqueio do colaborador.", "Erro", "❌");
     }
   } catch (e) {
     mostrarAlerta("Erro de conexão.", "Erro", "❌");

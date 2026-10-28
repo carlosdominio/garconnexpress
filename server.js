@@ -2833,7 +2833,7 @@ async function initDb() {
     `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
     `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT, comissao REAL DEFAULT 0, is_online BOOLEAN DEFAULT FALSE, last_assigned_at TIMESTAMP, cargo TEXT DEFAULT 'garcom')`,
+    `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT, comissao REAL DEFAULT 0, is_online BOOLEAN DEFAULT FALSE, last_assigned_at TIMESTAMP, cargo TEXT DEFAULT 'garcom', ativo BOOLEAN DEFAULT TRUE)`,
     `CREATE TABLE IF NOT EXISTS usuarios_admin (id SERIAL PRIMARY KEY, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS sistema_config (chave TEXT PRIMARY KEY, valor TEXT)`,
     `CREATE TABLE IF NOT EXISTS fluxo_caixa (id SERIAL PRIMARY KEY, data_abertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, data_fechamento TIMESTAMP, valor_inicial REAL NOT NULL, valor_final REAL, status TEXT DEFAULT 'aberto', total_dinheiro REAL DEFAULT 0, total_pix REAL DEFAULT 0, total_cartao REAL DEFAULT 0, total_vendas REAL DEFAULT 0)`,
@@ -3006,6 +3006,7 @@ async function initDb() {
     await addCol('garcons', 'diaria', 'REAL DEFAULT 0');
     await addCol('garcons', 'is_online', 'BOOLEAN DEFAULT FALSE');
     await addCol('garcons', 'cargo', "TEXT DEFAULT 'garcom'");
+    await addCol('garcons', 'ativo', "BOOLEAN DEFAULT TRUE");
     await addCol('garcons', 'last_assigned_at', 'TIMESTAMP');
     await addCol('pedidos', 'cliente_telefone', 'TEXT');
     await addCol('pedidos', 'taxa_entrega', 'REAL DEFAULT 0');
@@ -3133,6 +3134,13 @@ async function lazyInitDb() {
             await db.query("ALTER TABLE garcons ADD COLUMN IF NOT EXISTS cargo TEXT DEFAULT 'garcom'");
           } catch(e) {
             console.warn('Aviso ao adicionar coluna cargo em garcons:', e.message);
+          }
+
+          // Ativo / Bloqueado por colaborador (true = liberado, false = bloqueado)
+          try {
+            await db.query("ALTER TABLE garcons ADD COLUMN IF NOT EXISTS ativo BOOLEAN DEFAULT TRUE");
+          } catch(e) {
+            console.warn('Aviso ao adicionar coluna ativo em garcons:', e.message);
           }
           
           try {
@@ -6007,12 +6015,16 @@ app.get('/api/garcons', ensureDbInitialized, isAuthenticated, async (req, res) =
   try {
     let result;
     try {
-      result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online, cargo FROM garcons ORDER BY nome');
+      result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online, cargo, ativo FROM garcons ORDER BY nome');
     } catch (errCol) {
       try {
-        result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online FROM garcons ORDER BY nome');
+        result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online, cargo FROM garcons ORDER BY nome');
       } catch (e2) {
-        result = await query('SELECT id, nome, usuario, telefone, comissao, is_online FROM garcons ORDER BY nome');
+        try {
+          result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online FROM garcons ORDER BY nome');
+        } catch (e3) {
+          result = await query('SELECT id, nome, usuario, telefone, comissao, is_online FROM garcons ORDER BY nome');
+        }
       }
     }
     res.json(result.rows);
@@ -6320,15 +6332,26 @@ app.post('/api/login', loginLimiter, async (req, res) => {
 
     let result;
     try {
-      result = await query('SELECT id, nome, usuario, senha, cargo FROM garcons WHERE usuario = ?', [usuario]);
+      result = await query('SELECT id, nome, usuario, senha, cargo, ativo FROM garcons WHERE usuario = ?', [usuario]);
     } catch (errCol) {
-      result = await query('SELECT id, nome, usuario, senha FROM garcons WHERE usuario = ?', [usuario]);
+      try {
+        result = await query('SELECT id, nome, usuario, senha, cargo FROM garcons WHERE usuario = ?', [usuario]);
+      } catch (e2) {
+        result = await query('SELECT id, nome, usuario, senha FROM garcons WHERE usuario = ?', [usuario]);
+      }
     }
 
     if (result.rows.length > 0 && await bcrypt.compare(senha, result.rows[0].senha)) { 
       const garcom = result.rows[0];
       delete garcom.senha;
       
+      // Validação de bloqueio de conta
+      if (garcom.ativo === false) {
+        return res.status(403).json({
+          error: 'Acesso Bloqueado: Este usuário foi desativado/bloqueado pela gerência. Entre em contato com a administração.'
+        });
+      }
+
       const cargo = (garcom.cargo || 'garcom').toLowerCase().trim();
 
       // Validação de acesso por aplicativo vs cargo do usuário
@@ -8038,7 +8061,7 @@ app.get('/api/diag', isAdmin, async (req, res) => {
         `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
         `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
         `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-        `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT, comissao REAL DEFAULT 0, is_online BOOLEAN DEFAULT FALSE, last_assigned_at TIMESTAMP, cargo TEXT DEFAULT 'garcom')`,
+        `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT, comissao REAL DEFAULT 0, is_online BOOLEAN DEFAULT FALSE, last_assigned_at TIMESTAMP, cargo TEXT DEFAULT 'garcom', ativo BOOLEAN DEFAULT TRUE)`,
         `CREATE TABLE IF NOT EXISTS usuarios_admin (id SERIAL PRIMARY KEY, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL)`,
         `CREATE TABLE IF NOT EXISTS sistema_config (chave TEXT PRIMARY KEY, valor TEXT)`,
         `CREATE TABLE IF NOT EXISTS fluxo_caixa (id SERIAL PRIMARY KEY, data_abertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, data_fechamento TIMESTAMP, valor_inicial REAL NOT NULL, valor_final REAL, status TEXT DEFAULT 'aberto', total_dinheiro REAL DEFAULT 0, total_pix REAL DEFAULT 0, total_cartao REAL DEFAULT 0, total_vendas REAL DEFAULT 0)`,

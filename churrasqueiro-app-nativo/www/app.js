@@ -886,8 +886,35 @@ async function configurarPusher() {
         canal.bind('setor-fila-alterada', (data) => {
             if (data && data.app_type === 'churrasqueiro') {
                 console.log('🔄 Status de fila do churrasqueiro alterado externamente:', data);
-                if (typeof sincronizarStatusFilaServidorChurrasqueiro === 'function') {
+                if (typeof data.pausado === 'boolean') {
+                    churrasqueiroPausado = data.pausado;
+                    localStorage.setItem('churrasqueiro_pausado', churrasqueiroPausado);
+                    atualizarInterfaceFilaChurrasqueiro();
+                } else if (typeof sincronizarStatusFilaServidorChurrasqueiro === 'function') {
                     sincronizarStatusFilaServidorChurrasqueiro();
+                }
+            }
+        });
+
+        canal.bind('usuario-bloqueado', (data) => {
+            console.log('🔒 Evento usuario-bloqueado recebido:', data);
+            if (data && (data.cargo === 'churrasqueiro' || data.cargo === 'todos')) {
+                localStorage.removeItem('churrasqueiro_logado');
+                localStorage.removeItem('churrasqueiro_token');
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'Acesso Bloqueado',
+                        text: 'Seu acesso foi suspenso pela administração do restaurante.',
+                        icon: 'error',
+                        confirmButtonColor: '#e74c3c',
+                        confirmButtonText: 'OK',
+                        allowOutsideClick: false
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    alert('Acesso Bloqueado: Seu acesso foi suspenso pela administração.');
+                    location.reload();
                 }
             }
         });
