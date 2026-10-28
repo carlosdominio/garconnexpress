@@ -1550,6 +1550,8 @@ function resetarMesaLancar() {
     selectMesa.value = '';
     sincronizarFiltroCustomizadoLancar();
   }
+  const inputLancarBusca = document.getElementById('lancar-busca-produto');
+  if (inputLancarBusca) inputLancarBusca.value = '';
 }
 
 async function perguntarAcaoAoTrocarAbaComCarrinho(tabAlvo) {
@@ -1667,6 +1669,10 @@ async function switchTab(tab) {
     selectHistorico.value = '';
     if (typeof sincronizarFiltroCustomizadoHistorico === 'function') sincronizarFiltroCustomizadoHistorico();
   }
+
+  // Limpa busca de produtos da aba Lançar Pedido ao trocar de aba principal
+  const inputLancarBusca = document.getElementById('lancar-busca-produto');
+  if (inputLancarBusca) inputLancarBusca.value = '';
   
   // BLOQUEIO DE SCROLL GLOBAL: Na aba de ativos, lançamento e whatsapp para manter o app fixo
   if (tab === 'lancar' || tab === 'ativos' || tab === 'whatsapp') {
@@ -2323,6 +2329,10 @@ function atualizarBadgeCarrinhoLancar() {
 setTimeout(() => carregarCarrinhoLancarStorage(), 200);
 
 async function prepararLancarPedido(forcarLimpar = false) {
+  // Garante que a barra de busca de produtos esteja limpa ao abrir a aba
+  const inputLancarBusca = document.getElementById('lancar-busca-produto');
+  if (inputLancarBusca) inputLancarBusca.value = '';
+
   if (forcarLimpar) {
     carrinhoLancar = [];
     limparCarrinhoLancarStorage();
