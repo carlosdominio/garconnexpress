@@ -1,5 +1,19 @@
 const API_BASE_URL = 'https://garconnexpress.vercel.app';
 
+(function detectarVersaoAndroid() {
+  try {
+    const match = navigator.userAgent.match(/Android\s+([0-9]+)/i);
+    const version = match ? parseInt(match[1], 10) : null;
+    if (version && version >= 15) {
+      document.documentElement.classList.add('android-edge-to-edge');
+      document.documentElement.classList.remove('android-legacy');
+    } else {
+      document.documentElement.classList.add('android-legacy');
+      document.documentElement.classList.remove('android-edge-to-edge');
+    }
+  } catch(e) {}
+})();
+
 function exibirTelaCarregamentoSistema(titulo = 'Carregando...', mensagem = 'Aguarde um instante enquanto preparamos o aplicativo.') {
   let modal = document.getElementById('screen-loading-overlay');
   if (!modal) {
