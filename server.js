@@ -1603,18 +1603,19 @@ app.post('/api/subscribe', isAuthenticated, async (req, res) => {
 
 // Endpoint específico para o app Motoboy
 app.post('/api/subscribe-motoboy', isAuthenticated, async (req, res) => {
-  const { endpoint } = req.body;
+  const { endpoint, pausado: reqPausado } = req.body;
   const garcomId = req.user.id || req.user.usuario;
+  const pausado = (reqPausado === true || reqPausado === 1 || reqPausado === '1') ? 1 : 0;
   try {
     if (!endpoint) return res.status(400).json({ error: 'Endpoint/token é obrigatório.' });
 
     // Garante unicidade absoluta: remove qualquer registro anterior com o mesmo token (endpoint)
     await query("DELETE FROM push_subscriptions WHERE endpoint = ?", [endpoint]);
-// Evita duplicidade do mesmo motoboy na base
+    // Evita duplicidade do mesmo motoboy na base
     await query("DELETE FROM push_subscriptions WHERE garcom_id = ? AND app_type = 'motoboy'", [garcomId]);
     
     // Insere o novo registro atualizado
-    await query("INSERT INTO push_subscriptions (garcom_id, endpoint, app_type) VALUES (?, ?, 'motoboy')", [garcomId, endpoint]);
+    await query("INSERT INTO push_subscriptions (garcom_id, endpoint, app_type, pausado) VALUES (?, ?, 'motoboy', ?)", [garcomId, endpoint, pausado]);
 
     res.status(201).json({ success: true });
   } catch (error) {
@@ -3681,13 +3682,21 @@ app.get('/api/setor/status-fila', isAuthenticated, async (req, res) => {
   const { app_type, endpoint } = req.query;
   const userId = req.user ? (req.user.id || req.user.usuario) : null;
   try {
+    let isPausado = false;
     let r;
     if (endpoint) {
       r = await query("SELECT pausado FROM push_subscriptions WHERE endpoint = ?", [endpoint]);
     } else if (userId && app_type) {
       r = await query("SELECT pausado FROM push_subscriptions WHERE garcom_id = ? AND app_type = ?", [String(userId), app_type]);
     }
-    const isPausado = r && r.rows && r.rows.length > 0 ? (r.rows[0].pausado === 1 || r.rows[0].pausado === true) : false;
+    if (r && r.rows && r.rows.length > 0) {
+      isPausado = (r.rows[0].pausado === 1 || r.rows[0].pausado === true);
+    } else if (userId) {
+      const g = await query("SELECT is_online FROM garcons WHERE id = ? OR usuario = ?", [isNaN(Number(userId)) ? -1 : Number(userId), String(userId)]);
+      if (g && g.rows && g.rows.length > 0) {
+        isPausado = !Boolean(g.rows[0].is_online);
+      }
+    }
     res.json({ pausado: isPausado });
   } catch (error) {
     res.json({ pausado: false });

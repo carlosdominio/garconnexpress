@@ -244,6 +244,7 @@ const App = {
         pedidos: [],
         caixaAberto: null,
         soundEnabled: localStorage.getItem('motoboy_sound') !== 'false',
+        pausado: localStorage.getItem('motoboy_pausado') === 'true',
         notifiedEvents: new Set(), // Para evitar duplicidade estrita (evento + id)
         notificacoes: []
     },
@@ -309,6 +310,9 @@ const App = {
         this.loadPedidos();
 
         this.ui.updateSoundIcon();
+        this.ui.updateFilaSwitch();
+        this.ui.updateOperadorNome();
+        this.sincronizarStatusFilaServidorMotoboy();
         localStorage.setItem('audio_unlocked', 'true');
 
         this.verificarVersaoSistema();
@@ -391,6 +395,9 @@ const App = {
                 if (data.success) {
                     localStorage.setItem('motoboy_token', data.token);
                     localStorage.setItem('motoboy_user', JSON.stringify(data.garcom));
+                    if (data.garcom && typeof data.garcom.is_online !== 'undefined') {
+                        localStorage.setItem('motoboy_pausado', !Boolean(data.garcom.is_online));
+                    }
                     
                     exibirTelaCarregamentoSistema('Carregando...', 'Buscando entregas do sistema...');
                     App.ui.showToast("Login realizado com sucesso!", "success");
@@ -520,6 +527,56 @@ const App = {
         }
     },
 
+    async toggleFilaMotoboy() {
+        const check = document.getElementById('check-fila');
+        const novoStatusPausado = check ? !check.checked : false;
+        const token = localStorage.getItem('motoboy_token');
+        if (!token) return;
+
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/garcom/pausar`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ pausado: novoStatusPausado })
+            });
+            const data = await res.json();
+            if (data.success) {
+                App.state.pausado = novoStatusPausado;
+                localStorage.setItem('motoboy_pausado', novoStatusPausado);
+                App.ui.updateFilaSwitch();
+                App.ui.showToast(novoStatusPausado ? "⏸️ Você entrou em Modo Pausa" : "🟢 Você está na Fila de Entregas!", novoStatusPausado ? 'warning' : 'success');
+            } else {
+                App.ui.updateFilaSwitch();
+            }
+        } catch (e) {
+            console.error('Erro ao alternar fila:', e);
+            App.ui.updateFilaSwitch();
+        }
+    },
+
+    async sincronizarStatusFilaServidorMotoboy() {
+        try {
+            const token = localStorage.getItem('motoboy_token');
+            if (!token) return;
+            const res = await fetch(`${API_BASE_URL}/api/setor/status-fila?app_type=motoboy`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data && typeof data.pausado === 'boolean') {
+                    App.state.pausado = data.pausado;
+                    localStorage.setItem('motoboy_pausado', App.state.pausado);
+                    App.ui.updateFilaSwitch();
+                }
+            }
+        } catch(e) {
+            console.warn('Falha ao sincronizar status do motoboy com servidor:', e);
+        }
+    },
+
     async logout() {
         const { isConfirmed } = await Swal.fire({
             title: 'Sair do App?',
@@ -538,6 +595,7 @@ const App = {
             setTimeout(() => {
                 localStorage.removeItem('motoboy_token');
                 localStorage.removeItem('motoboy_user');
+                localStorage.removeItem('motoboy_pausado');
                 location.reload();
             }, 1000);
         }
@@ -705,7 +763,7 @@ const App = {
                 await fetch(`${API_BASE_URL}/api/subscribe-motoboy`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.state.token}` },
-                    body: JSON.stringify({ endpoint: token })
+                    body: JSON.stringify({ endpoint: token, pausado: App.state.pausado })
                 });
             } catch (e) {}
         },
@@ -775,6 +833,7 @@ const App = {
                     if (data && (data.usuario === (meuUser?.usuario) || (data.garcom_id && data.garcom_id == meuUser?.id))) {
                         localStorage.removeItem('motoboy_token');
                         localStorage.removeItem('motoboy_user');
+                        localStorage.removeItem('motoboy_pausado');
                         if (typeof Swal !== 'undefined') {
                             Swal.fire({
                                 title: 'Acesso Bloqueado',
@@ -789,6 +848,32 @@ const App = {
                         } else {
                             alert('Acesso Bloqueado: Seu acesso foi suspenso pela administração.');
                             location.reload();
+                        }
+                    }
+                });
+
+                this.channel.bind('garcom-status-alterado', (data) => {
+                    console.log('📡 Evento garcom-status-alterado recebido (Motoboy):', data);
+                    let meuUser = null;
+                    try { meuUser = JSON.parse(localStorage.getItem('motoboy_user') || '{}'); } catch(e) {}
+                    if (data && (String(data.garcom_id) === String(meuUser?.id) || String(data.garcom_id) === String(meuUser?.usuario))) {
+                        App.state.pausado = !!data.pausado;
+                        localStorage.setItem('motoboy_pausado', App.state.pausado);
+                        App.ui.updateFilaSwitch();
+                        App.ui.showToast(App.state.pausado ? "⏸️ Modo Pausa ativado pelo Admin" : "🟢 Modo Fila ativado pelo Admin", App.state.pausado ? 'warning' : 'success');
+                    }
+                });
+
+                this.channel.bind('setor-fila-alterada', (data) => {
+                    console.log('📡 Evento setor-fila-alterada recebido (Motoboy):', data);
+                    if (data && (data.app_type === 'motoboy' || data.app_type === 'entrega')) {
+                        let meuUser = null;
+                        try { meuUser = JSON.parse(localStorage.getItem('motoboy_user') || '{}'); } catch(e) {}
+                        if (!data.user_id || String(data.user_id) === String(meuUser?.id) || String(data.user_id) === String(meuUser?.usuario)) {
+                            App.state.pausado = !!data.pausado;
+                            localStorage.setItem('motoboy_pausado', App.state.pausado);
+                            App.ui.updateFilaSwitch();
+                            App.ui.showToast(App.state.pausado ? "⏸️ Modo Pausa ativado pelo Admin" : "🟢 Modo Fila ativado pelo Admin", App.state.pausado ? 'warning' : 'success');
                         }
                     }
                 });
@@ -945,6 +1030,37 @@ const App = {
             for (const som in App.notifications.audiosNotificacao) {
                 const aud = App.notifications.audiosNotificacao[som];
                 if (aud) aud.muted = !App.state.soundEnabled;
+            }
+        },
+        updateFilaSwitch() {
+            const check = document.getElementById('check-fila');
+            const label = document.getElementById('label-fila');
+            const slider = document.getElementById('slider-fila');
+            const isPausado = App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1;
+
+            if (check) check.checked = !isPausado;
+            if (label) {
+                label.innerText = isPausado ? 'PAUSA' : 'FILA';
+                label.style.color = isPausado ? '#e74c3c' : '#2ecc71';
+            }
+            if (slider) {
+                slider.style.backgroundColor = isPausado ? '#e74c3c' : '#2ecc71';
+            }
+        },
+        updateOperadorNome() {
+            let nome = App.state.user?.nome || App.state.user?.usuario;
+            if (!nome && App.state.token) {
+                try {
+                    const payload = JSON.parse(atob(App.state.token.split('.')[1]));
+                    nome = payload.nome || payload.usuario;
+                } catch(e) {}
+            }
+            if (!nome) nome = 'Entregador';
+
+            const el = document.getElementById('nome-operador-motoboy');
+            if (el) {
+                el.textContent = nome;
+                el.title = `Entregador: ${nome}`;
             }
         },
         adicionarNotificacaoPainel(mensagem, titulo, tipo) {

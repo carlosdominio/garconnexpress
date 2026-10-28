@@ -2468,3 +2468,13 @@ header {
 .swal2-container {
   z-index: 999999 !important;
 }
+
+/* === REGRAS ADAPTATIVAS PARA ANDROID 15/16+ (Edge-to-Edge nativo) === */
+html.android-edge-to-edge header {
+    padding-top: max(var(--safe-area-inset-top, env(safe-area-inset-top, 0px)), 38px) !important;
+}
+
+html.android-edge-to-edge #closed-screen,
+html.android-edge-to-edge .tela-login {
+    padding-top: max(var(--safe-area-inset-top, env(safe-area-inset-top, 0px)), 38px) !important;
+}

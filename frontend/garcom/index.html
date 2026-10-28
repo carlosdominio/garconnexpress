@@ -11,7 +11,28 @@
       };
     })();
   </script>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    (function() {
+      try {
+        var ua = navigator.userAgent || '';
+        var match = ua.match(/Android\s([0-9\.]+)/i);
+        var isAndroid15OrNewer = false;
+        if (match && match[1]) {
+          var major = parseInt(match[1].split('.')[0], 10);
+          if (major >= 15) isAndroid15OrNewer = true;
+        }
+        var isNative = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
+                       ua.indexOf('Capacitor') !== -1 ||
+                       window.location.protocol === 'file:';
+        if (isNative || isAndroid15OrNewer) {
+          document.documentElement.classList.add('android-edge-to-edge');
+        } else {
+          document.documentElement.classList.add('android-legacy');
+        }
+      } catch(e) {}
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <base href="/garcom/">
   <title>GarçomExpress - Garçom</title>
   <script>
@@ -23,7 +44,7 @@
   </script>
   <script defer src="/_vercel/insights/script.js"></script>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="style.css?v=1.1.7-modal-fix">
+  <link rel="stylesheet" href="style.css?v=1.1.8-android-adaptive">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="manifest" href="manifest.json">
 
@@ -152,8 +173,8 @@
       <div class="header-info" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
         <div>
           <h1 style="margin: 0; font-size: 1.2rem;">GarçomExpress</h1>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <p id="garcom-nome-exibicao" style="margin: 0; font-size: 0.8rem;">Aguardando Login...</p>
+          <div style="display:flex; align-items:center; gap:8px; min-width: 0;">
+            <p id="garcom-nome-exibicao" style="margin: 0; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; display: inline-block;">Aguardando Login...</p>
             <span id="caixa-status-badge" class="badge-caixa" style="display:none;"></span>
           </div>
         </div>

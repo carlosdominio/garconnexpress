@@ -11,7 +11,28 @@
         };
       })();
     </script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script>
+      (function() {
+        try {
+          var ua = navigator.userAgent || '';
+          var match = ua.match(/Android\s([0-9\.]+)/i);
+          var isAndroid15OrNewer = false;
+          if (match && match[1]) {
+            var major = parseInt(match[1].split('.')[0], 10);
+            if (major >= 15) isAndroid15OrNewer = true;
+          }
+          var isNative = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
+                         ua.indexOf('Capacitor') !== -1 ||
+                         window.location.protocol === 'file:';
+          if (isNative || isAndroid15OrNewer) {
+            document.documentElement.classList.add('android-edge-to-edge');
+          } else {
+            document.documentElement.classList.add('android-legacy');
+          }
+        } catch(e) {}
+      })();
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <base href="/motoboy/">
     <title>Motoboy Express - GuGA Bebidas</title>
     <script>
@@ -24,7 +45,7 @@
     <script defer src="/_vercel/insights/script.js"></script>
     <link rel="icon" type="image/png" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <link rel="stylesheet" href="style.css?v=1.0.3">
+    <link rel="stylesheet" href="style.css?v=1.1.0-android-adaptive">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2c3e50">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -84,12 +105,25 @@
             });
         }
     </script>
-    <header style="padding: 15px; background: #2c3e50; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+    <header id="main-header" style="padding: 12px 15px; background: #2c3e50; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
         <div class="header-content" style="display:flex; justify-content: space-between; align-items: center; width: 100%;">
-            <div class="header-info" style="display: flex; align-items: center;">
-                <h1 style="margin: 0; font-size: 1.2rem; color: white;"><i class="fas fa-motorcycle"></i> Motoboy Express</h1>
+            <div class="header-info" style="display: flex; flex-direction: column; justify-content: center; min-width: 0;">
+                <h1 style="margin: 0; font-size: 1.15rem; color: white; line-height: 1.2;"><i class="fas fa-motorcycle"></i> Motoboy Express</h1>
+                <div id="operador-info-badge" style="display: flex; align-items: center; gap: 4px; font-size: 0.74rem; color: #cbd5e1; font-weight: 500; margin-top: 2px; min-width: 0;">
+                    <i class="fa-solid fa-user" style="font-size: 0.65rem; color: #38bdf8;"></i>
+                    <span id="nome-operador-motoboy" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; display: inline-block;">Carregando...</span>
+                </div>
             </div>
-            <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
+            <div class="header-controls" style="display:flex; align-items:center; gap:8px;">
+                <!-- Botão Fila / Pausa Entregador (Toggle Style) -->
+                <div class="toggle-container" style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0; white-space: nowrap;">
+                    <span id="label-fila" style="color: #2ecc71; font-size: 0.75rem; font-weight: bold;">FILA</span>
+                    <label class="switch">
+                        <input type="checkbox" id="check-fila" onchange="App.toggleFilaMotoboy()">
+                        <span class="slider" id="slider-fila"></span>
+                    </label>
+                </div>
+
                 <!-- Sino de Notificações -->
                 <div style="position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer; background: rgba(255,255,255,0.1); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0;" onclick="App.ui.togglePainelNotificacoes()">
                     <span style="font-size: 1.1rem; user-select: none;">🔔</span>
@@ -97,7 +131,7 @@
                 </div>
 
                 <!-- Chave de Som -->
-                <div class="toggle-container" style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0; white-space: nowrap;">
+                <div class="toggle-container" style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0; white-space: nowrap;">
                     <span id="label-som" style="color: white; font-size: 0.75rem; font-weight: bold;">MUDO</span>
                     <label class="switch">
                         <input type="checkbox" id="check-som" onchange="App.notifications.toggleSoundManual()">
@@ -183,6 +217,6 @@
   </div>
 
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
-    <script src="app.js?v=1.0.6-sound-fix"></script>
+    <script src="app.js?v=2.1.0-fila-sync"></script>
 </body>
 </html>
