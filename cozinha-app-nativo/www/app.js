@@ -412,14 +412,19 @@ async function carregarPedidos(opcoes = {}) {
         if (!caixa) {
             if (container) container.style.display = 'none';
             if (closedScreen) closedScreen.style.display = 'flex';
-            if (header) header.style.opacity = '0.3';
+            if (header) header.style.display = 'none';
+            document.body.style.overflow = 'hidden';
             if (typeof limparNotificacoes === 'function') limparNotificacoes();
             return;
         }
         
         if (container) container.style.display = 'grid';
         if (closedScreen) closedScreen.style.display = 'none';
-        if (header) header.style.opacity = '1';
+        if (header) {
+            header.style.display = '';
+            header.style.opacity = '1';
+        }
+        document.body.style.overflow = '';
         
         if (pedidosRes.ok) {
             const itens = await pedidosRes.json();
@@ -488,13 +493,18 @@ async function verificarCaixa() {
         if (!caixa) {
             if (container) container.style.display = 'none';
             if (closedScreen) closedScreen.style.display = 'flex';
-            if (header) header.style.opacity = '0.3';
+            if (header) header.style.display = 'none';
+            document.body.style.overflow = 'hidden';
             return false;
         }
         
         if (container) container.style.display = 'grid';
         if (closedScreen) closedScreen.style.display = 'none';
-        if (header) header.style.opacity = '1';
+        if (header) {
+            header.style.display = '';
+            header.style.opacity = '1';
+        }
+        document.body.style.overflow = '';
         return true;
     } catch (err) {
         console.error('Erro ao verificar caixa:', err);
