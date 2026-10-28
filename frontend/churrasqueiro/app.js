@@ -1276,10 +1276,11 @@ async function realizarLogin() {
             return;
         }
         
+        // Se falhar como admin, tenta como equipe (Churrasqueiro)
         res = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ usuario, senha })
+            body: JSON.stringify({ usuario, senha, app: 'churrasqueiro' })
         });
         
         if (res.ok) {
@@ -1301,7 +1302,8 @@ async function realizarLogin() {
             if (btnText) btnText.innerText = "Entrar";
         } else {
             ocultarTelaCarregamentoSistema();
-            exibirErroLogin("Usuário ou senha incorretos.\n\nPor favor, verifique os dados digitados e tente novamente. Caso o erro persista, confirme suas credenciais com a gerência.");
+            const errData = await res.json().catch(() => ({}));
+            exibirErroLogin(errData.error || "Usuário ou senha incorretos.\n\nPor favor, verifique os dados digitados e tente novamente. Caso o erro persista, confirme suas credenciais com a gerência.");
             if (btn) btn.disabled = false;
             if (btnText) btnText.innerText = "Entrar";
         }

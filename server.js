@@ -2833,7 +2833,7 @@ async function initDb() {
     `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
     `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT, comissao REAL DEFAULT 0, is_online BOOLEAN DEFAULT FALSE, last_assigned_at TIMESTAMP)`,
+    `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT, comissao REAL DEFAULT 0, is_online BOOLEAN DEFAULT FALSE, last_assigned_at TIMESTAMP, cargo TEXT DEFAULT 'garcom')`,
     `CREATE TABLE IF NOT EXISTS usuarios_admin (id SERIAL PRIMARY KEY, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS sistema_config (chave TEXT PRIMARY KEY, valor TEXT)`,
     `CREATE TABLE IF NOT EXISTS fluxo_caixa (id SERIAL PRIMARY KEY, data_abertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, data_fechamento TIMESTAMP, valor_inicial REAL NOT NULL, valor_final REAL, status TEXT DEFAULT 'aberto', total_dinheiro REAL DEFAULT 0, total_pix REAL DEFAULT 0, total_cartao REAL DEFAULT 0, total_vendas REAL DEFAULT 0)`,
@@ -3005,6 +3005,7 @@ async function initDb() {
     await addCol('garcons', 'comissao', 'REAL DEFAULT 0');
     await addCol('garcons', 'diaria', 'REAL DEFAULT 0');
     await addCol('garcons', 'is_online', 'BOOLEAN DEFAULT FALSE');
+    await addCol('garcons', 'cargo', "TEXT DEFAULT 'garcom'");
     await addCol('garcons', 'last_assigned_at', 'TIMESTAMP');
     await addCol('pedidos', 'cliente_telefone', 'TEXT');
     await addCol('pedidos', 'taxa_entrega', 'REAL DEFAULT 0');
@@ -3125,6 +3126,13 @@ async function lazyInitDb() {
             await db.query("ALTER TABLE garcons ADD COLUMN IF NOT EXISTS diaria REAL DEFAULT 0");
           } catch(e) {
             console.warn('Aviso ao adicionar coluna diaria em garcons:', e.message);
+          }
+
+          // Cargo / Perfil de Acesso por colaborador (garcom, churrasqueiro, cozinha, motoboy, todos)
+          try {
+            await db.query("ALTER TABLE garcons ADD COLUMN IF NOT EXISTS cargo TEXT DEFAULT 'garcom'");
+          } catch(e) {
+            console.warn('Aviso ao adicionar coluna cargo em garcons:', e.message);
           }
           
           try {
@@ -5999,10 +6007,13 @@ app.get('/api/garcons', ensureDbInitialized, isAuthenticated, async (req, res) =
   try {
     let result;
     try {
-      result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online FROM garcons ORDER BY nome');
+      result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online, cargo FROM garcons ORDER BY nome');
     } catch (errCol) {
-      // Fallback seguro caso a coluna 'diaria' ainda não exista no banco
-      result = await query('SELECT id, nome, usuario, telefone, comissao, is_online FROM garcons ORDER BY nome');
+      try {
+        result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online FROM garcons ORDER BY nome');
+      } catch (e2) {
+        result = await query('SELECT id, nome, usuario, telefone, comissao, is_online FROM garcons ORDER BY nome');
+      }
     }
     res.json(result.rows);
   } catch (error) { 
@@ -6013,21 +6024,35 @@ app.get('/api/garcons', ensureDbInitialized, isAuthenticated, async (req, res) =
 app.post('/api/garcons', isAdmin, async (req, res) => { 
   try {
     const { nome, usuario, senha, telefone, comissao } = req.body; 
+    const cargo = (req.body.cargo || 'garcom').toLowerCase().trim();
     const diaria = Math.max(0, parseFloat(req.body.diaria) || 0);
     const hashed = await bcrypt.hash(senha || '123', saltRounds); 
-    await query('INSERT INTO garcons (nome, usuario, senha, telefone, comissao, diaria) VALUES (?, ?, ?, ?, ?, ?)', [nome, usuario, hashed, telefone, comissao || 0, diaria]); 
+    try {
+      await query('INSERT INTO garcons (nome, usuario, senha, telefone, comissao, diaria, cargo) VALUES (?, ?, ?, ?, ?, ?, ?)', [nome, usuario, hashed, telefone, comissao || 0, diaria, cargo]); 
+    } catch (errCol) {
+      await query('INSERT INTO garcons (nome, usuario, senha, telefone, comissao, diaria) VALUES (?, ?, ?, ?, ?, ?)', [nome, usuario, hashed, telefone, comissao || 0, diaria]); 
+    }
     res.json({ success: true }); 
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 app.put('/api/garcons/:id', isAdmin, async (req, res) => {
   try {
     const { nome, usuario, senha, telefone, comissao } = req.body;
+    const cargo = (req.body.cargo || 'garcom').toLowerCase().trim();
     const diaria = Math.max(0, parseFloat(req.body.diaria) || 0);
     if (senha) {
       const hashed = await bcrypt.hash(senha, saltRounds);
-      await query('UPDATE garcons SET nome = ?, usuario = ?, senha = ?, telefone = ?, comissao = ?, diaria = ? WHERE id = ?', [nome, usuario, hashed, telefone, comissao || 0, diaria, req.params.id]);
+      try {
+        await query('UPDATE garcons SET nome = ?, usuario = ?, senha = ?, telefone = ?, comissao = ?, diaria = ?, cargo = ? WHERE id = ?', [nome, usuario, hashed, telefone, comissao || 0, diaria, cargo, req.params.id]);
+      } catch (errCol) {
+        await query('UPDATE garcons SET nome = ?, usuario = ?, senha = ?, telefone = ?, comissao = ?, diaria = ? WHERE id = ?', [nome, usuario, hashed, telefone, comissao || 0, diaria, req.params.id]);
+      }
     } else {
-      await query('UPDATE garcons SET nome = ?, usuario = ?, telefone = ?, comissao = ?, diaria = ? WHERE id = ?', [nome, usuario, telefone, comissao || 0, diaria, req.params.id]);
+      try {
+        await query('UPDATE garcons SET nome = ?, usuario = ?, telefone = ?, comissao = ?, diaria = ?, cargo = ? WHERE id = ?', [nome, usuario, telefone, comissao || 0, diaria, cargo, req.params.id]);
+      } catch (errCol) {
+        await query('UPDATE garcons SET nome = ?, usuario = ?, telefone = ?, comissao = ?, diaria = ? WHERE id = ?', [nome, usuario, telefone, comissao || 0, diaria, req.params.id]);
+      }
     }
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
@@ -6290,17 +6315,61 @@ app.post('/api/admin/login', loginLimiter, async (req, res) => {
 
 app.post('/api/login', loginLimiter, async (req, res) => {
   try {
-    const { usuario, senha } = req.body;
-    const result = await query('SELECT id, nome, usuario, senha FROM garcons WHERE usuario = ?', [usuario]);
+    const { usuario, senha, app } = req.body;
+    const appOrigem = (app || 'garcom').toLowerCase().trim();
+
+    let result;
+    try {
+      result = await query('SELECT id, nome, usuario, senha, cargo FROM garcons WHERE usuario = ?', [usuario]);
+    } catch (errCol) {
+      result = await query('SELECT id, nome, usuario, senha FROM garcons WHERE usuario = ?', [usuario]);
+    }
+
     if (result.rows.length > 0 && await bcrypt.compare(senha, result.rows[0].senha)) { 
       const garcom = result.rows[0];
       delete garcom.senha;
       
-      const token = jwt.sign({ id: garcom.id, nome: garcom.nome, usuario: garcom.usuario, role: 'garcom' }, JWT_SECRET, { expiresIn: '15d' });
+      const cargo = (garcom.cargo || 'garcom').toLowerCase().trim();
+
+      // Validação de acesso por aplicativo vs cargo do usuário
+      if (cargo !== 'todos') {
+        if (appOrigem === 'garcom' && cargo !== 'garcom') {
+          const nomesCargos = {
+            churrasqueiro: 'Churrasqueiro',
+            cozinha: 'Cozinha',
+            motoboy: 'Motoboy / Entregas'
+          };
+          return res.status(403).json({ 
+            error: `Acesso Restrito: Seu usuário possui perfil exclusivo de "${nomesCargos[cargo] || cargo}". Por favor, utilize o aplicativo correspondente à sua função.` 
+          });
+        }
+
+        if (appOrigem === 'cozinha' && cargo !== 'cozinha') {
+          return res.status(403).json({ 
+            error: 'Acesso Restrito: Este usuário não tem permissão para acessar o aplicativo da Cozinha.' 
+          });
+        }
+
+        if (appOrigem === 'churrasqueiro' && cargo !== 'churrasqueiro') {
+          return res.status(403).json({ 
+            error: 'Acesso Restrito: Este usuário não tem permissão para acessar o aplicativo do Churrasqueiro.' 
+          });
+        }
+
+        if (appOrigem === 'motoboy' && cargo !== 'motoboy') {
+          return res.status(403).json({ 
+            error: 'Acesso Restrito: Este usuário não tem permissão para acessar o aplicativo de Entregas (Motoboy).' 
+          });
+        }
+      }
+
+      const token = jwt.sign({ id: garcom.id, nome: garcom.nome, usuario: garcom.usuario, cargo: cargo, role: 'garcom' }, JWT_SECRET, { expiresIn: '15d' });
       
-      // Define garçom como ONLINE para o rodízio
-      const agora = new Date().toISOString();
-      await query("UPDATE garcons SET is_online = ?, last_assigned_at = ? WHERE id = ?", [isPostgres ? true : 1, agora, garcom.id]);
+      // Define garçom como ONLINE para o rodízio SOMENTE se for Garçom ou Todos (e estiver logando no app de Garçom)
+      if (appOrigem === 'garcom' && (cargo === 'garcom' || cargo === 'todos')) {
+        const agora = new Date().toISOString();
+        await query("UPDATE garcons SET is_online = ?, last_assigned_at = ? WHERE id = ?", [isPostgres ? true : 1, agora, garcom.id]);
+      }
       
       const isProd = process.env.NODE_ENV === 'production';
       res.cookie('garcom_token', token, {
@@ -6312,7 +6381,7 @@ app.post('/api/login', loginLimiter, async (req, res) => {
 
       res.json({ success: true, garcom, token }); 
     }
-    else res.status(401).json({ error: 'Incorreto' });
+    else res.status(401).json({ error: 'Usuário ou senha incorretos' });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
@@ -6443,8 +6512,8 @@ app.post('/api/acesso/qr', async (req, res) => {
 
     let acesso;
     if (mesa.status === 'livre') {
-      // LÃ“GICA DE RODÍZIO (Round-Robin): Pega o garçom online que está há mais tempo sem atender
-      const proximoGarcom = (await query("SELECT id, usuario, nome FROM garcons WHERE is_online = ? ORDER BY last_assigned_at ASC LIMIT 1", [isPostgres ? true : 1])).rows[0];
+      // LÓGICA DE RODÍZIO (Round-Robin): Pega o garçom online que está há mais tempo sem atender
+      const proximoGarcom = (await query("SELECT id, usuario, nome FROM garcons WHERE is_online = ? AND (cargo = 'garcom' OR cargo = 'todos' OR cargo IS NULL OR cargo = '') ORDER BY last_assigned_at ASC LIMIT 1", [isPostgres ? true : 1])).rows[0];
       
       if (!proximoGarcom) {
         return res.status(503).json({ error: 'Nenhum garçom online no momento para te atender. Por favor, chame um atendente no balcão.' });
@@ -7969,7 +8038,7 @@ app.get('/api/diag', isAdmin, async (req, res) => {
         `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
         `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
         `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-        `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT, comissao REAL DEFAULT 0, is_online BOOLEAN DEFAULT FALSE, last_assigned_at TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT, comissao REAL DEFAULT 0, is_online BOOLEAN DEFAULT FALSE, last_assigned_at TIMESTAMP, cargo TEXT DEFAULT 'garcom')`,
         `CREATE TABLE IF NOT EXISTS usuarios_admin (id SERIAL PRIMARY KEY, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL)`,
         `CREATE TABLE IF NOT EXISTS sistema_config (chave TEXT PRIMARY KEY, valor TEXT)`,
         `CREATE TABLE IF NOT EXISTS fluxo_caixa (id SERIAL PRIMARY KEY, data_abertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, data_fechamento TIMESTAMP, valor_inicial REAL NOT NULL, valor_final REAL, status TEXT DEFAULT 'aberto', total_dinheiro REAL DEFAULT 0, total_pix REAL DEFAULT 0, total_cartao REAL DEFAULT 0, total_vendas REAL DEFAULT 0)`,

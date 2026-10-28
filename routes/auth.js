@@ -42,20 +42,64 @@ module.exports = (ctx) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // POST /api/login (Garcom)
+  // POST /api/login (Garcom / Equipe)
   router.post('/login', loginLimiter || ((req, res, next) => next()), async (req, res) => {
     try {
-      const { usuario, senha } = req.body;
-      const result = await query('SELECT id, nome, usuario, senha FROM garcons WHERE usuario = ?', [usuario]);
+      const { usuario, senha, app } = req.body;
+      const appOrigem = (app || 'garcom').toLowerCase().trim();
+
+      let result;
+      try {
+        result = await query('SELECT id, nome, usuario, senha, cargo FROM garcons WHERE usuario = ?', [usuario]);
+      } catch (errCol) {
+        result = await query('SELECT id, nome, usuario, senha FROM garcons WHERE usuario = ?', [usuario]);
+      }
+
       if (result.rows.length > 0 && await bcrypt.compare(senha, result.rows[0].senha)) { 
         const garcom = result.rows[0];
         delete garcom.senha;
         
-        const token = jwt.sign({ id: garcom.id, nome: garcom.nome, usuario: garcom.usuario, role: 'garcom' }, JWT_SECRET, { expiresIn: '15d' });
+        const cargo = (garcom.cargo || 'garcom').toLowerCase().trim();
+
+        // Validação de acesso por aplicativo vs cargo do usuário
+        if (cargo !== 'todos') {
+          if (appOrigem === 'garcom' && cargo !== 'garcom') {
+            const nomesCargos = {
+              churrasqueiro: 'Churrasqueiro',
+              cozinha: 'Cozinha',
+              motoboy: 'Motoboy / Entregas'
+            };
+            return res.status(403).json({ 
+              error: `Acesso Restrito: Seu usuário possui perfil exclusivo de "${nomesCargos[cargo] || cargo}". Por favor, utilize o aplicativo correspondente à sua função.` 
+            });
+          }
+
+          if (appOrigem === 'cozinha' && cargo !== 'cozinha') {
+            return res.status(403).json({ 
+              error: 'Acesso Restrito: Este usuário não tem permissão para acessar o aplicativo da Cozinha.' 
+            });
+          }
+
+          if (appOrigem === 'churrasqueiro' && cargo !== 'churrasqueiro') {
+            return res.status(403).json({ 
+              error: 'Acesso Restrito: Este usuário não tem permissão para acessar o aplicativo do Churrasqueiro.' 
+            });
+          }
+
+          if (appOrigem === 'motoboy' && cargo !== 'motoboy') {
+            return res.status(403).json({ 
+              error: 'Acesso Restrito: Este usuário não tem permissão para acessar o aplicativo de Entregas (Motoboy).' 
+            });
+          }
+        }
+
+        const token = jwt.sign({ id: garcom.id, nome: garcom.nome, usuario: garcom.usuario, cargo: cargo, role: 'garcom' }, JWT_SECRET, { expiresIn: '15d' });
         
-        // Define garçom como ONLINE para o rodízio
-        const agora = new Date().toISOString();
-        await query("UPDATE garcons SET is_online = ?, last_assigned_at = ? WHERE id = ?", [isPostgres ? true : 1, agora, garcom.id]);
+        // Define garçom como ONLINE para o rodízio SOMENTE se for Garçom ou Todos (e estiver logando no app de Garçom)
+        if (appOrigem === 'garcom' && (cargo === 'garcom' || cargo === 'todos')) {
+          const agora = new Date().toISOString();
+          await query("UPDATE garcons SET is_online = ?, last_assigned_at = ? WHERE id = ?", [isPostgres ? true : 1, agora, garcom.id]);
+        }
         
         const isProd = process.env.NODE_ENV === 'production';
         res.cookie('garcom_token', token, {
@@ -67,7 +111,7 @@ module.exports = (ctx) => {
 
         res.json({ success: true, garcom, token }); 
       }
-      else res.status(401).json({ error: 'Incorreto' });
+      else res.status(401).json({ error: 'Usuário ou senha incorretos' });
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
@@ -196,7 +240,7 @@ module.exports = (ctx) => {
       let acesso;
       if (mesa.status === 'livre') {
         // LÓGICA DE RODÍZIO (Round-Robin): Pega o garçom online que está há mais tempo sem atender
-        const proximoGarcom = (await query("SELECT id, usuario, nome FROM garcons WHERE is_online = ? ORDER BY last_assigned_at ASC LIMIT 1", [isPostgres ? true : 1])).rows[0];
+        const proximoGarcom = (await query("SELECT id, usuario, nome FROM garcons WHERE is_online = ? AND (cargo = 'garcom' OR cargo = 'todos' OR cargo IS NULL OR cargo = '') ORDER BY last_assigned_at ASC LIMIT 1", [isPostgres ? true : 1])).rows[0];
         
         if (!proximoGarcom) {
           return res.status(503).json({ error: 'Nenhum garçom online no momento para te atender. Por favor, chame um atendente no balcão.' });

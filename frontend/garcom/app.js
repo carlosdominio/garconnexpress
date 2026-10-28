@@ -868,7 +868,7 @@ async function realizarLogin() {
     const res = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ usuario, senha })
+      body: JSON.stringify({ usuario, senha, app: 'garcom' })
     });
 
     if (res.ok) {
@@ -891,7 +891,9 @@ async function realizarLogin() {
       if (spinner) spinner.style.display = 'none';
       if (btnText) btnText.textContent = 'Entrar';
     } else {
-      await mostrarAlerta("Usuário ou senha incorretos.\n\nPor favor, verifique os dados digitados e tente novamente. Caso o erro persista, confirme suas credenciais com a gerência do restaurante.", "Acesso Negado", "❌");
+      const errData = await res.json().catch(() => ({}));
+      const msgErro = errData.error || "Usuário ou senha incorretos.\n\nPor favor, verifique os dados digitados e tente novamente. Caso o erro persista, confirme suas credenciais com a gerência do restaurante.";
+      await mostrarAlerta(msgErro, "Acesso Negado", "❌");
       // Resetar Loading em caso de erro
       if (btnLogin) btnLogin.disabled = false;
       if (spinner) spinner.style.display = 'none';

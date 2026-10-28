@@ -3869,11 +3869,23 @@ async function exibirGarconsConfig() {
     const statusLabel = isOnline ? '🟢 DISPONÍVEL' : '🔴 PAUSADO';
     const statusColor = isOnline ? '#27ae60' : '#e74c3c';
 
+    const cargoBadgeMap = {
+      garcom: { label: '🍽️ Garçom', bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+      churrasqueiro: { label: '🥩 Churrasqueiro', bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' },
+      cozinha: { label: '👨‍🍳 Cozinha', bg: '#fefce8', color: '#a16207', border: '#fef08a' },
+      motoboy: { label: '🛵 Motoboy', bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
+      todos: { label: '🔓 Todos os Apps', bg: '#faf5ff', color: '#7e22ce', border: '#e9d5ff' }
+    };
+    const cargoInfo = cargoBadgeMap[g.cargo] || cargoBadgeMap.garcom;
+
     return `
     <div class="item-config">
       <div>
-        <div style="display:flex; align-items:center; gap:8px;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <strong>${g.nome}</strong> 
+          <span style="font-size: 0.68rem; padding: 2px 7px; border-radius: 6px; background: ${cargoInfo.bg}; color: ${cargoInfo.color}; font-weight: 700; border: 1px solid ${cargoInfo.border};">
+            ${cargoInfo.label}
+          </span>
           <span style="font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; background: ${statusColor}22; color: ${statusColor}; font-weight: bold; border: 1px solid ${statusColor}44; cursor: pointer;" 
                 onclick="toggleStatusGarcom(${g.id}, ${isOnline})" title="Clique para forçar alteração">
             ${statusLabel}
@@ -3945,6 +3957,8 @@ function prepararEdicaoGarcom(g) {
   idGarcomEdicao = g.id;
   document.getElementById('garcom-nome').value = g.nome;
   document.getElementById('garcom-usuario').value = g.usuario;
+  const elCargo = document.getElementById('garcom-cargo');
+  if (elCargo) elCargo.value = g.cargo || 'garcom';
   document.getElementById('garcom-telefone').value = g.telefone || '';
   document.getElementById('garcom-comissao').value = g.comissao || 0;
   document.getElementById('garcom-diaria').value = (g.diaria !== undefined && g.diaria !== null) ? g.diaria : 0;
@@ -3963,6 +3977,8 @@ function cancelarEdicaoGarcom() {
     const el = document.getElementById(id);
     if (el) { el.value = ''; el.placeholder = ''; }
   });
+  const elCargo = document.getElementById('garcom-cargo');
+  if (elCargo) elCargo.value = 'garcom';
   const btn = document.getElementById('btn-acao-garcom');
   if (btn) btn.textContent = 'Cadastrar';
   const btnCan = document.getElementById('btn-cancelar-garcom');
@@ -3973,6 +3989,7 @@ function cancelarEdicaoGarcom() {
 async function processarAcaoGarcom() {
   const nome = document.getElementById('garcom-nome').value;
   const usuario = document.getElementById('garcom-usuario').value;
+  const cargo = document.getElementById('garcom-cargo')?.value || 'garcom';
   const telefone = document.getElementById('garcom-telefone').value;
   const comissao = parseFloat(document.getElementById('garcom-comissao').value) || 0;
   const diaria = parseFloat(document.getElementById('garcom-diaria')?.value) || 0;
@@ -3980,7 +3997,7 @@ async function processarAcaoGarcom() {
 
   if (!nome || !usuario) return await mostrarAlerta("Nome e usuário são obrigatórios", "Aviso", "⚠️");
 
-  const payload = { nome, usuario, telefone, comissao, diaria, senha };
+  const payload = { nome, usuario, cargo, telefone, comissao, diaria, senha };
   const url = idGarcomEdicao ? `/api/garcons/${idGarcomEdicao}` : '/api/garcons';
   const method = idGarcomEdicao ? 'PUT' : 'POST';
 
@@ -3991,9 +4008,9 @@ async function processarAcaoGarcom() {
   });
 
   if (res.ok) {
-    const msg = idGarcomEdicao ? "Garçom atualizado!" : "Garçom cadastrado!";
+    const msg = idGarcomEdicao ? "Colaborador atualizado!" : "Colaborador cadastrado!";
     mostrarToast(msg);
-    adicionarNotificacao(idGarcomEdicao ? "👤 GARÇOM ATUALIZADO" : "👤 NOVO GARÇOM", `${nome} foi ${idGarcomEdicao ? 'atualizado' : 'cadastrado'} no sistema.`, "👤");
+    adicionarNotificacao(idGarcomEdicao ? "👤 COLABORADOR ATUALIZADO" : "👤 NOVO COLABORADOR", `${nome} foi ${idGarcomEdicao ? 'atualizado' : 'cadastrado'} no sistema.`, "👤");
     cancelarEdicaoGarcom();
     exibirGarconsConfig();
   }
@@ -5187,7 +5204,7 @@ async function carregarHistorico() {
 
 async function exibirHistorico() {
   ITENS_POR_PAGINA_HISTORICO = window.innerHeight >= 640 ? 5 : 3;
-  console.log('[DEBUG] Histórico - innerHeight:', window.innerHeight, 'Limite:', ITENS_POR_PAGINA_HISTORICO);
+  // console.log('[DEBUG] Histórico - innerHeight:', window.innerHeight, 'Limite:', ITENS_POR_PAGINA_HISTORICO);
   const containerFinalizados = document.getElementById('lista-finalizados');
   const containerCancelados = document.getElementById('lista-cancelados');
   if (!containerFinalizados || !containerCancelados) return;
@@ -6151,7 +6168,7 @@ function filtrarPorSelect(valor) {
 
 function aplicarFiltrosVisuais() {
   ITENS_POR_PAGINA_ATIVOS = window.innerHeight >= 640 ? 5 : 4;
-  console.log('[DEBUG] Ativos - innerHeight:', window.innerHeight, 'Limite:', ITENS_POR_PAGINA_ATIVOS);
+  // console.log('[DEBUG] Ativos - innerHeight:', window.innerHeight, 'Limite:', ITENS_POR_PAGINA_ATIVOS);
   const cards = document.querySelectorAll('.pedido-card');
 
   // Listas auxiliares para aplicar a paginação por coluna e grupo

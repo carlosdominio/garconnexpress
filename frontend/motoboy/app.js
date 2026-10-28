@@ -383,7 +383,7 @@ const App = {
                 const res = await fetch(`${API_BASE_URL}/api/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ usuario, senha })
+                    body: JSON.stringify({ usuario, senha, app: 'motoboy' })
                 });
 
                 const data = await res.json();
@@ -415,7 +415,7 @@ const App = {
                     console.log('❌ Login falhou: Resposta do servidor indicou falha.');
                     Swal.fire({
                         title: 'Acesso Negado',
-                        text: 'Usuário ou senha incorretos. Verifique seus dados e tente novamente.',
+                        text: data.error || 'Usuário ou senha incorretos. Verifique seus dados e tente novamente.',
                         icon: 'error',
                         confirmButtonColor: '#e74c3c',
                         confirmButtonText: 'TENTAR NOVAMENTE',

@@ -79,10 +79,13 @@ module.exports = (ctx) => {
     try {
       let result;
       try {
-        result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online FROM garcons ORDER BY nome');
+        result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online, cargo FROM garcons ORDER BY nome');
       } catch (errCol) {
-        // Fallback seguro caso a coluna 'diaria' ainda não exista no banco
-        result = await query('SELECT id, nome, usuario, telefone, comissao, is_online FROM garcons ORDER BY nome');
+        try {
+          result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online FROM garcons ORDER BY nome');
+        } catch (e2) {
+          result = await query('SELECT id, nome, usuario, telefone, comissao, is_online FROM garcons ORDER BY nome');
+        }
       }
       res.json(result.rows);
     } catch (error) {
@@ -95,9 +98,14 @@ module.exports = (ctx) => {
   router.post('/garcons', isAdmin, async (req, res) => {
     try {
       const { nome, usuario, senha, telefone, comissao } = req.body;
+      const cargo = (req.body.cargo || 'garcom').toLowerCase().trim();
       const diaria = Math.max(0, parseFloat(req.body.diaria) || 0);
       const hashed = await bcrypt.hash(senha || '123', saltRounds);
-      await query('INSERT INTO garcons (nome, usuario, senha, telefone, comissao, diaria) VALUES (?, ?, ?, ?, ?, ?)', [nome, usuario, hashed, telefone, comissao || 0, diaria]);
+      try {
+        await query('INSERT INTO garcons (nome, usuario, senha, telefone, comissao, diaria, cargo) VALUES (?, ?, ?, ?, ?, ?, ?)', [nome, usuario, hashed, telefone, comissao || 0, diaria, cargo]);
+      } catch (errCol) {
+        await query('INSERT INTO garcons (nome, usuario, senha, telefone, comissao, diaria) VALUES (?, ?, ?, ?, ?, ?)', [nome, usuario, hashed, telefone, comissao || 0, diaria]);
+      }
       res.json({ success: true });
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
@@ -106,12 +114,21 @@ module.exports = (ctx) => {
   router.put('/garcons/:id', isAdmin, async (req, res) => {
     try {
       const { nome, usuario, senha, telefone, comissao } = req.body;
+      const cargo = (req.body.cargo || 'garcom').toLowerCase().trim();
       const diaria = Math.max(0, parseFloat(req.body.diaria) || 0);
       if (senha) {
         const hashed = await bcrypt.hash(senha, saltRounds);
-        await query('UPDATE garcons SET nome = ?, usuario = ?, senha = ?, telefone = ?, comissao = ?, diaria = ? WHERE id = ?', [nome, usuario, hashed, telefone, comissao || 0, diaria, req.params.id]);
+        try {
+          await query('UPDATE garcons SET nome = ?, usuario = ?, senha = ?, telefone = ?, comissao = ?, diaria = ?, cargo = ? WHERE id = ?', [nome, usuario, hashed, telefone, comissao || 0, diaria, cargo, req.params.id]);
+        } catch (errCol) {
+          await query('UPDATE garcons SET nome = ?, usuario = ?, senha = ?, telefone = ?, comissao = ?, diaria = ? WHERE id = ?', [nome, usuario, hashed, telefone, comissao || 0, diaria, req.params.id]);
+        }
       } else {
-        await query('UPDATE garcons SET nome = ?, usuario = ?, telefone = ?, comissao = ?, diaria = ? WHERE id = ?', [nome, usuario, telefone, comissao || 0, diaria, req.params.id]);
+        try {
+          await query('UPDATE garcons SET nome = ?, usuario = ?, telefone = ?, comissao = ?, diaria = ?, cargo = ? WHERE id = ?', [nome, usuario, telefone, comissao || 0, diaria, cargo, req.params.id]);
+        } catch (errCol) {
+          await query('UPDATE garcons SET nome = ?, usuario = ?, telefone = ?, comissao = ?, diaria = ? WHERE id = ?', [nome, usuario, telefone, comissao || 0, diaria, req.params.id]);
+        }
       }
       res.json({ success: true });
     } catch (error) { res.status(500).json({ error: error.message }); }

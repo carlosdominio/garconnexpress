@@ -858,16 +858,27 @@
           <!-- Sub-seção: Equipe -->
           <div id="config-sub-equipe" class="config-sub-section">
             <div class="config-card">
-              <h3>Gerenciar Garçons</h3>
+              <h3>Gerenciar Equipe / Usuários</h3>
               <div style="margin-bottom: 1.5rem; background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
                 <div class="modal-form-group">
                   <label>Nome Completo</label>
-                  <input type="text" id="garcom-nome" placeholder="Nome do Garçom" oninput="verificarFormGarcom()">
+                  <input type="text" id="garcom-nome" placeholder="Nome do Garçom / Colaborador" oninput="verificarFormGarcom()">
                 </div>
                 
                 <div class="modal-form-group">
                   <label>Usuário (Login)</label>
                   <input type="text" id="garcom-usuario" placeholder="Usuário (ex: joao123)" oninput="verificarFormGarcom()">
+                </div>
+
+                <div class="modal-form-group">
+                  <label>Função / Perfil de Acesso</label>
+                  <select id="garcom-cargo" style="width: 100%; padding: 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; background: white; color: #1e293b; font-weight: 600; outline: none; cursor: pointer;">
+                    <option value="garcom">🍽️ Garçom (App Garçom)</option>
+                    <option value="churrasqueiro">🥩 Churrasqueiro (App Churrasqueiro)</option>
+                    <option value="cozinha">👨‍🍳 Cozinha (App Cozinha)</option>
+                    <option value="motoboy">🛵 Motoboy (App Entregas)</option>
+                    <option value="todos">🔓 Todos os Apps (Acesso Livre)</option>
+                  </select>
                 </div>
 
                 <div class="modal-form-group">
@@ -2337,7 +2348,7 @@
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="app_v3.js?v=1.5.2-limpar-busca-lancar"></script>
+  <script src="app_v3.js?v=1.5.3-cargo-equipe"></script>
   <!-- Modal: Mesa Aguardando Cliente -->
   <div id="modal-mesa-aguardando" class="modal">
     <div class="modal-content" style="max-width: 420px; border-radius: 16px; overflow: hidden; padding: 0;">
