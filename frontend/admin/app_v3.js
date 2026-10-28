@@ -5129,6 +5129,45 @@ function formatarNomeMesaHistorico(p) {
   return str.toUpperCase();
 }
 
+function extrairDataLocalString(rawDate) {
+  if (!rawDate) return null;
+  let d = rawDate;
+  if (typeof d === 'string' && d.includes('-') && d.includes(':') && !d.includes('Z') && !d.includes('+')) {
+    d = d.replace(' ', 'T') + 'Z';
+  }
+  const dateObj = new Date(d);
+  if (isNaN(dateObj.getTime())) return null;
+  return dateObj.toLocaleDateString('pt-BR');
+}
+
+function verificarSePedidoEhDeHoje(p, dataHojeStr) {
+  if (!p) return false;
+  const hoje = dataHojeStr || new Date().toLocaleDateString('pt-BR');
+
+  // 1. Verifica pela data do último pagamento (encerramento/pagamento do pedido)
+  if (p.pagamentos && Array.isArray(p.pagamentos) && p.pagamentos.length > 0) {
+    const ultimoPag = p.pagamentos[p.pagamentos.length - 1];
+    if (ultimoPag && ultimoPag.data) {
+      const dataPag = extrairDataLocalString(ultimoPag.data);
+      if (dataPag === hoje) return true;
+    }
+  }
+
+  // 2. Verifica pela data de criação do pedido
+  if (p.created_at) {
+    const dataCriacao = extrairDataLocalString(p.created_at);
+    if (dataCriacao === hoje) return true;
+  }
+
+  // 3. Fallback para outros campos de data se existirem
+  if (p.data) {
+    const dataGen = extrairDataLocalString(p.data);
+    if (dataGen === hoje) return true;
+  }
+
+  return false;
+}
+
 async function carregarHistorico() {
   const res = await fetch('/api/pedidos/historico-detalhado');
   if (!res.ok) return;
@@ -5175,10 +5214,14 @@ async function exibirHistorico() {
   // 2. Faturamento e População do Select
   let faturamentoTotal = 0;
   const opcoesFiltro = new Set();
+  const dataHojeStr = new Date().toLocaleDateString('pt-BR');
   
   historico.forEach(p => {
     const valorConsolidado = (p.total || 0) + (p.pago_parcial || 0);
-    if (p.status === 'entregue') faturamentoTotal += valorConsolidado;
+    // Somente soma no faturamento do dia se o pedido foi concluído HOJE
+    if (p.status === 'entregue' && verificarSePedidoEhDeHoje(p, dataHojeStr)) {
+      faturamentoTotal += valorConsolidado;
+    }
     opcoesFiltro.add(formatarNomeMesaHistorico(p));
     if (p.garcom_nome) opcoesFiltro.add(p.garcom_nome);
   });
@@ -5187,7 +5230,7 @@ async function exibirHistorico() {
   if (fatEl) fatEl.innerText = `R$ ${faturamentoTotal.toFixed(2)}`;
   
   const dataEl = document.getElementById('data-historico');
-  if (dataEl) dataEl.innerText = new Date().toLocaleDateString('pt-BR');
+  if (dataEl) dataEl.innerText = dataHojeStr;
 
   if (selectFiltro) {
     const valAnterior = selectFiltro.value;
@@ -5601,6 +5644,9 @@ async function imprimirResumoDiario() {
   }
 
   historico.forEach(p => {
+    // Apenas pedidos de hoje entram no resumo diário impresso
+    if (!verificarSePedidoEhDeHoje(p, dataHoje)) return;
+
     const valorTotalPedido = (p.total || 0) + (p.pago_parcial || 0);
     const garcomId = p.garcom_id || 'SISTEMA';
     const garcomNome = p.garcom_nome || p.garcom_id || 'Administrador';
