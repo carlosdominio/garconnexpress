@@ -884,12 +884,13 @@ async function configurarPusher() {
         });
 
         canal.bind('setor-fila-alterada', (data) => {
-            if (data && data.app_type === 'churrasqueiro') {
+            if (data && (data.app_type === 'churrasqueiro' || data.app_type === 'churrasco')) {
                 console.log('🔄 Status de fila do churrasqueiro alterado externamente:', data);
                 if (typeof data.pausado === 'boolean') {
                     churrasqueiroPausado = data.pausado;
                     localStorage.setItem('churrasqueiro_pausado', churrasqueiroPausado);
                     atualizarInterfaceFilaChurrasqueiro();
+                    mostrarToast(churrasqueiroPausado ? "⏸️ Modo Pausa ativado pelo Admin" : "🟢 Modo Fila ativado pelo Admin", churrasqueiroPausado ? 'warning' : 'success');
                 } else if (typeof sincronizarStatusFilaServidorChurrasqueiro === 'function') {
                     sincronizarStatusFilaServidorChurrasqueiro();
                 }

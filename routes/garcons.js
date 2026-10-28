@@ -77,16 +77,33 @@ module.exports = (ctx) => {
         pausado: pausado
       });
 
+      // Determina o cargo com fallback inteligente caso ainda não tenha sido editado no Admin
+      let cargo = (garcom.cargo || '').toLowerCase().trim();
+      if (!cargo || cargo === 'garcom') {
+        const u = (garcom.usuario || '').toLowerCase();
+        const n = (garcom.nome || '').toLowerCase();
+        if (u.includes('cozinha') || n.includes('cozinha')) cargo = 'cozinha';
+        else if (u.includes('churras') || n.includes('churras')) cargo = 'churrasqueiro';
+        else if (u.includes('moto') || n.includes('moto') || u.includes('entrega') || n.includes('entrega')) cargo = 'motoboy';
+      }
+
       // 2. Se for Cozinha ou Churrasqueiro, sincroniza a fila e push_subscriptions em tempo real
-      const cargo = (garcom.cargo || '').toLowerCase();
       if (cargo === 'cozinha' || cargo === 'churrasqueiro') {
         try {
-          await query("UPDATE push_subscriptions SET pausado = ? WHERE app_type = ?", [pausado ? 1 : 0, cargo]);
+          await query("UPDATE push_subscriptions SET pausado = ? WHERE app_type = ? OR app_type = ?", [pausado ? 1 : 0, cargo, cargo === 'churrasqueiro' ? 'churrasco' : cargo]);
         } catch(e) {}
         await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
           app_type: cargo,
+          user_id: garcom.usuario,
           pausado: pausado
         });
+        if (cargo === 'churrasqueiro') {
+          await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
+            app_type: 'churrasco',
+            user_id: garcom.usuario,
+            pausado: pausado
+          });
+        }
         console.log(`📡 [Admin] Status de fila do setor ${cargo} alterado para ${pausado ? 'PAUSA' : 'FILA ON'} em tempo real.`);
       }
 

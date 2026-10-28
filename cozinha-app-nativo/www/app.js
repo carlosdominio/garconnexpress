@@ -911,12 +911,13 @@ async function configurarPusher() {
         });
 
         canal.bind('setor-fila-alterada', (data) => {
-            if (data && data.app_type === 'cozinha') {
+            if (data && (data.app_type === 'cozinha' || data.app_type === 'cozinheiro')) {
                 console.log('🔄 Status de fila da cozinha alterado externamente:', data);
                 if (typeof data.pausado === 'boolean') {
                     cozinhaPausado = data.pausado;
                     localStorage.setItem('cozinha_pausado', cozinhaPausado);
                     atualizarInterfaceFilaCozinha();
+                    mostrarToast(cozinhaPausado ? "⏸️ Modo Pausa ativado pelo Admin" : "🟢 Modo Fila ativado pelo Admin", cozinhaPausado ? 'warning' : 'success');
                 } else if (typeof sincronizarStatusFilaServidorCozinha === 'function') {
                     sincronizarStatusFilaServidorCozinha();
                 }

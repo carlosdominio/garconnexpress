@@ -3328,25 +3328,113 @@ app.post('/api/garcom/pausar', isAuthenticated, async (req, res) => {
   }
 });
 
-// Admin força pausa/disponibilidade do garçom
+// Admin força pausa/disponibilidade do garçom, cozinha ou churrasqueiro
 app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    const garcom = (await query("SELECT id, is_online FROM garcons WHERE id = ?", [id])).rows[0];
-    if (!garcom) return res.status(404).json({ error: 'Garçom não encontrado' });
+    let garcom;
+    try {
+      garcom = (await query("SELECT id, nome, usuario, cargo, is_online FROM garcons WHERE id = ?", [id])).rows[0];
+    } catch (e1) {
+      garcom = (await query("SELECT id, usuario, is_online FROM garcons WHERE id = ?", [id])).rows[0];
+    }
+
+    if (!garcom) return res.status(404).json({ error: 'Colaborador não encontrado' });
 
     const novoStatus = garcom.is_online ? (isPostgres ? false : 0) : (isPostgres ? true : 1);
     await query("UPDATE garcons SET is_online = ? WHERE id = ?", [novoStatus, id]);
 
     const pausado = novoStatus ? false : true;
     
-    // Notifica via Pusher
+    // 1. Notifica via Pusher para o App do Garçom
     await safePusherTrigger('garconnexpress', 'garcom-status-alterado', {
       garcom_id: id,
       pausado: pausado
     });
 
-    res.json({ success: true, is_online: !!novoStatus });
+    // Determina o cargo com fallback inteligente caso ainda não tenha sido editado no Admin
+    let cargo = (garcom.cargo || '').toLowerCase().trim();
+    if (!cargo || cargo === 'garcom') {
+      const u = (garcom.usuario || '').toLowerCase();
+      const n = (garcom.nome || '').toLowerCase();
+      if (u.includes('cozinha') || n.includes('cozinha')) cargo = 'cozinha';
+      else if (u.includes('churras') || n.includes('churras')) cargo = 'churrasqueiro';
+      else if (u.includes('moto') || n.includes('moto') || u.includes('entrega') || n.includes('entrega')) cargo = 'motoboy';
+    }
+
+    // 2. Se for Cozinha ou Churrasqueiro, sincroniza a fila e push_subscriptions em tempo real
+    if (cargo === 'cozinha' || cargo === 'churrasqueiro') {
+      try {
+        await query("UPDATE push_subscriptions SET pausado = ? WHERE app_type = ? OR app_type = ?", [pausado ? 1 : 0, cargo, cargo === 'churrasqueiro' ? 'churrasco' : cargo]);
+      } catch(e) {}
+
+      // Dispara evento para o App do setor
+      await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
+        app_type: cargo,
+        user_id: garcom.usuario,
+        pausado: pausado
+      });
+      if (cargo === 'churrasqueiro') {
+        await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
+          app_type: 'churrasco',
+          user_id: garcom.usuario,
+          pausado: pausado
+        });
+      }
+      console.log(`📡 [Admin] Status de fila do setor ${cargo} alterado para ${pausado ? 'PAUSA' : 'FILA ON'} em tempo real.`);
+    }
+
+    res.json({ success: true, is_online: !!novoStatus, pausado });
+  } catch (error) {
+    console.error("Erro no toggle-status:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin bloqueia ou desbloqueia colaborador
+app.post('/api/admin/garcons/:id/toggle-bloqueio', isAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    let garcom;
+    try {
+      garcom = (await query("SELECT id, nome, usuario, cargo, ativo, is_online FROM garcons WHERE id = ?", [id])).rows[0];
+    } catch (errCol) {
+      try {
+        garcom = (await query("SELECT id, nome, usuario, cargo, is_online FROM garcons WHERE id = ?", [id])).rows[0];
+      } catch (e2) {
+        garcom = (await query("SELECT id, nome, usuario, is_online FROM garcons WHERE id = ?", [id])).rows[0];
+      }
+    }
+
+    if (!garcom) return res.status(404).json({ error: 'Colaborador não encontrado' });
+    
+    const estaAtivo = garcom.ativo === false ? false : true;
+    const novoAtivo = !estaAtivo;
+    
+    try {
+      if (!novoAtivo) {
+        await query("UPDATE garcons SET ativo = ?, is_online = ? WHERE id = ?", [isPostgres ? false : 0, isPostgres ? false : 0, id]);
+      } else {
+        await query("UPDATE garcons SET ativo = ? WHERE id = ?", [isPostgres ? true : 1, id]);
+      }
+    } catch (errUp) {
+      console.warn('Fallback update ativo:', errUp.message);
+    }
+
+    const bloqueado = !novoAtivo;
+
+    // Dispara logout imediato no aparelho do usuário caso tenha sido bloqueado
+    if (bloqueado) {
+      await safePusherTrigger('garconnexpress', 'usuario-bloqueado', {
+        garcom_id: id,
+        usuario: garcom.usuario,
+        cargo: garcom.cargo,
+        motivo: 'bloqueio_admin'
+      });
+      console.log(`🔒 Colaborador ${garcom.usuario} bloqueado pelo Admin. Comando de logout enviado via Pusher.`);
+    }
+
+    res.json({ success: true, ativo: novoAtivo, bloqueado: bloqueado });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
