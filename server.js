@@ -1398,6 +1398,12 @@ async function safePusherTrigger(channel, event, data) {
             // FILTRO 1: Só envia se o app_type da inscrição coincidir com o alvo do evento
             if (sub.app_type !== targetApp) continue;
 
+            // FILTRO DISPONIBILIDADE: Se o aparelho/usuário estiver pausado (de folga / fora da fila), NÃO envia push
+            if (sub.pausado === 1 || sub.pausado === true || sub.pausado === '1') {
+              console.log(`⏸️ Pulando push para ${sub.app_type} (Token ID ${sub.id} / Usuário ${sub.garcom_id} está de FOLGA/PAUSADO)`);
+              continue;
+            }
+
             // FILTRO 2: Direciona notificações de garçom somente para o garçom responsável da mesa/pedido
             if (targetApp === 'garcom' && garcomIdentificado) {
               const subGarcomIdStr = String(sub.garcom_id).trim();
@@ -1581,8 +1587,9 @@ app.post('/api/subscribe', isAuthenticated, async (req, res) => {
     const p256dh = subscription.keys?.p256dh || '';
     const auth = subscription.keys?.auth || '';
     const isNative = subscription.isNative ? 1 : 0; // Salva se é token FCM nativo ou Web Push
-    await query("INSERT INTO push_subscriptions (garcom_id, endpoint, p256dh, auth, app_type, is_native) VALUES (?, ?, ?, ?, ?, ?)", 
-      [garcomId, subscription.endpoint, p256dh, auth, appType, isNative]);
+    const pausado = (subscription.pausado === true || subscription.pausado === 1 || subscription.pausado === '1') ? 1 : 0;
+    await query("INSERT INTO push_subscriptions (garcom_id, endpoint, p256dh, auth, app_type, is_native, pausado) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+      [garcomId, subscription.endpoint, p256dh, auth, appType, isNative, pausado]);
 
     res.status(201).json({ success: true });
   } catch (error) {
@@ -2964,6 +2971,7 @@ async function initDb() {
     await addCol('pedido_itens', 'preco', 'REAL');
     await addCol('push_subscriptions', 'app_type', "TEXT DEFAULT 'garcom'");
     await addCol('push_subscriptions', 'is_native', 'INTEGER DEFAULT 0'); // 1 = token FCM nativo (Capacitor), 0 = Web Push
+    await addCol('push_subscriptions', 'pausado', 'INTEGER DEFAULT 0'); // 1 = fora da fila / de folga, 0 = ativo na fila
     await addCol('mesas', 'garcom_id', 'TEXT');
     await addCol('mesas', 'tipo', "TEXT DEFAULT 'mesa'");
     await addCol('pedidos', 'forma_pagamento', 'TEXT');
@@ -3105,6 +3113,7 @@ async function lazyInitDb() {
               ALTER TABLE mesas ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
               ALTER TABLE menu ADD COLUMN IF NOT EXISTS enviar_churrasco BOOLEAN DEFAULT NULL;
               ALTER TABLE menu ADD COLUMN IF NOT EXISTS visivel_delivery BOOLEAN DEFAULT TRUE;
+              ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS pausado INTEGER DEFAULT 0;
             `);
           } catch(e) {}
 
@@ -3321,6 +3330,51 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
     res.json({ success: true, is_online: !!novoStatus });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Toggle Fila / Disponibilidade para Cozinha, Churrasqueiro, etc.
+app.post('/api/setor/toggle-fila', isAuthenticated, async (req, res) => {
+  const { app_type, pausado, endpoint } = req.body;
+  const userId = req.user ? (req.user.id || req.user.usuario) : null;
+  const valPausado = (pausado === true || pausado === 1 || pausado === '1') ? 1 : 0;
+  try {
+    if (endpoint) {
+      await query("UPDATE push_subscriptions SET pausado = ? WHERE endpoint = ?", [valPausado, endpoint]);
+    }
+    if (userId && app_type) {
+      await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? AND app_type = ?", [valPausado, String(userId), app_type]);
+    }
+    console.log(`👤 Fila [${app_type}]: Usuário ${userId || endpoint} agora está ${valPausado ? 'PAUSADO (FORA DA FILA)' : 'ATIVO (NA FILA)'}.`);
+
+    // Notifica via Pusher para sincronizar clientes em tempo real
+    await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
+      app_type,
+      user_id: userId,
+      pausado: !!valPausado
+    });
+
+    res.json({ success: true, pausado: !!valPausado });
+  } catch (error) {
+    console.error("Erro ao alternar fila do setor:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/setor/status-fila', isAuthenticated, async (req, res) => {
+  const { app_type, endpoint } = req.query;
+  const userId = req.user ? (req.user.id || req.user.usuario) : null;
+  try {
+    let r;
+    if (endpoint) {
+      r = await query("SELECT pausado FROM push_subscriptions WHERE endpoint = ?", [endpoint]);
+    } else if (userId && app_type) {
+      r = await query("SELECT pausado FROM push_subscriptions WHERE garcom_id = ? AND app_type = ?", [String(userId), app_type]);
+    }
+    const isPausado = r && r.rows && r.rows.length > 0 ? (r.rows[0].pausado === 1 || r.rows[0].pausado === true) : false;
+    res.json({ pausado: isPausado });
+  } catch (error) {
+    res.json({ pausado: false });
   }
 });
 
@@ -7143,7 +7197,7 @@ app.get('/api/debug-fcm', async (req, res, next) => {
     // Busca subscriptions de push
     const subscriptions = {};
     try {
-      const result = await query("SELECT id, garcom_id, app_type, is_native, length(endpoint) as token_len FROM push_subscriptions ORDER BY id DESC");
+      const result = await query("SELECT id, garcom_id, app_type, is_native, pausado, length(endpoint) as token_len FROM push_subscriptions ORDER BY id DESC");
       subscriptions.rows = result.rows;
       subscriptions.count = result.rows.length;
     } catch (e) {

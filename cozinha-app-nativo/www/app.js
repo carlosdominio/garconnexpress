@@ -126,7 +126,60 @@ inicializarAudios();
 const statusConexao = document.getElementById('status-conexao');
 
 let somAtivo = localStorage.getItem('cozinha_som_ativo') !== 'false';
+let cozinhaPausado = localStorage.getItem('cozinha_pausado') === 'true';
 let audioDesbloqueado = false;
+
+function atualizarInterfaceFilaCozinha() {
+    const check = document.getElementById('check-fila');
+    const label = document.getElementById('label-fila');
+    if (check) check.checked = !cozinhaPausado;
+    if (label) {
+        label.innerText = !cozinhaPausado ? 'FILA ON' : 'PAUSA';
+        label.style.color = !cozinhaPausado ? '#2ecc71' : '#e74c3c';
+    }
+}
+
+async function toggleFilaCozinha() {
+    const check = document.getElementById('check-fila');
+    cozinhaPausado = check ? !check.checked : !cozinhaPausado;
+    localStorage.setItem('cozinha_pausado', cozinhaPausado);
+    atualizarInterfaceFilaCozinha();
+
+    const statusTexto = cozinhaPausado ? "⏸️ Você está FORA DA FILA (Modo Folga ativo)" : "🟢 Você está NA FILA (Em serviço)";
+    mostrarToast(statusTexto, cozinhaPausado ? 'info' : 'success');
+
+    try {
+        const tokenFcm = window._ultimoTokenFcm || null;
+        await fetch('/api/setor/toggle-fila', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                app_type: 'cozinha',
+                pausado: cozinhaPausado,
+                endpoint: tokenFcm
+            })
+        });
+    } catch (e) {
+        console.error("Erro ao sincronizar fila com servidor:", e);
+    }
+}
+
+async function sincronizarStatusFilaServidorCozinha() {
+    try {
+        const tokenFcm = window._ultimoTokenFcm || '';
+        const res = await fetch(`/api/setor/status-fila?app_type=cozinha&endpoint=${encodeURIComponent(tokenFcm)}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data && typeof data.pausado === 'boolean') {
+                cozinhaPausado = data.pausado;
+                localStorage.setItem('cozinha_pausado', cozinhaPausado);
+                atualizarInterfaceFilaCozinha();
+            }
+        }
+    } catch (e) {
+        console.warn('Aviso ao consultar status de fila:', e);
+    }
+}
 
 function atualizarIconeSom() {
     const check = document.getElementById('check-som');
@@ -151,12 +204,13 @@ function alternarSom() {
     mostrarToast(somAtivo ? "🔊 Som Ativado" : "🔇 Som Desativado");
 
     // Testa o som ao ativar
-    if (somAtivo) {
+    if (somAtivo && !cozinhaPausado) {
         tocarCampainha();
     }
 }
 
 function tocarCampainha() {
+    if (cozinhaPausado) return; // Silencia se estiver fora da fila (folga)
     if (document.hidden) return; // Android FCM toca o som pesado quando oculto
 
     const somTipo = localStorage.getItem('cozinha_som_global') || 'sino_moderno';
@@ -832,6 +886,15 @@ async function configurarPusher() {
             }
         });
 
+        canal.bind('setor-fila-alterada', (data) => {
+            if (data && data.app_type === 'cozinha') {
+                console.log('🔄 Status de fila da cozinha alterado externamente:', data);
+                if (typeof sincronizarStatusFilaServidorCozinha === 'function') {
+                    sincronizarStatusFilaServidorCozinha();
+                }
+            }
+        });
+
         canal.bind('pedido-atrasado-cozinha', (data) => {
             console.log('📢 Evento: pedido-atrasado-cozinha', data);
             const pId = data && (data.pedido_id || data.id);
@@ -1001,6 +1064,7 @@ async function registerNativePush() {
 
     PushNotifications.addListener('registration', async (token) => {
       console.log('🔥 Token FCM recebido (Cozinha):', token.value);
+      window._ultimoTokenFcm = token.value;
       await fetch('/api/subscribe', {
         method: 'POST',
         headers: {
@@ -1009,7 +1073,8 @@ async function registerNativePush() {
         body: JSON.stringify({
           endpoint: token.value,
           keys: { p256dh: '', auth: '' },
-          app_type: 'cozinha'
+          app_type: 'cozinha',
+          pausado: cozinhaPausado
         })
       });
     });
@@ -1156,6 +1221,8 @@ async function iniciarApp() {
         console.error('Erro na inicialização do app:', e);
     }
     atualizarIconeSom();
+    atualizarInterfaceFilaCozinha();
+    sincronizarStatusFilaServidorCozinha();
     
     if (isNativeApp) {
         limparNotificacoesNativas();
@@ -1252,8 +1319,24 @@ function exibirErroLogin(mensagem) {
 }
 
 function logout() {
+    const token = localStorage.getItem('cozinha_token');
+    if (token) {
+        fetch('/api/setor/toggle-fila', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                app_type: 'cozinha',
+                pausado: true,
+                endpoint: window._ultimoTokenFcm || null
+            })
+        }).catch(() => {});
+    }
     localStorage.removeItem('cozinha_logado');
     localStorage.removeItem('cozinha_token');
+    localStorage.removeItem('cozinha_pausado');
     mostrarToast("Sessão encerrada com sucesso!", "info");
     exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
     setTimeout(() => {
@@ -1488,6 +1571,7 @@ async function carregarConfiguracoesToasts() {
 }
 
 function deveTocarSom(evento) {
+  if (cozinhaPausado) return false;
   const c = typeof _toastTemplates !== 'undefined' ? _toastTemplates.find(x => x.evento === evento) : null;
   return c ? c.som !== false : true;
 }

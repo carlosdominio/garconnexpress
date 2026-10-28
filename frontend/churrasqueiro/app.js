@@ -117,6 +117,67 @@ const statusConexao = document.getElementById('status-conexao');
 let somAtivo = localStorage.getItem('churrasqueiro_som_ativo') !== 'false';
 let audioDesbloqueado = false;
 
+let churrasqueiroPausado = localStorage.getItem('churrasqueiro_pausado') === 'true';
+
+function atualizarInterfaceFilaChurrasqueiro() {
+    const check = document.getElementById('check-fila');
+    const label = document.getElementById('label-fila');
+    if (check) check.checked = !churrasqueiroPausado;
+    if (label) {
+        label.innerText = !churrasqueiroPausado ? 'FILA ON' : 'PAUSA';
+        label.style.color = !churrasqueiroPausado ? '#2ecc71' : '#e74c3c';
+    }
+}
+
+async function toggleFilaChurrasqueiro() {
+    const check = document.getElementById('check-fila');
+    const novoStatusPausado = check ? !check.checked : !churrasqueiroPausado;
+    churrasqueiroPausado = novoStatusPausado;
+    localStorage.setItem('churrasqueiro_pausado', churrasqueiroPausado);
+    atualizarInterfaceFilaChurrasqueiro();
+
+    try {
+        const token = localStorage.getItem('churrasqueiro_token');
+        const res = await fetch('/api/setor/toggle-fila', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({
+                app_type: 'churrasqueiro',
+                pausado: churrasqueiroPausado,
+                endpoint: window._ultimoTokenFcm || null
+            })
+        });
+        const data = await res.json();
+        if (data && data.success) {
+            mostrarToast(
+                churrasqueiroPausado ? 'Você entrou em PAUSA/FOLGA. Push silenciado.' : 'Você está DISPONÍVEL NA FILA! Push ativado.',
+                churrasqueiroPausado ? 'warning' : 'success'
+            );
+        }
+    } catch (err) {
+        console.warn('⚠️ Erro ao atualizar status de fila no servidor:', err);
+    }
+}
+
+async function sincronizarStatusFilaServidorChurrasqueiro() {
+    try {
+        const token = localStorage.getItem('churrasqueiro_token');
+        if (!token) return;
+        const res = await fetch('/api/setor/status-fila?app_type=churrasqueiro');
+        const data = await res.json();
+        if (data && data.success) {
+            churrasqueiroPausado = !!data.pausado;
+            localStorage.setItem('churrasqueiro_pausado', churrasqueiroPausado);
+            atualizarInterfaceFilaChurrasqueiro();
+        }
+    } catch (err) {
+        console.warn('⚠️ Erro ao obter status de fila do servidor:', err);
+    }
+}
+
 function atualizarIconeSom() {
     const check = document.getElementById('check-som');
     const label = document.getElementById('label-som');
@@ -148,6 +209,7 @@ function alternarSom() {
 }
 
 function tocarCampainha() {
+    if (churrasqueiroPausado) return;
     if (document.hidden) return; // Android FCM toca o som pesado quando oculto
 
     const somTipo = localStorage.getItem('churrasqueiro_som_global') || 'sino_moderno';
@@ -797,6 +859,15 @@ async function configurarPusher() {
             }
         });
 
+        canal.bind('setor-fila-alterada', (data) => {
+            if (data && data.app_type === 'churrasqueiro') {
+                console.log('🔄 Status de fila do churrasqueiro alterado externamente:', data);
+                if (typeof sincronizarStatusFilaServidorChurrasqueiro === 'function') {
+                    sincronizarStatusFilaServidorChurrasqueiro();
+                }
+            }
+        });
+
         canal.bind('novo-pedido', (data) => {
             console.log('🍢 [Churrasco] novo-pedido recebido. para_churrasco=', data?.para_churrasco);
             if (data && data.para_churrasco === false) {
@@ -971,6 +1042,7 @@ async function registerNativePush() {
 
     PushNotifications.addListener('registration', async (token) => {
       console.log('🔥 Token FCM recebido (Churrasqueiro):', token.value);
+      window._ultimoTokenFcm = token.value;
       await fetch('/api/subscribe', {
         method: 'POST',
         headers: {
@@ -979,7 +1051,8 @@ async function registerNativePush() {
         body: JSON.stringify({
           endpoint: token.value,
           keys: { p256dh: '', auth: '' },
-          app_type: 'churrasqueiro'
+          app_type: 'churrasqueiro',
+          pausado: churrasqueiroPausado
         })
       });
     });
@@ -1127,6 +1200,8 @@ async function iniciarApp() {
         console.error('Erro na inicialização do app:', e);
     }
     atualizarIconeSom();
+    atualizarInterfaceFilaChurrasqueiro();
+    sincronizarStatusFilaServidorChurrasqueiro();
     
     if (isNativeApp) {
         limparNotificacoesNativas();
@@ -1221,9 +1296,26 @@ function exibirErroLogin(mensagem) {
 }
 
 function logout() {
+    const token = localStorage.getItem('churrasqueiro_token');
+    if (token) {
+        fetch('/api/setor/toggle-fila', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                app_type: 'churrasqueiro',
+                pausado: true,
+                endpoint: window._ultimoTokenFcm || null
+            })
+        }).catch(() => {});
+    }
     localStorage.removeItem('churrasqueiro_logado');
     localStorage.removeItem('churrasqueiro_token');
+    localStorage.removeItem('churrasqueiro_pausado');
     mostrarToast("Sessão encerrada com sucesso!", "info");
+    exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
     setTimeout(() => {
         location.reload();
     }, 1500);
@@ -1439,6 +1531,7 @@ async function carregarConfiguracoesToasts() {
 }
 
 function deveTocarSom(evento) {
+  if (churrasqueiroPausado) return false;
   const c = typeof _toastTemplates !== 'undefined' ? _toastTemplates.find(x => x.evento === evento) : null;
   return c ? c.som !== false : true;
 }
