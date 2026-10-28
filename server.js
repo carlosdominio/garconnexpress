@@ -3313,6 +3313,7 @@ app.post('/api/garcom/pausar', isAuthenticated, async (req, res) => {
   try {
     const isOnline = pausado ? (isPostgres ? false : 0) : (isPostgres ? true : 1);
     await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isOnline, req.user.id]);
+    await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [pausado ? 1 : 0, String(req.user.id), String(req.user.usuario)]).catch(() => {});
     
     console.log(`👤 Garçom ${req.user.usuario} agora está ${pausado ? 'PAUSADO' : 'DISPONÍVEL'}.`);
     
@@ -3327,6 +3328,202 @@ app.post('/api/garcom/pausar', isAuthenticated, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Dispara notificação push FCM / WebPush quando o Administrador altera status de disponibilidade de um colaborador
+async function enviarFcmStatusColaborador({ garcomId, usuario, cargo, pausado }) {
+  try {
+    const configRes = await query("SELECT chave, valor FROM sistema_config WHERE chave IN ('config_som_garcom', 'config_som_cozinha', 'config_som_motoboy', 'config_som_churrasco')");
+    const configMap = {};
+    if (configRes && configRes.rows) {
+      configRes.rows.forEach(r => { configMap[r.chave] = r.valor; });
+    }
+
+    const subsRes = await query("SELECT id, endpoint, p256dh, auth, garcom_id, app_type, is_native FROM push_subscriptions");
+    if (!subsRes || !subsRes.rows || subsRes.rows.length === 0) return;
+
+    const cargoFormatado = (cargo || 'garcom').toLowerCase().trim();
+    const titulo = pausado ? '⏸️ Modo Pausa Ativado' : '🟢 Modo Disponível Ativado';
+    
+    let mensagemPadrao = pausado 
+      ? 'Você foi colocado em modo PAUSA pelo administrador.' 
+      : 'Você está DISPONÍVEL na fila de atendimento.';
+    
+    if (cargoFormatado === 'cozinha') {
+      mensagemPadrao = pausado 
+        ? 'A fila da Cozinha foi PAUSADA pelo administrador.' 
+        : 'A fila da Cozinha está ATIVA / DISPONÍVEL.';
+    } else if (cargoFormatado === 'churrasqueiro') {
+      mensagemPadrao = pausado 
+        ? 'A fila do Churrasqueiro foi PAUSADA pelo administrador.' 
+        : 'A fila do Churrasqueiro está ATIVA / DISPONÍVEL.';
+    } else if (cargoFormatado === 'motoboy') {
+      mensagemPadrao = pausado 
+        ? 'Você foi colocado em modo PAUSA pelo administrador.' 
+        : 'Você está DISPONÍVEL para entregas.';
+    }
+
+    const gIdStr = String(garcomId).trim();
+    const uStr = String(usuario || '').trim().toLowerCase();
+
+    // Filtra as inscrições para o colaborador/setor correto
+    const subsAlvo = subsRes.rows.filter(sub => {
+      const subApp = (sub.app_type || 'garcom').toLowerCase().trim();
+      const subGarcomId = String(sub.garcom_id || '').trim().toLowerCase();
+
+      if (cargoFormatado === 'cozinha') {
+        return subApp === 'cozinha';
+      }
+      if (cargoFormatado === 'churrasqueiro') {
+        return subApp === 'churrasqueiro' || subApp === 'churrasco';
+      }
+      if (cargoFormatado === 'motoboy') {
+        return subApp === 'motoboy' && (subGarcomId === gIdStr || subGarcomId === uStr || subGarcomId === 'motoboy');
+      }
+      if (cargoFormatado === 'garcom') {
+        return subApp === 'garcom' && (subGarcomId === gIdStr || subGarcomId === uStr);
+      }
+      if (cargoFormatado === 'todos') {
+        return subGarcomId === gIdStr || subGarcomId === uStr;
+      }
+      return false;
+    });
+
+    if (subsAlvo.length === 0) {
+      console.log(`ℹ️ [FCM Status] Nenhuma inscrição encontrada para o colaborador ${usuario} (${cargoFormatado}).`);
+      return;
+    }
+
+    const pushPromises = [];
+    const endpointsEnviados = new Set();
+
+    for (const sub of subsAlvo) {
+      if (!sub.endpoint || endpointsEnviados.has(sub.endpoint)) continue;
+      endpointsEnviados.add(sub.endpoint);
+
+      let targetApp = (sub.app_type || 'garcom').toLowerCase().trim();
+      if (targetApp === 'churrasco') targetApp = 'churrasqueiro';
+
+      let activeSound = 'sino_moderno';
+      let channelName = `${targetApp}_canal_sino_moderno`;
+      if (targetApp === 'garcom') {
+        activeSound = configMap['config_som_garcom'] || 'campainha_classica';
+        channelName = `garcom_canal_${activeSound}`;
+      } else if (targetApp === 'cozinha') {
+        activeSound = configMap['config_som_cozinha'] || 'sino_moderno';
+        channelName = `cozinha_canal_${activeSound}`;
+      } else if (targetApp === 'motoboy') {
+        activeSound = configMap['config_som_motoboy'] || 'campainha_classica';
+        channelName = `motoboy_canal_${activeSound}`;
+      } else if (targetApp === 'churrasqueiro') {
+        activeSound = configMap['config_som_churrasco'] || 'sino_moderno';
+        channelName = `churrasqueiro_canal_${activeSound}`;
+      }
+
+      let fcmSoundFile = activeSound;
+      if (fcmSoundFile === 'original') fcmSoundFile = 'notificacao';
+
+      const isNativeSub = sub.is_native === 1 || sub.is_native === true ||
+        (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
+
+      if (!isNativeSub) {
+        if (typeof webpush !== 'undefined') {
+          const payload = JSON.stringify({
+            title: titulo,
+            body: mensagemPadrao,
+            event: 'status-fila-alterado',
+            pausado: !!pausado
+          });
+          const pushSubscription = {
+            endpoint: sub.endpoint,
+            keys: {
+              p256dh: sub.p256dh || '',
+              auth: sub.auth || ''
+            }
+          };
+          pushPromises.push(
+            webpush.sendNotification(pushSubscription, payload).catch(e => {
+              if (e.statusCode === 410 || e.statusCode === 404) {
+                query('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]).catch(() => {});
+              }
+            })
+          );
+        }
+      } else {
+        if (admin.apps.length > 0) {
+          const androidNotification = {
+            channelId: channelName,
+            defaultSound: activeSound === 'original',
+            notificationPriority: 'PRIORITY_MAX',
+            icon: 'ic_stat_notification',
+            color: pausado ? '#e74c3c' : '#27ae60',
+            defaultVibrateTimings: true,
+            defaultLightSettings: true
+          };
+          if (activeSound !== 'mudo') {
+            androidNotification.sound = fcmSoundFile;
+          }
+
+          const message = {
+            notification: {
+              title: titulo,
+              body: mensagemPadrao
+            },
+            data: {
+              event: 'status-fila-alterado',
+              pausado: pausado ? 'true' : 'false',
+              sound: activeSound !== 'mudo' ? fcmSoundFile : '',
+              cargo: cargoFormatado
+            },
+            android: {
+              priority: 'high',
+              notification: androidNotification
+            },
+            apns: {
+              payload: {
+                aps: {
+                  sound: activeSound !== 'mudo' ? (activeSound === 'original' ? 'notificacao.caf' : activeSound + '.caf') : '',
+                  badge: 1
+                }
+              }
+            },
+            token: sub.endpoint
+          };
+
+          let firebaseAppToUse = null;
+          if (targetApp === 'motoboy') {
+            if (admin.apps.find(a => a.name === 'motoboy')) firebaseAppToUse = admin.app('motoboy');
+          } else if (targetApp === 'cozinha') {
+            if (admin.apps.find(a => a.name === 'cozinha')) firebaseAppToUse = admin.app('cozinha');
+          } else if (targetApp === 'churrasqueiro') {
+            if (admin.apps.find(a => a.name === 'churrasqueiro')) firebaseAppToUse = admin.app('churrasqueiro');
+          } else {
+            if (admin.apps.length > 0) firebaseAppToUse = admin;
+          }
+
+          if (firebaseAppToUse) {
+            pushPromises.push(
+              firebaseAppToUse.messaging().send(message)
+                .then(res => {
+                  console.log(`✅ [FCM Status] Push enviado para ${targetApp} (${sub.endpoint.substring(0, 20)}...):`, res);
+                })
+                .catch(async err => {
+                  console.error(`❌ [FCM Status] Erro ao enviar push para ${targetApp}:`, err.message);
+                  if (err.code === 'messaging/invalid-registration-token' || err.code === 'messaging/registration-token-not-registered') {
+                    await query("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]).catch(() => {});
+                  }
+                })
+            );
+          }
+        }
+      }
+    }
+
+    await Promise.all(pushPromises);
+    console.log(`📡 [FCM Status] Finalizado envio de status FCM para o colaborador ${usuario}.`);
+  } catch (errGeral) {
+    console.error("❌ Erro em enviarFcmStatusColaborador:", errGeral.message);
+  }
+}
 
 // Admin força pausa/disponibilidade do garçom, cozinha ou churrasqueiro
 app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
@@ -3362,12 +3559,16 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
       else if (u.includes('moto') || n.includes('moto') || u.includes('entrega') || n.includes('entrega')) cargo = 'motoboy';
     }
 
-    // 2. Se for Cozinha ou Churrasqueiro, sincroniza a fila e push_subscriptions em tempo real
-    if (cargo === 'cozinha' || cargo === 'churrasqueiro') {
-      try {
+    // 2. Sincroniza a fila e push_subscriptions em tempo real
+    try {
+      if (cargo === 'cozinha' || cargo === 'churrasqueiro') {
         await query("UPDATE push_subscriptions SET pausado = ? WHERE app_type = ? OR app_type = ?", [pausado ? 1 : 0, cargo, cargo === 'churrasqueiro' ? 'churrasco' : cargo]);
-      } catch(e) {}
+      } else {
+        await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [pausado ? 1 : 0, String(id), String(garcom.usuario)]);
+      }
+    } catch(e) {}
 
+    if (cargo === 'cozinha' || cargo === 'churrasqueiro') {
       // Dispara evento para o App do setor
       await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
         app_type: cargo,
@@ -3383,6 +3584,14 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
       }
       console.log(`📡 [Admin] Status de fila do setor ${cargo} alterado para ${pausado ? 'PAUSA' : 'FILA ON'} em tempo real.`);
     }
+
+    // 3. Dispara Notificação FCM / WebPush (para alertar mesmo com tela desligada / em background)
+    await enviarFcmStatusColaborador({
+      garcomId: id,
+      usuario: garcom.usuario,
+      cargo: cargo,
+      pausado: pausado
+    });
 
     res.json({ success: true, is_online: !!novoStatus, pausado });
   } catch (error) {
@@ -6212,7 +6421,8 @@ const routerCtx = {
     botUrlFinal: typeof botUrlFinal !== 'undefined' ? botUrlFinal : null
   }),
   purgarHistoricoAntigo30Dias,
-  cachedOrdemCategorias: null
+  cachedOrdemCategorias: null,
+  enviarFcmStatusColaborador
 };
 
 // 1. Caixa

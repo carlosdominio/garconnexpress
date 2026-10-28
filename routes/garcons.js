@@ -11,7 +11,8 @@ module.exports = (ctx) => {
     bcrypt,
     saltRounds,
     jwt,
-    JWT_SECRET
+    JWT_SECRET,
+    enviarFcmStatusColaborador
   } = ctx;
 
   const router = express.Router();
@@ -44,6 +45,7 @@ module.exports = (ctx) => {
     try {
       const isOnline = pausado ? (isPostgres ? false : 0) : (isPostgres ? true : 1);
       await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isOnline, req.user.id]);
+      await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [pausado ? 1 : 0, String(req.user.id), String(req.user.usuario)]).catch(() => {});
       console.log(`👤 Garçom ${req.user.usuario} agora está ${pausado ? 'PAUSADO' : 'DISPONÍVEL'}.`);
       await safePusherTrigger('garconnexpress', 'garcom-status-alterado', {
         garcom_id: req.user.id,
@@ -61,7 +63,7 @@ module.exports = (ctx) => {
     try {
       let garcom;
       try {
-        garcom = (await query("SELECT id, usuario, cargo, is_online FROM garcons WHERE id = ?", [id])).rows[0];
+        garcom = (await query("SELECT id, nome, usuario, cargo, is_online FROM garcons WHERE id = ?", [id])).rows[0];
       } catch (e1) {
         garcom = (await query("SELECT id, usuario, is_online FROM garcons WHERE id = ?", [id])).rows[0];
       }
@@ -87,11 +89,16 @@ module.exports = (ctx) => {
         else if (u.includes('moto') || n.includes('moto') || u.includes('entrega') || n.includes('entrega')) cargo = 'motoboy';
       }
 
-      // 2. Se for Cozinha ou Churrasqueiro, sincroniza a fila e push_subscriptions em tempo real
-      if (cargo === 'cozinha' || cargo === 'churrasqueiro') {
-        try {
+      // 2. Sincroniza a fila e push_subscriptions em tempo real
+      try {
+        if (cargo === 'cozinha' || cargo === 'churrasqueiro') {
           await query("UPDATE push_subscriptions SET pausado = ? WHERE app_type = ? OR app_type = ?", [pausado ? 1 : 0, cargo, cargo === 'churrasqueiro' ? 'churrasco' : cargo]);
-        } catch(e) {}
+        } else {
+          await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [pausado ? 1 : 0, String(id), String(garcom.usuario)]);
+        }
+      } catch(e) {}
+
+      if (cargo === 'cozinha' || cargo === 'churrasqueiro') {
         await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
           app_type: cargo,
           user_id: garcom.usuario,
@@ -107,7 +114,17 @@ module.exports = (ctx) => {
         console.log(`📡 [Admin] Status de fila do setor ${cargo} alterado para ${pausado ? 'PAUSA' : 'FILA ON'} em tempo real.`);
       }
 
-      res.json({ success: true, is_online: !!novoStatus });
+      // 3. Dispara Notificação FCM / WebPush (para alertar mesmo com tela desligada / em background)
+      if (typeof enviarFcmStatusColaborador === 'function') {
+        await enviarFcmStatusColaborador({
+          garcomId: id,
+          usuario: garcom.usuario,
+          cargo: cargo,
+          pausado: pausado
+        });
+      }
+
+      res.json({ success: true, is_online: !!novoStatus, pausado });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
