@@ -3544,12 +3544,6 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
 
     const pausado = novoStatus ? false : true;
     
-    // 1. Notifica via Pusher para o App do Garçom
-    await safePusherTrigger('garconnexpress', 'garcom-status-alterado', {
-      garcom_id: id,
-      pausado: pausado
-    });
-
     // Determina o cargo com fallback inteligente caso ainda não tenha sido editado no Admin
     let cargo = (garcom.cargo || '').toLowerCase().trim();
     if (!cargo || cargo === 'garcom') {
@@ -3560,6 +3554,14 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
       else if (u.includes('moto') || n.includes('moto') || u.includes('entrega') || n.includes('entrega')) cargo = 'motoboy';
     }
 
+    // 1. Notifica via Pusher para o App do Garçom / Colaborador
+    await safePusherTrigger('garconnexpress', 'garcom-status-alterado', {
+      garcom_id: id,
+      usuario: garcom.usuario,
+      cargo: cargo,
+      pausado: pausado
+    });
+
     // 2. Sincroniza a fila e push_subscriptions em tempo real
     try {
       if (cargo === 'cozinha' || cargo === 'churrasqueiro') {
@@ -3569,17 +3571,19 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
       }
     } catch(e) {}
 
-    if (cargo === 'cozinha' || cargo === 'churrasqueiro') {
+    if (cargo === 'cozinha' || cargo === 'churrasqueiro' || cargo === 'motoboy') {
       // Dispara evento para o App do setor
       await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
         app_type: cargo,
         user_id: garcom.usuario,
+        garcom_id: id,
         pausado: pausado
       });
       if (cargo === 'churrasqueiro') {
         await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
           app_type: 'churrasco',
           user_id: garcom.usuario,
+          garcom_id: id,
           pausado: pausado
         });
       }

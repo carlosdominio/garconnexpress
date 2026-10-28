@@ -34,7 +34,7 @@
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <base href="/app-motoboy/">
-    <title>Motoboy Express - GuGA Bebidas</title>
+    <title>Motoboy - GuGA Bebidas</title>
     <script>
       window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
     </script>
@@ -44,7 +44,7 @@
     </script>
     <script defer src="/_vercel/insights/script.js"></script>
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
-    <link rel="stylesheet" href="style.css?v=1.1.0-android-adaptive">
+    <link rel="stylesheet" href="style.css?v=1.1.1-android-adaptive">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2c3e50">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -103,18 +103,29 @@
             });
         }
     </script>
-    <header id="main-header" style="padding: 12px 15px; background: #2c3e50; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-        <div class="header-content" style="display:flex; justify-content: space-between; align-items: center; width: 100%;">
-            <div class="header-info" style="display: flex; flex-direction: column; justify-content: center; min-width: 0;">
-                <h1 style="margin: 0; font-size: 1.15rem; color: white; line-height: 1.2;"><i class="fas fa-motorcycle"></i> Motoboy Express</h1>
-                <div id="operador-info-badge" style="display: flex; align-items: center; gap: 4px; font-size: 0.74rem; color: #cbd5e1; font-weight: 500; margin-top: 2px; min-width: 0;">
-                    <i class="fa-solid fa-user" style="font-size: 0.65rem; color: #38bdf8;"></i>
-                    <span id="nome-operador-motoboy" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; display: inline-block;">Carregando...</span>
+    <header id="main-header">
+        <div class="header-content">
+            <div class="header-top-row">
+                <div class="header-brand-container">
+                    <h1 style="margin: 0; line-height: 1.2;">🛵 Motoboy</h1>
+                    <div id="operador-info-badge" style="display: flex; align-items: center; gap: 4px; font-size: 0.74rem; color: #cbd5e1; font-weight: 500; margin-top: 2px; min-width: 0;">
+                        <i class="fa-solid fa-user" style="font-size: 0.65rem; color: #38bdf8;"></i>
+                        <span id="nome-operador-motoboy" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; display: inline-block;">Carregando...</span>
+                    </div>
+                </div>
+                <div class="header-top-actions">
+                    <!-- Sino de Notificações -->
+                    <div style="position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer; background: rgba(255,255,255,0.1); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0;" onclick="App.ui.togglePainelNotificacoes()">
+                        <span style="font-size: 1.1rem; user-select: none;">🔔</span>
+                        <span id="badge-notificacoes" style="display: none; position: absolute; top: -5px; right: -5px; background: #e74c3c; color: white; font-size: 0.65rem; font-weight: bold; border-radius: 50%; width: 18px; height: 18px; align-items: center; justify-content: center; line-height: 1;">0</span>
+                    </div>
+                    <button class="btn-logout" onclick="App.logout()">Sair</button>
                 </div>
             </div>
-            <div class="header-controls" style="display:flex; align-items:center; gap:8px;">
+
+            <div class="header-controls">
                 <!-- Botão Fila / Pausa Entregador (Toggle Style) -->
-                <div class="toggle-container" style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0; white-space: nowrap;">
+                <div class="toggle-container">
                     <span id="label-fila" style="color: #2ecc71; font-size: 0.75rem; font-weight: bold;">FILA</span>
                     <label class="switch">
                         <input type="checkbox" id="check-fila" onchange="App.toggleFilaMotoboy()">
@@ -122,24 +133,16 @@
                     </label>
                 </div>
 
-                <!-- Sino de Notificações -->
-                <div style="position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer; background: rgba(255,255,255,0.1); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0;" onclick="App.ui.togglePainelNotificacoes()">
-                    <span style="font-size: 1.1rem; user-select: none;">🔔</span>
-                    <span id="badge-notificacoes" style="display: none; position: absolute; top: -5px; right: -5px; background: #e74c3c; color: white; font-size: 0.65rem; font-weight: bold; border-radius: 50%; width: 18px; height: 18px; align-items: center; justify-content: center; line-height: 1;">0</span>
-                </div>
-
                 <!-- Chave de Som -->
-                <div class="toggle-container" style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0; white-space: nowrap;">
+                <div class="toggle-container">
                     <span id="label-som" style="color: white; font-size: 0.75rem; font-weight: bold;">MUDO</span>
                     <label class="switch">
                         <input type="checkbox" id="check-som" onchange="App.notifications.toggleSoundManual()">
                         <span class="slider"></span>
                     </label>
                 </div>
-                <!-- Botão de Sair -->
-                <button onclick="App.logout()" class="btn-icon" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 50%; width: 34px; height: 34px; display: flex; justify-content: center; align-items: center; cursor: pointer;" title="Sair">
-                    <i class="fas fa-sign-out-alt"></i>
-                </button>
+
+                <div id="status-conexao" class="status-badge">Conectando...</div>
             </div>
         </div>
     </header>
@@ -175,19 +178,19 @@
 
     <main>
         <div class="section-title">
-            <span>🛵 A CAMINHO (PRONTO)</span>
-            <span class="badge" id="count-pronto">0</span>
-        </div>
-        <div id="container-a-caminho" class="pedidos-container">
-            <div class="empty-state">Nenhum pedido pronto para entrega.</div>
-        </div>
-
-        <div class="section-title" style="margin-top: 30px;">
             <span>🔥 AGUARDANDO PREPARO</span>
             <span class="badge" id="count-pendente">0</span>
         </div>
         <div id="container-pendentes" class="pedidos-container">
             <div class="empty-state">Nenhum pedido em preparo.</div>
+        </div>
+
+        <div class="section-title" style="margin-top: 30px;">
+            <span>🛵 A CAMINHO (PRONTO)</span>
+            <span class="badge" id="count-pronto">0</span>
+        </div>
+        <div id="container-a-caminho" class="pedidos-container">
+            <div class="empty-state">Nenhum pedido pronto para entrega.</div>
         </div>
 
         <div class="section-title" style="margin-top: 30px;">

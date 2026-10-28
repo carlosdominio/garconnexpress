@@ -577,6 +577,41 @@ const App = {
         }
     },
 
+    notificarMudancaStatusAdmin(pausado) {
+        const isPausado = (pausado === true || pausado === 'true' || pausado === 1 || pausado === '1');
+        App.state.pausado = isPausado;
+        localStorage.setItem('motoboy_pausado', isPausado);
+        App.ui.updateFilaSwitch();
+
+        const titulo = isPausado ? "⏸️ Modo Pausa Ativado" : "🟢 Modo Fila Ativado";
+        const msg = isPausado 
+            ? "O administrador colocou você em modo PAUSA." 
+            : "O administrador colocou você DISPONÍVEL na fila de entregas.";
+
+        // 1. Toca o som de notificação (mesmo com tela aberta)
+        if (App.audio && typeof App.audio.playBell === 'function') {
+            App.audio.playBell();
+        }
+
+        // 2. Vibração tátil (Haptics)
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics) {
+            try { window.Capacitor.Plugins.Haptics.vibrate(); } catch(e) {}
+        }
+
+        // 3. Adiciona ao painel de histórico de notificações do sino
+        if (typeof App.ui.adicionarNotificacaoPainel === 'function') {
+            App.ui.adicionarNotificacaoPainel(msg, titulo, isPausado ? 'warning' : 'success');
+        }
+
+        // 4. Exibe toast visual na tela
+        App.ui.showToast(msg, isPausado ? 'warning' : 'success', titulo);
+
+        // 5. Exibe notificação local (se permissão concedida)
+        if (typeof App.notifications.showLocal === 'function') {
+            App.notifications.showLocal(titulo, msg, 'status_admin_' + Date.now());
+        }
+    },
+
     async logout() {
         const { isConfirmed } = await Swal.fire({
             title: 'Sair do App?',
@@ -708,6 +743,14 @@ const App = {
             });
 
             PushNotifications.addListener('pushNotificationReceived', (notification) => {
+                // Se for evento de mudança de fila / pausa pelo admin
+                if (notification.data && (notification.data.event === 'status-fila-alterado' || notification.data.event === 'garcom-status-alterado')) {
+                    console.log('📲 [FCM Foreground] Status de fila recebido (Motoboy):', notification.data);
+                    const isPausado = notification.data.pausado === 'true' || notification.data.pausado === true || notification.data.pausado === 1 || notification.data.pausado === '1';
+                    App.notificarMudancaStatusAdmin(isPausado);
+                    return;
+                }
+
                 // Se for um evento de caixa, atualiza o status imediatamente
                 if (notification.data && notification.data.event === 'status-caixa-atualizado') {
                     console.log('📲 [FCM Background] Caixa atualizado (Motoboy):', notification.data);
@@ -744,6 +787,11 @@ const App = {
             PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
                 console.log('Push action performed:', notification);
                 const data = notification.notification && notification.notification.data;
+                if (data && (data.event === 'status-fila-alterado' || data.event === 'garcom-status-alterado')) {
+                    const isPausado = data.pausado === 'true' || data.pausado === true || data.pausado === 1 || data.pausado === '1';
+                    App.notificarMudancaStatusAdmin(isPausado);
+                    return;
+                }
                 const pId = String(data?.pedido_id || data?.id || '');
                 if (pId) {
                     App.state.notifiedEvents.add(`fcm_${pId}`);
@@ -824,6 +872,23 @@ const App = {
                 const res = await fetch(`${API_BASE_URL}/api/pusher-config`);
                 const config = await res.json();
                 this.instance = new Pusher(config.key, { cluster: config.cluster, forceTLS: true });
+
+                // Atualiza badge de status de conexão no cabeçalho
+                this.instance.connection.bind('connected', () => {
+                    const badge = document.getElementById('status-conexao');
+                    if (badge) {
+                        badge.innerText = 'Online';
+                        badge.classList.add('online');
+                    }
+                });
+                this.instance.connection.bind('disconnected', () => {
+                    const badge = document.getElementById('status-conexao');
+                    if (badge) {
+                        badge.innerText = 'Offline';
+                        badge.classList.remove('online');
+                    }
+                });
+
                 this.channel = this.instance.subscribe('garconnexpress');
                 
                 this.channel.bind('usuario-bloqueado', (data) => {
@@ -856,11 +921,15 @@ const App = {
                     console.log('📡 Evento garcom-status-alterado recebido (Motoboy):', data);
                     let meuUser = null;
                     try { meuUser = JSON.parse(localStorage.getItem('motoboy_user') || '{}'); } catch(e) {}
-                    if (data && (String(data.garcom_id) === String(meuUser?.id) || String(data.garcom_id) === String(meuUser?.usuario))) {
-                        App.state.pausado = !!data.pausado;
-                        localStorage.setItem('motoboy_pausado', App.state.pausado);
-                        App.ui.updateFilaSwitch();
-                        App.ui.showToast(App.state.pausado ? "⏸️ Modo Pausa ativado pelo Admin" : "🟢 Modo Fila ativado pelo Admin", App.state.pausado ? 'warning' : 'success');
+                    const matchesUser = data && (
+                        String(data.garcom_id) === String(meuUser?.id) || 
+                        String(data.garcom_id) === String(meuUser?.usuario) ||
+                        String(data.usuario || '').toLowerCase() === String(meuUser?.usuario || '').toLowerCase() ||
+                        data.cargo === 'motoboy' ||
+                        data.app_type === 'motoboy'
+                    );
+                    if (matchesUser) {
+                        App.notificarMudancaStatusAdmin(data.pausado);
                     }
                 });
 
@@ -869,11 +938,12 @@ const App = {
                     if (data && (data.app_type === 'motoboy' || data.app_type === 'entrega')) {
                         let meuUser = null;
                         try { meuUser = JSON.parse(localStorage.getItem('motoboy_user') || '{}'); } catch(e) {}
-                        if (!data.user_id || String(data.user_id) === String(meuUser?.id) || String(data.user_id) === String(meuUser?.usuario)) {
-                            App.state.pausado = !!data.pausado;
-                            localStorage.setItem('motoboy_pausado', App.state.pausado);
-                            App.ui.updateFilaSwitch();
-                            App.ui.showToast(App.state.pausado ? "⏸️ Modo Pausa ativado pelo Admin" : "🟢 Modo Fila ativado pelo Admin", App.state.pausado ? 'warning' : 'success');
+                        const matchesUser = !data.user_id || 
+                            String(data.user_id) === String(meuUser?.id) || 
+                            String(data.user_id).toLowerCase() === String(meuUser?.usuario || '').toLowerCase() ||
+                            String(data.garcom_id) === String(meuUser?.id);
+                        if (matchesUser) {
+                            App.notificarMudancaStatusAdmin(data.pausado);
                         }
                     }
                 });
@@ -1024,8 +1094,8 @@ const App = {
             const label = document.getElementById('label-som');
             if (check) check.checked = App.state.soundEnabled;
             if (label) {
-                label.innerText = App.state.soundEnabled ? '🔔 SOM' : '🔕 MUDO';
-                label.style.color = App.state.soundEnabled ? '#2ecc71' : '#bdc3c7';
+                label.innerText = App.state.soundEnabled ? 'SOM' : 'MUDO';
+                label.style.color = App.state.soundEnabled ? '#2ecc71' : '#cbd5e1';
             }
             for (const som in App.notifications.audiosNotificacao) {
                 const aud = App.notifications.audiosNotificacao[som];
@@ -1036,7 +1106,7 @@ const App = {
             const check = document.getElementById('check-fila');
             const label = document.getElementById('label-fila');
             const slider = document.getElementById('slider-fila');
-            const isPausado = App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1;
+            const isPausado = App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1';
 
             if (check) check.checked = !isPausado;
             if (label) {
