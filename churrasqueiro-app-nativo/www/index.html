@@ -123,7 +123,13 @@
     <header id="main-header">
         <div class="header-content">
             <div class="header-top-row">
-                <h1>🍢 Churrasqueiro</h1>
+                <div class="header-brand-container" style="display: flex; flex-direction: column; justify-content: center; min-width: 0;">
+                    <h1 style="margin: 0; line-height: 1.2;">🍢 Churrasqueiro</h1>
+                    <div id="operador-info-badge" style="display: flex; align-items: center; gap: 4px; font-size: 0.74rem; color: #cbd5e1; font-weight: 500; margin-top: 2px; min-width: 0;">
+                        <i class="fa-solid fa-user" style="font-size: 0.65rem; color: #fb923c;"></i>
+                        <span id="nome-operador-churrasqueiro" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; display: inline-block;">Carregando...</span>
+                    </div>
+                </div>
                 <div class="header-top-actions">
                     <!-- Sino de Notificações -->
                     <div style="position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer; background: rgba(255,255,255,0.1); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0;" onclick="togglePainelNotificacoes()">
@@ -238,7 +244,7 @@
 
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="app.js?v=1.0.1-ota-v1"></script>
+    <script src="app.js?v=1.0.3-user-badge"></script>
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js')

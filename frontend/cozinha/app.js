@@ -929,6 +929,7 @@ async function configurarPusher() {
             if (data && (data.cargo === 'cozinha' || data.cargo === 'todos')) {
                 localStorage.removeItem('cozinha_logado');
                 localStorage.removeItem('cozinha_token');
+                localStorage.removeItem('cozinha_user_nome');
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({
                         title: 'Acesso Bloqueado',
@@ -1314,8 +1315,11 @@ async function realizarLogin() {
         let data;
         if (res.ok) {
             data = await res.json();
+            const nome = data.admin?.nome || data.admin?.usuario || 'Administrador';
             localStorage.setItem('cozinha_logado', 'true');
             localStorage.setItem('cozinha_token', data.token);
+            localStorage.setItem('cozinha_user_nome', nome);
+            atualizarNomeUsuarioCozinha(nome);
             mostrarToast("Login realizado com sucesso!", "success");
             setTimeout(() => { location.reload(); }, 1500);
             return;
@@ -1330,8 +1334,11 @@ async function realizarLogin() {
         
         if (res.ok) {
             data = await res.json();
+            const nome = data.garcom?.nome || data.garcom?.usuario || 'Operador';
             localStorage.setItem('cozinha_logado', 'true');
             localStorage.setItem('cozinha_token', data.token);
+            localStorage.setItem('cozinha_user_nome', nome);
+            atualizarNomeUsuarioCozinha(nome);
             mostrarToast("Login realizado com sucesso!", "success");
             setTimeout(() => { location.reload(); }, 1500);
         } else if (res.status === 429) {
@@ -1390,6 +1397,7 @@ function logout() {
     localStorage.removeItem('cozinha_logado');
     localStorage.removeItem('cozinha_token');
     localStorage.removeItem('cozinha_pausado');
+    localStorage.removeItem('cozinha_user_nome');
     mostrarToast("Sessão encerrada com sucesso!", "info");
     exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
     setTimeout(() => {
@@ -1427,6 +1435,53 @@ function logout() {
     }
 })();
 
+function extrairNomeDoToken(token) {
+    if (!token || typeof token !== 'string') return null;
+    try {
+        const partes = token.split('.');
+        if (partes.length < 2) return null;
+        const base64 = partes[1].replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+            atob(base64)
+                .split('')
+                .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                .join('')
+        );
+        const decoded = JSON.parse(jsonPayload);
+        return decoded.nome || decoded.usuario || (decoded.role === 'admin' ? 'Administrador' : null);
+    } catch (e) {
+        try {
+            const decoded = JSON.parse(atob(token.split('.')[1]));
+            return decoded.nome || decoded.usuario || (decoded.role === 'admin' ? 'Administrador' : null);
+        } catch (err) {
+            return null;
+        }
+    }
+}
+
+function atualizarNomeUsuarioCozinha(nomeFornecido) {
+    let nome = nomeFornecido;
+    if (!nome) {
+        nome = localStorage.getItem('cozinha_user_nome');
+    }
+    if (!nome) {
+        const token = localStorage.getItem('cozinha_token');
+        nome = extrairNomeDoToken(token);
+    }
+    if (!nome) {
+        nome = 'Operador';
+    }
+    try {
+        localStorage.setItem('cozinha_user_nome', nome);
+    } catch (e) {}
+
+    const el = document.getElementById('nome-operador-cozinha');
+    if (el) {
+        el.textContent = nome;
+        el.title = `Operador: ${nome}`;
+    }
+}
+
 function verificarSessao() {
     const logado = localStorage.getItem('cozinha_logado');
     const token = localStorage.getItem('cozinha_token');
@@ -1435,6 +1490,7 @@ function verificarSessao() {
     const container = document.getElementById('pedidos-container');
     
     if (logado && token) {
+        atualizarNomeUsuarioCozinha();
         if (telaLogin) telaLogin.style.display = 'none';
         if (header) header.style.display = 'block';
         if (container) container.style.display = 'grid';

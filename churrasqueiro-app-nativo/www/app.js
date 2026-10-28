@@ -902,6 +902,7 @@ async function configurarPusher() {
             if (data && (data.cargo === 'churrasqueiro' || data.cargo === 'todos')) {
                 localStorage.removeItem('churrasqueiro_logado');
                 localStorage.removeItem('churrasqueiro_token');
+                localStorage.removeItem('churrasqueiro_user_nome');
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({
                         title: 'Acesso Bloqueado',
@@ -1297,8 +1298,11 @@ async function realizarLogin() {
         let data;
         if (res.ok) {
             data = await res.json();
+            const nome = data.admin?.nome || data.admin?.usuario || 'Administrador';
             localStorage.setItem('churrasqueiro_logado', 'true');
             localStorage.setItem('churrasqueiro_token', data.token);
+            localStorage.setItem('churrasqueiro_user_nome', nome);
+            atualizarNomeUsuarioChurrasqueiro(nome);
             mostrarToast("Login realizado com sucesso!", "success");
             setTimeout(() => { location.reload(); }, 1500);
             return;
@@ -1313,8 +1317,11 @@ async function realizarLogin() {
         
         if (res.ok) {
             data = await res.json();
+            const nome = data.garcom?.nome || data.garcom?.usuario || 'Operador';
             localStorage.setItem('churrasqueiro_logado', 'true');
             localStorage.setItem('churrasqueiro_token', data.token);
+            localStorage.setItem('churrasqueiro_user_nome', nome);
+            atualizarNomeUsuarioChurrasqueiro(nome);
             mostrarToast("Login realizado com sucesso!", "success");
             setTimeout(() => { location.reload(); }, 1500);
         } else if (res.status === 429) {
@@ -1373,6 +1380,7 @@ function logout() {
     localStorage.removeItem('churrasqueiro_logado');
     localStorage.removeItem('churrasqueiro_token');
     localStorage.removeItem('churrasqueiro_pausado');
+    localStorage.removeItem('churrasqueiro_user_nome');
     mostrarToast("Sessão encerrada com sucesso!", "info");
     exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
     setTimeout(() => {
@@ -1409,6 +1417,53 @@ function logout() {
     }
 })();
 
+function extrairNomeDoToken(token) {
+    if (!token || typeof token !== 'string') return null;
+    try {
+        const partes = token.split('.');
+        if (partes.length < 2) return null;
+        const base64 = partes[1].replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+            atob(base64)
+                .split('')
+                .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                .join('')
+        );
+        const decoded = JSON.parse(jsonPayload);
+        return decoded.nome || decoded.usuario || (decoded.role === 'admin' ? 'Administrador' : null);
+    } catch (e) {
+        try {
+            const decoded = JSON.parse(atob(token.split('.')[1]));
+            return decoded.nome || decoded.usuario || (decoded.role === 'admin' ? 'Administrador' : null);
+        } catch (err) {
+            return null;
+        }
+    }
+}
+
+function atualizarNomeUsuarioChurrasqueiro(nomeFornecido) {
+    let nome = nomeFornecido;
+    if (!nome) {
+        nome = localStorage.getItem('churrasqueiro_user_nome');
+    }
+    if (!nome) {
+        const token = localStorage.getItem('churrasqueiro_token');
+        nome = extrairNomeDoToken(token);
+    }
+    if (!nome) {
+        nome = 'Operador';
+    }
+    try {
+        localStorage.setItem('churrasqueiro_user_nome', nome);
+    } catch (e) {}
+
+    const el = document.getElementById('nome-operador-churrasqueiro');
+    if (el) {
+        el.textContent = nome;
+        el.title = `Operador: ${nome}`;
+    }
+}
+
 function verificarSessao() {
     const logado = localStorage.getItem('churrasqueiro_logado');
     const token = localStorage.getItem('churrasqueiro_token');
@@ -1417,6 +1472,7 @@ function verificarSessao() {
     const container = document.getElementById('pedidos-container');
     
     if (logado && token) {
+        atualizarNomeUsuarioChurrasqueiro();
         if (telaLogin) telaLogin.style.display = 'none';
         if (header) header.style.display = 'block';
         if (container) container.style.display = 'grid';
