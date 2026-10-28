@@ -451,7 +451,7 @@ module.exports = (ctx) => {
   router.delete('/itens/:id', isAuthenticated, async (req, res) => {
     const { id } = req.params;
     try {
-      const item = (await query("SELECT pedido_id, menu_id, quantidade FROM pedido_itens WHERE id = ?", [id])).rows[0];
+      const item = (await query("SELECT pedido_id, menu_id, quantidade, status FROM pedido_itens WHERE id = ?", [id])).rows[0];
       if (!item) return res.status(404).json({ error: 'Item não encontrado' });
       await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
       await query("DELETE FROM pedido_itens WHERE id = ?", [id]);
@@ -479,6 +479,10 @@ module.exports = (ctx) => {
           });
         }
         
+        const eraPendente = !['pronto', 'entregue', 'cancelado'].includes(String(item.status || '').toLowerCase());
+        const temCozinha = eraPendente ? await checkTemItemCozinha([item.menu_id]) : false;
+        const temChurrasco = eraPendente ? await checkTemItemChurrasco([item.menu_id]) : false;
+
         const numRaw = pedido ? (pedido.numero || pedido.mesa_numero || 'BALCÃO') : 'BALCÃO';
         const isCom = ehComanda ? 1 : 0;
         const fmtFn = formatarNomeMesaOuComanda || ((n, c) => (Number(c) === 1 ? `Comanda ${n}` : `Mesa ${n}`));
@@ -489,6 +493,8 @@ module.exports = (ctx) => {
           pedido_id: item.pedido_id, 
           mesa_numero: mesaNum,
           is_comanda: isCom,
+          para_cozinha: temCozinha,
+          para_churrasco: temChurrasco,
           garcom_id: pedido ? pedido.garcom_id : null,
           mensagem: `🚨 O Pedido #${item.pedido_id} (${localStr}) foi CANCELADO.` 
         });
@@ -516,14 +522,16 @@ module.exports = (ctx) => {
     const { id } = req.params;
     try {
       const pedido = (await query("SELECT m.id as mesa_id, p.garcom_id, p.status, m.numero, m.tipo, m.is_comanda, p.mesa_numero, p.is_comanda as pedido_is_comanda FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT) OR CAST(p.mesa_numero AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
-      const itens = (await query("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
+      const itens = (await query("SELECT menu_id, quantidade, status FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
       
       if (pedido && pedido.status !== 'cancelado' && pedido.status !== 'entregue') {
         for (const item of itens) await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
       }
 
-      const temCozinha = await checkTemItemCozinha(itens.map(i => i.menu_id));
-      const temChurrasco = await checkTemItemChurrasco(itens.map(i => i.menu_id));
+      // Só envia cancelamento para cozinha ou churrasco se os itens AINDA estivessem pendentes (não prontos/entregues)
+      const itensPendentes = itens.filter(i => !['pronto', 'entregue', 'cancelado'].includes(String(i.status || '').toLowerCase()));
+      const temCozinha = itensPendentes.length > 0 ? await checkTemItemCozinha(itensPendentes.map(i => i.menu_id)) : false;
+      const temChurrasco = itensPendentes.length > 0 ? await checkTemItemChurrasco(itensPendentes.map(i => i.menu_id)) : false;
       
       await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [id]);
       await query("DELETE FROM pagamentos WHERE pedido_id = ?", [id]);
@@ -1793,15 +1801,25 @@ module.exports = (ctx) => {
           await tx('UPDATE pedidos SET status = ? WHERE id = ?', [status, id]);
         }
 
+        let temCozinhaPendente = false;
+        let temChurrascoPendente = false;
         if (status === 'cancelado' && prevStatus !== 'cancelado' && prevStatus !== 'rascunho') {
-          const itensRes = await tx("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id]);
+          const itensRes = await tx("SELECT menu_id, quantidade, status FROM pedido_itens WHERE pedido_id = ?", [id]);
           for (const item of itensRes.rows) {
             await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade, tx);
+          }
+          // Só notifica cozinha ou churrasqueiro se havia itens pendentes (em preparo, não prontos/entregues)
+          const itensPendentesIds = itensRes.rows
+            .filter(i => !['pronto', 'entregue', 'cancelado'].includes(String(i.status || '').toLowerCase()))
+            .map(i => i.menu_id);
+          if (itensPendentesIds.length > 0) {
+            temCozinhaPendente = await checkTemItemCozinha(itensPendentesIds);
+            temChurrascoPendente = await checkTemItemChurrasco(itensPendentesIds);
           }
           await tx("UPDATE pedido_itens SET status = 'cancelado' WHERE pedido_id = ?", [id]);
         }
 
-        return { code: 200, prevStatus };
+        return { code: 200, prevStatus, temCozinhaPendente, temChurrascoPendente };
       });
 
       if (txResult.error) return res.status(txResult.code).json({ error: txResult.error });
@@ -1849,6 +1867,8 @@ module.exports = (ctx) => {
           pedido_id: id, 
           mesa_numero: mesaNum,
           is_comanda: isCom,
+          para_cozinha: txResult.temCozinhaPendente,
+          para_churrasco: txResult.temChurrascoPendente,
           garcom_id: pm ? pm.garcom_id : null,
           mensagem: `🚨 O Pedido #${id} (${localStr}) foi CANCELADO pelo Admin.` 
         });

@@ -909,6 +909,11 @@ async function configurarPusher() {
             const idParaCancelar = data && (data.id || data.pedido_id || (data.pedido ? data.pedido.id : null));
             const cardExisteNaTela = idParaCancelar && (document.getElementById(`pedido-card-${idParaCancelar}`) || Array.from(document.querySelectorAll('.card-pedido')).some(c => c.innerText.includes(`#${idParaCancelar}`)));
 
+            if (data && data.para_churrasco === false && !cardExisteNaTela) {
+                console.log('🍢 [Churrasco] Ignorando cancelamento: pedido sem itens pendentes para o churrasco.');
+                return;
+            }
+
             if (data && (data.para_churrasco === true || cardExisteNaTela || data.para_churrasco === undefined)) {
                 if (idParaCancelar) {
                     mostrarNotificacaoCancelamento(data.mensagem || `Pedido #${idParaCancelar} cancelado`, idParaCancelar, data);

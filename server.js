@@ -995,17 +995,18 @@ async function safePusherTrigger(channel, event, data) {
           }
         } else if (event === 'pedido-cancelado') {
           if (data.para_cozinha !== undefined && data.para_churrasco !== undefined) {
-            enviaCozinha = data.para_cozinha;
-            enviaChurrasco = data.para_churrasco;
+            enviaCozinha = Boolean(data.para_cozinha);
+            enviaChurrasco = Boolean(data.para_churrasco);
           } else {
             try {
-              const itensCancelados = (await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ?", [pId])).rows;
+              // Só notifica cozinha ou churrasco se havia itens pendentes (em preparo, ou seja, NÃO estavam prontos/entregues)
+              const itensCancelados = (await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ? AND LOWER(COALESCE(status, 'pendente')) NOT IN ('pronto', 'entregue', 'servido', 'cancelado')", [pId])).rows;
               const itensIds = itensCancelados.map(i => i.menu_id);
-              enviaCozinha = await checkTemItemCozinha(itensIds);
-              enviaChurrasco = await checkTemItemChurrasco(itensIds);
+              enviaCozinha = itensIds.length > 0 ? await checkTemItemCozinha(itensIds) : false;
+              enviaChurrasco = itensIds.length > 0 ? await checkTemItemChurrasco(itensIds) : false;
             } catch (e) {
-              enviaCozinha = true;
-              enviaChurrasco = true;
+              enviaCozinha = false;
+              enviaChurrasco = false;
             }
           }
         }
@@ -1030,7 +1031,8 @@ async function safePusherTrigger(channel, event, data) {
           const pId = data.pedido_id || data.id || (data.pedido ? (data.pedido.id || data.pedido.pedido_id) : '');
           if (pId) {
             try {
-              const itensRes = await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ? AND LOWER(status) NOT IN ('entregue', 'servido', 'cancelado')", [pId]);
+              const statusIgnorados = (event === 'pedido-cancelado') ? "('pronto', 'entregue', 'servido', 'cancelado')" : "('entregue', 'servido', 'cancelado')";
+              const itensRes = await query(`SELECT menu_id FROM pedido_itens WHERE pedido_id = ? AND LOWER(COALESCE(status, 'pendente')) NOT IN ${statusIgnorados}`, [pId]);
               if (itensRes.rows && itensRes.rows.length > 0) {
                 const menuIds = itensRes.rows.map(i => i.menu_id);
                 enviaCozinha = await checkTemItemCozinha(menuIds);
@@ -1047,7 +1049,8 @@ async function safePusherTrigger(channel, event, data) {
           const pId = data.pedido_id || data.id || (data.pedido ? (data.pedido.id || data.pedido.pedido_id) : '');
           if (pId) {
             try {
-              const itensRes = await query("SELECT menu_id FROM pedido_itens WHERE pedido_id = ? AND LOWER(status) NOT IN ('entregue', 'servido', 'cancelado')", [pId]);
+              const statusIgnorados = (event === 'pedido-cancelado') ? "('pronto', 'entregue', 'servido', 'cancelado')" : "('entregue', 'servido', 'cancelado')";
+              const itensRes = await query(`SELECT menu_id FROM pedido_itens WHERE pedido_id = ? AND LOWER(COALESCE(status, 'pendente')) NOT IN ${statusIgnorados}`, [pId]);
               if (itensRes.rows && itensRes.rows.length > 0) {
                 const menuIds = itensRes.rows.map(i => i.menu_id);
                 enviaChurrasco = await checkTemItemChurrasco(menuIds);
@@ -4468,7 +4471,7 @@ app.get('/api/pedidos/:id/itens', ensureDbInitialized, isAuthenticated, async (r
 app.delete('/api/pedidos/itens/:id', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   try {
-    const item = (await query("SELECT pedido_id, menu_id, quantidade FROM pedido_itens WHERE id = ?", [id])).rows[0];
+    const item = (await query("SELECT pedido_id, menu_id, quantidade, status FROM pedido_itens WHERE id = ?", [id])).rows[0];
     if (!item) return res.status(404).json({ error: 'Item não encontrado' });
     await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
     await query("DELETE FROM pedido_itens WHERE id = ?", [id]);
@@ -4487,6 +4490,10 @@ app.delete('/api/pedidos/itens/:id', isAuthenticated, async (req, res) => {
         });
       }
       
+      const eraPendente = !['pronto', 'entregue', 'cancelado'].includes(String(item.status || '').toLowerCase());
+      const temCozinha = eraPendente ? await checkTemItemCozinha([item.menu_id]) : false;
+      const temChurrasco = eraPendente ? await checkTemItemChurrasco([item.menu_id]) : false;
+
       const numRaw = pedido ? (pedido.numero || 'BALCÃO') : 'BALCÃO';
       const isCom = pedido ? (pedido.is_comanda ? 1 : 0) : 0;
       const mesaNum = pedido ? (pedido.garcom_id === 'DELIVERY' ? `DELIVERY #${item.pedido_id}` : formatarNomeMesaOuComanda(numRaw, isCom)) : 'BALCÃO';
@@ -4496,6 +4503,8 @@ app.delete('/api/pedidos/itens/:id', isAuthenticated, async (req, res) => {
         pedido_id: item.pedido_id, 
         mesa_numero: mesaNum,
         is_comanda: isCom,
+        para_cozinha: temCozinha,
+        para_churrasco: temChurrasco,
         garcom_id: pedido ? pedido.garcom_id : null,
         mensagem: `🚨 O Pedido #${item.pedido_id} (${localStr}) foi CANCELADO.` 
       });
@@ -4522,14 +4531,16 @@ app.delete('/api/pedidos/:id', isAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     const pedido = (await query("SELECT m.id as mesa_id, p.garcom_id, p.status, m.numero, m.is_comanda FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
-    const itens = (await query("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
+    const itens = (await query("SELECT menu_id, quantidade, status FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
     
     if (pedido && pedido.status !== 'cancelado' && pedido.status !== 'entregue') {
       for (const item of itens) await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade);
     }
     
-    const temCozinha = await checkTemItemCozinha(itens.map(i => i.menu_id));
-    const temChurrasco = await checkTemItemChurrasco(itens.map(i => i.menu_id));
+    // Só envia notificação de cancelamento para cozinha ou churrasco se os itens AINDA estivessem pendentes (não prontos/entregues)
+    const itensPendentes = itens.filter(i => !['pronto', 'entregue', 'cancelado'].includes(String(i.status || '').toLowerCase()));
+    const temCozinha = itensPendentes.length > 0 ? await checkTemItemCozinha(itensPendentes.map(i => i.menu_id)) : false;
+    const temChurrasco = itensPendentes.length > 0 ? await checkTemItemChurrasco(itensPendentes.map(i => i.menu_id)) : false;
 
     await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [id]);
     await query("DELETE FROM pagamentos WHERE pedido_id = ?", [id]);
@@ -5733,15 +5744,25 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
         await tx('UPDATE pedidos SET status = ? WHERE id = ?', [status, id]);
       }
 
+      let temCozinhaPendente = false;
+      let temChurrascoPendente = false;
       if (status === 'cancelado' && prevStatus !== 'cancelado' && prevStatus !== 'rascunho') {
-        const itensRes = await tx("SELECT menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id]);
+        const itensRes = await tx("SELECT menu_id, quantidade, status FROM pedido_itens WHERE pedido_id = ?", [id]);
         for (const item of itensRes.rows) {
           await retornarEstoquePorFichaTecnica(item.menu_id, item.quantidade, tx);
+        }
+        // Só notifica cozinha ou churrasqueiro se havia itens pendentes (em preparo, não prontos/entregues)
+        const itensPendentesIds = itensRes.rows
+          .filter(i => !['pronto', 'entregue', 'cancelado'].includes(String(i.status || '').toLowerCase()))
+          .map(i => i.menu_id);
+        if (itensPendentesIds.length > 0) {
+          temCozinhaPendente = await checkTemItemCozinha(itensPendentesIds);
+          temChurrascoPendente = await checkTemItemChurrasco(itensPendentesIds);
         }
         await tx("UPDATE pedido_itens SET status = 'cancelado' WHERE pedido_id = ?", [id]);
       }
 
-      return { code: 200, prevStatus };
+      return { code: 200, prevStatus, temCozinhaPendente, temChurrascoPendente };
     });
 
     if (txResult.error) {
@@ -5788,6 +5809,8 @@ app.put('/api/pedidos/:id/status', statusLimiter, isAuthenticated, async (req, r
         pedido_id: id, 
         mesa_numero: mesaNum,
         is_comanda: isCom,
+        para_cozinha: txResult.temCozinhaPendente,
+        para_churrasco: txResult.temChurrascoPendente,
         garcom_id: pm ? pm.garcom_id : null,
         mensagem: `🚨 O Pedido #${id} (${localStr}) foi CANCELADO pelo Admin.` 
       });
