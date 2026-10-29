@@ -9820,13 +9820,21 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
     audioNotificacao.play().then(() => {
         audioDesbloqueado = true;
     }).catch(e => {
+        if (e && e.name === 'NotAllowedError') {
+            console.warn('🔇 Áudio aguardando interação: clique em qualquer lugar da tela para ativar o som de pedidos.');
+            return;
+        }
         console.warn('Erro ao tocar som MP3 (tentando nova instância):', e);
         const fallbackAudio = new Audio(getSoundPath(somTipo));
         fallbackAudio.muted = false;
         fallbackAudio.volume = 1.0;
         fallbackAudio.play().then(() => {
             audioDesbloqueado = true;
-        }).catch(err => console.error('Falha crítica de áudio:', err));
+        }).catch(err => {
+            if (err && err.name !== 'NotAllowedError') {
+                console.error('Falha crítica de áudio:', err);
+            }
+        });
     });
   }
 
