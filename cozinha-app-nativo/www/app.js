@@ -146,10 +146,25 @@ let audioDesbloqueado = false;
 function atualizarInterfaceFilaCozinha() {
     const check = document.getElementById('check-fila');
     const label = document.getElementById('label-fila');
+    const slider = document.getElementById('slider-fila');
+    const pausaScreen = document.getElementById('pausa-screen');
+    const pedidosContainer = document.getElementById('pedidos-container');
+
     if (check) check.checked = !cozinhaPausado;
     if (label) {
         label.innerText = !cozinhaPausado ? 'FILA ON' : 'PAUSA';
         label.style.color = !cozinhaPausado ? '#2ecc71' : '#e74c3c';
+    }
+    if (slider) {
+        slider.style.backgroundColor = !cozinhaPausado ? '#2ecc71' : '#e74c3c';
+    }
+
+    if (cozinhaPausado) {
+        if (pausaScreen) pausaScreen.style.display = 'flex';
+        if (pedidosContainer) pedidosContainer.style.display = 'none';
+    } else {
+        if (pausaScreen) pausaScreen.style.display = 'none';
+        if (pedidosContainer) pedidosContainer.style.display = 'grid';
     }
 }
 
@@ -159,8 +174,12 @@ async function toggleFilaCozinha() {
     localStorage.setItem('cozinha_pausado', cozinhaPausado);
     atualizarInterfaceFilaCozinha();
 
-    const statusTexto = cozinhaPausado ? "⏸️ Você está FORA DA FILA (Modo Folga ativo)" : "🟢 Você está NA FILA (Em serviço)";
-    mostrarToast(statusTexto, cozinhaPausado ? 'info' : 'success');
+    const statusTexto = cozinhaPausado ? "⏸️ Modo Pausa ativado (Fora da Fila)" : "🟢 Você está na Fila de Atendimento!";
+    mostrarToast(statusTexto, cozinhaPausado ? 'warning' : 'success');
+
+    if (!cozinhaPausado) {
+        carregarPedidos();
+    }
 
     try {
         const tokenFcm = window._ultimoTokenFcm || null;
@@ -402,6 +421,10 @@ let _primeiroCarregamentoCozinha = true;
 const _fcmPedidosJaNotificados = new Set();
 
 async function carregarPedidos(opcoes = {}) {
+    if (cozinhaPausado) {
+        atualizarInterfaceFilaCozinha();
+        return;
+    }
     const { verificarNovos = false } = opcoes;
     const container = document.getElementById('pedidos-container');
     
@@ -918,6 +941,9 @@ async function configurarPusher() {
                     localStorage.setItem('cozinha_pausado', cozinhaPausado);
                     atualizarInterfaceFilaCozinha();
                     mostrarToast(cozinhaPausado ? "⏸️ Modo Pausa ativado pelo Admin" : "🟢 Modo Fila ativado pelo Admin", cozinhaPausado ? 'warning' : 'success');
+                    if (!cozinhaPausado) {
+                        carregarPedidos();
+                    }
                 } else if (typeof sincronizarStatusFilaServidorCozinha === 'function') {
                     sincronizarStatusFilaServidorCozinha();
                 }
@@ -964,6 +990,10 @@ async function configurarPusher() {
 
         canal.bind('novo-pedido', (data) => {
             console.log('🍳 [Cozinha] novo-pedido recebido. para_cozinha=', data?.para_cozinha);
+            if (cozinhaPausado) {
+                console.log('⏸️ [Cozinha] Pedido ignorado: Cozinha está em PAUSA (fora da fila).');
+                return;
+            }
             if (data && data.para_cozinha === false) {
                 console.log('🍳 [Cozinha] Ignorando novo-pedido: pedido sem itens para a cozinha.');
                 return;
@@ -971,7 +1001,7 @@ async function configurarPusher() {
             // A notificação é controlada pelo carregarPedidos: só dispara se a API retornar itens NOVOS
             // Isso é 100% confiável pois usa o mesmo filtro SQL do endpoint /api/pedidos/cozinha
             clearTimeout(timeoutPusher);
-            timeoutPusher = setTimeout(carregarPedidos, 50);
+            timeoutPusher = setTimeout(() => carregarPedidos({ verificarNovos: true }), 50);
         });
 
         canal.bind('pedido-cancelado', (data) => {
@@ -1011,6 +1041,10 @@ async function configurarPusher() {
 
         canal.bind('status-atualizado', (data) => {
             console.log('📢 Status atualizado recebido:', data);
+            if (cozinhaPausado) {
+                console.log('⏸️ [Cozinha] Status atualizado ignorado: Cozinha está em PAUSA.');
+                return;
+            }
 
             // Só processa alertas/toasts/sons se for um pedido da cozinha
             if (data && data.para_cozinha === false) {
@@ -1136,6 +1170,10 @@ async function registerNativePush() {
       console.log('📩 Notificação recebida (Cozinha):', notification);
       
       const ev = notification.data ? (notification.data.event || notification.data.evento) : null;
+      if (cozinhaPausado && ev !== 'status-fila-alterado' && ev !== 'garcom-status-alterado') {
+        console.log('⏸️ [Cozinha FCM Foreground] Notificação ignorada: Cozinha em PAUSA.');
+        return;
+      }
       const pedidoId = notification.data && (notification.data.pedido_id || notification.data.id);
 
       // Registra SEMPRE no set de FCM (funciona mesmo se o app estava fechado e o conjunto ainda era null)

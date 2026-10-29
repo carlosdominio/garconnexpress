@@ -136,23 +136,43 @@ let churrasqueiroPausado = localStorage.getItem('churrasqueiro_pausado') === 'tr
 function atualizarInterfaceFilaChurrasqueiro() {
     const check = document.getElementById('check-fila');
     const label = document.getElementById('label-fila');
+    const slider = document.getElementById('slider-fila') || (check && check.nextElementSibling);
+    const pausaScreen = document.getElementById('pausa-screen');
+    const pedidosContainer = document.getElementById('pedidos-container');
+
     if (check) check.checked = !churrasqueiroPausado;
     if (label) {
         label.innerText = !churrasqueiroPausado ? 'FILA ON' : 'PAUSA';
         label.style.color = !churrasqueiroPausado ? '#2ecc71' : '#e74c3c';
     }
+    if (slider) {
+        slider.style.backgroundColor = !churrasqueiroPausado ? '#2ecc71' : '#e74c3c';
+    }
+
+    if (churrasqueiroPausado) {
+        if (pausaScreen) pausaScreen.style.display = 'flex';
+        if (pedidosContainer) pedidosContainer.style.display = 'none';
+    } else {
+        if (pausaScreen) pausaScreen.style.display = 'none';
+        if (pedidosContainer) pedidosContainer.style.display = 'grid';
+    }
 }
 
 async function toggleFilaChurrasqueiro() {
-    const check = document.getElementById('check-fila');
-    const novoStatusPausado = check ? !check.checked : !churrasqueiroPausado;
-    churrasqueiroPausado = novoStatusPausado;
+    churrasqueiroPausado = !churrasqueiroPausado;
     localStorage.setItem('churrasqueiro_pausado', churrasqueiroPausado);
     atualizarInterfaceFilaChurrasqueiro();
 
+    const statusTexto = churrasqueiroPausado ? "⏸️ Modo Pausa ativado (Fora da Fila)" : "🟢 Você está na Fila de Atendimento!";
+    mostrarToast(statusTexto, churrasqueiroPausado ? 'warning' : 'success');
+
+    if (!churrasqueiroPausado) {
+        carregarPedidos();
+    }
+
     try {
         const token = localStorage.getItem('churrasqueiro_token');
-        const res = await fetch('/api/setor/toggle-fila', {
+        await fetch('/api/setor/toggle-fila', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -164,13 +184,6 @@ async function toggleFilaChurrasqueiro() {
                 endpoint: window._ultimoTokenFcm || null
             })
         });
-        const data = await res.json();
-        if (data && data.success) {
-            mostrarToast(
-                churrasqueiroPausado ? 'Você entrou em PAUSA/FOLGA. Push silenciado.' : 'Você está DISPONÍVEL NA FILA! Push ativado.',
-                churrasqueiroPausado ? 'warning' : 'success'
-            );
-        }
     } catch (err) {
         console.warn('⚠️ Erro ao atualizar status de fila no servidor:', err);
     }
@@ -183,9 +196,13 @@ async function sincronizarStatusFilaServidorChurrasqueiro() {
         const res = await fetch('/api/setor/status-fila?app_type=churrasqueiro');
         const data = await res.json();
         if (data && data.success) {
+            const wasPausado = churrasqueiroPausado;
             churrasqueiroPausado = !!data.pausado;
             localStorage.setItem('churrasqueiro_pausado', churrasqueiroPausado);
             atualizarInterfaceFilaChurrasqueiro();
+            if (wasPausado && !churrasqueiroPausado) {
+                carregarPedidos();
+            }
         }
     } catch (err) {
         console.warn('⚠️ Erro ao obter status de fila do servidor:', err);
@@ -384,6 +401,10 @@ let _primeiroCarregamentoChurrasco = true;
 const _fcmPedidosJaNotificados = new Set();
 
 async function carregarPedidos(opcoes = {}) {
+    if (churrasqueiroPausado) {
+        atualizarInterfaceFilaChurrasqueiro();
+        return;
+    }
     const { verificarNovos = false } = opcoes;
     const container = document.getElementById('pedidos-container');
     
@@ -891,6 +912,9 @@ async function configurarPusher() {
                     localStorage.setItem('churrasqueiro_pausado', churrasqueiroPausado);
                     atualizarInterfaceFilaChurrasqueiro();
                     mostrarToast(churrasqueiroPausado ? "⏸️ Modo Pausa ativado pelo Admin" : "🟢 Modo Fila ativado pelo Admin", churrasqueiroPausado ? 'warning' : 'success');
+                    if (!churrasqueiroPausado) {
+                        carregarPedidos();
+                    }
                 } else if (typeof sincronizarStatusFilaServidorChurrasqueiro === 'function') {
                     sincronizarStatusFilaServidorChurrasqueiro();
                 }
@@ -923,6 +947,10 @@ async function configurarPusher() {
 
         canal.bind('novo-pedido', (data) => {
             console.log('🍢 [Churrasco] novo-pedido recebido. para_churrasco=', data?.para_churrasco);
+            if (churrasqueiroPausado) {
+                console.log('⏸️ [Churrasco] Pedido ignorado: Churrasqueiro está em PAUSA (fora da fila).');
+                return;
+            }
             if (data && data.para_churrasco === false) {
                 console.log('🍢 [Churrasco] Ignorando novo-pedido: pedido sem itens para o churrasco.');
                 return;
@@ -993,6 +1021,10 @@ async function configurarPusher() {
 
         canal.bind('status-atualizado', (data) => {
             console.log('📢 Status atualizado recebido:', data);
+            if (churrasqueiroPausado) {
+                console.log('⏸️ [Churrasco] Status atualizado ignorado: Churrasqueiro está em PAUSA.');
+                return;
+            }
 
             // Só processa alertas/toasts/sons se for um pedido do churrasco
             if (data && data.para_churrasco !== true) {
@@ -1119,6 +1151,10 @@ async function registerNativePush() {
       console.log('📩 Notificação recebida (Churrasqueiro):', notification);
       
       const ev = notification.data ? (notification.data.event || notification.data.evento) : null;
+      if (churrasqueiroPausado && ev !== 'status-fila-alterado' && ev !== 'garcom-status-alterado') {
+        console.log('⏸️ [Churrasqueiro FCM Foreground] Notificação ignorada: Churrasqueiro em PAUSA.');
+        return;
+      }
       const pedidoId = notification.data && (notification.data.pedido_id || notification.data.id);
 
       // Registra SEMPRE no set de FCM (funciona mesmo se o app estava fechado e o conjunto ainda era null)

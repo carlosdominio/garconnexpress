@@ -194,6 +194,11 @@ async function carregarConfiguracoesToastsMotoboy() {
 
 window._motoboyToastDebounce = window._motoboyToastDebounce || new Map();
 function dispararToastMotoboy(evento, dados = {}, fallbackText = '', fallbackTipo = 'info') {
+  const isPausado = typeof App !== 'undefined' && App.state && (App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1');
+  if (isPausado && evento !== 'comunicado-geral' && evento !== 'status-caixa-atualizado' && evento !== 'status-fila-alterado' && evento !== 'garcom-status-alterado') {
+    return;
+  }
+
   const config = _toastTemplatesMotoboy.find(x => x.evento === evento);
   const ativo = config ? config.ativo !== false : true;
   if (!ativo) {
@@ -250,8 +255,8 @@ const App = {
     },
 
     audio: {
-        playBell(somTipo) {
-            App.notifications.playAlert(somTipo);
+        playBell(somTipo, forcePlay = false) {
+            App.notifications.playAlert(somTipo, forcePlay);
         }
     },
 
@@ -453,6 +458,11 @@ const App = {
     },
 
     async loadPedidos() {
+        const isPausado = App.state && (App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1');
+        if (isPausado) {
+            App.ui.updateFilaSwitch();
+            return;
+        }
         if (!this.state.token) return;
         try {
             const res = await fetch(`${API_BASE_URL}/api/pedidos/ativos-detalhado`, {
@@ -528,8 +538,8 @@ const App = {
     },
 
     async toggleFilaMotoboy() {
-        const check = document.getElementById('check-fila');
-        const novoStatusPausado = check ? !check.checked : false;
+        const isCurrentlyPausado = App.state && (App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1');
+        const novoStatusPausado = !isCurrentlyPausado;
         const token = localStorage.getItem('motoboy_token');
         if (!token) return;
 
@@ -548,6 +558,9 @@ const App = {
                 localStorage.setItem('motoboy_pausado', novoStatusPausado);
                 App.ui.updateFilaSwitch();
                 App.ui.showToast(novoStatusPausado ? "⏸️ Você entrou em Modo Pausa" : "🟢 Você está na Fila de Entregas!", novoStatusPausado ? 'warning' : 'success');
+                if (!novoStatusPausado) {
+                    App.loadPedidos();
+                }
             } else {
                 App.ui.updateFilaSwitch();
             }
@@ -567,9 +580,13 @@ const App = {
             if (res.ok) {
                 const data = await res.json();
                 if (data && typeof data.pausado === 'boolean') {
+                    const wasPausado = App.state.pausado;
                     App.state.pausado = data.pausado;
                     localStorage.setItem('motoboy_pausado', App.state.pausado);
                     App.ui.updateFilaSwitch();
+                    if (wasPausado && !data.pausado) {
+                        App.loadPedidos();
+                    }
                 }
             }
         } catch(e) {
@@ -590,7 +607,7 @@ const App = {
 
         // 1. Toca o som de notificação (mesmo com tela aberta)
         if (App.audio && typeof App.audio.playBell === 'function') {
-            App.audio.playBell();
+            App.audio.playBell(null, true);
         }
 
         // 2. Vibração tátil (Haptics)
@@ -609,6 +626,10 @@ const App = {
         // 5. Exibe notificação local (se permissão concedida)
         if (typeof App.notifications.showLocal === 'function') {
             App.notifications.showLocal(titulo, msg, 'status_admin_' + Date.now());
+        }
+
+        if (!isPausado) {
+            App.loadPedidos();
         }
     },
 
@@ -676,7 +697,8 @@ const App = {
                 exibirTelaCarregamentoSistema('Carregando...', 'Sincronizando entregas...');
                 await this.clearNotifications();
                 await App.checkCaixaStatus();
-                if (App.state.caixaAberto) {
+                const isPausadoAtual = App.state && (App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1');
+                if (App.state.caixaAberto && !isPausadoAtual) {
                     await App.loadPedidos();
                 }
                 setTimeout(() => ocultarTelaCarregamentoSistema(), 300);
@@ -751,6 +773,13 @@ const App = {
                     return;
                 }
 
+                // Se o motoboy estiver em pausa, ignora notificações FCM recebidas em primeiro plano
+                const isPausadoAtual = App.state && (App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1');
+                if (isPausadoAtual) {
+                    console.log('⏸️ [Motoboy FCM Foreground] Notificação ignorada: Motoboy em PAUSA.');
+                    return;
+                }
+
                 // Se for um evento de caixa, atualiza o status imediatamente
                 if (notification.data && notification.data.event === 'status-caixa-atualizado') {
                     console.log('📲 [FCM Background] Caixa atualizado (Motoboy):', notification.data);
@@ -792,6 +821,8 @@ const App = {
                     App.notificarMudancaStatusAdmin(isPausado);
                     return;
                 }
+                const isPausadoAtual = App.state && (App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1');
+                if (isPausadoAtual) return;
                 const pId = String(data?.pedido_id || data?.id || '');
                 if (pId) {
                     App.state.notifiedEvents.add(`fcm_${pId}`);
@@ -831,8 +862,10 @@ const App = {
             App.ui.showToast(body, 'info', title);
         },
 
-        playAlert(somTipo) {
+        playAlert(somTipo, forcePlay = false) {
             if (document.hidden) return;
+            const isPausado = App.state && (App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1');
+            if (isPausado && !forcePlay) return;
             if (!App.state.soundEnabled) return;
             const resolvedSom = somTipo || localStorage.getItem('motoboy_som_global') || 'campainha_classica';
             if (resolvedSom === 'mudo') return;
@@ -1008,6 +1041,8 @@ const App = {
                 });
 
                 this.channel.bind('pedido-atrasado-motoboy', (data) => {
+                    const isPausado = App.state && (App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1');
+                    if (isPausado) return;
                     console.log('📢 Evento: pedido-atrasado-motoboy', data);
                     const pId = String(data.pedido_id || '');
                     dispararToastMotoboy('pedido-atrasado-motoboy', { pedido_id: pId, mensagem: data.mensagem || '' }, `🔥 MOTOBOY: ENTREGA ATRASADA! O pedido #${pId} está parado há mais de 10 minutos!`, 'error');
@@ -1020,6 +1055,8 @@ const App = {
                 });
 
                 this.channel.bind('pedido-entregue', (data) => {
+                    const isPausado = App.state && (App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1');
+                    if (isPausado) return;
                     App.loadPedidos();
                     const pId = String(data.pedido_id || data.id || '');
                     const mesaVal = data.mesa || data.mesa_numero || 'Delivery';
@@ -1027,6 +1064,8 @@ const App = {
                 });
 
                 this.channel.bind('saiu-entrega', (data) => {
+                    const isPausado = App.state && (App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1');
+                    if (isPausado) return;
                     App.loadPedidos();
                     const pId = String(data.pedido_id || data.id || '');
                     const mesaVal = data.mesa || data.mesa_numero || 'Delivery';
@@ -1034,6 +1073,11 @@ const App = {
                 });
 
                 this.channel.bind('status-atualizado', (data) => {
+                    const isPausado = App.state && (App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1');
+                    if (isPausado) {
+                        console.log('⏸️ [Motoboy] Status atualizado ignorado: Motoboy está em PAUSA.');
+                        return;
+                    }
                     if (data.garcom_id !== 'DELIVERY' && String(data.garcom_id) !== 'DELIVERY') return;
                     App.loadPedidos();
                     const pId = String(data.pedido_id || data.id || '');
@@ -1052,6 +1096,11 @@ const App = {
                 });
 
                 this.channel.bind('novo-pedido', (data) => {
+                    const isPausado = App.state && (App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1');
+                    if (isPausado) {
+                        console.log('⏸️ [Motoboy] Pedido ignorado: Motoboy está em PAUSA (fora da fila).');
+                        return;
+                    }
                     const p = data.pedido || data;
                     if (p.garcom_id !== 'DELIVERY' && String(p.garcom_id) !== 'DELIVERY') return;
                     App.loadPedidos();
@@ -1106,6 +1155,8 @@ const App = {
             const check = document.getElementById('check-fila');
             const label = document.getElementById('label-fila');
             const slider = document.getElementById('slider-fila');
+            const pausaScreen = document.getElementById('pausa-screen');
+            const mainContainer = document.querySelector('main');
             const isPausado = App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1';
 
             if (check) check.checked = !isPausado;
@@ -1115,6 +1166,14 @@ const App = {
             }
             if (slider) {
                 slider.style.backgroundColor = isPausado ? '#e74c3c' : '#2ecc71';
+            }
+
+            if (isPausado) {
+                if (pausaScreen) pausaScreen.style.display = 'flex';
+                if (mainContainer) mainContainer.style.display = 'none';
+            } else {
+                if (pausaScreen) pausaScreen.style.display = 'none';
+                if (mainContainer) mainContainer.style.display = '';
             }
         },
         updateOperadorNome() {
