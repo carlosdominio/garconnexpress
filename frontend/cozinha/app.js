@@ -142,6 +142,8 @@ const statusConexao = document.getElementById('status-conexao');
 let somAtivo = localStorage.getItem('cozinha_som_ativo') !== 'false';
 let cozinhaPausado = localStorage.getItem('cozinha_pausado') === 'true';
 let audioDesbloqueado = false;
+let _ultimoToggleLocalFilaCozinha = 0;
+let _ultimaNotificacaoStatusCozinha = 0;
 
 function atualizarInterfaceFilaCozinha() {
     const check = document.getElementById('check-fila');
@@ -171,6 +173,9 @@ function atualizarInterfaceFilaCozinha() {
 async function toggleFilaCozinha() {
     const check = document.getElementById('check-fila');
     cozinhaPausado = check ? !check.checked : !cozinhaPausado;
+    const now = Date.now();
+    _ultimoToggleLocalFilaCozinha = now;
+    _ultimaNotificacaoStatusCozinha = now;
     localStorage.setItem('cozinha_pausado', cozinhaPausado);
     atualizarInterfaceFilaCozinha();
 
@@ -937,10 +942,18 @@ async function configurarPusher() {
             if (data && (data.app_type === 'cozinha' || data.app_type === 'cozinheiro')) {
                 console.log('🔄 Status de fila da cozinha alterado externamente:', data);
                 if (typeof data.pausado === 'boolean') {
+                    const now = Date.now();
+                    const ehEcoLocal = (now - _ultimoToggleLocalFilaCozinha) < 4000;
+                    const jaNotificado = (now - _ultimaNotificacaoStatusCozinha) < 3000;
+
                     cozinhaPausado = data.pausado;
                     localStorage.setItem('cozinha_pausado', cozinhaPausado);
                     atualizarInterfaceFilaCozinha();
-                    mostrarToast(cozinhaPausado ? "⏸️ Modo Pausa ativado pelo Admin" : "🟢 Modo Fila ativado pelo Admin", cozinhaPausado ? 'warning' : 'success');
+
+                    if (!ehEcoLocal && !jaNotificado) {
+                        _ultimaNotificacaoStatusCozinha = now;
+                        mostrarToast(cozinhaPausado ? "⏸️ Modo Pausa ativado pelo Admin" : "🟢 Modo Fila ativado pelo Admin", cozinhaPausado ? 'warning' : 'success');
+                    }
                     if (!cozinhaPausado) {
                         carregarPedidos();
                     }
@@ -1170,7 +1183,24 @@ async function registerNativePush() {
       console.log('📩 Notificação recebida (Cozinha):', notification);
       
       const ev = notification.data ? (notification.data.event || notification.data.evento) : null;
-      if (cozinhaPausado && ev !== 'status-fila-alterado' && ev !== 'garcom-status-alterado') {
+      if (ev === 'status-fila-alterado' || ev === 'garcom-status-alterado') {
+        const isPausado = notification.data.pausado === 'true' || notification.data.pausado === true || notification.data.pausado === 1 || notification.data.pausado === '1';
+        const now = Date.now();
+        const ehEcoLocal = (now - _ultimoToggleLocalFilaCozinha) < 4000;
+        const jaNotificado = (now - _ultimaNotificacaoStatusCozinha) < 3000;
+
+        cozinhaPausado = isPausado;
+        localStorage.setItem('cozinha_pausado', cozinhaPausado);
+        atualizarInterfaceFilaCozinha();
+
+        if (!ehEcoLocal && !jaNotificado) {
+          _ultimaNotificacaoStatusCozinha = now;
+          mostrarToast(cozinhaPausado ? "⏸️ Modo Pausa ativado pelo Admin" : "🟢 Modo Fila ativado pelo Admin", cozinhaPausado ? 'warning' : 'success');
+        }
+        return;
+      }
+
+      if (cozinhaPausado) {
         console.log('⏸️ [Cozinha FCM Foreground] Notificação ignorada: Cozinha em PAUSA.');
         return;
       }

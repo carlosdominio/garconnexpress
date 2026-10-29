@@ -250,6 +250,8 @@ const App = {
         caixaAberto: null,
         soundEnabled: localStorage.getItem('motoboy_sound') !== 'false',
         pausado: localStorage.getItem('motoboy_pausado') === 'true',
+        _ultimoToggleLocalFila: 0,
+        _ultimaNotificacaoStatus: 0,
         notifiedEvents: new Set(), // Para evitar duplicidade estrita (evento + id)
         notificacoes: []
     },
@@ -554,6 +556,9 @@ const App = {
             });
             const data = await res.json();
             if (data.success) {
+                const now = Date.now();
+                App.state._ultimoToggleLocalFila = now;
+                App.state._ultimaNotificacaoStatus = now;
                 App.state.pausado = novoStatusPausado;
                 localStorage.setItem('motoboy_pausado', novoStatusPausado);
                 App.ui.updateFilaSwitch();
@@ -596,6 +601,21 @@ const App = {
 
     notificarMudancaStatusAdmin(pausado) {
         const isPausado = (pausado === true || pausado === 'true' || pausado === 1 || pausado === '1');
+        const now = Date.now();
+
+        // Se a alteração foi feita pelo próprio motoboy localmente nos últimos 4 segundos, ignora o eco
+        if (now - (App.state._ultimoToggleLocalFila || 0) < 4000) {
+            console.log('⚡ [Motoboy] Notificação de status suprimida (ação do próprio usuário).');
+            return;
+        }
+
+        // Se já notificamos nos últimos 3 segundos (ex: Pusher duplicado ou FCM em primeiro plano), ignora
+        if (now - (App.state._ultimaNotificacaoStatus || 0) < 3000) {
+            console.log('⚡ [Motoboy] Notificação duplicada ignorada pelo deduplicador.');
+            return;
+        }
+        App.state._ultimaNotificacaoStatus = now;
+
         App.state.pausado = isPausado;
         localStorage.setItem('motoboy_pausado', isPausado);
         App.ui.updateFilaSwitch();
@@ -620,13 +640,8 @@ const App = {
             App.ui.adicionarNotificacaoPainel(msg, titulo, isPausado ? 'warning' : 'success');
         }
 
-        // 4. Exibe toast visual na tela
+        // 4. Exibe toast visual na tela (APENAS UMA VEZ!)
         App.ui.showToast(msg, isPausado ? 'warning' : 'success', titulo);
-
-        // 5. Exibe notificação local (se permissão concedida)
-        if (typeof App.notifications.showLocal === 'function') {
-            App.notifications.showLocal(titulo, msg, 'status_admin_' + Date.now());
-        }
 
         if (!isPausado) {
             App.loadPedidos();

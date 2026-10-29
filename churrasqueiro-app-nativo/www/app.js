@@ -132,6 +132,8 @@ let somAtivo = localStorage.getItem('churrasqueiro_som_ativo') !== 'false';
 let audioDesbloqueado = false;
 
 let churrasqueiroPausado = localStorage.getItem('churrasqueiro_pausado') === 'true';
+let _ultimoToggleLocalFilaChurrasqueiro = 0;
+let _ultimaNotificacaoStatusChurrasqueiro = 0;
 
 function atualizarInterfaceFilaChurrasqueiro() {
     const check = document.getElementById('check-fila');
@@ -160,6 +162,9 @@ function atualizarInterfaceFilaChurrasqueiro() {
 
 async function toggleFilaChurrasqueiro() {
     churrasqueiroPausado = !churrasqueiroPausado;
+    const now = Date.now();
+    _ultimoToggleLocalFilaChurrasqueiro = now;
+    _ultimaNotificacaoStatusChurrasqueiro = now;
     localStorage.setItem('churrasqueiro_pausado', churrasqueiroPausado);
     atualizarInterfaceFilaChurrasqueiro();
 
@@ -908,10 +913,18 @@ async function configurarPusher() {
             if (data && (data.app_type === 'churrasqueiro' || data.app_type === 'churrasco')) {
                 console.log('🔄 Status de fila do churrasqueiro alterado externamente:', data);
                 if (typeof data.pausado === 'boolean') {
+                    const now = Date.now();
+                    const ehEcoLocal = (now - _ultimoToggleLocalFilaChurrasqueiro) < 4000;
+                    const jaNotificado = (now - _ultimaNotificacaoStatusChurrasqueiro) < 3000;
+
                     churrasqueiroPausado = data.pausado;
                     localStorage.setItem('churrasqueiro_pausado', churrasqueiroPausado);
                     atualizarInterfaceFilaChurrasqueiro();
-                    mostrarToast(churrasqueiroPausado ? "⏸️ Modo Pausa ativado pelo Admin" : "🟢 Modo Fila ativado pelo Admin", churrasqueiroPausado ? 'warning' : 'success');
+
+                    if (!ehEcoLocal && !jaNotificado) {
+                        _ultimaNotificacaoStatusChurrasqueiro = now;
+                        mostrarToast(churrasqueiroPausado ? "⏸️ Modo Pausa ativado pelo Admin" : "🟢 Modo Fila ativado pelo Admin", churrasqueiroPausado ? 'warning' : 'success');
+                    }
                     if (!churrasqueiroPausado) {
                         carregarPedidos();
                     }
@@ -1151,7 +1164,24 @@ async function registerNativePush() {
       console.log('📩 Notificação recebida (Churrasqueiro):', notification);
       
       const ev = notification.data ? (notification.data.event || notification.data.evento) : null;
-      if (churrasqueiroPausado && ev !== 'status-fila-alterado' && ev !== 'garcom-status-alterado') {
+      if (ev === 'status-fila-alterado' || ev === 'garcom-status-alterado') {
+        const isPausado = notification.data.pausado === 'true' || notification.data.pausado === true || notification.data.pausado === 1 || notification.data.pausado === '1';
+        const now = Date.now();
+        const ehEcoLocal = (now - _ultimoToggleLocalFilaChurrasqueiro) < 4000;
+        const jaNotificado = (now - _ultimaNotificacaoStatusChurrasqueiro) < 3000;
+
+        churrasqueiroPausado = isPausado;
+        localStorage.setItem('churrasqueiro_pausado', churrasqueiroPausado);
+        atualizarInterfaceFilaChurrasqueiro();
+
+        if (!ehEcoLocal && !jaNotificado) {
+          _ultimaNotificacaoStatusChurrasqueiro = now;
+          mostrarToast(churrasqueiroPausado ? "⏸️ Modo Pausa ativado pelo Admin" : "🟢 Modo Fila ativado pelo Admin", churrasqueiroPausado ? 'warning' : 'success');
+        }
+        return;
+      }
+
+      if (churrasqueiroPausado) {
         console.log('⏸️ [Churrasqueiro FCM Foreground] Notificação ignorada: Churrasqueiro em PAUSA.');
         return;
       }
