@@ -1700,11 +1700,14 @@ async function checkAndNotifyDelayedOrders() {
     const subs = subsRes.rows;
     let offlineGarcomIds = new Set();
     try {
-      const offRes = await query("SELECT id, usuario FROM garcons WHERE is_online = FALSE OR is_online = 0");
-      if (offRes && offRes.rows) {
-        offRes.rows.forEach(g => {
-          offlineGarcomIds.add(String(g.id));
-          if (g.usuario) offlineGarcomIds.add(String(g.usuario));
+      const gRes = await query("SELECT id, usuario, is_online FROM garcons");
+      if (gRes && gRes.rows) {
+        gRes.rows.forEach(g => {
+          const isOnline = (g.is_online === true || g.is_online === 1 || g.is_online === '1' || g.is_online === 't' || g.is_online === 'true');
+          if (!isOnline) {
+            offlineGarcomIds.add(String(g.id));
+            if (g.usuario) offlineGarcomIds.add(String(g.usuario));
+          }
         });
       }
     } catch (eOff) {}
