@@ -2478,3 +2478,9 @@ html.android-edge-to-edge #closed-screen,
 html.android-edge-to-edge .tela-login {
     padding-top: max(var(--safe-area-inset-top, env(safe-area-inset-top, 0px)), 38px) !important;
 }
+
+/* === REGRAS PARA ANDROID <= 14 (Android 13 / Legacy) === */
+html.android-legacy header {
+    padding-top: 0.45rem !important;
+    padding-bottom: 0.45rem !important;
+}
