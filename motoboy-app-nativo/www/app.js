@@ -624,15 +624,21 @@ const App = {
         const isPausado = (pausado === true || pausado === 'true' || pausado === 1 || pausado === '1');
         const now = Date.now();
 
-        // Se a alteração foi feita pelo próprio motoboy localmente nos últimos 4 segundos, ignora o eco
-        if (now - (App.state._ultimoToggleLocalFila || 0) < 4000) {
+        // 1. Se o status já é o mesmo que o app possui atualmente, ignora (evita notificações duplicadas ao abrir o app ou reconectar)
+        if (App.state.pausado === isPausado) {
+            console.log('⚡ [Motoboy] Notificação ignorada: status de fila já sincronizado.');
+            return;
+        }
+
+        // 2. Se a alteração foi feita pelo próprio motoboy localmente nos últimos 5 segundos, ignora o eco
+        if (now - (App.state._ultimoToggleLocalFila || 0) < 5000) {
             console.log('⚡ [Motoboy] Notificação de status suprimida (ação do próprio usuário).');
             return;
         }
 
-        // Se já notificamos nos últimos 3 segundos (ex: Pusher duplicado ou FCM em primeiro plano), ignora
-        if (now - (App.state._ultimaNotificacaoStatus || 0) < 3000) {
-            console.log('⚡ [Motoboy] Notificação duplicada ignorada pelo deduplicador.');
+        // 3. Deduplicador de 10 segundos contra eventos simultâneos (Pusher + FCM)
+        if (now - (App.state._ultimaNotificacaoStatus || 0) < 10000) {
+            console.log('⚡ [Motoboy] Notificação duplicada ignorada pelo deduplicador de tempo.');
             return;
         }
         App.state._ultimaNotificacaoStatus = now;
@@ -646,22 +652,17 @@ const App = {
             ? "O administrador colocou você em modo PAUSA." 
             : "O administrador colocou você DISPONÍVEL na fila de entregas.";
 
-        // 1. Toca o som de notificação (mesmo com tela aberta)
+        // Toca o som de notificação (mesmo com tela aberta)
         if (App.audio && typeof App.audio.playBell === 'function') {
             App.audio.playBell(null, true);
         }
 
-        // 2. Vibração tátil (Haptics)
+        // Vibração tátil (Haptics)
         if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics) {
             try { window.Capacitor.Plugins.Haptics.vibrate(); } catch(e) {}
         }
 
-        // 3. Adiciona ao painel de histórico de notificações do sino
-        if (typeof App.ui.adicionarNotificacaoPainel === 'function') {
-            App.ui.adicionarNotificacaoPainel(msg, titulo, isPausado ? 'warning' : 'success');
-        }
-
-        // 4. Exibe toast visual na tela (APENAS UMA VEZ!)
+        // Exibe toast visual na tela (showToast já adiciona ao histórico do sino sem duplicar)
         App.ui.showToast(msg, isPausado ? 'warning' : 'success', titulo);
 
         if (!isPausado) {

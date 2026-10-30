@@ -1804,3 +1804,34 @@ function showLoading(show = true, text = "Processando...") {
     el.style.display = show ? 'flex' : 'none';
   }
 }
+
+// =============================================
+// ⬆️ BOTÃO FLUTUANTE: SUBIR PARA O TOPO
+// =============================================
+function subirAoTopo() {
+  window.scrollTo({
+    top: 0,
+    behavior: 'smooth'
+  });
+}
+
+function inicializarBotaoScrollTopo() {
+  const btn = document.getElementById('btn-scroll-top');
+  if (!btn) return;
+  const verificarScroll = () => {
+    const scrollY = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    if (scrollY > 250) {
+      btn.classList.add('visible');
+    } else {
+      btn.classList.remove('visible');
+    }
+  };
+  window.addEventListener('scroll', verificarScroll, { passive: true });
+  verificarScroll();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', inicializarBotaoScrollTopo);
+} else {
+  inicializarBotaoScrollTopo();
+}

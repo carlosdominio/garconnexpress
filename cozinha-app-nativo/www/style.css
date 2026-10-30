@@ -748,3 +748,127 @@ html.android-edge-to-edge .tela-login {
     padding-top: max(var(--safe-area-inset-top, env(safe-area-inset-top, 0px)), 38px) !important;
 }
 
+/* ============================================================
+   BOTÃO FLUTUANTE: SUBIR PARA O TOPO (SCROLL TO TOP)
+   ============================================================ */
+.btn-scroll-top {
+    position: fixed;
+    bottom: calc(25px + env(safe-area-inset-bottom, 0px));
+    right: calc(25px + env(safe-area-inset-right, 0px));
+    width: 52px;
+    height: 52px;
+    background: #2c3e50;
+    color: #ffffff;
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    border-radius: 50%;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(20px) scale(0.85);
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                visibility 0.3s,
+                background 0.2s,
+                box-shadow 0.2s;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    touch-action: manipulation;
+}
+
+.btn-scroll-top.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+.btn-scroll-top:hover {
+    background: #1a252f;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.38);
+    transform: translateY(-3px) scale(1.08);
+}
+
+.btn-scroll-top:active {
+    transform: translateY(0) scale(0.92);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+@media (max-width: 768px) {
+    .btn-scroll-top {
+        bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+        right: calc(18px + env(safe-area-inset-right, 0px));
+        width: 48px;
+        height: 48px;
+        font-size: 1.15rem;
+    }
+}
+
+
+/* ============================================================
+   BOTÃO FLUTUANTE: SUBIR PARA O TOPO (SCROLL TO TOP)
+   ============================================================ */
+.btn-scroll-top {
+    position: fixed;
+    bottom: calc(25px + env(safe-area-inset-bottom, 0px));
+    right: calc(25px + env(safe-area-inset-right, 0px));
+    width: 52px;
+    height: 52px;
+    background: #2c3e50;
+    color: #ffffff;
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    border-radius: 50%;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(20px) scale(0.85);
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                visibility 0.3s,
+                background 0.2s,
+                box-shadow 0.2s;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    touch-action: manipulation;
+}
+
+.btn-scroll-top.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+.btn-scroll-top:hover {
+    background: #1a252f;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.38);
+    transform: translateY(-3px) scale(1.08);
+}
+
+.btn-scroll-top:active {
+    transform: translateY(0) scale(0.92);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+@media (max-width: 768px) {
+    .btn-scroll-top {
+        bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+        right: calc(18px + env(safe-area-inset-right, 0px));
+        width: 48px;
+        height: 48px;
+        font-size: 1.15rem;
+    }
+}
+
+
