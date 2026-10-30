@@ -639,18 +639,11 @@ const App = {
             return;
         }
 
-        // 2. Se o status já é o mesmo que o app possui atualmente, ignora (evita notificações duplicadas ao abrir o app ou reconectar)
+        // 2. Se o status recebido já é exatamente o status atual, ignora (evita disparos repetidos para a mesma ação)
         if (App.state.pausado === isPausado) {
             console.log('⚡ [Motoboy] Notificação ignorada: status de fila já sincronizado.');
             return;
         }
-
-        // 3. Deduplicador de 4 segundos contra eventos simultâneos (Pusher + FCM)
-        if (now - (App.state._ultimaNotificacaoStatus || 0) < 4000) {
-            console.log('⚡ [Motoboy] Notificação duplicada ignorada pelo deduplicador de tempo.');
-            return;
-        }
-        App.state._ultimaNotificacaoStatus = now;
 
         App.state.pausado = isPausado;
         localStorage.setItem('motoboy_pausado', isPausado);
