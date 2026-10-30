@@ -3865,8 +3865,9 @@ function notificarStatusEquipeAdmin(data) {
   const isPausado = (data.pausado === true || data.pausado === 1 || data.pausado === 'true' || data.pausado === '1');
   const cargoRaw = (data.cargo || data.app_type || 'colaborador').toLowerCase().trim();
   const usuario = data.usuario || data.user_id || '';
+  const tipoAcao = data.tipo_acao || '';
   
-  const chave = `${cargoRaw}_${usuario}_${isPausado}`;
+  const chave = `${cargoRaw}_${usuario}_${isPausado}_${tipoAcao}`;
   const now = Date.now();
   if (_ultimoStatusToastChave === chave && (now - _ultimoStatusToastTimestamp) < 3000) {
     return; // Ignora evento duplicado dentro de 3 segundos
@@ -3886,13 +3887,21 @@ function notificarStatusEquipeAdmin(data) {
   const info = nomesCargos[cargoRaw] || { nome: `👤 ${usuario || 'Colaborador'}`, fila: 'Fila de Atendimento' };
   const identificador = usuario ? `${info.nome} (@${usuario})` : info.nome;
   
-  const msg = isPausado 
-    ? `${identificador} entrou em MODO PAUSA (Fora da Fila)` 
-    : `${identificador} entrou na ${info.fila}`;
+  let msg = '';
+  if (tipoAcao === 'login') {
+    msg = `${identificador} realizou LOGIN (Disponível na ${info.fila})`;
+  } else if (tipoAcao === 'logout') {
+    msg = `${identificador} realizou LOGOUT (Sessão encerrada)`;
+  } else {
+    msg = isPausado 
+      ? `${identificador} entrou em MODO PAUSA (Fora da Fila)` 
+      : `${identificador} entrou na ${info.fila}`;
+  }
   
-  mostrarToast(msg, isPausado ? 'warning' : 'success', '👥 EQUIPE');
+  const tipoToast = (isPausado || tipoAcao === 'logout') ? 'warning' : 'success';
+  mostrarToast(msg, tipoToast, '👥 EQUIPE');
   if (typeof adicionarNotificacao === 'function') {
-    adicionarNotificacao('👥 STATUS EQUIPE', msg, isPausado ? '⏸️' : '🟢');
+    adicionarNotificacao('👥 STATUS EQUIPE', msg, (isPausado || tipoAcao === 'logout') ? '⏸️' : '🟢');
   }
 }
 

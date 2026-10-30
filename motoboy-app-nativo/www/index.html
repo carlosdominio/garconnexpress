@@ -15,19 +15,14 @@
       (function() {
         try {
           var ua = navigator.userAgent || '';
-          var match = ua.match(/Android\s([0-9\.]+)/i);
-          var isAndroid15OrNewer = false;
-          if (match && match[1]) {
-            var major = parseInt(match[1].split('.')[0], 10);
-            if (major >= 15) isAndroid15OrNewer = true;
-          }
-          var isNative = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
-                         ua.indexOf('Capacitor') !== -1 ||
-                         window.location.protocol === 'file:';
-          if (isNative || isAndroid15OrNewer) {
+          var match = ua.match(/Android\s+([0-9]+)/i);
+          var version = match ? parseInt(match[1], 10) : null;
+          if (version && version >= 15) {
             document.documentElement.classList.add('android-edge-to-edge');
+            document.documentElement.classList.remove('android-legacy');
           } else {
             document.documentElement.classList.add('android-legacy');
+            document.documentElement.classList.remove('android-edge-to-edge');
           }
         } catch(e) {}
       })();
@@ -44,7 +39,7 @@
     </script>
     <script defer src="/_vercel/insights/script.js"></script>
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
-    <link rel="stylesheet" href="style.css?v=1.1.1-android-adaptive">
+    <link rel="stylesheet" href="style.css?v=1.1.2-header-compact">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2c3e50">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -119,7 +114,7 @@
                         <span style="font-size: 1.1rem; user-select: none;">🔔</span>
                         <span id="badge-notificacoes" style="display: none; position: absolute; top: -5px; right: -5px; background: #e74c3c; color: white; font-size: 0.65rem; font-weight: bold; border-radius: 50%; width: 18px; height: 18px; align-items: center; justify-content: center; line-height: 1;">0</span>
                     </div>
-                    <button class="btn-logout" onclick="App.logout()">Sair</button>
+                    <button class="btn-logout" onclick="App.logout()"><i class="fa-solid fa-right-from-bracket" style="font-size: 0.85rem;"></i> Sair</button>
                 </div>
             </div>
 

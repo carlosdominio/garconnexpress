@@ -3313,6 +3313,13 @@ app.post('/api/logout', async (req, res) => {
       if (decoded && decoded.role === 'garcom') {
         await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isPostgres ? false : 0, decoded.id]);
         console.log(`👋 Garçom ${decoded.usuario} offline.`);
+        await safePusherTrigger('garconnexpress', 'garcom-status-alterado', {
+          garcom_id: decoded.id,
+          usuario: decoded.usuario,
+          cargo: decoded.cargo || 'garcom',
+          pausado: true,
+          tipo_acao: 'logout'
+        });
       }
     } catch (e) {
       console.error('Erro ao desativar online no logout:', e.message);
@@ -3711,7 +3718,7 @@ app.post('/api/admin/garcons/:id/toggle-bloqueio', isAdmin, async (req, res) => 
 
 // Toggle Fila / Disponibilidade para Cozinha, Churrasqueiro, etc.
 app.post('/api/setor/toggle-fila', isAuthenticated, async (req, res) => {
-  const { app_type, pausado, endpoint } = req.body;
+  const { app_type, pausado, endpoint, tipo_acao } = req.body;
   const userId = req.user ? (req.user.id || req.user.usuario) : null;
   const valPausado = (pausado === true || pausado === 1 || pausado === '1') ? 1 : 0;
   const isOnline = valPausado ? (isPostgres ? false : 0) : (isPostgres ? true : 1);
@@ -3774,7 +3781,8 @@ app.post('/api/setor/toggle-fila', isAuthenticated, async (req, res) => {
       app_type,
       user_id: garcomUsuarioFinal,
       garcom_id: garcomIdFinal,
-      pausado: !!valPausado
+      pausado: !!valPausado,
+      tipo_acao: tipo_acao || (valPausado ? 'pausa' : 'ativo')
     });
     if (app_type === 'churrasqueiro' || app_type === 'churrasco') {
       const outroTipo = (app_type === 'churrasqueiro') ? 'churrasco' : 'churrasqueiro';
@@ -3782,7 +3790,8 @@ app.post('/api/setor/toggle-fila', isAuthenticated, async (req, res) => {
         app_type: outroTipo,
         user_id: garcomUsuarioFinal,
         garcom_id: garcomIdFinal,
-        pausado: !!valPausado
+        pausado: !!valPausado,
+        tipo_acao: tipo_acao || (valPausado ? 'pausa' : 'ativo')
       });
     }
 
@@ -3791,7 +3800,8 @@ app.post('/api/setor/toggle-fila', isAuthenticated, async (req, res) => {
       garcom_id: garcomIdFinal,
       usuario: garcomUsuarioFinal,
       cargo: garcomCargoFinal,
-      pausado: !!valPausado
+      pausado: !!valPausado,
+      tipo_acao: tipo_acao || (valPausado ? 'pausa' : 'ativo')
     });
 
     res.json({ success: true, pausado: !!valPausado, is_online: !valPausado });
@@ -6837,11 +6847,26 @@ app.post('/api/login', loginLimiter, async (req, res) => {
 
       const token = jwt.sign({ id: garcom.id, nome: garcom.nome, usuario: garcom.usuario, cargo: cargo, role: 'garcom' }, JWT_SECRET, { expiresIn: '15d' });
       
-      // Define garçom como ONLINE para o rodízio SOMENTE se for Garçom ou Todos (e estiver logando no app de Garçom)
-      if (appOrigem === 'garcom' && (cargo === 'garcom' || cargo === 'todos')) {
-        const agora = new Date().toISOString();
-        await query("UPDATE garcons SET is_online = ?, last_assigned_at = ? WHERE id = ?", [isPostgres ? true : 1, agora, garcom.id]);
-      }
+      const agora = new Date().toISOString();
+      await query("UPDATE garcons SET is_online = ?, last_assigned_at = ? WHERE id = ?", [isPostgres ? true : 1, agora, garcom.id]).catch(() => {});
+      await query("UPDATE push_subscriptions SET pausado = 0 WHERE garcom_id = ? OR garcom_id = ?", [String(garcom.id), String(garcom.usuario)]).catch(() => {});
+
+      // Notifica o painel Admin em tempo real que o colaborador realizou login!
+      await safePusherTrigger('garconnexpress', 'garcom-status-alterado', {
+        garcom_id: garcom.id,
+        usuario: garcom.usuario,
+        cargo: cargo,
+        app_type: appOrigem,
+        pausado: false,
+        tipo_acao: 'login'
+      });
+      await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
+        app_type: appOrigem,
+        user_id: garcom.usuario,
+        garcom_id: garcom.id,
+        pausado: false,
+        tipo_acao: 'login'
+      });
       
       const isProd = process.env.NODE_ENV === 'production';
       res.cookie('garcom_token', token, {

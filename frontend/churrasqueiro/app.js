@@ -1443,6 +1443,7 @@ function logout() {
             body: JSON.stringify({
                 app_type: 'churrasqueiro',
                 pausado: true,
+                tipo_acao: 'logout',
                 endpoint: window._ultimoTokenFcm || null
             })
         }).catch(() => {});

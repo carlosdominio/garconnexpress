@@ -301,6 +301,12 @@ const App = {
         
         if (!this.checkAuth()) {
             ocultarTelaCarregamentoSistema();
+            if (sessionStorage.getItem('motoboy_logout_toast') === 'true') {
+                sessionStorage.removeItem('motoboy_logout_toast');
+                setTimeout(() => {
+                    App.ui.showToast("Sessão encerrada com sucesso!", "info");
+                }, 350);
+            }
             return;
         }
 
@@ -315,6 +321,13 @@ const App = {
         // setInterval(() => this.checkCaixaStatus(), 30000); // Removido para evitar polling excessivo (agora usa apenas Pusher)
 
         this.loadPedidos();
+
+        if (sessionStorage.getItem('motoboy_login_toast') === 'true') {
+            sessionStorage.removeItem('motoboy_login_toast');
+            setTimeout(() => {
+                App.ui.showToast("Login realizado com sucesso!", "success");
+            }, 350);
+        }
 
         this.ui.updateSoundIcon();
         this.ui.updateFilaSwitch();
@@ -406,9 +419,26 @@ const App = {
                         localStorage.setItem('motoboy_pausado', !Boolean(data.garcom.is_online));
                     }
                     
-                    exibirTelaCarregamentoSistema('Carregando...', 'Buscando entregas do sistema...');
+                    try {
+                        await fetch(`${API_BASE_URL}/api/setor/toggle-fila`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${data.token}`
+                            },
+                            body: JSON.stringify({
+                                app_type: 'motoboy',
+                                pausado: false,
+                                tipo_acao: 'login',
+                                endpoint: window._ultimoTokenFcm || null
+                            })
+                        }).catch(() => {});
+                    } catch(e) {}
+
+                    sessionStorage.setItem('motoboy_login_toast', 'true');
                     App.ui.showToast("Login realizado com sucesso!", "success");
-                    setTimeout(() => location.reload(), 1000);
+                    exibirTelaCarregamentoSistema('Carregando...', 'Buscando entregas do sistema...');
+                    setTimeout(() => location.reload(), 800);
 
                 } else if (res.status === 429) {
                     ocultarTelaCarregamentoSistema();
@@ -687,6 +717,27 @@ const App = {
         });
 
         if (isConfirmed) {
+            const token = localStorage.getItem('motoboy_token');
+            if (token) {
+                try {
+                    await fetch(`${API_BASE_URL}/api/setor/toggle-fila`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            app_type: 'motoboy',
+                            pausado: true,
+                            tipo_acao: 'logout',
+                            endpoint: window._ultimoTokenFcm || null
+                        })
+                    }).catch(() => {});
+                } catch(e) {}
+            }
+
+            sessionStorage.setItem('motoboy_logout_toast', 'true');
+            App.ui.showToast("Sessão encerrada com sucesso!", "info");
             exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
             
             setTimeout(() => {
@@ -694,7 +745,7 @@ const App = {
                 localStorage.removeItem('motoboy_user');
                 localStorage.removeItem('motoboy_pausado');
                 location.reload();
-            }, 1000);
+            }, 800);
         }
     },
 
@@ -879,6 +930,7 @@ const App = {
         },
 
         async syncToken(token) {
+            window._ultimoTokenFcm = token;
             try {
                 await fetch(`${API_BASE_URL}/api/subscribe-motoboy`, {
                     method: 'POST',
