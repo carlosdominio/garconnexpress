@@ -3857,6 +3857,44 @@ window.editarNomeMesa = async function(id, nomeAtual) {
 
 // GARÇONS
 let idGarcomEdicao = null;
+let _ultimoStatusToastChave = '';
+let _ultimoStatusToastTimestamp = 0;
+
+function notificarStatusEquipeAdmin(data) {
+  if (!data) return;
+  const isPausado = (data.pausado === true || data.pausado === 1 || data.pausado === 'true' || data.pausado === '1');
+  const cargoRaw = (data.cargo || data.app_type || 'colaborador').toLowerCase().trim();
+  const usuario = data.usuario || data.user_id || '';
+  
+  const chave = `${cargoRaw}_${usuario}_${isPausado}`;
+  const now = Date.now();
+  if (_ultimoStatusToastChave === chave && (now - _ultimoStatusToastTimestamp) < 3000) {
+    return; // Ignora evento duplicado dentro de 3 segundos
+  }
+  _ultimoStatusToastChave = chave;
+  _ultimoStatusToastTimestamp = now;
+
+  const nomesCargos = {
+    cozinha: { nome: '👨‍🍳 Cozinha', fila: 'Fila de Pedidos' },
+    churrasqueiro: { nome: '🥩 Churrasqueiro', fila: 'Fila do Churrasco' },
+    churrasco: { nome: '🥩 Churrasqueiro', fila: 'Fila do Churrasco' },
+    motoboy: { nome: '🛵 Motoboy', fila: 'Fila de Entregas' },
+    garcom: { nome: '🍽️ Garçom', fila: 'Fila de Atendimento' },
+    todos: { nome: '🔓 Colaborador', fila: 'Fila de Atendimento' }
+  };
+
+  const info = nomesCargos[cargoRaw] || { nome: `👤 ${usuario || 'Colaborador'}`, fila: 'Fila de Atendimento' };
+  const identificador = usuario ? `${info.nome} (@${usuario})` : info.nome;
+  
+  const msg = isPausado 
+    ? `${identificador} entrou em MODO PAUSA (Fora da Fila)` 
+    : `${identificador} entrou na ${info.fila}`;
+  
+  mostrarToast(msg, isPausado ? 'warning' : 'success', '👥 EQUIPE');
+  if (typeof adicionarNotificacao === 'function') {
+    adicionarNotificacao('👥 STATUS EQUIPE', msg, isPausado ? '⏸️' : '🟢');
+  }
+}
 
 async function exibirGarconsConfig() {
   const res = await fetch('/api/garcons');
@@ -3935,6 +3973,9 @@ async function toggleStatusGarcom(id, currentStatus) {
     const res = await fetch(`/api/admin/garcons/${id}/toggle-status`, { method: 'POST' });
     if (res.ok) {
       const statusFinal = currentStatus ? "PAUSADO" : "ATIVADO";
+      const cargoGarcomLimpo = (cargoGarcom || 'colaborador').toLowerCase().trim();
+      _ultimoStatusToastChave = `${cargoGarcomLimpo}_${garcom?.usuario}_${!currentStatus}`;
+      _ultimoStatusToastTimestamp = Date.now();
       mostrarToast(`${nomeGarcom} foi ${statusFinal}!`, currentStatus ? 'warning' : 'success', '⚙️ STATUS');
       adicionarNotificacao(`⚙️ STATUS FILA`, `${nomeGarcom} foi ${statusFinal} na fila de disponibilidade.`, "⚙️");
       exibirGarconsConfig(); // Recarrega a lista
@@ -9775,12 +9816,14 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
     // EVENTO: STATUS DO COLABORADOR ALTERADO (GARÇOM / MOTOBOY / COZINHA / CHURRASQUEIRO)
     channel.bind('garcom-status-alterado', (data) => {
       console.log('📢 Admin: Status de colaborador alterado!', data);
+      notificarStatusEquipeAdmin(data);
       exibirGarconsConfig();
     });
 
     // EVENTO: STATUS DE FILA DO SETOR ALTERADO (COZINHA, CHURRASQUEIRO, MOTOBOY)
     channel.bind('setor-fila-alterada', (data) => {
       console.log('📢 Admin: Status de fila do setor alterado!', data);
+      notificarStatusEquipeAdmin(data);
       exibirGarconsConfig();
     });
 
