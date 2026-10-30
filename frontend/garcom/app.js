@@ -1319,12 +1319,20 @@ async function configurarPusher() {
 
     channel.bind('fechamento-atrasado', (data) => {
       console.log('📢 Evento: fechamento-atrasado', data);
+      if (garcomPausado) {
+        console.log("Ignorando som/toast de fechamento atrasado pois o garçom está PAUSADO.");
+        return;
+      }
       if (deveTocarSom('fechamento-atrasado')) tocarCampainha();
       dispararToastSistema('fechamento-atrasado', { mesa: data.mesa_numero || 'Mesa' }, data.mensagem, 'error');
     });
 
     channel.bind('aguardando-cliente-registro-atrasado', (data) => {
       console.log('📢 Evento: aguardando-cliente-registro-atrasado', data);
+      if (garcomPausado) {
+        console.log("Ignorando som/toast de aguardando cliente atrasado pois o garçom está PAUSADO.");
+        return;
+      }
       if (deveTocarSom('aguardando-cliente-registro-atrasado')) tocarCampainha();
       dispararToastSistema('aguardando-cliente-registro-atrasado', { mesa: data.mesa_numero || 'Mesa' }, data.mensagem, 'error');
     });
@@ -1606,6 +1614,11 @@ async function configurarPusher() {
         return;
       }
 
+      if (garcomPausado) {
+        console.log("Ignorando chamado de garçom pois o garçom está PAUSADO.");
+        return;
+      }
+
       if (deveTocarSom('chamado-garcom')) tocarCampainha();
       const mesaVal = data.mesa_numero || data.mesa_id || 'Mesa';
       dispararToastSistema('chamado-garcom', { mesa: mesaVal, mensagem: data.mensagem || '' }, `🛎️ Chamado de atendimento na ${mesaVal}!`, 'warning');
@@ -1668,6 +1681,13 @@ async function configurarPusher() {
       const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || data.mesa_numero;
       if (isMesaDeOutroGarcom(mesaId)) {
         console.log("Ignorando fechamento para mesa de outro garçom.");
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
+      }
+
+      if (garcomPausado) {
+        console.log("Ignorando som/toast de fechamento pois o garçom está PAUSADO.");
         clearTimeout(timeoutPusher);
         timeoutPusher = setTimeout(() => carregarMesas(), 50);
         return;

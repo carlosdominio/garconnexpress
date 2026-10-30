@@ -1773,6 +1773,10 @@ async function checkAndNotifyDelayedOrders() {
       const pushPromises = [];
       for (const sub of subs) {
         if (sub.app_type !== 'garcom' || (sub.garcom_id !== p.garcom_id && sub.garcom_id !== String(p.garcom_pk))) continue;
+        if (sub.pausado === 1 || sub.pausado === true || sub.pausado === '1') {
+          console.log(`⏸️ Pulando FCM de fechamento atrasado para garçom ${sub.garcom_id} (PAUSADO)`);
+          continue;
+        }
         if (sentEndpoints.has(sub.endpoint)) continue;
         sentEndpoints.add(sub.endpoint);
         const isNativeSubAtraso = sub.is_native === 1 || sub.is_native === true || (!sub.endpoint.startsWith('https://') && !sub.endpoint.includes('fcm.googleapis.com'));
