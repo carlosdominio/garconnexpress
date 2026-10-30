@@ -3972,12 +3972,13 @@ async function toggleStatusGarcom(id, currentStatus) {
   try {
     const res = await fetch(`/api/admin/garcons/${id}/toggle-status`, { method: 'POST' });
     if (res.ok) {
-      const statusFinal = currentStatus ? "PAUSADO" : "ATIVADO";
-      const cargoGarcomLimpo = (cargoGarcom || 'colaborador').toLowerCase().trim();
-      _ultimoStatusToastChave = `${cargoGarcomLimpo}_${garcom?.usuario}_${!currentStatus}`;
-      _ultimoStatusToastTimestamp = Date.now();
-      mostrarToast(`${nomeGarcom} foi ${statusFinal}!`, currentStatus ? 'warning' : 'success', '⚙️ STATUS');
-      adicionarNotificacao(`⚙️ STATUS FILA`, `${nomeGarcom} foi ${statusFinal} na fila de disponibilidade.`, "⚙️");
+      const novoStatusPausado = currentStatus ? true : false;
+      notificarStatusEquipeAdmin({
+        cargo: cargoGarcom,
+        usuario: garcom?.usuario,
+        user_id: garcom?.usuario,
+        pausado: novoStatusPausado
+      });
       exibirGarconsConfig(); // Recarrega a lista
     } else {
       mostrarAlerta("Erro ao alterar status.", "Erro", "❌");
