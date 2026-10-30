@@ -1786,6 +1786,9 @@ function switchConfigSubTab(subTab) {
     carregarStatusCardapio();
     carregarStatusMesasCompartilhadas();
   }
+  else if (subTab === 'equipe') {
+    exibirGarconsConfig();
+  }
   else if (subTab === 'fcm') carregarNotificacoesFCM();
   else if (subTab === 'cozinha') {
     exibirConfigCategoriasCozinha();
@@ -9769,12 +9772,16 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
     // OBS: 'menu-atualizado' é tratado uma única vez acima (estoque/cardápio).
     // Um segundo bind do mesmo evento era descartado pelo deduplicador e nunca executava.
 
-    // EVENTO: STATUS DO GARÇOM ALTERADO (RODÍZIO)
+    // EVENTO: STATUS DO COLABORADOR ALTERADO (GARÇOM / MOTOBOY / COZINHA / CHURRASQUEIRO)
     channel.bind('garcom-status-alterado', (data) => {
-      console.log('📢 Admin: Status de garçom alterado!', data);
-      if (abaAtiva === 'configuracoes') {
-        exibirGarconsConfig();
-      }
+      console.log('📢 Admin: Status de colaborador alterado!', data);
+      exibirGarconsConfig();
+    });
+
+    // EVENTO: STATUS DE FILA DO SETOR ALTERADO (COZINHA, CHURRASQUEIRO, MOTOBOY)
+    channel.bind('setor-fila-alterada', (data) => {
+      console.log('📢 Admin: Status de fila do setor alterado!', data);
+      exibirGarconsConfig();
     });
 
     // EVENTOS DE RASCUNHO (CARDÁPIO DIGITAL)

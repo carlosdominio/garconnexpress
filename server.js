@@ -3309,22 +3309,51 @@ app.post('/api/logout', async (req, res) => {
 // Pausar/Retomar atendimento (Rodízio)
 app.post('/api/garcom/pausar', isAuthenticated, async (req, res) => {
   const { pausado } = req.body;
-  if (req.user.role !== 'garcom') return res.status(403).json({ error: 'Apenas garçons podem pausar atendimento.' });
+  if (req.user.role !== 'garcom' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Apenas colaboradores ou administradores podem alterar atendimento.' });
+  }
 
   try {
     const isOnline = pausado ? (isPostgres ? false : 0) : (isPostgres ? true : 1);
-    await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isOnline, req.user.id]);
-    await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [pausado ? 1 : 0, String(req.user.id), String(req.user.usuario)]).catch(() => {});
-    
-    console.log(`👤 Garçom ${req.user.usuario} agora está ${pausado ? 'PAUSADO' : 'DISPONÍVEL'}.`);
-    
-    // Notifica o Admin em tempo real
+    const valPausado = !!pausado;
+    let garcomId = req.user.id;
+    let usuario = req.user.usuario;
+    let cargo = (req.user.cargo || 'garcom').toLowerCase().trim();
+
+    if (garcomId) {
+      await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isOnline, garcomId]);
+      await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [valPausado ? 1 : 0, String(garcomId), String(usuario)]).catch(() => {});
+    }
+
+    console.log(`👤 Colaborador ${usuario} (${cargo}) agora está ${valPausado ? 'PAUSADO' : 'DISPONÍVEL'}.`);
+
+    // Notifica o Admin em tempo real via garcom-status-alterado
     await safePusherTrigger('garconnexpress', 'garcom-status-alterado', {
-      garcom_id: req.user.id,
-      pausado: pausado
+      garcom_id: garcomId,
+      usuario: usuario,
+      cargo: cargo,
+      pausado: valPausado
     });
 
-    res.json({ success: true, is_online: !pausado });
+    // Se for motoboy, cozinha ou churrasqueiro, também dispara setor-fila-alterada
+    if (cargo === 'motoboy' || cargo === 'cozinha' || cargo === 'churrasqueiro') {
+      await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
+        app_type: cargo,
+        user_id: usuario,
+        garcom_id: garcomId,
+        pausado: valPausado
+      });
+      if (cargo === 'churrasqueiro') {
+        await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
+          app_type: 'churrasco',
+          user_id: usuario,
+          garcom_id: garcomId,
+          pausado: valPausado
+        });
+      }
+    }
+
+    res.json({ success: true, is_online: !valPausado });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -3659,23 +3688,87 @@ app.post('/api/setor/toggle-fila', isAuthenticated, async (req, res) => {
   const { app_type, pausado, endpoint } = req.body;
   const userId = req.user ? (req.user.id || req.user.usuario) : null;
   const valPausado = (pausado === true || pausado === 1 || pausado === '1') ? 1 : 0;
+  const isOnline = valPausado ? (isPostgres ? false : 0) : (isPostgres ? true : 1);
+
   try {
+    let garcomAlvo = null;
+
+    // 1. Tenta identificar o colaborador logado na tabela garcons
+    if (req.user && req.user.id) {
+      const gRes = await query("SELECT id, nome, usuario, cargo FROM garcons WHERE id = ? OR usuario = ?", [
+        isNaN(Number(req.user.id)) ? -1 : Number(req.user.id),
+        String(req.user.usuario || req.user.id)
+      ]);
+      if (gRes && gRes.rows && gRes.rows.length > 0) {
+        garcomAlvo = gRes.rows[0];
+      }
+    }
+
+    // 2. Se não encontrou por ID (ex: token admin ou outro), busca pelo app_type ou cargo
+    if (!garcomAlvo && app_type) {
+      const cargoBusca = (app_type === 'churrasco' || app_type === 'churrasqueiro') ? 'churrasqueiro' : app_type;
+      const gRes = await query("SELECT id, nome, usuario, cargo FROM garcons WHERE cargo = ? OR usuario = ? LIMIT 1", [cargoBusca, app_type]);
+      if (gRes && gRes.rows && gRes.rows.length > 0) {
+        garcomAlvo = gRes.rows[0];
+      }
+    }
+
+    // 3. Atualiza o status is_online na tabela garcons
+    if (garcomAlvo) {
+      await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isOnline, garcomAlvo.id]);
+      console.log(`👤 [garcons] Colaborador ${garcomAlvo.usuario} (${garcomAlvo.cargo}) atualizado para is_online=${isOnline}`);
+    } else if (app_type) {
+      const cargoBusca = (app_type === 'churrasco' || app_type === 'churrasqueiro') ? 'churrasqueiro' : app_type;
+      await query("UPDATE garcons SET is_online = ? WHERE cargo = ? OR (cargo = 'churrasqueiro' AND ? = 'churrasco') OR usuario = ?", [isOnline, cargoBusca, app_type, app_type]);
+    }
+
+    // 4. Atualiza push_subscriptions
     if (endpoint) {
       await query("UPDATE push_subscriptions SET pausado = ? WHERE endpoint = ?", [valPausado, endpoint]);
     }
-    if (userId && app_type) {
-      await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? AND app_type = ?", [valPausado, String(userId), app_type]);
+    if (garcomAlvo) {
+      await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [valPausado, String(garcomAlvo.id), String(garcomAlvo.usuario)]);
+    } else if (userId) {
+      await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ?", [valPausado, String(userId)]);
     }
+    if (app_type) {
+      const tipo1 = app_type;
+      const tipo2 = (app_type === 'churrasqueiro') ? 'churrasco' : (app_type === 'churrasco' ? 'churrasqueiro' : app_type);
+      await query("UPDATE push_subscriptions SET pausado = ? WHERE app_type = ? OR app_type = ?", [valPausado, tipo1, tipo2]);
+    }
+
     console.log(`👤 Fila [${app_type}]: Usuário ${userId || endpoint} agora está ${valPausado ? 'PAUSADO (FORA DA FILA)' : 'ATIVO (NA FILA)'}.`);
 
-    // Notifica via Pusher para sincronizar clientes em tempo real
+    const garcomIdFinal = garcomAlvo ? garcomAlvo.id : userId;
+    const garcomUsuarioFinal = garcomAlvo ? garcomAlvo.usuario : (req.user ? req.user.usuario : String(userId || app_type));
+    const garcomCargoFinal = garcomAlvo ? (garcomAlvo.cargo || app_type) : (app_type || 'setor');
+
+    // 5. Notifica via Pusher para sincronizar clientes do setor em tempo real
     await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
       app_type,
-      user_id: userId,
+      user_id: garcomUsuarioFinal,
+      garcom_id: garcomIdFinal,
+      pausado: !!valPausado
+    });
+    if (app_type === 'churrasqueiro' || app_type === 'churrasco') {
+      const outroTipo = (app_type === 'churrasqueiro') ? 'churrasco' : 'churrasqueiro';
+      await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
+        app_type: outroTipo,
+        user_id: garcomUsuarioFinal,
+        garcom_id: garcomIdFinal,
+        pausado: !!valPausado
+      });
+    }
+
+    // 6. Notifica via Pusher garcom-status-alterado (sincroniza o painel Admin e lista de equipe em tempo real!)
+    await safePusherTrigger('garconnexpress', 'garcom-status-alterado', {
+      garcom_id: garcomIdFinal,
+      usuario: garcomUsuarioFinal,
+      cargo: garcomCargoFinal,
       pausado: !!valPausado
     });
 
-    res.json({ success: true, pausado: !!valPausado });
+    res.json({ success: true, pausado: !!valPausado, is_online: !valPausado });
   } catch (error) {
     console.error("Erro ao alternar fila do setor:", error.message);
     res.status(500).json({ error: error.message });
@@ -3687,6 +3780,30 @@ app.get('/api/setor/status-fila', isAuthenticated, async (req, res) => {
   const userId = req.user ? (req.user.id || req.user.usuario) : null;
   try {
     let isPausado = false;
+    
+    // 1. Prioriza a tabela garcons se o usuário estiver autenticado
+    if (userId) {
+      const g = await query("SELECT is_online FROM garcons WHERE id = ? OR usuario = ?", [
+        isNaN(Number(userId)) ? -1 : Number(userId),
+        String(userId)
+      ]);
+      if (g && g.rows && g.rows.length > 0) {
+        isPausado = !Boolean(g.rows[0].is_online);
+        return res.json({ pausado: isPausado });
+      }
+    }
+
+    // 2. Se for setor (cozinha/churrasqueiro) sem garcom específico, busca pelo cargo
+    if (app_type) {
+      const cargoBusca = (app_type === 'churrasco' || app_type === 'churrasqueiro') ? 'churrasqueiro' : app_type;
+      const gCargo = await query("SELECT is_online FROM garcons WHERE cargo = ? OR usuario = ? LIMIT 1", [cargoBusca, app_type]);
+      if (gCargo && gCargo.rows && gCargo.rows.length > 0) {
+        isPausado = !Boolean(gCargo.rows[0].is_online);
+        return res.json({ pausado: isPausado });
+      }
+    }
+
+    // 3. Fallback para push_subscriptions por endpoint ou garcom_id
     let r;
     if (endpoint) {
       r = await query("SELECT pausado FROM push_subscriptions WHERE endpoint = ?", [endpoint]);
@@ -3695,11 +3812,6 @@ app.get('/api/setor/status-fila', isAuthenticated, async (req, res) => {
     }
     if (r && r.rows && r.rows.length > 0) {
       isPausado = (r.rows[0].pausado === 1 || r.rows[0].pausado === true);
-    } else if (userId) {
-      const g = await query("SELECT is_online FROM garcons WHERE id = ? OR usuario = ?", [isNaN(Number(userId)) ? -1 : Number(userId), String(userId)]);
-      if (g && g.rows && g.rows.length > 0) {
-        isPausado = !Boolean(g.rows[0].is_online);
-      }
     }
     res.json({ pausado: isPausado });
   } catch (error) {

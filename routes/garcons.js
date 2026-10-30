@@ -41,17 +41,50 @@ module.exports = (ctx) => {
   // POST /api/garcom/pausar  (mounted at /api/garcom)
   router.post('/garcom/pausar', isAuthenticated, async (req, res) => {
     const { pausado } = req.body;
-    if (req.user.role !== 'garcom') return res.status(403).json({ error: 'Apenas garçons podem pausar atendimento.' });
+    if (req.user.role !== 'garcom' && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Apenas colaboradores ou administradores podem alterar atendimento.' });
+    }
     try {
       const isOnline = pausado ? (isPostgres ? false : 0) : (isPostgres ? true : 1);
-      await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isOnline, req.user.id]);
-      await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [pausado ? 1 : 0, String(req.user.id), String(req.user.usuario)]).catch(() => {});
-      console.log(`👤 Garçom ${req.user.usuario} agora está ${pausado ? 'PAUSADO' : 'DISPONÍVEL'}.`);
+      const valPausado = !!pausado;
+      let garcomId = req.user.id;
+      let usuario = req.user.usuario;
+      let cargo = (req.user.cargo || 'garcom').toLowerCase().trim();
+
+      if (garcomId) {
+        await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isOnline, garcomId]);
+        await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [valPausado ? 1 : 0, String(garcomId), String(usuario)]).catch(() => {});
+      }
+
+      console.log(`👤 Colaborador ${usuario} (${cargo}) agora está ${valPausado ? 'PAUSADO' : 'DISPONÍVEL'}.`);
+
+      // Notifica o Admin em tempo real via garcom-status-alterado
       await safePusherTrigger('garconnexpress', 'garcom-status-alterado', {
-        garcom_id: req.user.id,
-        pausado: pausado
+        garcom_id: garcomId,
+        usuario: usuario,
+        cargo: cargo,
+        pausado: valPausado
       });
-      res.json({ success: true, is_online: !pausado });
+
+      // Se for motoboy, cozinha ou churrasqueiro, também dispara setor-fila-alterada
+      if (cargo === 'motoboy' || cargo === 'cozinha' || cargo === 'churrasqueiro') {
+        await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
+          app_type: cargo,
+          user_id: usuario,
+          garcom_id: garcomId,
+          pausado: valPausado
+        });
+        if (cargo === 'churrasqueiro') {
+          await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
+            app_type: 'churrasco',
+            user_id: usuario,
+            garcom_id: garcomId,
+            pausado: valPausado
+          });
+        }
+      }
+
+      res.json({ success: true, is_online: !valPausado });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
