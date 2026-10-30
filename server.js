@@ -3348,7 +3348,8 @@ app.post('/api/garcom/pausar', isAuthenticated, async (req, res) => {
       garcom_id: garcomId,
       usuario: usuario,
       cargo: cargo,
-      pausado: valPausado
+      pausado: valPausado,
+      origem: 'colaborador'
     });
 
     // Se for motoboy, cozinha ou churrasqueiro, também dispara setor-fila-alterada
@@ -3357,14 +3358,16 @@ app.post('/api/garcom/pausar', isAuthenticated, async (req, res) => {
         app_type: cargo,
         user_id: usuario,
         garcom_id: garcomId,
-        pausado: valPausado
+        pausado: valPausado,
+        origem: 'colaborador'
       });
       if (cargo === 'churrasqueiro') {
         await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
           app_type: 'churrasco',
           user_id: usuario,
           garcom_id: garcomId,
-          pausado: valPausado
+          pausado: valPausado,
+          origem: 'colaborador'
         });
       }
     }
@@ -3604,7 +3607,8 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
       garcom_id: id,
       usuario: garcom.usuario,
       cargo: cargo,
-      pausado: pausado
+      pausado: pausado,
+      origem: 'admin'
     });
 
     // 2. Sincroniza a fila e push_subscriptions em tempo real
@@ -3622,14 +3626,16 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
         app_type: cargo,
         user_id: garcom.usuario,
         garcom_id: id,
-        pausado: pausado
+        pausado: pausado,
+        origem: 'admin'
       });
       if (cargo === 'churrasqueiro') {
         await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
           app_type: 'churrasco',
           user_id: garcom.usuario,
           garcom_id: id,
-          pausado: pausado
+          pausado: pausado,
+          origem: 'admin'
         });
       }
       console.log(`📡 [Admin] Status de fila do setor ${cargo} alterado para ${pausado ? 'PAUSA' : 'FILA ON'} em tempo real.`);

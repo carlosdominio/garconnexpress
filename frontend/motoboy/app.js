@@ -561,6 +561,24 @@ const App = {
     async toggleFilaMotoboy() {
         const isCurrentlyPausado = App.state && (App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1');
         const novoStatusPausado = !isCurrentlyPausado;
+        const now = Date.now();
+
+        // 1. ATUALIZAÇÃO IMEDIATA (Otimista):
+        // Marca o timestamp de ação local AGORA (antes de qualquer fetch ou evento de rede) para suprimir qualquer eco
+        App.state._ultimoToggleLocalFila = now;
+        App.state._ultimaNotificacaoStatus = now;
+        App.state.pausado = novoStatusPausado;
+        localStorage.setItem('motoboy_pausado', novoStatusPausado);
+
+        // 2. Atualiza a interface e exibe o toast da própria ação do motoboy
+        App.ui.updateFilaSwitch();
+        App.ui.showToast(novoStatusPausado ? "⏸️ Você entrou em Modo Pausa" : "🟢 Você está na Fila de Entregas!", novoStatusPausado ? 'warning' : 'success');
+
+        if (!novoStatusPausado) {
+            await App.checkCaixaStatus();
+            App.loadPedidos();
+        }
+
         const token = localStorage.getItem('motoboy_token');
         if (!token) return;
 
@@ -574,24 +592,15 @@ const App = {
                 body: JSON.stringify({ pausado: novoStatusPausado })
             });
             const data = await res.json();
-            if (data.success) {
-                const now = Date.now();
-                App.state._ultimoToggleLocalFila = now;
-                App.state._ultimaNotificacaoStatus = now;
-                App.state.pausado = novoStatusPausado;
-                localStorage.setItem('motoboy_pausado', novoStatusPausado);
+            if (!data.success) {
+                // Reverte estado local se o servidor recusar a alteração
+                App.state.pausado = isCurrentlyPausado;
+                localStorage.setItem('motoboy_pausado', isCurrentlyPausado);
                 App.ui.updateFilaSwitch();
-                App.ui.showToast(novoStatusPausado ? "⏸️ Você entrou em Modo Pausa" : "🟢 Você está na Fila de Entregas!", novoStatusPausado ? 'warning' : 'success');
-                if (!novoStatusPausado) {
-                    await App.checkCaixaStatus();
-                    App.loadPedidos();
-                }
-            } else {
-                App.ui.updateFilaSwitch();
+                App.ui.showToast("Falha ao sincronizar status com o servidor.", "error");
             }
         } catch (e) {
-            console.error('Erro ao alternar fila:', e);
-            App.ui.updateFilaSwitch();
+            console.error('Erro ao alternar fila no servidor:', e);
         }
     },
 
@@ -624,20 +633,20 @@ const App = {
         const isPausado = (pausado === true || pausado === 'true' || pausado === 1 || pausado === '1');
         const now = Date.now();
 
-        // 1. Se o status já é o mesmo que o app possui atualmente, ignora (evita notificações duplicadas ao abrir o app ou reconectar)
+        // 1. Se a alteração foi feita pelo próprio motoboy localmente nos últimos 6 segundos, ignora o eco
+        if (now - (App.state._ultimoToggleLocalFila || 0) < 6000) {
+            console.log('⚡ [Motoboy] Notificação de status suprimida (ação do próprio usuário).');
+            return;
+        }
+
+        // 2. Se o status já é o mesmo que o app possui atualmente, ignora (evita notificações duplicadas ao abrir o app ou reconectar)
         if (App.state.pausado === isPausado) {
             console.log('⚡ [Motoboy] Notificação ignorada: status de fila já sincronizado.');
             return;
         }
 
-        // 2. Se a alteração foi feita pelo próprio motoboy localmente nos últimos 5 segundos, ignora o eco
-        if (now - (App.state._ultimoToggleLocalFila || 0) < 5000) {
-            console.log('⚡ [Motoboy] Notificação de status suprimida (ação do próprio usuário).');
-            return;
-        }
-
-        // 3. Deduplicador de 10 segundos contra eventos simultâneos (Pusher + FCM)
-        if (now - (App.state._ultimaNotificacaoStatus || 0) < 10000) {
+        // 3. Deduplicador de 4 segundos contra eventos simultâneos (Pusher + FCM)
+        if (now - (App.state._ultimaNotificacaoStatus || 0) < 4000) {
             console.log('⚡ [Motoboy] Notificação duplicada ignorada pelo deduplicador de tempo.');
             return;
         }
@@ -991,6 +1000,10 @@ const App = {
 
                 this.channel.bind('garcom-status-alterado', (data) => {
                     console.log('📡 Evento garcom-status-alterado recebido (Motoboy):', data);
+                    if (data && data.origem === 'colaborador') {
+                        console.log('⚡ [Motoboy] Evento garcom-status-alterado suprimido: origem colaborador.');
+                        return;
+                    }
                     let meuUser = null;
                     try { meuUser = JSON.parse(localStorage.getItem('motoboy_user') || '{}'); } catch(e) {}
                     const matchesUser = data && (
@@ -1007,6 +1020,10 @@ const App = {
 
                 this.channel.bind('setor-fila-alterada', (data) => {
                     console.log('📡 Evento setor-fila-alterada recebido (Motoboy):', data);
+                    if (data && data.origem === 'colaborador') {
+                        console.log('⚡ [Motoboy] Evento setor-fila-alterada suprimido: origem colaborador.');
+                        return;
+                    }
                     if (data && (data.app_type === 'motoboy' || data.app_type === 'entrega')) {
                         let meuUser = null;
                         try { meuUser = JSON.parse(localStorage.getItem('motoboy_user') || '{}'); } catch(e) {}

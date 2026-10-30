@@ -121,7 +121,8 @@ module.exports = (ctx) => {
         garcom_id: id,
         usuario: garcom.usuario,
         cargo: cargo,
-        pausado: pausado
+        pausado: pausado,
+        origem: 'admin'
       });
 
       // 2. Sincroniza a fila e push_subscriptions em tempo real
@@ -138,14 +139,16 @@ module.exports = (ctx) => {
           app_type: cargo,
           user_id: garcom.usuario,
           garcom_id: id,
-          pausado: pausado
+          pausado: pausado,
+          origem: 'admin'
         });
         if (cargo === 'churrasqueiro') {
           await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
             app_type: 'churrasco',
             user_id: garcom.usuario,
             garcom_id: id,
-            pausado: pausado
+            pausado: pausado,
+            origem: 'admin'
           });
         }
         console.log(`📡 [Admin] Status de fila do setor ${cargo} alterado para ${pausado ? 'PAUSA' : 'FILA ON'} em tempo real.`);
