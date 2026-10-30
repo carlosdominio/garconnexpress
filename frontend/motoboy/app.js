@@ -466,6 +466,17 @@ const App = {
             return;
         }
         if (!this.state.token) return;
+
+        // Se o caixa estiver fechado, exibe a tela de caixa fechado e encerra
+        if (App.state.caixaAberto === false) {
+            const screen = document.getElementById('closed-screen');
+            if (screen) {
+                screen.style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+            }
+            return;
+        }
+
         try {
             const res = await fetch(`${API_BASE_URL}/api/pedidos/ativos-detalhado`, {
                 headers: { 'Authorization': `Bearer ${this.state.token}` }
@@ -493,10 +504,18 @@ const App = {
             
             App.state.caixaAberto = isOpenNow;
             
+            const isPausado = App.state && (App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1');
             const screen = document.getElementById('closed-screen');
             if (screen) {
-                screen.style.display = isOpenNow ? 'none' : 'flex';
-                document.body.style.overflow = isOpenNow ? '' : 'hidden';
+                // Se o motoboy estiver em modo PAUSA, prioriza a tela de pausa e oculta a de caixa fechado.
+                // A tela de caixa fechado só deve ser exibida quando o motoboy estiver ativo na fila (volta pra fila).
+                if (isPausado) {
+                    screen.style.display = 'none';
+                    document.body.style.overflow = '';
+                } else {
+                    screen.style.display = isOpenNow ? 'none' : 'flex';
+                    document.body.style.overflow = isOpenNow ? '' : 'hidden';
+                }
                 
                 if (wasOpen !== null && wasOpen !== isOpenNow) {
                     App.notifications.playAlert(); // Toca o som configurado!
@@ -564,6 +583,7 @@ const App = {
                 App.ui.updateFilaSwitch();
                 App.ui.showToast(novoStatusPausado ? "⏸️ Você entrou em Modo Pausa" : "🟢 Você está na Fila de Entregas!", novoStatusPausado ? 'warning' : 'success');
                 if (!novoStatusPausado) {
+                    await App.checkCaixaStatus();
                     App.loadPedidos();
                 }
             } else {
@@ -590,6 +610,7 @@ const App = {
                     localStorage.setItem('motoboy_pausado', App.state.pausado);
                     App.ui.updateFilaSwitch();
                     if (wasPausado && !data.pausado) {
+                        await App.checkCaixaStatus();
                         App.loadPedidos();
                     }
                 }
@@ -644,7 +665,9 @@ const App = {
         App.ui.showToast(msg, isPausado ? 'warning' : 'success', titulo);
 
         if (!isPausado) {
-            App.loadPedidos();
+            App.checkCaixaStatus().then(() => {
+                App.loadPedidos();
+            });
         }
     },
 
@@ -1064,7 +1087,12 @@ const App = {
                 });
 
                 this.channel.bind('status-caixa-atualizado', (data) => {
-                    App.checkCaixaStatus();
+                    App.checkCaixaStatus().then(() => {
+                        const isPausado = App.state && (App.state.pausado === true || App.state.pausado === 'true' || App.state.pausado === 1 || App.state.pausado === '1');
+                        if (data && data.status === 'aberto' && !isPausado) {
+                            App.loadPedidos();
+                        }
+                    });
                     const statusTxt = (data && data.status) ? data.status : 'atualizado';
                     dispararToastMotoboy('status-caixa-atualizado', { status: statusTxt }, `💼 Status do caixa: ${statusTxt}`, 'info');
                 });
@@ -1186,6 +1214,8 @@ const App = {
             if (isPausado) {
                 if (pausaScreen) pausaScreen.style.display = 'flex';
                 if (mainContainer) mainContainer.style.display = 'none';
+                const closedScreen = document.getElementById('closed-screen');
+                if (closedScreen) closedScreen.style.display = 'none';
             } else {
                 if (pausaScreen) pausaScreen.style.display = 'none';
                 if (mainContainer) mainContainer.style.display = '';
