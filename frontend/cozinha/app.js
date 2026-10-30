@@ -941,6 +941,10 @@ async function configurarPusher() {
         canal.bind('setor-fila-alterada', (data) => {
             if (data && (data.app_type === 'cozinha' || data.app_type === 'cozinheiro')) {
                 console.log('🔄 Status de fila da cozinha alterado externamente:', data);
+                if (data.tipo_acao === 'logout') {
+                    console.log('⚡ [Cozinha] Evento setor-fila-alterada suprimido por ser logout.');
+                    return;
+                }
                 if (typeof data.pausado === 'boolean') {
                     const now = Date.now();
                     const ehEcoLocal = (now - _ultimoToggleLocalFilaCozinha) < 4000;
@@ -1450,7 +1454,21 @@ function exibirErroLogin(mensagem) {
     });
 }
 
-function logout() {
+async function logout() {
+    const result = await Swal.fire({
+        title: 'Sair do Sistema?',
+        text: 'Deseja realmente encerrar sua sessão?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#bdc3c7',
+        confirmButtonText: 'SIM, SAIR',
+        cancelButtonText: 'CANCELAR'
+    });
+
+    if (!result.isConfirmed) return;
+
+    _ultimoToggleLocalFilaCozinha = Date.now();
     const token = localStorage.getItem('cozinha_token');
     if (token) {
         fetch('/api/setor/toggle-fila', {
@@ -1475,7 +1493,7 @@ function logout() {
     exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
     setTimeout(() => {
         location.reload();
-    }, 1500);
+    }, 1200);
 }
 
 // Bateria (executa solto no boot nativo)

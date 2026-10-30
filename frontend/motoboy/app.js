@@ -301,12 +301,6 @@ const App = {
         
         if (!this.checkAuth()) {
             ocultarTelaCarregamentoSistema();
-            if (sessionStorage.getItem('motoboy_logout_toast') === 'true') {
-                sessionStorage.removeItem('motoboy_logout_toast');
-                setTimeout(() => {
-                    App.ui.showToast("Sessão encerrada com sucesso!", "info");
-                }, 350);
-            }
             return;
         }
 
@@ -736,7 +730,6 @@ const App = {
                 } catch(e) {}
             }
 
-            sessionStorage.setItem('motoboy_logout_toast', 'true');
             App.ui.showToast("Sessão encerrada com sucesso!", "info");
             exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
             
@@ -745,7 +738,7 @@ const App = {
                 localStorage.removeItem('motoboy_user');
                 localStorage.removeItem('motoboy_pausado');
                 location.reload();
-            }, 800);
+            }, 1200);
         }
     },
 
@@ -1045,8 +1038,8 @@ const App = {
 
                 this.channel.bind('garcom-status-alterado', (data) => {
                     console.log('📡 Evento garcom-status-alterado recebido (Motoboy):', data);
-                    if (data && data.origem === 'colaborador') {
-                        console.log('⚡ [Motoboy] Evento garcom-status-alterado suprimido: origem colaborador.');
+                    if (data && (data.origem === 'colaborador' || data.tipo_acao === 'logout')) {
+                        console.log('⚡ [Motoboy] Evento garcom-status-alterado suprimido: origem colaborador ou logout.');
                         return;
                     }
                     let meuUser = null;
@@ -1065,8 +1058,8 @@ const App = {
 
                 this.channel.bind('setor-fila-alterada', (data) => {
                     console.log('📡 Evento setor-fila-alterada recebido (Motoboy):', data);
-                    if (data && data.origem === 'colaborador') {
-                        console.log('⚡ [Motoboy] Evento setor-fila-alterada suprimido: origem colaborador.');
+                    if (data && (data.origem === 'colaborador' || data.tipo_acao === 'logout')) {
+                        console.log('⚡ [Motoboy] Evento setor-fila-alterada suprimido: origem colaborador ou logout.');
                         return;
                     }
                     if (data && (data.app_type === 'motoboy' || data.app_type === 'entrega')) {

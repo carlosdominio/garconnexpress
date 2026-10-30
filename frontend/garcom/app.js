@@ -910,15 +910,35 @@ async function realizarLogin() {
 }
 
 async function logout() {
+  const result = await Swal.fire({
+    title: 'Sair do Sistema?',
+    text: 'Deseja realmente encerrar sua sessão?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#e74c3c',
+    cancelButtonColor: '#bdc3c7',
+    confirmButtonText: 'SIM, SAIR',
+    cancelButtonText: 'CANCELAR'
+  });
+
+  if (!result.isConfirmed) return;
+
+  mostrarToast("Sessão encerrada com sucesso!", "info");
   exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
+
+  const token = localStorage.getItem('garcom_token');
   try {
-    await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+    await fetch('/api/logout', {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    }).catch(() => {});
   } finally {
     localStorage.removeItem('garcom_logado');
     localStorage.removeItem('garcom_token');
+    localStorage.removeItem('garcom_pausado');
     setTimeout(() => {
       location.reload();
-    }, 800);
+    }, 1200);
   }
 }
 
@@ -1595,6 +1615,10 @@ async function configurarPusher() {
 
     channel.bind('garcom-status-alterado', (data) => {
       console.log('📢 Status do garçom alterado remotamente:', data);
+      if (data && data.tipo_acao === 'logout') {
+        console.log('⚡ [Garçom] Evento garcom-status-alterado suprimido por ser logout.');
+        return;
+      }
       if (garcomLogado && parseInt(data.garcom_id) === parseInt(garcomLogado.id)) {
         garcomPausado = !!data.pausado;
         localStorage.setItem('garcom_pausado', garcomPausado);

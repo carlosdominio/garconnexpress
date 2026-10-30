@@ -912,6 +912,10 @@ async function configurarPusher() {
         canal.bind('setor-fila-alterada', (data) => {
             if (data && (data.app_type === 'churrasqueiro' || data.app_type === 'churrasco')) {
                 console.log('🔄 Status de fila do churrasqueiro alterado externamente:', data);
+                if (data.tipo_acao === 'logout') {
+                    console.log('⚡ [Churrasqueiro] Evento setor-fila-alterada suprimido por ser logout.');
+                    return;
+                }
                 if (typeof data.pausado === 'boolean') {
                     const now = Date.now();
                     const ehEcoLocal = (now - _ultimoToggleLocalFilaChurrasqueiro) < 4000;
@@ -1431,7 +1435,21 @@ function exibirErroLogin(mensagem) {
     });
 }
 
-function logout() {
+async function logout() {
+    const result = await Swal.fire({
+        title: 'Sair do Sistema?',
+        text: 'Deseja realmente encerrar sua sessão?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e67e22',
+        cancelButtonColor: '#bdc3c7',
+        confirmButtonText: 'SIM, SAIR',
+        cancelButtonText: 'CANCELAR'
+    });
+
+    if (!result.isConfirmed) return;
+
+    _ultimoToggleLocalFilaChurrasqueiro = Date.now();
     const token = localStorage.getItem('churrasqueiro_token');
     if (token) {
         fetch('/api/setor/toggle-fila', {
@@ -1443,6 +1461,7 @@ function logout() {
             body: JSON.stringify({
                 app_type: 'churrasqueiro',
                 pausado: true,
+                tipo_acao: 'logout',
                 endpoint: window._ultimoTokenFcm || null
             })
         }).catch(() => {});
@@ -1455,7 +1474,7 @@ function logout() {
     exibirTelaCarregamentoSistema('Desconectando...', 'Limpando dados da sessão...');
     setTimeout(() => {
         location.reload();
-    }, 1500);
+    }, 1200);
 }
 
 (async () => {

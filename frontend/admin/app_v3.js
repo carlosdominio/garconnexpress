@@ -3863,14 +3863,16 @@ let _ultimoStatusToastTimestamp = 0;
 function notificarStatusEquipeAdmin(data) {
   if (!data) return;
   const isPausado = (data.pausado === true || data.pausado === 1 || data.pausado === 'true' || data.pausado === '1');
-  const cargoRaw = (data.cargo || data.app_type || 'colaborador').toLowerCase().trim();
-  const usuario = data.usuario || data.user_id || '';
+  let cargoRaw = (data.cargo || data.app_type || 'colaborador').toLowerCase().trim();
+  if (cargoRaw === 'churrasco') cargoRaw = 'churrasqueiro';
+  if (cargoRaw === 'cozinheiro') cargoRaw = 'cozinha';
+  const usuario = String(data.usuario || data.user_id || '').toLowerCase().trim();
   const tipoAcao = data.tipo_acao || '';
   
   const chave = `${cargoRaw}_${usuario}_${isPausado}_${tipoAcao}`;
   const now = Date.now();
-  if (_ultimoStatusToastChave === chave && (now - _ultimoStatusToastTimestamp) < 3000) {
-    return; // Ignora evento duplicado dentro de 3 segundos
+  if (_ultimoStatusToastChave === chave && (now - _ultimoStatusToastTimestamp) < 4000) {
+    return; // Ignora evento duplicado dentro de 4 segundos
   }
   _ultimoStatusToastChave = chave;
   _ultimoStatusToastTimestamp = now;

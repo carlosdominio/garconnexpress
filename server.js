@@ -3781,6 +3781,7 @@ app.post('/api/setor/toggle-fila', isAuthenticated, async (req, res) => {
       app_type,
       user_id: garcomUsuarioFinal,
       garcom_id: garcomIdFinal,
+      cargo: garcomCargoFinal,
       pausado: !!valPausado,
       tipo_acao: tipo_acao || (valPausado ? 'pausa' : 'ativo')
     });
@@ -3790,6 +3791,7 @@ app.post('/api/setor/toggle-fila', isAuthenticated, async (req, res) => {
         app_type: outroTipo,
         user_id: garcomUsuarioFinal,
         garcom_id: garcomIdFinal,
+        cargo: garcomCargoFinal,
         pausado: !!valPausado,
         tipo_acao: tipo_acao || (valPausado ? 'pausa' : 'ativo')
       });
