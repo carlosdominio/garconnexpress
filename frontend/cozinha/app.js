@@ -988,6 +988,10 @@ async function configurarPusher() {
         });
 
         canal.bind('pedido-atrasado-cozinha', (data) => {
+            if (cozinhaPausado) {
+                console.log('⏸️ [Cozinha] Notificação de pedido atrasado ignorada: Cozinha em PAUSA (fora da fila).');
+                return;
+            }
             console.log('📢 Evento: pedido-atrasado-cozinha', data);
             const pId = data && (data.pedido_id || data.id);
             const jaNotificadoFCM = pId && _fcmPedidosJaNotificados.has(String(pId));

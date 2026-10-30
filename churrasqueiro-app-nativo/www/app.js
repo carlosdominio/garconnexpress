@@ -995,6 +995,10 @@ async function configurarPusher() {
         });
 
         canal.bind('pedido-atrasado-churrasco', (data) => {
+            if (churrasqueiroPausado) {
+                console.log('⏸️ [Churrasqueiro] Notificação de pedido atrasado ignorada: Churrasqueiro em PAUSA (fora da fila).');
+                return;
+            }
             console.log('📢 Evento: pedido-atrasado-churrasco', data);
             const pId = data && (data.pedido_id || data.id);
             const jaNotificadoFCM = pId && _fcmPedidosJaNotificados.has(String(pId));

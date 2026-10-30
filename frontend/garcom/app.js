@@ -1330,6 +1330,7 @@ async function configurarPusher() {
     });
 
     channel.bind('pedido-atrasado-garcom', (data) => {
+      if (garcomPausado) return;
       console.log('📢 Evento: pedido-atrasado-garcom', data);
       const mesaId = data ? (data.mesa_id || data.mesa_numero) : null;
       const respGarcom = data ? data.garcom_id : null;

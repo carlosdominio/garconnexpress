@@ -1698,6 +1698,16 @@ async function checkAndNotifyDelayedOrders() {
     // 2. Busca inscrições push de dispositivos
     const subsRes = await query("SELECT * FROM push_subscriptions");
     const subs = subsRes.rows;
+    let offlineGarcomIds = new Set();
+    try {
+      const offRes = await query("SELECT id, usuario FROM garcons WHERE is_online = FALSE OR is_online = 0");
+      if (offRes && offRes.rows) {
+        offRes.rows.forEach(g => {
+          offlineGarcomIds.add(String(g.id));
+          if (g.usuario) offlineGarcomIds.add(String(g.usuario));
+        });
+      }
+    } catch (eOff) {}
 
     // === NOVAS NOTIFICACOES: FECHAMENTO ATRASADO / AGUARDANDO CLIENTE ===
     const delayedClosureRes = await query("SELECT p.id, p.garcom_id, (SELECT CAST(id AS TEXT) FROM garcons WHERE usuario = p.garcom_id OR CAST(id AS TEXT) = p.garcom_id LIMIT 1) as garcom_pk, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, p.solicitou_fechamento FROM pedidos p LEFT JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) WHERE p.status NOT IN ('entregue', 'cancelado', 'rascunho') AND (p.status = 'aguardando_fechamento' OR p.solicitou_fechamento = TRUE OR p.solicitou_fechamento = 'true') AND p.fechamento_solicitado_em IS NOT NULL AND (p.notificado_atraso_fechamento = 0 OR p.notificado_atraso_fechamento IS NULL)");
@@ -2022,6 +2032,9 @@ async function checkAndNotifyDelayedOrders() {
         
         for (const sub of subs) {
           if (sub.app_type !== targetApp) continue;
+          // Ignora dispositivos/usuários em modo PAUSA (fora da fila de atendimento)
+          if (sub.pausado === 1 || sub.pausado === true || sub.pausado === '1') continue;
+          if (sub.garcom_id && offlineGarcomIds.has(String(sub.garcom_id))) continue;
           if (sentEndpoints.has(sub.endpoint)) continue;
           sentEndpoints.add(sub.endpoint);
 
