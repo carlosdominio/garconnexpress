@@ -1640,6 +1640,53 @@ async function perguntarAcaoAoTrocarAbaComCarrinho(tabAlvo) {
   return false;
 }
 
+/**
+ * Limpa a caixa de pesquisa e restaura os filtros de Gerenciar Cardápio
+ */
+function limparFiltroBuscaCardapio() {
+  const inputBusca = document.getElementById('filtro-menu-busca');
+  const selectCat = document.getElementById('filtro-menu-categoria');
+  let alterou = false;
+
+  if (inputBusca && inputBusca.value !== '') {
+    inputBusca.value = '';
+    alterou = true;
+  }
+  if (selectCat && selectCat.value !== '') {
+    selectCat.value = '';
+    const customLabel = document.getElementById('custom-select-label');
+    if (customLabel) customLabel.innerText = '📂 Todas';
+    alterou = true;
+    if (typeof sincronizarFiltroCustomizado === 'function') {
+      sincronizarFiltroCustomizado();
+    }
+  }
+
+  if (alterou && typeof renderizarListaMenuConfig === 'function') {
+    renderizarListaMenuConfig();
+  }
+}
+window.limparFiltroBuscaCardapio = limparFiltroBuscaCardapio;
+
+/**
+ * Limpa a caixa de pesquisa de conversas da aba de WhatsApp e notifica o iframe
+ */
+function limparBuscaWhatsApp() {
+  const inputBuscaZap = document.getElementById('global-whatsapp-search');
+  if (inputBuscaZap && inputBuscaZap.value !== '') {
+    inputBuscaZap.value = '';
+    const iframe = document.getElementById('whatsapp-iframe');
+    if (iframe && iframe.contentWindow) {
+      try {
+        iframe.contentWindow.postMessage({ type: 'search_chats', query: '' }, '*');
+      } catch (e) {
+        console.warn("Aviso ao resetar busca no iframe do WhatsApp:", e);
+      }
+    }
+  }
+}
+window.limparBuscaWhatsApp = limparBuscaWhatsApp;
+
 async function switchTab(tab) {
   // Se está na aba de lançamento com itens no carrinho e quer sair para outra aba
   if (abaAtiva === 'lancar' && tab !== 'lancar' && carrinhoLancar && carrinhoLancar.length > 0) {
@@ -1673,6 +1720,16 @@ async function switchTab(tab) {
   // Limpa busca de produtos da aba Lançar Pedido ao trocar de aba principal
   const inputLancarBusca = document.getElementById('lancar-busca-produto');
   if (inputLancarBusca) inputLancarBusca.value = '';
+
+  // Limpa busca de conversas do WhatsApp ao sair da aba WhatsApp
+  if (tab !== 'whatsapp') {
+    limparBuscaWhatsApp();
+  }
+
+  // Limpa busca e filtros do Cardápio ao sair de Configurações
+  if (tab !== 'configuracoes') {
+    limparFiltroBuscaCardapio();
+  }
   
   // BLOQUEIO DE SCROLL GLOBAL: Na aba de ativos, lançamento e whatsapp para manter o app fixo
   if (tab === 'lancar' || tab === 'ativos' || tab === 'whatsapp') {
@@ -1768,6 +1825,11 @@ async function switchTab(tab) {
  * Alterna entre sub-abas dentro da aba de Configurações
  */
 function switchConfigSubTab(subTab) {
+  // Limpa busca e filtros do Cardápio ao sair da sub-aba de cardápio
+  if (subTab !== 'cardapio') {
+    limparFiltroBuscaCardapio();
+  }
+
   // Remove classe active de todos os botões da sidebar
   document.querySelectorAll('.config-nav-btn').forEach(btn => btn.classList.remove('active'));
   
@@ -1788,6 +1850,11 @@ function switchConfigSubTab(subTab) {
   }
   else if (subTab === 'equipe') {
     exibirGarconsConfig();
+  }
+  else if (subTab === 'cardapio') {
+    if (typeof renderizarListaMenuConfig === 'function') {
+      renderizarListaMenuConfig();
+    }
   }
   else if (subTab === 'fcm') carregarNotificacoesFCM();
   else if (subTab === 'cozinha') {

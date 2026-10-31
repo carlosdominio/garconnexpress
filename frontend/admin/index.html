@@ -921,37 +921,41 @@
             <div style="display: flex; flex-direction: column; gap: 20px;">
               <!-- Gerenciamento de Cardápio -->
               <div class="config-card">
-                <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 2px solid #3498db; padding-bottom: 1rem; gap: 15px;">
-                  <div style="display: flex; align-items: center; gap: 15px; flex: 1; min-width: 300px;">
-                    <h3 style="margin:0; border:none; white-space: nowrap;">Gerenciar Cardápio</h3>
-                    
-                    <!-- FILTROS DO CARDÁPIO -->
-                    <div style="display: flex; gap: 10px; flex: 1;">
-                      <div style="flex: 1; position: relative;">
-                        <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); opacity: 0.5;">🔍</span>
-                        <input type="text" id="filtro-menu-busca" oninput="renderizarListaMenuConfig()" placeholder="Buscar por nome..." 
-                               style="width: 100%; padding: 8px 10px 8px 32px; border-radius: 8px; border: 1px solid #cbd5e0; font-size: 0.9rem; outline: none;">
-                      </div>
-                      <select id="filtro-menu-categoria" onchange="renderizarListaMenuConfig()" 
-                              style="display: none;">
-                        <option value="">📂 Todas</option>
-                      </select>
+                <!-- Cabeçalho: Título e Botão Novo Item -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem; border-bottom: 2px solid #3498db; padding-bottom: 0.8rem; gap: 15px; flex-wrap: wrap;">
+                  <h3 style="margin:0; border:none; font-size: 1.35rem; color: #2c3e50; white-space: nowrap;">Gerenciar Cardápio</h3>
+                  
+                  <button onclick="abrirModalItemMenu()" style="background: #27ae60; color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: bold; display: flex; align-items: center; gap: 8px; white-space: nowrap; cursor: pointer; transition: 0.2s;">
+                    ➕ NOVO ITEM
+                  </button>
+                </div>
 
-                      <!-- FILTRO CUSTOMIZADO COM SCROLL INTERNO -->
-                      <div class="custom-select-wrapper" style="position: relative; min-width: 190px; z-index: 10;">
-                        <button id="custom-select-trigger" type="button" onclick="toggleCustomSelect(event)" style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e0; font-weight: bold; background: white; color: #2c3e50; cursor: pointer; font-size: 0.9rem; outline: none; height: 38px;">
-                          <span id="custom-select-label" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; text-align: left; display: block;">📂 Todas</span>
-                          <span id="custom-select-arrow" style="font-size: 0.8rem; margin-left: 8px; transition: transform 0.2s;">▼</span>
-                        </button>
-                        <div id="custom-select-options" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; min-width: 100%; width: max-content; right: 0; background: white; border: 1px solid #cbd5e0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 220px; overflow-y: auto; z-index: 999; scrollbar-width: thin;">
-                          <!-- Opções injetadas dinamicamente -->
-                        </div>
-                      </div>
+                <!-- FILTROS DO CARDÁPIO -->
+                <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 1.2rem; flex-wrap: wrap;">
+                  <div style="flex: 1; min-width: 220px; position: relative;">
+                    <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: 0.5;">🔍</span>
+                    <input type="text" id="filtro-menu-busca" oninput="renderizarListaMenuConfig()" placeholder="Buscar por nome..." 
+                           style="width: 100%; padding: 8px 12px 8px 36px; border-radius: 8px; border: 1px solid #cbd5e0; font-size: 0.9rem; outline: none; box-sizing: border-box;">
+                  </div>
+
+                  <select id="filtro-menu-categoria" onchange="renderizarListaMenuConfig()" 
+                          style="display: none;">
+                    <option value="">📂 Todas</option>
+                  </select>
+
+                  <!-- FILTRO CUSTOMIZADO COM SCROLL INTERNO -->
+                  <div class="custom-select-wrapper" style="position: relative; min-width: 190px; z-index: 10;">
+                    <button id="custom-select-trigger" type="button" onclick="toggleCustomSelect(event)" style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e0; font-weight: bold; background: white; color: #2c3e50; cursor: pointer; font-size: 0.9rem; outline: none; height: 38px;">
+                      <span id="custom-select-label" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; text-align: left; display: block;">📂 Todas</span>
+                      <span id="custom-select-arrow" style="font-size: 0.8rem; margin-left: 8px; transition: transform 0.2s;">▼</span>
+                    </button>
+                    <div id="custom-select-options" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; min-width: 100%; width: max-content; right: 0; background: white; border: 1px solid #cbd5e0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 220px; overflow-y: auto; z-index: 999; scrollbar-width: thin;">
+                      <!-- Opções injetadas dinamicamente -->
                     </div>
                   </div>
-                  
-                  <button onclick="abrirModalItemMenu()" style="background: #27ae60; padding: 10px 20px; border-radius: 10px; font-weight: bold; display: flex; align-items: center; gap: 8px; white-space: nowrap;">
-                    ➕ NOVO ITEM
+
+                  <button type="button" onclick="limparFiltroBuscaCardapio()" style="background: #e2e8f0; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: bold; color: #4a5568; font-size: 0.85rem; height: 38px; transition: 0.2s; white-space: nowrap;" title="Limpar pesquisa e filtros">
+                    LIMPAR
                   </button>
                 </div>
                 <div id="lista-menu-config" class="menu-config-grid"></div>
@@ -2348,7 +2352,7 @@
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="app_v3.js?v=1.5.7-dedup-equipe"></script>
+  <script src="app_v3.js?v=1.5.8-cardapio-header-limpar"></script>
   <!-- Modal: Mesa Aguardando Cliente -->
   <div id="modal-mesa-aguardando" class="modal">
     <div class="modal-content" style="max-width: 420px; border-radius: 16px; overflow: hidden; padding: 0;">
