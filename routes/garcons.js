@@ -40,7 +40,7 @@ module.exports = (ctx) => {
 
   // POST /api/garcom/pausar  (mounted at /api/garcom)
   router.post('/garcom/pausar', isAuthenticated, async (req, res) => {
-    const { pausado } = req.body;
+    const { pausado, endpoint } = req.body;
     if (req.user.role !== 'garcom' && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Apenas colaboradores ou administradores podem alterar atendimento.' });
     }
@@ -54,6 +54,9 @@ module.exports = (ctx) => {
       if (garcomId) {
         await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isOnline, garcomId]);
         await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [valPausado ? 1 : 0, String(garcomId), String(usuario)]).catch(() => {});
+      }
+      if (endpoint) {
+        await query("UPDATE push_subscriptions SET pausado = ? WHERE endpoint = ?", [valPausado ? 1 : 0, endpoint]).catch(() => {});
       }
 
       console.log(`👤 Colaborador ${usuario} (${cargo}) agora está ${valPausado ? 'PAUSADO' : 'DISPONÍVEL'}.`);

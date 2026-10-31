@@ -1026,7 +1026,16 @@ async function safePusherTrigger(channel, event, data) {
     const eventsToPush = ['novo-pedido', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto', 'rascunho-recebido', 'solicitacao-fechamento-cliente', 'status-atualizado', 'status-caixa-atualizado', 'estoque-baixo'];
     if (eventsToPush.includes(event)) {
       try {
-        const subs = (await query("SELECT * FROM push_subscriptions")).rows;
+        let subs;
+        try {
+          subs = (await query(`
+            SELECT ps.*, g.is_online as garcom_is_online, g.ativo as garcom_ativo 
+            FROM push_subscriptions ps 
+            LEFT JOIN garcons g ON (CAST(ps.garcom_id AS TEXT) = CAST(g.id AS TEXT) OR ps.garcom_id = g.usuario)
+          `)).rows;
+        } catch(eSub) {
+          subs = (await query("SELECT * FROM push_subscriptions")).rows;
+        }
         
         let enviaCozinha = data.para_cozinha;
         if (enviaCozinha === undefined) {
@@ -1404,7 +1413,9 @@ async function safePusherTrigger(channel, event, data) {
             if (sub.app_type !== targetApp) continue;
 
             // FILTRO DISPONIBILIDADE: Se o aparelho/usuário estiver pausado (de folga / fora da fila), NÃO envia push
-            if (sub.pausado === 1 || sub.pausado === true || sub.pausado === '1') {
+            const subPausadoVal = (sub.pausado === 1 || sub.pausado === true || sub.pausado === '1');
+            const garcomOfflineVal = (sub.app_type === 'garcom' && (sub.garcom_is_online === false || sub.garcom_is_online === 0 || sub.garcom_ativo === false || sub.garcom_ativo === 0));
+            if (subPausadoVal || garcomOfflineVal) {
               console.log(`⏸️ Pulando push para ${sub.app_type} (Token ID ${sub.id} / Usuário ${sub.garcom_id} está de FOLGA/PAUSADO)`);
               continue;
             }
@@ -3337,7 +3348,7 @@ app.post('/api/logout', async (req, res) => {
 
 // Pausar/Retomar atendimento (Rodízio)
 app.post('/api/garcom/pausar', isAuthenticated, async (req, res) => {
-  const { pausado } = req.body;
+  const { pausado, endpoint } = req.body;
   if (req.user.role !== 'garcom' && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Apenas colaboradores ou administradores podem alterar atendimento.' });
   }
@@ -3352,6 +3363,9 @@ app.post('/api/garcom/pausar', isAuthenticated, async (req, res) => {
     if (garcomId) {
       await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isOnline, garcomId]);
       await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [valPausado ? 1 : 0, String(garcomId), String(usuario)]).catch(() => {});
+    }
+    if (endpoint) {
+      await query("UPDATE push_subscriptions SET pausado = ? WHERE endpoint = ?", [valPausado ? 1 : 0, endpoint]).catch(() => {});
     }
 
     console.log(`👤 Colaborador ${usuario} (${cargo}) agora está ${valPausado ? 'PAUSADO' : 'DISPONÍVEL'}.`);

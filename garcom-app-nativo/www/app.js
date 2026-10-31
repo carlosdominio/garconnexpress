@@ -309,6 +309,7 @@ async function registerNativePush() {
 
     PushNotifications.addListener('registration', async (token) => {
       console.log('🔥 Token FCM recebido:', token.value);
+      window._ultimoTokenFcm = token.value;
       const tokenGarcom = localStorage.getItem('garcom_token');
       if (tokenGarcom) {
         await fetch('/api/subscribe', {
@@ -320,7 +321,8 @@ async function registerNativePush() {
           body: JSON.stringify({
             endpoint: token.value,
             keys: { p256dh: '', auth: '' },
-            isNative: true
+            isNative: true,
+            pausado: !!garcomPausado
           })
         }).catch(e => console.error("Erro ao sincronizar token FCM:", e));
       }
@@ -328,6 +330,12 @@ async function registerNativePush() {
 
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('📩 Notificação recebida:', notification);
+      
+      // Se o garçom estiver em MODO PAUSA, silencia e ignora qualquer notificação push recebida em primeiro plano
+      if (garcomPausado) {
+        console.log("⏸️ [Garçom FCM Foreground] Notificação ignorada: Garçom em MODO PAUSA.");
+        return;
+      }
       
       // Se for um evento em tempo real já gerenciado pelo Pusher no foreground, ignore completamente o FCM no foreground
       const eventosPusher = ['novo-pedido', 'pedido-cancelado', 'chamado-garcom', 'pedido-pronto', 'rascunho-recebido', 'solicitacao-fechamento-cliente', 'status-atualizado', 'status-caixa-atualizado', 'garcom-status-alterado'];
@@ -699,10 +707,17 @@ async function togglePausa() {
   localStorage.setItem('garcom_pausado', garcomPausado);
   
   try {
+    const token = localStorage.getItem('garcom_token');
     await fetch('/api/garcom/pausar', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pausado: garcomPausado })
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({
+        pausado: garcomPausado,
+        endpoint: window._ultimoTokenFcm || null
+      })
     });
     
     atualizarInterfacePausa();
