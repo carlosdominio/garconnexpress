@@ -489,7 +489,7 @@ document.addEventListener('keydown', (e) => {
   realizarLoginAdmin();
 });
 let intervalPiscaTitulo = null;
-const tituloOriginal = "Admin - GarçomExpress";
+const tituloOriginal = "Guga-Bebidas — Painel Admin";
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Injeta estilos da aba piscante de alerta de atrasos
@@ -11939,7 +11939,7 @@ function atualizarBadgeNotificacoes() {
   if (!badge) return;
 
   const naoLidas = notificacoesGerais.filter(n => !n.lida).length;
-  const baseTitle = "GarçonExpress - Admin";
+  const baseTitle = "Guga-Bebidas — Painel Admin";
 
   const changeFavicon = (src) => {
     let link = document.getElementById('dynamic-favicon');

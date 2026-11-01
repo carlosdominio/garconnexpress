@@ -1,7 +1,7 @@
 {
-  "name": "GarçomExpress - Admin",
-  "short_name": "Admin",
-  "description": "Painel de Administração - GarçomExpress",
+  "name": "Guga-Bebidas — Painel Admin",
+  "short_name": "Guga-Bebidas",
+  "description": "Painel de Administração - Guga-Bebidas",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#ffffff",
