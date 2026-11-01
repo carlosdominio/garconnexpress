@@ -4367,13 +4367,16 @@ app.put('/api/pedidos/:id/taxa', isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { cobrar_taxa } = req.body;
   try {
-    const pedidoOriginal = (await query("SELECT p.mesa_id, p.garcom_id, p.taxa_entrega, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) WHERE p.id = ?", [id])).rows[0];
-    const todosItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ?", [id])).rows;
+    const pedidoOriginal = (await query("SELECT p.mesa_id, p.garcom_id, p.taxa_entrega, p.acrescimo, p.desconto, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) WHERE p.id = ?", [id])).rows[0];
+    const todosItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ? AND LOWER(COALESCE(i.status, 'pendente')) != 'cancelado'", [id])).rows;
     const subtotal = todosItens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
     const isDelivery = pedidoOriginal && (pedidoOriginal.garcom_id === 'DELIVERY' || String(pedidoOriginal.mesa_numero).toUpperCase().includes('DELIVERY'));
     const taxaEntrega = isDelivery ? parseFloat(pedidoOriginal.taxa_entrega !== undefined && pedidoOriginal.taxa_entrega !== null ? pedidoOriginal.taxa_entrega : 3.00) : 0;
     const taxaMultiplicador = await getTaxaServicoMultiplicador();
-    const total = cobrar_taxa ? (isDelivery ? (subtotal + taxaEntrega) : Math.round(subtotal * taxaMultiplicador * 100) / 100) : subtotal;
+    const acrescimoNum = parseFloat(pedidoOriginal?.acrescimo) || 0;
+    const descontoNum = parseFloat(pedidoOriginal?.desconto) || 0;
+    const taxaServico = cobrar_taxa ? (isDelivery ? taxaEntrega : Math.round(subtotal * (taxaMultiplicador - 1) * 100) / 100) : 0;
+    const total = Math.max(0, Math.round((subtotal + taxaServico + acrescimoNum - descontoNum) * 100) / 100);
 
     const taxaBanco = isPostgres ? cobrar_taxa : (cobrar_taxa ? 1 : 0);
     await query("UPDATE pedidos SET total = ?, cobrar_taxa = ? WHERE id = ?", [total, taxaBanco, id]);
@@ -4387,6 +4390,8 @@ app.put('/api/pedidos/:id/taxa', isAuthenticated, async (req, res) => {
       mesa_numero: mesaNum,
       garcom_id: pedidoOriginal ? pedidoOriginal.garcom_id : null,
       cobrar_taxa: cobrar_taxa,
+      acrescimo: acrescimoNum,
+      desconto: descontoNum,
       subtotal: subtotal,
       total: total
     }).catch(console.error);
@@ -4395,6 +4400,8 @@ app.put('/api/pedidos/:id/taxa', isAuthenticated, async (req, res) => {
     if (pedidoOriginal && pedidoOriginal.mesa_id) {
       safePusherTrigger('garconnexpress', `taxa-atualizada-mesa-${pedidoOriginal.mesa_id}`, {
         cobrar_taxa: cobrar_taxa,
+        acrescimo: acrescimoNum,
+        desconto: descontoNum,
         subtotal: subtotal,
         total: total,
         pedido_id: id
@@ -4403,6 +4410,60 @@ app.put('/api/pedidos/:id/taxa', isAuthenticated, async (req, res) => {
 
     res.json({ success: true, total: total, cobrar_taxa: cobrar_taxa });
   } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.put('/api/pedidos/:id/ajustes', isAuthenticated, async (req, res) => {
+  const { id } = req.params;
+  const { acrescimo, desconto } = req.body;
+  try {
+    const acrescimoNum = Math.max(0, parseFloat(acrescimo) || 0);
+    const descontoNum = Math.max(0, parseFloat(desconto) || 0);
+
+    const pedidoOriginal = (await query("SELECT p.mesa_id, p.garcom_id, p.taxa_entrega, p.cobrar_taxa, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) WHERE p.id = ?", [id])).rows[0];
+    if (!pedidoOriginal) {
+      return res.status(404).json({ error: "Pedido não encontrado" });
+    }
+
+    const todosItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE i.pedido_id = ? AND LOWER(COALESCE(i.status, 'pendente')) != 'cancelado'", [id])).rows;
+    const subtotal = todosItens.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+    const isDelivery = pedidoOriginal && (pedidoOriginal.garcom_id === 'DELIVERY' || String(pedidoOriginal.mesa_numero).toUpperCase().includes('DELIVERY'));
+    const taxaDelivery = isDelivery ? parseFloat(pedidoOriginal.taxa_entrega !== undefined && pedidoOriginal.taxa_entrega !== null ? pedidoOriginal.taxa_entrega : 3.00) : 0;
+    const taxaMultiplicador = await getTaxaServicoMultiplicador();
+    const cobrarTaxa = (pedidoOriginal.cobrar_taxa === undefined || pedidoOriginal.cobrar_taxa === null) ? true : (pedidoOriginal.cobrar_taxa == 1 || pedidoOriginal.cobrar_taxa === true);
+    const taxaServico = cobrarTaxa ? (isDelivery ? taxaDelivery : Math.round(subtotal * (taxaMultiplicador - 1) * 100) / 100) : 0;
+
+    const total = Math.max(0, Math.round((subtotal + taxaServico + acrescimoNum - descontoNum) * 100) / 100);
+
+    await query("UPDATE pedidos SET acrescimo = ?, desconto = ?, total = ? WHERE id = ?", [acrescimoNum, descontoNum, total, id]);
+
+    const mesaNum = pedidoOriginal ? (pedidoOriginal.mesa_numero || (!pedidoOriginal.mesa_id ? 'Balcão' : pedidoOriginal.mesa_id)) : 'Balcão';
+
+    safePusherTrigger('garconnexpress', 'status-atualizado', {
+      pedido_id: id,
+      mesa_id: pedidoOriginal ? pedidoOriginal.mesa_id : null,
+      mesa_numero: mesaNum,
+      garcom_id: pedidoOriginal ? pedidoOriginal.garcom_id : null,
+      acrescimo: acrescimoNum,
+      desconto: descontoNum,
+      subtotal: subtotal,
+      total: total
+    }).catch(console.error);
+
+    if (pedidoOriginal && pedidoOriginal.mesa_id) {
+      safePusherTrigger('garconnexpress', `taxa-atualizada-mesa-${pedidoOriginal.mesa_id}`, {
+        acrescimo: acrescimoNum,
+        desconto: descontoNum,
+        subtotal: subtotal,
+        total: total,
+        pedido_id: id
+      }).catch(console.error);
+    }
+
+    res.json({ success: true, acrescimo: acrescimoNum, desconto: descontoNum, total: total });
+  } catch (error) {
+    console.error("Erro ao salvar ajustes do pedido:", error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.get('/api/caixa/status', ensureDbInitialized, async (req, res) => {

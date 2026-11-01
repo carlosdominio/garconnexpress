@@ -2769,12 +2769,19 @@ function renderizarItensMesaGarcom() {
 
   const subtotal = itensEmEdicaoGarcom.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
   const taxaServico = cobrarTaxa ? subtotal * 0.10 : 0;
-  const totalGeral = subtotal + taxaServico;
+  const acrescimo = parseFloat(pedidoAbertoNaMesa.acrescimo) || 0;
+  const desconto = parseFloat(pedidoAbertoNaMesa.desconto) || 0;
+  const totalGeral = Math.max(0, subtotal + taxaServico + acrescimo - desconto);
+
+  let htmlAjustesGarcom = '';
+  if (acrescimo > 0) htmlAjustesGarcom += `<p style="color: #27ae60; font-size: 0.9rem; margin: 2px 0;">Acréscimo: <strong>+ R$ ${acrescimo.toFixed(2)}</strong></p>`;
+  if (desconto > 0) htmlAjustesGarcom += `<p style="color: #e74c3c; font-size: 0.9rem; margin: 2px 0;">Desconto: <strong>- R$ ${desconto.toFixed(2)}</strong></p>`;
 
   document.getElementById('total-resumo-mesa').innerHTML = `
     <div style="text-align: right; border-top: 2px solid #eee; padding-top: 10px; margin-top: 10px;">
       <p style="color: #7f8c8d; font-size: 0.9rem; margin: 2px 0;">Subtotal: <strong>R$ ${subtotal.toFixed(2)}</strong></p>
       <p style="color: ${cobrarTaxa ? '#3498db' : '#95a5a6'}; font-size: 0.9rem; margin: 2px 0;">Taxa de Serviço (10%): <strong>${cobrarTaxa ? `R$ ${taxaServico.toFixed(2)}` : 'R$ 0,00 (ISENTO)'}</strong></p>
+      ${htmlAjustesGarcom}
       <p style="font-size: 1.15rem; margin-top: 6px; color: #2c3e50; border-top: 1px dashed #ddd; padding-top: 5px; font-weight: bold; margin: 4px 0 0 0;">Total Final: <strong>R$ ${totalGeral.toFixed(2)}</strong></p>
     </div>
   `;

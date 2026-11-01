@@ -2201,6 +2201,27 @@
           </button>
         </div>
 
+        <!-- Bloco de Ajuste Antecipado (Acréscimo e Desconto) -->
+        <div id="modal-opcoes-bloco-ajustes" style="background: white; padding: 12px 14px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 0.8rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">
+              🏷️ Ajuste da Conta (Acréscimo / Desconto)
+            </span>
+            <span id="label-status-ajustes" style="font-size: 0.72rem; color: #16a34a; font-weight: bold;"></span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: flex-end;">
+            <div>
+              <label style="font-size: 0.72rem; font-weight: 700; color: #27ae60; display: block; margin-bottom: 3px;">➕ Acréscimo (R$)</label>
+              <input type="number" id="input-ajuste-acrescimo" min="0" step="0.50" placeholder="0,00" onkeydown="if(event.key==='Enter'){event.preventDefault();salvarAjustesMesaOpcoes();}" style="width: 100%; padding: 7px 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; font-weight: bold; color: #1e293b; outline: none; box-sizing: border-box;">
+            </div>
+            <div>
+              <label style="font-size: 0.72rem; font-weight: 700; color: #e74c3c; display: block; margin-bottom: 3px;">➖ Desconto (R$)</label>
+              <input type="number" id="input-ajuste-desconto" min="0" step="0.50" placeholder="0,00" onkeydown="if(event.key==='Enter'){event.preventDefault();salvarAjustesMesaOpcoes();}" style="width: 100%; padding: 7px 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; font-weight: bold; color: #1e293b; outline: none; box-sizing: border-box;">
+            </div>
+            <button type="button" id="btn-salvar-ajustes-mesa" onclick="salvarAjustesMesaOpcoes()" style="background: #2c3e50; color: white; border: none; padding: 7px 14px; border-radius: 8px; font-size: 0.82rem; font-weight: 800; cursor: pointer; height: 35px; white-space: nowrap; transition: 0.2s;" title="Salvar acréscimo e desconto no pedido">💾 SALVAR</button>
+          </div>
+        </div>
+
         <!-- Lista de Itens (Scroll Interno) -->
         <div id="modal-opcoes-itens-lista" style="margin-bottom: 15px; padding-right: 5px;">
            <!-- Injetado via JS -->
@@ -2352,7 +2373,7 @@
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="app_v3.js?v=1.5.9-title-guga-bebidas"></script>
+  <script src="app_v3.js?v=1.6.0-ajustes-antecipados"></script>
   <!-- Modal: Mesa Aguardando Cliente -->
   <div id="modal-mesa-aguardando" class="modal">
     <div class="modal-content" style="max-width: 420px; border-radius: 16px; overflow: hidden; padding: 0;">

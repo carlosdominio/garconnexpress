@@ -6150,7 +6150,10 @@ async function atualizarModaisAdminAbertosEmTempoReal() {
             const novosItens = (await resItens.json()) || [];
             const itensAnteriores = Array.isArray(pedidoEmOpcoes.itens) ? pedidoEmOpcoes.itens : [];
             const statusMudou = JSON.stringify(novosItens.filter(Boolean).map(i => ({ id: i.id, status: i.status || '' }))) !== JSON.stringify(itensAnteriores.filter(Boolean).map(i => ({ id: i.id, status: i.status || '' })));
-            if (statusMudou || (pAtual.status && pedidoEmOpcoes.status && pAtual.status !== pedidoEmOpcoes.status)) {
+            const activeEl = document.activeElement;
+            const estaDigitandoAjuste = activeEl && (activeEl.id === 'input-ajuste-acrescimo' || activeEl.id === 'input-ajuste-desconto');
+            const ajustesMudaram = (Number(pAtual.acrescimo || 0) !== Number(pedidoEmOpcoes.acrescimo || 0)) || (Number(pAtual.desconto || 0) !== Number(pedidoEmOpcoes.desconto || 0));
+            if (!estaDigitandoAjuste && (statusMudou || (pAtual.status && pedidoEmOpcoes.status && pAtual.status !== pedidoEmOpcoes.status) || ajustesMudaram)) {
               if (pAtual.status === 'cancelado' || pAtual.status === 'entregue' || pedidosCanceladosRecentemente.has(Number(pAtual.id))) {
                 fecharModalOpcoes();
               } else {
@@ -6263,8 +6266,10 @@ async function atualizarIndicadoresTopo() {
         }
       }
       
+      const acrescimo = parseFloat(p.acrescimo) || 0;
+      const desconto = parseFloat(p.desconto) || 0;
       const pagoParcial = p.pago_parcial || 0;
-      const totalEstePedido = Math.max(0, subtotalPedido + taxaValor - pagoParcial);
+      const totalEstePedido = Math.max(0, subtotalPedido + taxaValor + acrescimo - desconto - pagoParcial);
       faturamentoRealAtivo += totalEstePedido;
     }
   }
@@ -6590,9 +6595,11 @@ async function exibirPedidos() {
       const subtotal = itensParaSoma.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
       const taxaDeliveryVal = (pedido.taxa_entrega !== undefined && pedido.taxa_entrega !== null) ? parseFloat(pedido.taxa_entrega) : 3.00;
       const taxaServico = cobrarTaxaNoPedido ? (isDelivery ? taxaDeliveryVal : (subtotal * 0.10)) : 0;
+      const acrescimo = parseFloat(pedido.acrescimo) || 0;
+      const desconto = parseFloat(pedido.desconto) || 0;
       const pagoParcial = pedido.pago_parcial || 0;
-      const totalConsumo = (subtotal + taxaServico);
-      const totalExibicao = ((isAguardando && !isDelivery) ? pedido.total : (totalConsumo - pagoParcial)) || 0;
+      const totalConsumo = (subtotal + taxaServico + acrescimo - desconto);
+      const totalExibicao = ((isAguardando && !isDelivery) ? (pedido.total || totalConsumo) : (totalConsumo - pagoParcial)) || 0;
       
       // INFORMAÇÕES DE PAGAMENTO (DELIVERY OU SOLICITAÇÃO DE CONTA)
       let htmlPagamento = '';
@@ -6651,8 +6658,14 @@ async function exibirPedidos() {
           <div style="text-align:right">
             <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
               <button class="btn-imprimir-parcial-rapido" data-role="btn-total" onclick="imprimirParcialMesaRapido(${pedido.id})" title="Imprimir Nota Parcial" style="background:#3498db; color:white; border-radius:8px; padding:6px 12px; font-weight:bold; font-size:0.9rem; border:none; cursor:pointer; box-shadow:0 3px 0 #2980b9;">
-                🖨️ R$ ${totalExibicao.toFixed(2)}
+                🖨️ R$ ${Math.max(0, totalExibicao).toFixed(2)}
               </button>
+              ${(acrescimo > 0 || desconto > 0) ? `
+                <div style="font-size:0.7rem; font-weight:800; display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end;">
+                  ${acrescimo > 0 ? `<span style="background:#e8f8f5; color:#27ae60; padding:1px 5px; border-radius:4px; border:1px solid #a3e4d7;">+R$ ${acrescimo.toFixed(2)}</span>` : ''}
+                  ${desconto > 0 ? `<span style="background:#fde8e8; color:#e74c3c; padding:1px 5px; border-radius:4px; border:1px solid #f8b4b4;">-R$ ${desconto.toFixed(2)}</span>` : ''}
+                </div>
+              ` : ''}
               
               <button style="background: #34495e; color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.75rem; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 5px; box-shadow: 0 2px 0 #2c3e50;" 
                       onclick="abrirModalEdicaoById(${pedido.id})">
@@ -6756,7 +6769,7 @@ async function exibirPedidos() {
         if (card.dataset.setorAtraso !== infoAtraso.label) card.dataset.setorAtraso = infoAtraso.label;
         if (card.dataset.setorIcone !== (infoAtraso.icone || '')) card.dataset.setorIcone = infoAtraso.icone || '';
         const currentSig = card.getAttribute('data-content-signature');
-        const newSig = `${newClassName}_${mesaNomeExibicao}_${itens.length}_${itensPendentes.length}_${itensProntos.length}_${itensEntregues.length}_${totalExibicao}_${pedido.status}_${pedido.forma_pagamento}_${minutosCronometro}_${infoAtraso.limite}`;
+        const newSig = `${newClassName}_${mesaNomeExibicao}_${itens.length}_${itensPendentes.length}_${itensProntos.length}_${itensEntregues.length}_${totalExibicao}_${pedido.status}_${pedido.forma_pagamento}_${minutosCronometro}_${infoAtraso.limite}_${acrescimo}_${desconto}`;
         if (currentSig !== newSig) {
           card.innerHTML = cardInnerHTML;
           card.setAttribute('data-content-signature', newSig);
@@ -11003,8 +11016,10 @@ async function abrirModalOpcoes(pedidoId) {
   const subtotal = itensParaSomaModal.reduce((sum, i) => sum + ((i.preco || 0) * (i.quantidade || 1)), 0);
   const taxaServico = cobrarTaxaNoPedido ? (isDelivery ? taxaDeliveryModalVal : (subtotal * 0.10)) : 0;
   const pagoParcial = pedido.pago_parcial || 0;
+  const acrescimo = parseFloat(pedido.acrescimo) || 0;
+  const desconto = parseFloat(pedido.desconto) || 0;
   const isAguardandoReal = isAguardando && !isDelivery;
-  const totalExibicao = (isAguardandoReal ? pedido.total : (subtotal + taxaServico - pagoParcial)) || 0;
+  const totalExibicao = (isAguardandoReal ? (pedido.total || (subtotal + taxaServico + acrescimo - desconto)) : (subtotal + taxaServico + acrescimo - desconto - pagoParcial)) || 0;
 
   // DETALHES DA SOLICITAÇÃO DE CONTA / DELIVERY
   let htmlPagamentoModal = '';
@@ -11023,15 +11038,34 @@ async function abrirModalOpcoes(pedidoId) {
     `;
   }
 
+  let badgeAjustesValores = '';
+  if (acrescimo > 0) {
+    badgeAjustesValores += ` | <span style="color:#16a34a; font-weight:800;">ACRÉSC: +R$ ${acrescimo.toFixed(2)}</span>`;
+  }
+  if (desconto > 0) {
+    badgeAjustesValores += ` | <span style="color:#dc2626; font-weight:800;">DESC: -R$ ${desconto.toFixed(2)}</span>`;
+  }
+
   document.getElementById('modal-opcoes-valores').innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
       <div>
-        <div style="font-size: 1.6rem; font-weight: 900; color: #166534;">R$ ${totalExibicao.toFixed(2)}</div>
-        <div style="font-size: 0.75rem; color: #64748b; font-weight: bold;">SUB: R$ ${subtotal.toFixed(2)} | TAXA: R$ ${taxaServico.toFixed(2)}</div>
+        <div style="font-size: 1.6rem; font-weight: 900; color: #166534;">R$ ${Math.max(0, totalExibicao).toFixed(2)}</div>
+        <div style="font-size: 0.75rem; color: #64748b; font-weight: bold;">SUB: R$ ${subtotal.toFixed(2)} | TAXA: R$ ${taxaServico.toFixed(2)}${badgeAjustesValores}</div>
       </div>
     </div>
     ${htmlPagamentoModal}
   `;
+
+  // Preenche inputs de ajuste antecipado (acréscimo e desconto)
+  const inputAcrescimo = document.getElementById('input-ajuste-acrescimo');
+  const inputDesconto = document.getElementById('input-ajuste-desconto');
+  const labelStatusAjustes = document.getElementById('label-status-ajustes');
+  if (inputAcrescimo) inputAcrescimo.value = acrescimo > 0 ? acrescimo : '';
+  if (inputDesconto) inputDesconto.value = desconto > 0 ? desconto : '';
+  if (labelStatusAjustes) {
+    labelStatusAjustes.style.color = '#16a34a';
+    labelStatusAjustes.innerText = (acrescimo > 0 || desconto > 0) ? '✅ Salvo no pedido' : '';
+  }
 
   // 3. CONFIGURAÇÃO DOS BOTÕES LATERAIS (IMPRIMIR, EDITAR, TAXA)
   document.getElementById('btn-modal-imprimir').onclick = () => { fecharModalOpcoes(); imprimirParcialMesaRapido(pedidoId); };
@@ -11412,6 +11446,87 @@ function fecharModalOpcoes() {
   }
   pararAutoRefreshModalAdmin();
 }
+
+window.salvarAjustesMesaOpcoes = async function() {
+  const modalOpcoes = document.getElementById('modal-opcoes-mesa');
+  const pedidoId = (pedidoEmOpcoes && pedidoEmOpcoes.id) || (modalOpcoes ? modalOpcoes.dataset.pedidoId : null);
+  if (!pedidoId) {
+    mostrarToast("Nenhum pedido selecionado.", "error");
+    return;
+  }
+
+  const inputAcrescimo = document.getElementById('input-ajuste-acrescimo');
+  const inputDesconto = document.getElementById('input-ajuste-desconto');
+  const btnSalvar = document.getElementById('btn-salvar-ajustes-mesa');
+  const labelStatus = document.getElementById('label-status-ajustes');
+
+  const acrescimo = Math.max(0, parseFloat((inputAcrescimo ? inputAcrescimo.value : 0).toString().replace(',', '.')) || 0);
+  const desconto = Math.max(0, parseFloat((inputDesconto ? inputDesconto.value : 0).toString().replace(',', '.')) || 0);
+
+  const textoOriginalBtn = btnSalvar ? btnSalvar.innerHTML : '💾 SALVAR';
+  if (btnSalvar) {
+    btnSalvar.disabled = true;
+    btnSalvar.innerHTML = '⏳ Salvando...';
+  }
+
+  try {
+    const res = await fetch(`/api/pedidos/${pedidoId}/ajustes`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ acrescimo, desconto })
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Erro HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+
+    // Atualiza o pedido local se estiver na memória
+    if (typeof pedidos !== 'undefined' && Array.isArray(pedidos)) {
+      const p = pedidos.find(item => item && String(item.id) === String(pedidoId));
+      if (p) {
+        p.acrescimo = data.acrescimo;
+        p.desconto = data.desconto;
+        p.total = data.total;
+      }
+    }
+    if (pedidoEmOpcoes && String(pedidoEmOpcoes.id) === String(pedidoId)) {
+      pedidoEmOpcoes.acrescimo = data.acrescimo;
+      pedidoEmOpcoes.desconto = data.desconto;
+      pedidoEmOpcoes.total = data.total;
+    }
+
+    if (labelStatus) {
+      labelStatus.style.color = '#16a34a';
+      labelStatus.innerText = '✅ Salvo no pedido!';
+    }
+    mostrarToast("✅ Acréscimo / Desconto salvos com sucesso!", "success");
+
+    // Recarrega o modal para exibir os valores recalculados em tempo real
+    abrirModalOpcoes(pedidoId);
+
+    // Recarrega lista de pedidos no admin para atualizar o card
+    if (typeof carregarPedidos === 'function') {
+      carregarPedidos();
+    }
+  } catch (err) {
+    console.error('Erro ao salvar ajustes:', err);
+    if (labelStatus) {
+      labelStatus.style.color = '#dc2626';
+      labelStatus.innerText = '❌ Erro ao salvar';
+    }
+    mostrarToast("Erro ao salvar ajustes: " + err.message, "error");
+  } finally {
+    if (btnSalvar) {
+      btnSalvar.disabled = false;
+      btnSalvar.innerHTML = textoOriginalBtn;
+    }
+  }
+};
 
 window.editarNomeMesaComandaDesdeModal = async function() {
   const pedido = pedidoEmOpcoes;
