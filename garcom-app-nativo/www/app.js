@@ -1381,7 +1381,7 @@ async function configurarPusher() {
       if (isMesaDeOutroGarcom(mesaId) || (respGarcom && String(respGarcom).trim().toLowerCase() !== String(garcomLogado?.usuario).trim().toLowerCase())) return;
 
       if (deveTocarSom('pedido-atrasado-garcom')) tocarCampainha();
-      dispararToastSistema('pedido-atrasado-garcom', { mesa: data.mesa_numero || 'Mesa', pedido_id: data.pedido_id }, data.mensagem, 'error');
+      dispararToastSistema('pedido-atrasado-garcom', { mesa: formatarNomeMesaGarcom(data.mesa_numero ? data : 'Mesa', false), pedido_id: data.pedido_id }, data.mensagem, 'error');
     });
 
     channel.bind('pedido-pronto', (data) => {
@@ -1404,7 +1404,7 @@ async function configurarPusher() {
       if (deveTocarSom('pedido-pronto')) tocarCampainha();
 
       // Mostra Toast em tempo real configurado no Admin
-      const mesaVal = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : null) || 'Mesa';
+      const mesaVal = formatarNomeMesaGarcom(data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : null) || 'Mesa', false);
       dispararToastSistema('pedido-pronto', { mesa: mesaVal, pedido_id: data.pedido_id || (data.pedido ? data.pedido.id : '') }, data.mensagem, 'success');
 
       clearTimeout(timeoutPusher);
@@ -1461,20 +1461,15 @@ async function configurarPusher() {
       // Garçom toca som suave para novos pedidos / adições
       if (deveTocarSom(evKey)) tocarCampainha(true);
 
-      // Extrai número da mesa se disponível
+      // Extrai número da mesa/balcão se disponível
       let mesaRaw = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : null) || data.mesa_id || (data.pedido ? data.pedido.mesa_id : null) || 'X';
-      let mesaStr = mesaRaw;
-      if (mesaRaw !== 'X' && !String(mesaRaw).toUpperCase().includes('MESA') && !String(mesaRaw).toUpperCase().includes('BALCÃO')) {
-          mesaStr = `Mesa ${mesaRaw}`;
-      } else if (mesaRaw === 'X') {
-          mesaStr = 'Mesa';
-      }
+      let mesaStr = formatarNomeMesaGarcom(mesaRaw, false);
 
       // Mostra Toast e Notificação Nativa
       if (isAddition) {
-        dispararToastSistema('item-adicionado', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `➕ Novos itens adicionados na ${mesaStr}!`, 'info');
+        dispararToastSistema('item-adicionado', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `➕ Novos itens adicionados em ${mesaStr}!`, 'info');
       } else {
-        dispararToastSistema('novo-pedido', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `Novo pedido recebido da ${mesaStr}`, 'info');
+        dispararToastSistema('novo-pedido', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `Novo pedido recebido de ${mesaStr}`, 'info');
       }
 
       clearTimeout(timeoutPusher);
@@ -1486,7 +1481,44 @@ async function configurarPusher() {
       const modalResumo = document.getElementById('modal-resumo-mesa');
       const isModalAberto = modalResumo && modalResumo.style.display !== 'none' && modalResumo.style.display !== '';
       if (isModalAberto && mesaAtual && data && data.mesa_id && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_id)) {
+        if (data.tipo_atualizacao === 'renomear_mesa' && data.mesa_numero) {
+          mesaAtual.numero = data.mesa_numero;
+        }
         verItensDaMesa(false);
+      }
+
+      const modalOpcoes = document.getElementById('modal-opcoes');
+      const isOpcoesAberto = modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.style.display !== '';
+      if (isOpcoesAberto && mesaAtual && data && data.mesa_id && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_id)) {
+        if (data.tipo_atualizacao === 'renomear_mesa' && data.mesa_numero) {
+          mesaAtual.numero = data.mesa_numero;
+          const elTitulo = document.getElementById('modal-mesa-titulo');
+          if (elTitulo) elTitulo.textContent = formatarNomeMesaGarcom(mesaAtual);
+        }
+        if (data.transferencia_origem) {
+          mesaAtual.transferencia_origem = data.transferencia_origem;
+          const bannerTransf = document.getElementById('banner-transferencia-garcom');
+          if (bannerTransf) {
+            const isRecebido = String(data.transferencia_origem).toLowerCase().includes('recebeu');
+            bannerTransf.innerHTML = `
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.2rem;">🔄</span>
+                <div>
+                  <b style="display: block; font-size: 0.72rem; text-transform: uppercase; color: #3b82f6; letter-spacing: 0.5px;">${isRecebido ? 'Unificação de Mesas' : 'Transferência de Mesa'}</b>
+                  <span style="font-weight: 700;">${data.transferencia_origem}</span>
+                </div>
+              </div>
+            `;
+            bannerTransf.style.display = 'block';
+          }
+        }
+      }
+
+      // Se foi renomeação de mesa/comanda pelo Admin, sincroniza imediatamente para todos os garçons
+      if (data && data.tipo_atualizacao === 'renomear_mesa') {
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
       }
 
       const mesaId = data ? (data.mesa_id || data.mesa_numero) : null;
@@ -1510,8 +1542,7 @@ async function configurarPusher() {
       // Mostra o toast da taxa de 10% APENAS se a mesa pertencer ao garçom logado
       if (data && data.cobrar_taxa !== undefined) {
         const nMesa = data.mesa_numero || data.mesa_id || 'X';
-        let strMesa = nMesa.toString();
-        if (!strMesa.toLowerCase().startsWith('mesa') && strMesa.toLowerCase() !== 'balcão') strMesa = `Mesa ${strMesa}`;
+        const strMesa = formatarNomeMesaGarcom(nMesa, false);
         dispararToastSistema('taxa-atualizada', { mesa: strMesa }, `ℹ️ ${strMesa}: Taxa de 10% ${data.cobrar_taxa ? 'ativada' : 'desativada'} pelo Admin`, 'info');
       }
 
@@ -1523,17 +1554,14 @@ async function configurarPusher() {
         carregarMesas();
         if (data) {
           const nMesa = data.mesa_numero || data.mesa_id || 'X';
-          let strMesa = nMesa.toString();
-          if (!strMesa.toLowerCase().startsWith('mesa') && strMesa.toLowerCase() !== 'balcão') {
-             strMesa = `Mesa ${strMesa}`;
-          }
+          const strMesa = formatarNomeMesaGarcom(nMesa, false);
           
           if (data.status === 'liberada') {
             if (deveTocarSom('mesa-liberada')) tocarCampainha(true);
             dispararToastSistema('mesa-liberada', { mesa: strMesa }, `✅ ${strMesa} liberada`, 'success');
           } else if (data.status === 'servido') {
             if (deveTocarSom('pedido-servido')) tocarCampainha(true);
-            dispararToastSistema('pedido-servido', { mesa: strMesa, pedido_id: data.pedido_id || '' }, `🍽️ Pedido da ${strMesa} entregue!`, 'success');
+            dispararToastSistema('pedido-servido', { mesa: strMesa, pedido_id: data.pedido_id || '' }, `🍽️ Pedido de ${strMesa} entregue!`, 'success');
           } else if (data.status === 'itens_atualizados') {
             const isPropriaEdicaoGarcom = (ultimoPedidoEditadoPeloGarcom !== null) && (
               String(data.pedido_id) === String(ultimoPedidoEditadoPeloGarcom)
@@ -1592,11 +1620,9 @@ async function configurarPusher() {
 
       const msg = data.mensagem || `🚨 Pedido #${data.pedido_id} foi REMOVIDO pelo Admin.`;
 
-      // Extrai identificador da mesa/comanda se disponível
+      // Extrai identificador da mesa/balcão se disponível
       const mesaRaw = data.mesa_numero || data.mesa_id || 'Mesa';
-      const mesaStr = /^(mesa|comanda|balcão|balcao|delivery)\b/i.test(String(mesaRaw).trim())
-        ? String(mesaRaw).trim()
-        : (Number(data.is_comanda) === 1 ? `Comanda ${mesaRaw}` : `Mesa ${mesaRaw}`);
+      const mesaStr = formatarNomeMesaGarcom(data.mesa_numero ? data : mesaRaw, false);
 
       if (deveTocarSom('pedido-cancelado')) tocarCampainha(); // Som normal (mais forte) para cancelamento
       dispararToastSistema('pedido-cancelado', { mesa: mesaStr }, msg, 'error');
@@ -1692,8 +1718,8 @@ async function configurarPusher() {
       const modalCarrinhoAberto = document.getElementById('modal-carrinho') && document.getElementById('modal-carrinho').style.display === 'flex';
 
       if (cardapioAberto || carrinhoComItens || modalOpcoesAberto || modalCarrinhoAberto) {
-        const mesaNumStr = data.mesa_numero || mesaId;
-        mostrarToast(`📝 Novo rascunho recebido da Mesa ${mesaNumStr}. Acesse a mesa para ver.`, "info", "Rascunho Recebido", 8000);
+        const mesaNumStr = formatarNomeMesaGarcom(data.mesa_numero ? data : mesaId, false);
+        mostrarToast(`📝 Novo rascunho recebido em ${mesaNumStr}. Acesse para ver.`, "info", "Rascunho Recebido", 8000);
         carregarMesas();
       } else {
         mostrarRascunho(data);
@@ -1807,10 +1833,11 @@ async function abrirRascunhoMesaAtual() {
 }
 
 async function mostrarRascunho(data) {
+  const nomeRascunho = formatarNomeMesaGarcom(data.mesa_numero ? data : (data.mesa_id || 'Mesa'), false);
   const itensHtml = data.itens.map(i => `<li>${i.quantidade}x ${i.nome}</li>`).join('');
   const msgHtml = `
     <div style="text-align: left; background: #2f3542; padding: 15px; border-radius: 10px; border: 1px solid #34495e; color: #ffffff;">
-      <p style="margin-bottom: 10px; font-weight: bold; color: #f1c40f;">Mesa ${data.mesa_numero} enviou um rascunho:</p>
+      <p style="margin-bottom: 10px; font-weight: bold; color: #f1c40f;">${nomeRascunho} enviou um rascunho:</p>
       <ul style="padding-left: 20px; margin-bottom: 15px; color: #ffffff;">${itensHtml}</ul>
       <p style="font-size: 0.85rem; color: #bdc3c7; border-top: 1px dashed #57606f; padding-top: 10px;">Deseja carregar estes itens no carrinho agora?</p>
     </div>
@@ -1849,7 +1876,7 @@ async function mostrarRascunho(data) {
     modal.style.display = 'none';
     atualizarBloqueioScroll();
     
-    const recusar = await mostrarConfirmacao(`Deseja realmente RECUSAR o rascunho da Mesa ${data.mesa_numero}?`, "Aviso de Recusa", "Sim, Recusar", "Cancelar", "⚠️");
+    const recusar = await mostrarConfirmacao(`Deseja realmente RECUSAR o rascunho de ${nomeRascunho}?`, "Aviso de Recusa", "Sim, Recusar", "Cancelar", "⚠️");
     if (recusar) {
       showLoading(true);
       try {
@@ -1863,7 +1890,7 @@ async function mostrarRascunho(data) {
           body: JSON.stringify({ mesa_id: data.mesa_id })
         });
         if (res.ok) {
-          mostrarToast(`Rascunho da Mesa ${data.mesa_numero} recusado com sucesso.`, 'success');
+          mostrarToast(`Rascunho de ${nomeRascunho} recusado com sucesso.`, 'success');
           await carregarMesas();
         } else {
           mostrarToast('Erro ao recusar rascunho.', 'error');
@@ -1929,7 +1956,8 @@ async function aceitarRascunho(data) {
   // 5. Abre o modal do carrinho automaticamente para o garçom revisar e enviar
   toggleCarrinho();
   
-  mostrarToast(`Mesa ${data.mesa_numero}: Itens carregados no carrinho!`);
+  const nomeRascunhoToast = formatarNomeMesaGarcom(data.mesa_numero ? data : 'Mesa', false);
+  mostrarToast(`${nomeRascunhoToast}: Itens carregados no carrinho!`);
 }
 
 function solicitarPermissaoNotificacao() {
@@ -2136,10 +2164,125 @@ function calcularMinutos(dataIso) {
 }
 
 let filtroMesaAtual = 'todas';
+const ordemFiltrosMesas = ['todas', 'ocupadas', 'fechamentos'];
+
+function isModalAbertoGarcom() {
+  const telaPedido = document.getElementById('pedido');
+  if (telaPedido && !telaPedido.classList.contains('hidden')) return true;
+
+  const telaMesas = document.getElementById('mesas');
+  if (!telaMesas || telaMesas.classList.contains('hidden')) return true;
+
+  if (document.querySelector('.swal2-container')) return true;
+
+  const backdrop = document.getElementById('modal-opcoes-backdrop');
+  if (backdrop && backdrop.style.display === 'block') return true;
+
+  const modalOpcoes = document.getElementById('modal-opcoes');
+  if (modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.style.display !== '') return true;
+
+  const modalResumo = document.getElementById('modal-resumo-mesa');
+  if (modalResumo && modalResumo.style.display !== 'none' && modalResumo.style.display !== '') return true;
+
+  const modalFechamento = document.getElementById('modal-fechamento-garcom');
+  if (modalFechamento && modalFechamento.style.display !== 'none' && modalFechamento.style.display !== '') return true;
+
+  const modalSistema = document.getElementById('modal-sistema');
+  if (modalSistema && modalSistema.style.display !== 'none' && modalSistema.style.display !== '') return true;
+
+  const painelNotif = document.getElementById('painel-notificacoes');
+  if (painelNotif && painelNotif.style.display !== 'none' && painelNotif.style.display !== '') return true;
+
+  const loading = document.getElementById('loading-rapido');
+  if (loading && loading.style.display !== 'none' && loading.style.display !== '') return true;
+
+  return false;
+}
+
+function alternarFiltroMesaPorGesto(direcao) {
+  const indexAtual = ordemFiltrosMesas.indexOf(filtroMesaAtual);
+  if (indexAtual === -1) return;
+  let novoIndex = indexAtual + direcao;
+  if (novoIndex < 0) {
+    novoIndex = ordemFiltrosMesas.length - 1; // Permite ciclo contínuo
+  } else if (novoIndex >= ordemFiltrosMesas.length) {
+    novoIndex = 0; // Permite ciclo contínuo
+  }
+  const novoFiltro = ordemFiltrosMesas[novoIndex];
+  filtrarMesas(novoFiltro);
+}
+
+let gestoDeslizarConfigurado = false;
+function configurarGestoDeslizarMesas() {
+  if (gestoDeslizarConfigurado) return;
+  gestoDeslizarConfigurado = true;
+
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+
+  document.addEventListener('touchstart', (e) => {
+    if (isModalAbertoGarcom()) return;
+    if (!e.touches || e.touches.length !== 1) return;
+
+    const t = e.touches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+    touchStartTime = Date.now();
+  }, { passive: true });
+
+  document.addEventListener('touchend', (e) => {
+    if (!touchStartTime) return;
+    if (isModalAbertoGarcom()) {
+      touchStartTime = 0;
+      return;
+    }
+    if (!e.changedTouches || e.changedTouches.length !== 1) {
+      touchStartTime = 0;
+      return;
+    }
+
+    const t = e.changedTouches[0];
+    const diffX = t.clientX - touchStartX;
+    const diffY = t.clientY - touchStartY;
+    const elapsed = Date.now() - touchStartTime;
+
+    touchStartTime = 0;
+
+    // Distância mínima de 40px, movimento horizontal predominante (diffX > 1.2 * diffY), e tempo até 750ms
+    if (Math.abs(diffX) >= 40 && Math.abs(diffX) > Math.abs(diffY) * 1.2 && elapsed <= 750) {
+      window.foiGestoSwipeRecente = true;
+      setTimeout(() => {
+        window.foiGestoSwipeRecente = false;
+      }, 350);
+
+      if (diffX < 0) {
+        // Deslizar para a esquerda (⬅️) -> Avança coluna (LIVRES -> OCUPADAS -> A LIBERAR)
+        alternarFiltroMesaPorGesto(1);
+      } else {
+        // Deslizar para a direita (➡️) -> Retorna coluna (A LIBERAR -> OCUPADAS -> LIVRES)
+        alternarFiltroMesaPorGesto(-1);
+      }
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchcancel', () => {
+    touchStartTime = 0;
+  }, { passive: true });
+}
 
 function filtrarMesas(filtro, element) {
   filtroMesaAtual = filtro;
   
+  if (!element) {
+    const mapIds = {
+      todas: 'btn-filtro-todas',
+      ocupadas: 'btn-filtro-ocupadas',
+      fechamentos: 'btn-filtro-fechamentos'
+    };
+    element = document.getElementById(mapIds[filtro]);
+  }
+
   // Atualiza visual dos botões de filtro (define inline cinza para os inativos)
   document.querySelectorAll('.btn-filtro-mesa').forEach(btn => {
     btn.classList.remove('ativa');
@@ -2159,9 +2302,72 @@ function filtrarMesas(filtro, element) {
       element.style.background = '#27ae60'; // Verde (LIVRES)
       element.style.color = 'white';
     }
+
+    const containerFiltros = document.getElementById('container-filtros-mesas');
+    if (containerFiltros) {
+      try {
+        const scrollAlvo = element.offsetLeft - (containerFiltros.clientWidth / 2) + (element.clientWidth / 2);
+        containerFiltros.scrollTo({ left: Math.max(0, scrollAlvo), behavior: 'smooth' });
+      } catch (e) {}
+    }
   }
   
   exibirMesas();
+}
+
+function formatarNomeMesaGarcom(m, incluirIcone = true) {
+  if (!m) return 'Mesa';
+
+  // Se for primitivo (string ou número)
+  if (typeof m === 'string' || typeof m === 'number') {
+    const str = String(m).trim();
+    if (/^balc[aã]o/i.test(str)) {
+      const numTrim = str.replace(/^balc[aã]o\s*/i, '').trim();
+      const txt = numTrim ? `Balcão ${numTrim}` : 'Balcão';
+      return incluirIcone ? `🏪 ${txt}` : txt;
+    }
+    if (/^comanda\s*balc[aã]o/i.test(str)) {
+      const numTrim = str.replace(/^comanda\s*balc[aã]o\s*/i, '').trim();
+      const txt = numTrim ? `Balcão ${numTrim}` : 'Balcão';
+      return incluirIcone ? `🏪 ${txt}` : txt;
+    }
+    if (/^comanda/i.test(str)) {
+      const numTrim = str.replace(/^comanda\s*/i, '').trim();
+      const txt = numTrim ? `Comanda ${numTrim}` : 'Comanda';
+      return incluirIcone ? `🧾 ${txt}` : txt;
+    }
+    if (/^mesa/i.test(str)) {
+      const numTrim = str.replace(/^mesa\s*/i, '').trim();
+      const txt = numTrim ? `Mesa ${numTrim}` : 'Mesa';
+      return incluirIcone ? `🍽️ ${txt}` : txt;
+    }
+    return incluirIcone ? `🍽️ Mesa ${str}` : `Mesa ${str}`;
+  }
+
+  // Se for objeto (mesa ou pedido)
+  const numRaw = (m.numero !== undefined && m.numero !== null) 
+    ? String(m.numero).trim() 
+    : ((m.mesa_numero !== undefined && m.mesa_numero !== null) ? String(m.mesa_numero).trim() : '');
+  const tipo = String(m.tipo || m.mesa_tipo || '').toLowerCase();
+  const isBalcao = tipo === 'balcao' || /^balc[aã]o/i.test(numRaw) || /^comanda\s*balc[aã]o/i.test(numRaw) || (m.is_balcao == 1 || m.is_balcao === true);
+  const isComanda = !isBalcao && (tipo === 'comanda' || Number(m.is_comanda) === 1 || /^comanda/i.test(numRaw));
+
+  let limpo = numRaw;
+  if (/^comanda\s*balc[aã]o\s*/i.test(limpo)) limpo = limpo.replace(/^comanda\s*balc[aã]o\s*/i, '').trim();
+  else if (/^balc[aã]o\s*/i.test(limpo)) limpo = limpo.replace(/^balc[aã]o\s*/i, '').trim();
+  else if (/^comanda\s*/i.test(limpo)) limpo = limpo.replace(/^comanda\s*/i, '').trim();
+  else if (/^mesa\s*/i.test(limpo)) limpo = limpo.replace(/^mesa\s*/i, '').trim();
+
+  if (isBalcao) {
+    const txt = limpo ? `Balcão ${limpo}` : 'Balcão';
+    return incluirIcone ? `🏪 ${txt}` : txt;
+  }
+  if (isComanda) {
+    const txt = limpo ? `Comanda ${limpo}` : 'Comanda';
+    return incluirIcone ? `🧾 ${txt}` : txt;
+  }
+  const txt = limpo ? `Mesa ${limpo}` : (numRaw ? `Mesa ${numRaw}` : 'Mesa');
+  return incluirIcone ? `🍽️ ${txt}` : txt;
 }
 
 function exibirMesas() {
@@ -2274,6 +2480,8 @@ function exibirMesas() {
     }
     return {
       id: m.id,
+      numero: m.numero,
+      tipo: m.tipo,
       status: m.status,
       garcom_id: m.garcom_id,
       pedido_status: m.pedido_status,
@@ -2289,6 +2497,37 @@ function exibirMesas() {
     return;
   }
   window.ultimoEstadoMesasKey = estadoAtualKey;
+
+  if (mesasExibidas.length === 0) {
+    let iconeVazio = '🟢';
+    let tituloVazio = 'Nenhuma mesa livre';
+    let subVazio = 'Todas as comandas estão em atendimento.';
+    let btnExtraVazio = '';
+    if (filtroMesaAtual === 'todas') {
+      btnExtraVazio = `
+        <button onclick="abrirModalCriarComandaGarcom()" style="margin-top: 18px; pointer-events: auto; background: #2980b9; color: white; border: none; padding: 10px 18px; border-radius: 20px; font-weight: bold; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(41,128,185,0.25);">
+          <span>➕</span> Criar Comanda / Balcão
+        </button>
+      `;
+    } else if (filtroMesaAtual === 'ocupadas') {
+      iconeVazio = '🟠';
+      tituloVazio = 'Nenhuma mesa ocupada';
+      subVazio = 'Todas as mesas estão livres no momento.';
+    } else if (filtroMesaAtual === 'fechamentos') {
+      iconeVazio = '🟡';
+      tituloVazio = 'Nenhuma mesa a liberar';
+      subVazio = 'Não há solicitações de fechamento pendentes.';
+    }
+    grid.innerHTML = `
+      <div style="grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 50px 20px; color: #7f8c8d; text-align: center; pointer-events: none; user-select: none;">
+        <div style="font-size: 3rem; margin-bottom: 12px;">${iconeVazio}</div>
+        <h3 style="margin: 0 0 8px 0; color: #2c3e50; font-size: 1.15rem; font-weight: bold;">${tituloVazio}</h3>
+        <p style="margin: 0; font-size: 0.9rem; color: #95a5a6;">${subVazio}</p>
+        ${btnExtraVazio}
+      </div>
+    `;
+    return;
+  }
 
   grid.innerHTML = mesasExibidas.map(mesa => {
     let cronometroHtml = '';
@@ -2369,7 +2608,7 @@ function exibirMesas() {
 
     return `
       <div class="mesa ${mesa.status} ${classeAlerta} ${classeBloqueada}" data-id="${mesa.id}" style="cursor:pointer">
-        <h3>Mesa ${mesa.numero}</h3>
+        <h3>${formatarNomeMesaGarcom(mesa)}</h3>
         <p style="font-weight:bold">${statusTexto}</p>
         ${cronometroHtml}
       </div>
@@ -2378,6 +2617,7 @@ function exibirMesas() {
 
   document.querySelectorAll('.mesa').forEach(mesaEl => {
     mesaEl.onclick = async () => {
+      if (window.foiGestoSwipeRecente) return;
       if (!caixaAberto) {
         mostrarToast("O CAIXA ESTÁ FECHADO!", "error", "🔒 AVISO");
         return;
@@ -2416,12 +2656,36 @@ async function mostrarOpcoesMesa(mesa) {
   atualizarVisibilidadeOpcoesMesa(mesa);
 
   // Lógica de exibição do código ativo no título
-  let tituloModal = `Mesa ${mesa.numero}`;
+  const nomeFormatado = formatarNomeMesaGarcom(mesa);
+  let tituloModal = nomeFormatado;
   if (mesa.codigo_acesso && mesa.status !== 'livre') {
-    tituloModal = `Mesa ${mesa.numero} [Código: ${mesa.codigo_acesso}]`;
+    tituloModal = `${nomeFormatado} [Código: ${mesa.codigo_acesso}]`;
   }
 
   document.getElementById('modal-mesa-titulo').textContent = tituloModal;
+
+  // Banner de transferência / unificação de mesa (visível exclusivamente dentro do modal de opções)
+  const bannerTransf = document.getElementById('banner-transferencia-garcom');
+  if (bannerTransf) {
+    const textoTransf = mesa.transferencia_origem || (pedidoAbertoNaMesa && pedidoAbertoNaMesa.transferencia_origem);
+    if (textoTransf) {
+      const isRecebido = String(textoTransf).toLowerCase().includes('recebeu');
+      bannerTransf.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.2rem;">🔄</span>
+          <div>
+            <b style="display: block; font-size: 0.72rem; text-transform: uppercase; color: #3b82f6; letter-spacing: 0.5px;">${isRecebido ? 'Unificação de Mesas' : 'Transferência de Mesa'}</b>
+            <span style="font-weight: 700;">${textoTransf}</span>
+          </div>
+        </div>
+      `;
+      bannerTransf.style.display = 'block';
+    } else {
+      bannerTransf.style.display = 'none';
+      bannerTransf.innerHTML = '';
+    }
+  }
+
   document.getElementById('modal-opcoes').style.display = 'block';
   atualizarBloqueioScroll();
 }
@@ -2435,8 +2699,12 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
   const btnCancelarCodigo = document.querySelector('.btn-cancelar-codigo');
   const btnGerarQr = document.querySelector('.btn-gerar-qr');
   const btnExpandir = document.getElementById('btn-opcoes-expandir');
+  const btnCriarComanda = document.getElementById('btn-opcoes-criar-comanda');
 
   const estaFechando = mesa.solicitou_fechamento || mesa.status === 'fechando';
+  const isBalcao = (mesa.tipo === 'balcao' || mesa.mesa_tipo === 'balcao' || String(mesa.numero || '').toLowerCase().includes('balc'));
+  const isComanda = !isBalcao && (mesa.tipo === 'comanda' || Number(mesa.is_comanda) === 1 || String(mesa.numero || '').toLowerCase().includes('comanda'));
+  const labelEntidade = isBalcao ? 'Balcão' : (isComanda ? 'Comanda' : 'Mesa');
 
   if (btnExpandir) {
     btnExpandir.style.display = 'block';
@@ -2452,7 +2720,7 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
         btnFecharConta.style.background = '#e67e22'; // Laranja
         btnFecharConta.style.animation = 'pulsar-amarelo 1.5s infinite';
       } else {
-        btnFecharConta.innerText = '💰 Fechar Conta (Liberar)';
+        btnFecharConta.innerText = isBalcao ? '💰 Fechar Balcão (Liberar)' : (isComanda ? '💰 Fechar Comanda (Liberar)' : '💰 Fechar Conta (Liberar)');
         btnFecharConta.style.background = '#9b59b6'; // Roxo padrão
         btnFecharConta.style.animation = 'none';
       }
@@ -2464,11 +2732,12 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
     if (btnVerItens) btnVerItens.style.display = (opcoesExpandidas && pedidoAbertoNaMesa) ? 'block' : 'none';
     if (btnAdd) {
       btnAdd.style.display = dispSecundario;
-      btnAdd.innerText = pedidoAbertoNaMesa ? '➕ Adicionar mais itens' : '📝 Abrir Mesa / Pedido';
+      btnAdd.innerText = pedidoAbertoNaMesa ? '➕ Adicionar mais itens' : `📝 Abrir ${labelEntidade} / Pedido`;
     }
     if (btnGerarQr) btnGerarQr.style.display = dispSecundario;
     if (btnGerarCodigo) btnGerarCodigo.style.display = 'none';
     if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'none';
+    if (btnCriarComanda) btnCriarComanda.style.display = 'none';
   } else if (mesa.status === 'ocupada') {
     // CATEGORIA OCUPADA:
     if (btnRascunho) {
@@ -2477,11 +2746,11 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
     if (btnVerItens) btnVerItens.style.display = pedidoAbertoNaMesa ? 'block' : 'none';
     if (btnAdd) {
       btnAdd.style.display = 'block';
-      btnAdd.innerText = pedidoAbertoNaMesa ? '➕ Adicionar mais itens' : '📝 Abrir Mesa / Pedido';
+      btnAdd.innerText = pedidoAbertoNaMesa ? '➕ Adicionar mais itens' : `📝 Abrir ${labelEntidade} / Pedido`;
     }
     if (btnFecharConta) {
       btnFecharConta.style.display = (pedidoAbertoNaMesa && mesa.status !== 'fechando') ? 'block' : 'none';
-      btnFecharConta.innerText = '💰 Fechar Conta (Liberar)';
+      btnFecharConta.innerText = isBalcao ? '💰 Fechar Balcão (Liberar)' : (isComanda ? '💰 Fechar Comanda (Liberar)' : '💰 Fechar Conta (Liberar)');
       btnFecharConta.style.background = '#9b59b6';
       btnFecharConta.style.animation = 'none';
     }
@@ -2498,6 +2767,7 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
     if (btnCancelarCodigo) {
       btnCancelarCodigo.style.display = (!pedidoAbertoNaMesa && mesa.codigo_acesso) ? dispSecundario : 'none';
     }
+    if (btnCriarComanda) btnCriarComanda.style.display = 'none';
   } else {
     // CATEGORIA LIVRE:
     if (btnExpandir) btnExpandir.style.display = 'none';
@@ -2507,12 +2777,136 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
     if (btnTransferirMesa) btnTransferirMesa.style.display = 'none';
     if (btnAdd) {
       btnAdd.style.display = 'block';
-      btnAdd.innerText = '📝 Abrir Mesa / Pedido';
+      btnAdd.innerText = `📝 Abrir ${labelEntidade} / Pedido`;
     }
+    if (btnCriarComanda) btnCriarComanda.style.display = 'block';
     if (btnGerarQr) btnGerarQr.style.display = 'block';
     if (btnGerarCodigo) btnGerarCodigo.style.display = 'block';
     if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'none';
     if (btnFecharConta) btnFecharConta.style.display = 'none';
+  }
+}
+
+async function abrirModalCriarComandaGarcom() {
+  fecharOpcoes();
+
+  const { value: formValues, isConfirmed, isDenied } = await Swal.fire({
+    title: '🧾 Nova Comanda',
+    html: `
+      <div style="text-align: left; margin-top: 5px;">
+        <label style="display: block; font-weight: bold; color: #334155; font-size: 0.88rem; margin-bottom: 6px;">
+          Número ou Nome da Comanda (máx 15 letras):
+        </label>
+        <input type="text" id="swal-input-comanda-nome" placeholder="ex: 15, VIP, Lucas, Comanda 02..." maxlength="15"
+               style="width: 100%; padding: 12px 14px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc; color: #1e293b; margin-bottom: 14px;">
+
+        <label style="display: block; font-weight: bold; color: #334155; font-size: 0.88rem; margin-bottom: 6px;">
+          Direcionar para:
+        </label>
+        <select id="swal-select-comanda-tipo" style="width: 100%; padding: 12px 14px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc; color: #1e293b;">
+          <option value="comanda">🍽️ Comanda de Mesa</option>
+          <option value="balcao">🏪 Comanda de Balcão</option>
+        </select>
+        <p style="font-size: 0.78rem; color: #64748b; margin: 10px 0 0 0;">
+          💡 Disponível imediatamente no app do garçom e no painel admin.
+        </p>
+      </div>
+    `,
+    showCancelButton: true,
+    showDenyButton: true,
+    confirmButtonText: '🚀 Criar & Lançar',
+    denyButtonText: '💾 Apenas Criar',
+    cancelButtonText: 'Cancelar',
+    confirmButtonColor: '#27ae60',
+    denyButtonColor: '#2980b9',
+    cancelButtonColor: '#95a5a6',
+    heightAuto: false,
+    didOpen: () => {
+      const inp = document.getElementById('swal-input-comanda-nome');
+      if (inp) setTimeout(() => inp.focus(), 150);
+    },
+    preConfirm: () => {
+      const nome = document.getElementById('swal-input-comanda-nome')?.value.trim();
+      const tipo = document.getElementById('swal-select-comanda-tipo')?.value || 'comanda';
+      if (!nome) {
+        Swal.showValidationMessage('Informe o número ou nome da comanda!');
+        return false;
+      }
+      return { nome, tipo, abrirDireto: true };
+    },
+    preDeny: () => {
+      const nome = document.getElementById('swal-input-comanda-nome')?.value.trim();
+      const tipo = document.getElementById('swal-select-comanda-tipo')?.value || 'comanda';
+      if (!nome) {
+        Swal.showValidationMessage('Informe o número ou nome da comanda!');
+        return false;
+      }
+      return { nome, tipo, abrirDireto: false };
+    }
+  });
+
+  if (!isConfirmed && !isDenied) return;
+
+  const dados = formValues;
+  if (!dados || !dados.nome) return;
+
+  const abrirDireto = isConfirmed;
+
+  try {
+    showLoading(true, 'Criando comanda...');
+    const res = await fetch('/api/mesas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        numero: dados.nome,
+        tipo: dados.tipo,
+        is_comanda: 1
+      })
+    });
+
+    const data = await res.json();
+    showLoading(false);
+
+    if (!res.ok) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Atenção',
+        text: data.error || 'Não foi possível criar a comanda.',
+        heightAuto: false
+      });
+      return;
+    }
+
+    // Comanda criada com sucesso! Atualiza lista de mesas
+    await carregarMesas();
+
+    const mesaCriada = (mesas || []).find(m => String(m.id) === String(data.id)) || {
+      id: data.id,
+      numero: data.numero || dados.nome,
+      tipo: data.tipo || dados.tipo,
+      is_comanda: 1,
+      status: 'livre'
+    };
+
+    if (abrirDireto) {
+      mesaAtual = mesaCriada;
+      pedidoAbertoNaMesa = null;
+      abrirCardapio();
+      mostrarToast(`🧾 Comanda "${dados.nome}" aberta para lançamento!`);
+    } else {
+      mostrarToast(`✅ Comanda "${dados.nome}" criada com sucesso!`);
+      const btnLivres = document.getElementById('btn-filtro-todas');
+      if (btnLivres) filtrarMesas('todas', btnLivres);
+    }
+  } catch (err) {
+    showLoading(false);
+    console.error('Erro ao criar comanda garçom:', err);
+    await Swal.fire({
+      icon: 'error',
+      title: 'Erro de Conexão',
+      text: 'Não foi possível conectar ao servidor.',
+      heightAuto: false
+    });
   }
 }
 
@@ -2532,10 +2926,6 @@ async function abrirModalTransferirMesaGarcom() {
       return true;
     });
 
-    if (outrasMesas.length === 0) {
-      return await mostrarAlerta('Não há outras mesas cadastradas para transferir.', 'Aviso', '⚠️');
-    }
-
     // Fecha o modal inferior de opções para que o modal de transferência apareça limpo e na frente
     fecharOpcoes();
 
@@ -2543,16 +2933,18 @@ async function abrirModalTransferirMesaGarcom() {
       const isLivre = (m.status || 'livre').toLowerCase() === 'livre';
       const statusTxt = isLivre ? 'LIVRE' : 'OCUPADA (JUNTAR)';
       const icone = isLivre ? '🟢' : '🟡';
-      const tipoTxt = m.tipo === 'balcao' ? 'Balcão' : 'Mesa';
-      return `<option value="${m.id}" data-status="${isLivre ? 'livre' : 'ocupada'}">${icone} ${tipoTxt} ${m.numero} (${statusTxt})</option>`;
+      const nomeMesaDest = formatarNomeMesaGarcom(m, false);
+      return `<option value="${m.id}" data-status="${isLivre ? 'livre' : 'ocupada'}">${icone} ${nomeMesaDest} (${statusTxt})</option>`;
     }).join('');
 
+    const nomeOrigem = formatarNomeMesaGarcom(mesaOrigemSnapshot, false);
     const { value: mesaDestinoId } = await Swal.fire({
-      title: '🔄 Transferir de Mesa',
+      title: '🔄 Transferir',
       html: `
-        <p style="font-size:0.95rem; color:#64748b; margin-bottom:12px;">Selecione a mesa de destino para transferir a <b>Mesa ${mesaOrigemSnapshot.numero}</b>:</p>
+        <p style="font-size:0.95rem; color:#64748b; margin-bottom:12px;">Selecione o destino para transferir <b>${nomeOrigem}</b>:</p>
         <select id="swal-select-transferir-garcom" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; font-weight:bold; font-size:1rem; background:#f8fafc; color:#334155; box-sizing:border-box;">
-          <option value="">Selecione a Mesa de Destino...</option>
+          <option value="">Selecione o Destino...</option>
+          <option value="__NOVA_COMANDA__" style="font-weight: 800; color: #2563eb;">➕ Criar Nova Comanda de Destino...</option>
           ${optionsHtml}
         </select>
       `,
@@ -2578,13 +2970,100 @@ async function abrirModalTransferirMesaGarcom() {
       return;
     }
 
+    if (mesaDestinoId === '__NOVA_COMANDA__') {
+      const { value: dadosNovaComanda } = await Swal.fire({
+        title: '➕ Nova Comanda de Destino',
+        html: `
+          <div style="text-align: left;">
+            <p style="font-size: 0.88rem; color: #64748b; margin-bottom: 12px;">
+              Transferindo itens de <b>${nomeOrigem}</b> para uma nova comanda:
+            </p>
+            <label style="display: block; font-weight: bold; color: #334155; font-size: 0.85rem; margin-bottom: 5px;">
+              Número ou Nome da Nova Comanda (máx 15 letras):
+            </label>
+            <input type="text" id="swal-input-transf-comanda-nome" placeholder="ex: 15, Lucas, Comanda 08..." maxlength="15"
+                   style="width: 100%; padding: 12px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: bold; background: #f8fafc; color: #1e293b; box-sizing: border-box; margin-bottom: 14px;">
+            <label style="display: block; font-weight: bold; color: #334155; font-size: 0.85rem; margin-bottom: 5px;">
+              Tipo:
+            </label>
+            <select id="swal-select-transf-comanda-tipo" style="width: 100%; padding: 12px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: bold; background: #f8fafc; color: #1e293b; box-sizing: border-box;">
+              <option value="comanda">🍽️ Comanda de Mesa</option>
+              <option value="balcao">🏪 Comanda de Balcão</option>
+            </select>
+          </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Transferir Agora',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#2563eb',
+        cancelButtonColor: '#95a5a6',
+        heightAuto: false,
+        didOpen: () => {
+          document.getElementById('swal-input-transf-comanda-nome')?.focus();
+        },
+        preConfirm: () => {
+          const nome = document.getElementById('swal-input-transf-comanda-nome')?.value.trim();
+          const tipo = document.getElementById('swal-select-transf-comanda-tipo')?.value || 'comanda';
+          if (!nome) {
+            Swal.showValidationMessage('Informe o nome ou número da comanda!');
+            return false;
+          }
+          return { nome, tipo };
+        }
+      });
+
+      if (!dadosNovaComanda) {
+        mostrarOpcoesMesa(mesaOrigemSnapshot);
+        return;
+      }
+
+      showLoading(true, 'Criando comanda e transferindo...');
+      const pedidoId = pedidoAbertoNaMesa ? pedidoAbertoNaMesa.id : null;
+      const resTransf = await fetch('/api/pedidos/transferir-mesa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pedido_id: pedidoId,
+          mesa_origem_id: mesaOrigemSnapshot.id,
+          novo_nome_comanda: dadosNovaComanda.nome,
+          tipo: dadosNovaComanda.tipo
+        })
+      });
+
+      const dataRes = await resTransf.json();
+      showLoading(false);
+
+      if (resTransf.ok) {
+        await Swal.fire({
+          icon: 'success',
+          title: 'Transferido!',
+          text: dataRes.mensagem || `Itens transferidos para a nova comanda "${dadosNovaComanda.nome}"!`,
+          timer: 2000,
+          showConfirmButton: false,
+          heightAuto: false
+        });
+        mesaAtual = null;
+        await carregarMesas();
+      } else {
+        await Swal.fire({
+          icon: 'error',
+          title: 'Erro',
+          text: dataRes.error || 'Erro ao transferir para a nova comanda.',
+          heightAuto: false
+        });
+        mostrarOpcoesMesa(mesaOrigemSnapshot);
+      }
+      return;
+    }
+
     const mesaDestinoObj = outrasMesas.find(m => String(m.id) === String(mesaDestinoId));
     const isOcupada = mesaDestinoObj && (mesaDestinoObj.status || 'livre').toLowerCase() !== 'livre';
 
     if (isOcupada) {
+      const nomeDestino = formatarNomeMesaGarcom(mesaDestinoObj, false);
       const confMerge = await Swal.fire({
         title: 'Juntar Pedidos?',
-        html: `A <b>Mesa ${mesaDestinoObj.numero}</b> já está ocupada.<br><br>Deseja juntar os pedidos nesta mesa?`,
+        html: `<b>${nomeDestino}</b> já está ocupado(a).<br><br>Deseja juntar os pedidos neste local?`,
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Sim, Juntar',
@@ -2662,8 +3141,14 @@ async function verItensDaMesa(isSilencioso = false) {
       if (!isSilencioso) showLoading(false);
       return await mostrarAlerta("Nenhum pedido ativo.", "Aviso", "⚠️");
     }
-    const resItens = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/itens`);
-    const itens = await resItens.json();
+    // Otimização de performance: Se os itens já vieram anexados no pedido, usa imediatamente
+    let itens;
+    if (pedidoAbertoNaMesa.itens && Array.isArray(pedidoAbertoNaMesa.itens)) {
+      itens = pedidoAbertoNaMesa.itens;
+    } else {
+      const resItens = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/itens`);
+      itens = await resItens.json();
+    }
     if (!isSilencioso) showLoading(false);
     
     // Inicialização do estado de edição local se não for silêncio
@@ -2684,7 +3169,7 @@ async function verItensDaMesa(isSilencioso = false) {
 
     renderizarItensMesaGarcom();
     
-    document.getElementById('resumo-mesa-titulo').textContent = `Resumo - Mesa ${mesaAtual.numero}`;
+    document.getElementById('resumo-mesa-titulo').textContent = `Resumo - ${formatarNomeMesaGarcom(mesaAtual)}`;
     fecharOpcoes();
     document.getElementById('modal-resumo-mesa').style.display = 'block';
     atualizarBloqueioScroll();
@@ -2720,7 +3205,7 @@ function renderizarItensMesaGarcom() {
     return `
       <div style="border-bottom: 1px solid #eee; padding: 10px; display: flex; justify-content: space-between; align-items: center; background:${bgColor}; border-radius: 8px; margin-bottom: 8px;">
         <div style="width: 40px; height: 40px; flex-shrink: 0; margin-right: 10px; border-radius: 4px; overflow: hidden; background: #eee;">
-          <img src="${item.imagem}" style="width: 100%; height: 100%; object-fit: cover;">
+          <img src="${item.imagem || 'data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\' viewBox=\'0 0 40 40\'><rect fill=\'%23f1f2f6\' width=\'40\' height=\'40\'/><text fill=\'%23a4b0be\' font-size=\'16\' x=\'50%25\' y=\'55%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'>🍽️</text></svg>'}" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\' viewBox=\'0 0 40 40\'><rect fill=\'%23f1f2f6\' width=\'40\' height=\'40\'/><text fill=\'%23a4b0be\' font-size=\'16\' x=\'50%25\' y=\'55%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'>🍽️</text></svg>';" style="width: 100%; height: 100%; object-fit: cover;">
         </div>
         <div style="flex-grow: 1; text-align: left;">
           <p style="margin: 0; font-weight: bold; color: #2c3e50;">${item.nome} ${statusLabel}</p>
@@ -2769,12 +3254,19 @@ function renderizarItensMesaGarcom() {
 
   const subtotal = itensEmEdicaoGarcom.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
   const taxaServico = cobrarTaxa ? subtotal * 0.10 : 0;
-  const totalGeral = subtotal + taxaServico;
+  const acrescimo = parseFloat(pedidoAbertoNaMesa.acrescimo) || 0;
+  const desconto = parseFloat(pedidoAbertoNaMesa.desconto) || 0;
+  const totalGeral = Math.max(0, subtotal + taxaServico + acrescimo - desconto);
+
+  let htmlAjustesGarcom = '';
+  if (acrescimo > 0) htmlAjustesGarcom += `<p style="color: #27ae60; font-size: 0.9rem; margin: 2px 0;">Acréscimo: <strong>+ R$ ${acrescimo.toFixed(2)}</strong></p>`;
+  if (desconto > 0) htmlAjustesGarcom += `<p style="color: #e74c3c; font-size: 0.9rem; margin: 2px 0;">Desconto: <strong>- R$ ${desconto.toFixed(2)}</strong></p>`;
 
   document.getElementById('total-resumo-mesa').innerHTML = `
     <div style="text-align: right; border-top: 2px solid #eee; padding-top: 10px; margin-top: 10px;">
       <p style="color: #7f8c8d; font-size: 0.9rem; margin: 2px 0;">Subtotal: <strong>R$ ${subtotal.toFixed(2)}</strong></p>
       <p style="color: ${cobrarTaxa ? '#3498db' : '#95a5a6'}; font-size: 0.9rem; margin: 2px 0;">Taxa de Serviço (10%): <strong>${cobrarTaxa ? `R$ ${taxaServico.toFixed(2)}` : 'R$ 0,00 (ISENTO)'}</strong></p>
+      ${htmlAjustesGarcom}
       <p style="font-size: 1.15rem; margin-top: 6px; color: #2c3e50; border-top: 1px dashed #ddd; padding-top: 5px; font-weight: bold; margin: 4px 0 0 0;">Total Final: <strong>R$ ${totalGeral.toFixed(2)}</strong></p>
     </div>
   `;
@@ -3048,14 +3540,15 @@ function abrirCardapio() {
     // SEGURANÇA: Se mesaAtual for null, tenta recuperar pelo título do modal antes de crashar
     if (!mesaAtual) {
       const modalTitulo = document.getElementById('modal-mesa-titulo');
-      if (modalTitulo && modalTitulo.innerText.includes('Mesa')) {
-          const num = modalTitulo.innerText.replace('Mesa ', '');
-          mesaAtual = mesas.find(m => m.numero == num);
+      if (modalTitulo && modalTitulo.innerText) {
+          const num = modalTitulo.innerText.replace(/^(🍽️|🪑|🏪|🧾)?\s*(mesa|balc[aã]o|comanda)\s*/i, '').split('[')[0].trim();
+          mesaAtual = mesas.find(m => String(m.numero).trim() === num || String(m.id).trim() === num);
       }
     }
 
     if (mesaTxt && mesaAtual) {
-      mesaTxt.textContent = pedidoAbertoNaMesa ? `${mesaAtual.numero} (+ itens)` : mesaAtual.numero;
+      const nomeExib = formatarNomeMesaGarcom(mesaAtual, false);
+      mesaTxt.textContent = pedidoAbertoNaMesa ? `${nomeExib} (+ itens)` : nomeExib;
     } else if (mesaTxt) {
       console.warn("⚠️ abrirCardapio chamado sem mesaAtual definida.");
       mesaTxt.textContent = "---";
@@ -3187,6 +3680,10 @@ async function finalizarEDesocupar() {
     
     const modalFechamento = document.getElementById('modal-fechamento-garcom');
     if (modalFechamento) {
+      const tituloFechar = document.getElementById('titulo-fechamento-garcom');
+      if (tituloFechar && mesaAtual) {
+        tituloFechar.textContent = `Fechar ${formatarNomeMesaGarcom(mesaAtual, false)}`;
+      }
       modalFechamento.style.display = 'flex';
       atualizarBloqueioScroll();
     }
@@ -3478,7 +3975,7 @@ async function exibirMenu(categoria, queryTexto = '') {
             ${isItemParaChurrasco(item) ? '<div style="background: #e67e22; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.75rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin-top: 2px;">🍢 CHURRASCO</div>' : ''}
           </div>
 
-          <img src="${item.imagem}" alt="${item.nome}" onerror="this.onerror=null;this.src='https://placehold.co/150x120?text=${item.nome[0]}'">
+          <img src="${item.imagem}" alt="${item.nome}" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/150x120?text=${item.nome[0]}'">
           <h3 style="font-size: 0.95rem !important; padding: 0.6rem 0.6rem 0.9rem 0.6rem; margin: 0; color: #2c3e50; font-weight: bold; white-space: normal; line-height: 1.2;">${item.nome}</h3>
         </div>
       `;
@@ -3756,7 +4253,7 @@ async function gerarCodigoAcesso() {
     if (data.success) {
       fecharOpcoes();
       showLoading(false);
-      await mostrarAlerta(`CÓDIGO DE ACESSO: ${data.codigo}\n\nInforme este código ao cliente para liberar o cardápio digital na Mesa ${mesaAtual.numero}.`, "Código Gerado", "🔑", data.codigo);
+      await mostrarAlerta(`CÓDIGO DE ACESSO: ${data.codigo}\n\nInforme este código ao cliente para liberar o cardápio digital em ${formatarNomeMesaGarcom(mesaAtual, false)}.`, "Código Gerado", "🔑", data.codigo);
     } else {
       showLoading(false);
       await mostrarAlerta("Erro ao gerar código.", "Erro", "❌");
@@ -3770,7 +4267,7 @@ async function gerarCodigoAcesso() {
 async function cancelarCodigoAcesso() {
   if (!mesaAtual) return;
   
-  const confirm = await mostrarConfirmacao(`Deseja realmente CANCELAR o acesso digital da Mesa ${mesaAtual.numero}? O cliente será deslogado e a mesa ficará livre.`, "Confirmar Cancelamento", "Confirmar", "Cancelar", "❓");
+  const confirm = await mostrarConfirmacao(`Deseja realmente CANCELAR o acesso digital de ${formatarNomeMesaGarcom(mesaAtual, false)}? O cliente será deslogado e o local ficará livre.`, "Confirmar Cancelamento", "Confirmar", "Cancelar", "❓");
   if (!confirm) return;
 
   try {
@@ -3798,6 +4295,7 @@ async function cancelarCodigoAcesso() {
 function configurarEventos() {
   document.getElementById('enviar-pedido').addEventListener('click', enviarPedido);
   document.getElementById('voltar-mesas').addEventListener('click', voltarParaMesas);
+  configurarGestoDeslizarMesas();
   const categorias = ['todas', ...new Set(menu.map(item => item.categoria))];
   const container = document.getElementById('categorias');
   if (container) {
@@ -3831,7 +4329,7 @@ function verQRCodeMesa() {
   
   const html = `
     <div style="text-align: center; padding: 10px;">
-      <p style="margin-bottom: 15px; font-weight: bold; color: #2c3e50; font-size: 1.2rem;">Acesso Digital - Mesa ${mesaAtual.numero}</p>
+      <p style="margin-bottom: 15px; font-weight: bold; color: #2c3e50; font-size: 1.2rem;">Acesso Digital - ${formatarNomeMesaGarcom(mesaAtual)}</p>
       <div style="background: white; padding: 15px; border-radius: 15px; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 15px;">
         <img src="${qrUrl}" style="width: 220px; height: 220px; display: block;">
       </div>
