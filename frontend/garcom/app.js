@@ -2662,8 +2662,14 @@ async function verItensDaMesa(isSilencioso = false) {
       if (!isSilencioso) showLoading(false);
       return await mostrarAlerta("Nenhum pedido ativo.", "Aviso", "⚠️");
     }
-    const resItens = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/itens`);
-    const itens = await resItens.json();
+    // Otimização de performance: Se os itens já vieram anexados no pedido, usa imediatamente
+    let itens;
+    if (pedidoAbertoNaMesa.itens && Array.isArray(pedidoAbertoNaMesa.itens)) {
+      itens = pedidoAbertoNaMesa.itens;
+    } else {
+      const resItens = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/itens`);
+      itens = await resItens.json();
+    }
     if (!isSilencioso) showLoading(false);
     
     // Inicialização do estado de edição local se não for silêncio
@@ -2720,7 +2726,7 @@ function renderizarItensMesaGarcom() {
     return `
       <div style="border-bottom: 1px solid #eee; padding: 10px; display: flex; justify-content: space-between; align-items: center; background:${bgColor}; border-radius: 8px; margin-bottom: 8px;">
         <div style="width: 40px; height: 40px; flex-shrink: 0; margin-right: 10px; border-radius: 4px; overflow: hidden; background: #eee;">
-          <img src="${item.imagem}" style="width: 100%; height: 100%; object-fit: cover;">
+          <img src="${item.imagem || 'data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\' viewBox=\'0 0 40 40\'><rect fill=\'%23f1f2f6\' width=\'40\' height=\'40\'/><text fill=\'%23a4b0be\' font-size=\'16\' x=\'50%25\' y=\'55%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'>🍽️</text></svg>'}" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\' viewBox=\'0 0 40 40\'><rect fill=\'%23f1f2f6\' width=\'40\' height=\'40\'/><text fill=\'%23a4b0be\' font-size=\'16\' x=\'50%25\' y=\'55%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'>🍽️</text></svg>';" style="width: 100%; height: 100%; object-fit: cover;">
         </div>
         <div style="flex-grow: 1; text-align: left;">
           <p style="margin: 0; font-weight: bold; color: #2c3e50;">${item.nome} ${statusLabel}</p>
@@ -3485,7 +3491,7 @@ async function exibirMenu(categoria, queryTexto = '') {
             ${isItemParaChurrasco(item) ? '<div style="background: #e67e22; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.75rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); margin-top: 2px;">🍢 CHURRASCO</div>' : ''}
           </div>
 
-          <img src="${item.imagem}" alt="${item.nome}" onerror="this.onerror=null;this.src='https://placehold.co/150x120?text=${item.nome[0]}'">
+          <img src="${item.imagem}" alt="${item.nome}" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/150x120?text=${item.nome[0]}'">
           <h3 style="font-size: 0.95rem !important; padding: 0.6rem 0.6rem 0.9rem 0.6rem; margin: 0; color: #2c3e50; font-weight: bold; white-space: normal; line-height: 1.2;">${item.nome}</h3>
         </div>
       `;

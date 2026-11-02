@@ -386,7 +386,18 @@ module.exports = (ctx) => {
   // GET /api/pedidos/mesa/:mesaId
   router.get('/mesa/:mesaId', isAuthenticated, async (req, res) => { 
     try {
-      res.json((await query(`SELECT * FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY created_at DESC LIMIT 1`, [req.params.mesaId])).rows[0] || null); 
+      const pedidoRes = await query(`SELECT * FROM pedidos WHERE mesa_id = ? AND status NOT IN ('entregue', 'cancelado', 'rascunho') ORDER BY created_at DESC LIMIT 1`, [req.params.mesaId]);
+      const pedido = pedidoRes.rows[0] || null;
+      if (pedido) {
+        try {
+          const itensRes = await query(`SELECT pi.*, m.nome, COALESCE(pi.preco, m.preco) as preco, m.categoria, m.enviar_cozinha, m.enviar_churrasco, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [pedido.id]);
+          pedido.itens = itensRes.rows || [];
+        } catch (itemErr) {
+          console.warn('⚠️ Erro não-bloqueante ao anexar itens ao pedido de mesa:', itemErr.message);
+          pedido.itens = [];
+        }
+      }
+      res.json(pedido); 
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 

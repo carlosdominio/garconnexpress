@@ -146,84 +146,97 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     }
   });
 
+  let ultimaLimpezaComandas = 0;
+  let limpandoComandas = false;
+
+  async function limparComandasOrfasEmBackground() {
+    const agora = Date.now();
+    if (limpandoComandas || (agora - ultimaLimpezaComandas < 60000)) return;
+    limpandoComandas = true;
+    ultimaLimpezaComandas = agora;
+    try {
+      let comandasLivre;
+      try {
+        comandasLivre = await query("SELECT id, numero, tipo, is_comanda, created_at FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR tipo = 'balcao' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%' OR LOWER(CAST(numero AS TEXT)) LIKE 'balc%')");
+      } catch (eCol) {
+        comandasLivre = await query("SELECT id, numero, tipo, is_comanda FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR tipo = 'balcao' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%' OR LOWER(CAST(numero AS TEXT)) LIKE 'balc%')");
+      }
+      let limpouAlguma = false;
+
+      for (const c of (comandasLivre.rows || [])) {
+        const numTrim = String(c.numero || '').trim();
+        // Se for mesa física com número puro (ex: 1 a 100) e não é comanda nem balcão, protege e repara
+        if (/^\d+$/.test(numTrim) && c.tipo !== 'comanda' && c.tipo !== 'balcao' && !numTrim.toLowerCase().startsWith('comanda') && !numTrim.toLowerCase().startsWith('balc')) {
+          await query("UPDATE mesas SET is_comanda = 0, tipo = 'mesa' WHERE id = ?", [c.id]);
+          continue;
+        }
+        // Para comandas descartáveis:
+        const ativos = await query("SELECT id FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status NOT IN ('entregue', 'cancelado', 'rascunho')", [c.id]);
+        const rascunhos = await query("SELECT id FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status = 'rascunho'", [c.id]);
+        const codigos = await query("SELECT id FROM codigos_acesso WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status = 'ativo'", [c.id]);
+        const finalizados = await query("SELECT id FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status IN ('entregue', 'cancelado')", [c.id]);
+
+        const temAtivos = (ativos.rows || []).length > 0;
+        const temRascunhos = (rascunhos.rows || []).length > 0;
+        const temCodigos = (codigos.rows || []).length > 0;
+        const temFinalizados = (finalizados.rows || []).length > 0;
+
+        if (!temAtivos && !temRascunhos && !temCodigos) {
+          let deveExcluir = false;
+
+          if (temFinalizados) {
+            // Teve pedidos e todos foram entregues ou cancelados -> exclui imediatamente
+            deveExcluir = true;
+          } else {
+            // Comanda criada sem nenhum item:
+            // Exclui se foi criada há mais de 5 minutos ou se não tem timestamp registrado (antigas órfãs)
+            let criadoHaMinutos = 999;
+            if (c.created_at) {
+              try {
+                let dStr = String(c.created_at);
+                if (!dStr.endsWith('Z') && dStr.includes('-') && dStr.includes(':')) {
+                  dStr = dStr.replace(' ', 'T') + 'Z';
+                }
+                const d = new Date(dStr);
+                const agoraD = new Date();
+                const diffMs = agoraD.getTime() - d.getTime();
+                if (!isNaN(diffMs)) {
+                  criadoHaMinutos = Math.max(0, Math.floor(diffMs / 60000));
+                }
+              } catch (e) {
+                criadoHaMinutos = 999;
+              }
+            }
+
+            if (criadoHaMinutos >= 5) {
+              deveExcluir = true;
+            }
+          }
+
+          if (deveExcluir) {
+            await query("DELETE FROM mesas WHERE id = ?", [c.id]);
+            limpouAlguma = true;
+          }
+        }
+      }
+
+      if (limpouAlguma) {
+        safePusherTrigger('garconnexpress', 'menu-atualizado', {}).catch(() => {});
+      }
+    } catch (cleanErr) {
+      console.warn('⚠️ Erro não-bloqueante na limpeza de comandas finalizadas:', cleanErr.message);
+    } finally {
+      limpandoComandas = false;
+    }
+  }
+
   router.get('/', ensureDbInitialized, isAuthenticated, async (req, res) => { 
     if (typeof checkAndNotifyDelayedOrders === 'function') {
       checkAndNotifyDelayedOrders().catch(err => console.warn('⚠️ Erro background em checkAndNotifyDelayedOrders:', err.message));
     }
+    // Dispara a limpeza de comandas órfãs em segundo plano (não bloqueia a resposta das mesas)
+    limparComandasOrfasEmBackground().catch(() => {});
     try {
-      // Limpeza automática de comandas finalizadas/canceladas ou abandonadas sem itens
-      try {
-        let comandasLivre;
-        try {
-          comandasLivre = await query("SELECT id, numero, tipo, is_comanda, created_at FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR tipo = 'balcao' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%' OR LOWER(CAST(numero AS TEXT)) LIKE 'balc%')");
-        } catch (eCol) {
-          comandasLivre = await query("SELECT id, numero, tipo, is_comanda FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR tipo = 'balcao' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%' OR LOWER(CAST(numero AS TEXT)) LIKE 'balc%')");
-        }
-        let limpouAlguma = false;
-
-        for (const c of (comandasLivre.rows || [])) {
-          const numTrim = String(c.numero || '').trim();
-          // Se for mesa física com número puro (ex: 1 a 100) e não é comanda nem balcão, protege e repara
-          if (/^\d+$/.test(numTrim) && c.tipo !== 'comanda' && c.tipo !== 'balcao' && !numTrim.toLowerCase().startsWith('comanda') && !numTrim.toLowerCase().startsWith('balc')) {
-            await query("UPDATE mesas SET is_comanda = 0, tipo = 'mesa' WHERE id = ?", [c.id]);
-            continue;
-          }
-          // Para comandas descartáveis:
-          const ativos = await query("SELECT id FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status NOT IN ('entregue', 'cancelado', 'rascunho')", [c.id]);
-          const rascunhos = await query("SELECT id FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status = 'rascunho'", [c.id]);
-          const codigos = await query("SELECT id FROM codigos_acesso WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status = 'ativo'", [c.id]);
-          const finalizados = await query("SELECT id FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status IN ('entregue', 'cancelado')", [c.id]);
-
-          const temAtivos = (ativos.rows || []).length > 0;
-          const temRascunhos = (rascunhos.rows || []).length > 0;
-          const temCodigos = (codigos.rows || []).length > 0;
-          const temFinalizados = (finalizados.rows || []).length > 0;
-
-          if (!temAtivos && !temRascunhos && !temCodigos) {
-            let deveExcluir = false;
-
-            if (temFinalizados) {
-              // Teve pedidos e todos foram entregues ou cancelados -> exclui imediatamente
-              deveExcluir = true;
-            } else {
-              // Comanda criada sem nenhum item:
-              // Exclui se foi criada há mais de 5 minutos ou se não tem timestamp registrado (antigas órfãs)
-              let criadoHaMinutos = 999;
-              if (c.created_at) {
-                try {
-                  let dStr = String(c.created_at);
-                  if (!dStr.endsWith('Z') && dStr.includes('-') && dStr.includes(':')) {
-                    dStr = dStr.replace(' ', 'T') + 'Z';
-                  }
-                  const d = new Date(dStr);
-                  const agora = new Date();
-                  const diffMs = agora.getTime() - d.getTime();
-                  if (!isNaN(diffMs)) {
-                    criadoHaMinutos = Math.max(0, Math.floor(diffMs / 60000));
-                  }
-                } catch (e) {
-                  criadoHaMinutos = 999;
-                }
-              }
-
-              if (criadoHaMinutos >= 5) {
-                deveExcluir = true;
-              }
-            }
-
-            if (deveExcluir) {
-              await query("DELETE FROM mesas WHERE id = ?", [c.id]);
-              limpouAlguma = true;
-            }
-          }
-        }
-
-        if (limpouAlguma) {
-          safePusherTrigger('garconnexpress', 'menu-atualizado', {}).catch(() => {});
-        }
-      } catch (cleanErr) {
-        console.warn('⚠️ Erro não-bloqueante na limpeza de comandas finalizadas:', cleanErr.message);
-      }
 
       const mesasResult = await query(`
         SELECT m.*,
