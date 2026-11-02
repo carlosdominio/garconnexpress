@@ -4043,7 +4043,7 @@ async function exibirMesasConfig() {
     } else if (isComMesa) {
       tagTipoHtml = `<span style="background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe; font-size: 0.72rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; letter-spacing: 0.3px;">🍽️ COMANDA DE MESA</span>`;
     } else {
-      tagTipoHtml = `<span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; letter-spacing: 0.3px;">🪑 MESA FÍSICA</span>`;
+      tagTipoHtml = `<span style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; letter-spacing: 0.3px;">🍽️ MESA FÍSICA</span>`;
     }
 
     // TAG DO STATUS
@@ -4059,7 +4059,7 @@ async function exibirMesasConfig() {
 
     return `<div class="item-config" style="padding: 10px 14px; margin-bottom: 8px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
       <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-        <strong style="font-size: 0.98rem; color: #1e293b; min-width: 90px;">${isBalc ? '🏪 ' : (isComMesa ? '🍽️ ' : '🪑 ')}${label}</strong>
+        <strong style="font-size: 0.98rem; color: #1e293b; min-width: 90px;">${isBalc ? '🏪 ' : '🍽️ '}${label}</strong>
         ${tagTipoHtml}
         ${tagStatusHtml}
       </div>
@@ -5705,7 +5705,7 @@ function renderizarColunaHistorico(tipo, lista, pagina, container) {
     card.style.minHeight = '65px';
     
     const rawMesa = formatarNomeMesaHistorico(p);
-    const mesaIcon = p.garcom_id === 'DELIVERY' ? (isPedidoRetiradaLocal(p) ? '🛍️' : '🚚') : (rawMesa.includes('BALCÃO') ? '🛍️' : '🪑');
+    const mesaIcon = p.garcom_id === 'DELIVERY' ? (isPedidoRetiradaLocal(p) ? '🛍️' : '🚚') : (rawMesa.includes('BALCÃO') ? '🏪' : '🍽️');
     const mesaNome = `${mesaIcon} ${rawMesa}`;
     const valor = (p.total || 0) + (p.pago_parcial || 0);
 

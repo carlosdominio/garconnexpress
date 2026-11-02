@@ -1481,7 +1481,27 @@ async function configurarPusher() {
       const modalResumo = document.getElementById('modal-resumo-mesa');
       const isModalAberto = modalResumo && modalResumo.style.display !== 'none' && modalResumo.style.display !== '';
       if (isModalAberto && mesaAtual && data && data.mesa_id && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_id)) {
+        if (data.tipo_atualizacao === 'renomear_mesa' && data.mesa_numero) {
+          mesaAtual.numero = data.mesa_numero;
+        }
         verItensDaMesa(false);
+      }
+
+      const modalOpcoes = document.getElementById('modal-opcoes');
+      const isOpcoesAberto = modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.style.display !== '';
+      if (isOpcoesAberto && mesaAtual && data && data.mesa_id && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_id)) {
+        if (data.tipo_atualizacao === 'renomear_mesa' && data.mesa_numero) {
+          mesaAtual.numero = data.mesa_numero;
+          const elTitulo = document.getElementById('modal-mesa-titulo');
+          if (elTitulo) elTitulo.textContent = formatarNomeMesaGarcom(mesaAtual);
+        }
+      }
+
+      // Se foi renomeação de mesa/comanda pelo Admin, sincroniza imediatamente para todos os garçons
+      if (data && data.tipo_atualizacao === 'renomear_mesa') {
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => carregarMesas(), 50);
+        return;
       }
 
       const mesaId = data ? (data.mesa_id || data.mesa_numero) : null;
@@ -2179,9 +2199,9 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
     if (/^mesa/i.test(str)) {
       const numTrim = str.replace(/^mesa\s*/i, '').trim();
       const txt = numTrim ? `Mesa ${numTrim}` : 'Mesa';
-      return incluirIcone ? `🪑 ${txt}` : txt;
+      return incluirIcone ? `🍽️ ${txt}` : txt;
     }
-    return incluirIcone ? `🪑 Mesa ${str}` : `Mesa ${str}`;
+    return incluirIcone ? `🍽️ Mesa ${str}` : `Mesa ${str}`;
   }
 
   // Se for objeto (mesa ou pedido)
@@ -2207,7 +2227,7 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
     return incluirIcone ? `🧾 ${txt}` : txt;
   }
   const txt = limpo ? `Mesa ${limpo}` : (numRaw ? `Mesa ${numRaw}` : 'Mesa');
-  return incluirIcone ? `🪑 ${txt}` : txt;
+  return incluirIcone ? `🍽️ ${txt}` : txt;
 }
 
 function exibirMesas() {
@@ -2320,6 +2340,8 @@ function exibirMesas() {
     }
     return {
       id: m.id,
+      numero: m.numero,
+      tipo: m.tipo,
       status: m.status,
       garcom_id: m.garcom_id,
       pedido_status: m.pedido_status,
@@ -3114,7 +3136,7 @@ function abrirCardapio() {
     if (!mesaAtual) {
       const modalTitulo = document.getElementById('modal-mesa-titulo');
       if (modalTitulo && modalTitulo.innerText) {
-          const num = modalTitulo.innerText.replace(/^(🪑|🏪|🧾)?\s*(mesa|balc[aã]o|comanda)\s*/i, '').split('[')[0].trim();
+          const num = modalTitulo.innerText.replace(/^(🍽️|🪑|🏪|🧾)?\s*(mesa|balc[aã]o|comanda)\s*/i, '').split('[')[0].trim();
           mesaAtual = mesas.find(m => String(m.numero).trim() === num || String(m.id).trim() === num);
       }
     }

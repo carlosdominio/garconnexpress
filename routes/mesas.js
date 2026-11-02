@@ -138,6 +138,12 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
         await query("UPDATE pedidos SET mesa_numero = ? WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado')", [novoNome, mesaId, mesaId]);
       } catch(e) {}
 
+      // Notifica em tempo real Admin e Garçons sobre o novo nome da mesa/comanda
+      safePusherTrigger('garconnexpress', 'status-atualizado', {
+        mesa_id: mesaId,
+        mesa_numero: novoNome,
+        tipo_atualizacao: 'renomear_mesa'
+      }).catch(e => console.error(e));
       safePusherTrigger('garconnexpress', 'menu-atualizado', {}).catch(e => console.error(e));
       res.json({ success: true, numero: novoNome });
     } catch (error) { 
