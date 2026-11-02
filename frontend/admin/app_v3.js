@@ -5886,6 +5886,19 @@ function abrirModalDetalheHistorico(p) {
   if (itensLista) {
     let htmlContent = '';
     
+    // Aviso de Transferência no Histórico (se houver)
+    if (p.transferencia_origem) {
+      const isRecebido = String(p.transferencia_origem).toLowerCase().includes('recebeu');
+      htmlContent += `
+        <div style="margin-bottom: 12px; padding: 10px 14px; background: #eff6ff; border-radius: 8px; border: 1px solid #bfdbfe; border-left: 5px solid #3b82f6; font-size: 0.88rem; color: #1e40af; line-height: 1.4; display: flex; align-items: center; gap: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+          <span style="font-size: 1.3rem;">🔄</span>
+          <div>
+            <b style="display: block; font-size: 0.72rem; text-transform: uppercase; color: #3b82f6; letter-spacing: 0.5px;">${isRecebido ? 'Unificação de Mesas' : 'Transferência de Mesa'}</b>
+            <span style="font-weight: 700;">${p.transferencia_origem}</span>
+          </div>
+        </div>`;
+    }
+
     // Observação (se houver)
     if (p.observacao) {
       htmlContent += `
@@ -11281,14 +11294,29 @@ async function abrirModalOpcoes(pedidoId) {
   const lblTaxa = document.getElementById('modal-taxa-label-text');
   if (lblTaxa) lblTaxa.innerText = isDelivery ? (isRetirada ? 'TAXA GRÁTIS' : `R$ ${taxaDeliveryModalVal.toFixed(2)} ENTREGA`) : '10% TAXA';
 
-  // Exibir observação do pedido se existir
+  // Exibir aviso de transferência/unificação e observação do pedido se existirem
   const infoExtra = document.getElementById('modal-opcoes-info-extra');
   if (infoExtra) {
-    infoExtra.innerHTML = (pedido.observacao ? `
-      <div style="margin-bottom: 12px; padding: 10px; background: #fff9db; border-radius: 8px; border: 1px solid #fab005; font-size: 0.85rem; color: #856404; line-height: 1.4; white-space: pre-line;">
-        <b style="display: block; margin-bottom: 2px;">📝 OBSERVAÇÃO:</b>
-        ${pedido.observacao}
-      </div>` : '');
+    let htmlExtra = '';
+    if (pedido.transferencia_origem) {
+      const isRecebido = String(pedido.transferencia_origem).toLowerCase().includes('recebeu');
+      htmlExtra += `
+        <div style="margin-bottom: 12px; padding: 10px 14px; background: #eff6ff; border-radius: 8px; border: 1px solid #bfdbfe; border-left: 5px solid #3b82f6; font-size: 0.88rem; color: #1e40af; line-height: 1.4; display: flex; align-items: center; gap: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+          <span style="font-size: 1.3rem;">🔄</span>
+          <div>
+            <b style="display: block; font-size: 0.72rem; text-transform: uppercase; color: #3b82f6; letter-spacing: 0.5px;">${isRecebido ? 'Unificação de Mesas' : 'Transferência de Mesa'}</b>
+            <span style="font-weight: 700;">${pedido.transferencia_origem}</span>
+          </div>
+        </div>`;
+    }
+    if (pedido.observacao) {
+      htmlExtra += `
+        <div style="margin-bottom: 12px; padding: 10px; background: #fff9db; border-radius: 8px; border: 1px solid #fab005; font-size: 0.85rem; color: #856404; line-height: 1.4; white-space: pre-line;">
+          <b style="display: block; margin-bottom: 2px;">📝 OBSERVAÇÃO:</b>
+          ${pedido.observacao}
+        </div>`;
+    }
+    infoExtra.innerHTML = htmlExtra;
   }
   
   // Cores dinâmicas conforme status

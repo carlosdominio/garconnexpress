@@ -1524,9 +1524,43 @@ module.exports = (ctx) => {
       let merged = false;
       let finalPedidoId = pedido.id;
 
+      // Identificar o nome formatado da mesa de origem para exibição informativa no modal
+      let mesaOrigemObj = null;
+      if (mesaOrigemId) {
+        mesaOrigemObj = (await query("SELECT numero, is_comanda, tipo FROM mesas WHERE (id = ? OR CAST(id AS TEXT) = ? OR CAST(numero AS TEXT) = ?) LIMIT 1", [mesaOrigemId, String(mesaOrigemId), String(mesaOrigemId)])).rows?.[0];
+      }
+      const numOrigem = mesaOrigemObj?.numero || mesaOrigemNumero || pedido.mesa_numero || mesaOrigemId;
+      const isComOrigem = (mesaOrigemObj && mesaOrigemObj.is_comanda !== undefined)
+        ? Number(mesaOrigemObj.is_comanda)
+        : (pedido.is_comanda !== undefined ? Number(pedido.is_comanda) : 0);
+      const tipoOrigem = mesaOrigemObj?.tipo || (pedido.mesa_tipo) || '';
+
+      const formatarNomeOrigem = (num, isCom, tipo) => {
+        if (!num) return 'Balcão';
+        const str = String(num).trim();
+        if (/^(mesa|comanda|delivery|balcão|balcao)\b/i.test(str)) return str;
+        if (tipo === 'balcao' || str.toLowerCase().includes('balc')) return `Balcão ${str}`;
+        if (Number(isCom) === 1 || tipo === 'comanda' || str.toLowerCase().startsWith('comanda')) return `Comanda ${str}`;
+        return `Mesa ${str}`;
+      };
+
+      const nomeOrigemFmt = formatarNomeOrigem(numOrigem, isComOrigem, tipoOrigem);
+      let novoTextoTransf = '';
+
       if (pedidoDestino && String(pedidoDestino.id) !== String(pedido.id)) {
         merged = true;
         finalPedidoId = pedidoDestino.id;
+
+        // Texto informativo para unificação de mesas
+        if (!pedidoDestino.transferencia_origem) {
+          novoTextoTransf = `Recebeu itens da ${nomeOrigemFmt}`;
+        } else if (pedidoDestino.transferencia_origem.toLowerCase().includes(nomeOrigemFmt.toLowerCase())) {
+          novoTextoTransf = pedidoDestino.transferencia_origem;
+        } else if (pedidoDestino.transferencia_origem.toLowerCase().startsWith('recebeu itens da')) {
+          novoTextoTransf = `${pedidoDestino.transferencia_origem} e ${nomeOrigemFmt}`;
+        } else {
+          novoTextoTransf = `${pedidoDestino.transferencia_origem} | Recebeu itens da ${nomeOrigemFmt}`;
+        }
 
         await query("UPDATE pedido_itens SET pedido_id = ? WHERE (pedido_id = ? OR CAST(pedido_id AS TEXT) = ?)", [pedidoDestino.id, pedido.id, String(pedido.id)]);
 
@@ -1543,31 +1577,36 @@ module.exports = (ctx) => {
         const novoAcrescimo = (parseFloat(pedidoDestino.acrescimo) || 0) + (parseFloat(pedido.acrescimo) || 0);
         const novoPagoParcial = (parseFloat(pedidoDestino.pago_parcial) || 0) + (parseFloat(pedido.pago_parcial) || 0);
 
-        await query("UPDATE pedidos SET total = ?, desconto = ?, acrescimo = ?, pago_parcial = ? WHERE (id = ? OR CAST(id AS TEXT) = ?)", [total, novoDesconto, novoAcrescimo, novoPagoParcial, pedidoDestino.id, String(pedidoDestino.id)]);
+        await query("UPDATE pedidos SET total = ?, desconto = ?, acrescimo = ?, pago_parcial = ?, transferencia_origem = ? WHERE (id = ? OR CAST(id AS TEXT) = ?)", [total, novoDesconto, novoAcrescimo, novoPagoParcial, novoTextoTransf, pedidoDestino.id, String(pedidoDestino.id)]);
 
         const obsTransf = ` [Itens transferidos para Pedido #${pedidoDestino.id} - Mesa ${mesaDestino.numero}]`;
         await query("UPDATE pedidos SET status = 'cancelado', observacao = COALESCE(observacao, '') || ? WHERE (id = ? OR CAST(id AS TEXT) = ?)", [obsTransf, pedido.id, String(pedido.id)]);
 
         await query("UPDATE mesas SET status = 'ocupada' WHERE (id = ? OR CAST(id AS TEXT) = ?)", [mesaDestino.id, String(mesaDestino.id)]);
       } else {
+        // Texto informativo para transferência para mesa vazia
+        novoTextoTransf = `Transferida da ${nomeOrigemFmt}`;
         const isComandaDest = (Number(mesaDestino.is_comanda) === 1 || mesaDestino.tipo === 'balcao' || mesaDestino.tipo === 'comanda') ? 1 : 0;
-        await query("UPDATE pedidos SET mesa_id = ?, mesa_numero = ?, is_comanda = ? WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [
+        await query("UPDATE pedidos SET mesa_id = ?, mesa_numero = ?, is_comanda = ?, transferencia_origem = ? WHERE (id = ? OR CAST(id AS TEXT) = ?)", [
           mesaDestino.id,
           mesaDestino.numero,
           isComandaDest,
-          pedido.id
+          novoTextoTransf,
+          pedido.id,
+          String(pedido.id)
         ]);
 
-        await query("UPDATE mesas SET status = 'ocupada', garcom_id = COALESCE(?, garcom_id) WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [
+        await query("UPDATE mesas SET status = 'ocupada', garcom_id = COALESCE(?, garcom_id) WHERE (id = ? OR CAST(id AS TEXT) = ?)", [
           pedido.garcom_id,
-          mesaDestino.id
+          mesaDestino.id,
+          String(mesaDestino.id)
         ]);
       }
 
       if (mesaOrigemId) {
         const ativosRestantes = (await query("SELECT id FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND CAST(id AS TEXT) != CAST(? AS TEXT)", [mesaOrigemId, pedido.id])).rows;
         if (ativosRestantes.length === 0) {
-          await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [mesaOrigemId]);
+          await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE (id = ? OR CAST(id AS TEXT) = ?)", [mesaOrigemId, String(mesaOrigemId)]);
         }
       }
 
@@ -1584,7 +1623,8 @@ module.exports = (ctx) => {
       await safePusherTrigger('garconnexpress', 'pedido-atualizado', {
         id: finalPedidoId,
         mesa_id: mesaDestino.id,
-        mesa_numero: mesaDestino.numero
+        mesa_numero: mesaDestino.numero,
+        transferencia_origem: novoTextoTransf
       });
 
       if (mesaOrigemId) {
@@ -1610,6 +1650,7 @@ module.exports = (ctx) => {
         pedido_id: finalPedidoId,
         mesa_origem: mesaOrigemNumero || mesaOrigemId,
         mesa_destino: mesaDestino.numero,
+        transferencia_origem: novoTextoTransf,
         mensagem: merged 
           ? `Itens transferidos e unificados com sucesso na Mesa ${mesaDestino.numero}!` 
           : `Pedido transferido com sucesso para a Mesa ${mesaDestino.numero}!`

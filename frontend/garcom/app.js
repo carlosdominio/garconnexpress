@@ -1495,6 +1495,23 @@ async function configurarPusher() {
           const elTitulo = document.getElementById('modal-mesa-titulo');
           if (elTitulo) elTitulo.textContent = formatarNomeMesaGarcom(mesaAtual);
         }
+        if (data.transferencia_origem) {
+          mesaAtual.transferencia_origem = data.transferencia_origem;
+          const bannerTransf = document.getElementById('banner-transferencia-garcom');
+          if (bannerTransf) {
+            const isRecebido = String(data.transferencia_origem).toLowerCase().includes('recebeu');
+            bannerTransf.innerHTML = `
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.2rem;">🔄</span>
+                <div>
+                  <b style="display: block; font-size: 0.72rem; text-transform: uppercase; color: #3b82f6; letter-spacing: 0.5px;">${isRecebido ? 'Unificação de Mesas' : 'Transferência de Mesa'}</b>
+                  <span style="font-weight: 700;">${data.transferencia_origem}</span>
+                </div>
+              </div>
+            `;
+            bannerTransf.style.display = 'block';
+          }
+        }
       }
 
       // Se foi renomeação de mesa/comanda pelo Admin, sincroniza imediatamente para todos os garçons
@@ -2638,6 +2655,29 @@ async function mostrarOpcoesMesa(mesa) {
   }
 
   document.getElementById('modal-mesa-titulo').textContent = tituloModal;
+
+  // Banner de transferência / unificação de mesa (visível exclusivamente dentro do modal de opções)
+  const bannerTransf = document.getElementById('banner-transferencia-garcom');
+  if (bannerTransf) {
+    const textoTransf = mesa.transferencia_origem || (pedidoAbertoNaMesa && pedidoAbertoNaMesa.transferencia_origem);
+    if (textoTransf) {
+      const isRecebido = String(textoTransf).toLowerCase().includes('recebeu');
+      bannerTransf.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.2rem;">🔄</span>
+          <div>
+            <b style="display: block; font-size: 0.72rem; text-transform: uppercase; color: #3b82f6; letter-spacing: 0.5px;">${isRecebido ? 'Unificação de Mesas' : 'Transferência de Mesa'}</b>
+            <span style="font-weight: 700;">${textoTransf}</span>
+          </div>
+        </div>
+      `;
+      bannerTransf.style.display = 'block';
+    } else {
+      bannerTransf.style.display = 'none';
+      bannerTransf.innerHTML = '';
+    }
+  }
+
   document.getElementById('modal-opcoes').style.display = 'block';
   atualizarBloqueioScroll();
 }

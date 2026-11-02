@@ -243,42 +243,81 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     // Dispara a limpeza de comandas órfãs em segundo plano (não bloqueia a resposta das mesas)
     limparComandasOrfasEmBackground().catch(() => {});
     try {
-
-      const mesasResult = await query(`
-        SELECT m.*,
-          p.id as pedido_id,
-          p.created_at as pedido_created_at,
-          COALESCE(p.garcom_id, m.garcom_id) as garcom_id,
-          p.status as pedido_status,
-          p.solicitou_fechamento as solicitou_fechamento,
-          p.fechamento_solicitado_em as fechamento_solicitado_em,
-          p.fechamento_liberado as fechamento_liberado,
-          p.forma_pagamento as forma_pagamento,
-          ca.codigo as codigo_acesso,
-          ca.criado_at as codigo_criado_at,
-          (CASE WHEN m.status != 'livre' AND (SELECT COUNT(id) FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(m.numero AS TEXT)) AND status = 'rascunho') > 0 THEN 1 ELSE 0 END) as tem_rascunho
-        FROM mesas m
-        LEFT JOIN (
-          SELECT p1.*
-          FROM pedidos p1
-          INNER JOIN (
-            SELECT CAST(mesa_id AS TEXT) as mesa_id_txt, MAX(id) as max_id
-            FROM pedidos
-            WHERE status NOT IN ('entregue', 'cancelado', 'rascunho')
-            GROUP BY CAST(mesa_id AS TEXT)
-          ) p2 ON p1.id = p2.max_id
-        ) p ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
-        LEFT JOIN (
-          SELECT ca1.*
-          FROM codigos_acesso ca1
-          INNER JOIN (
-            SELECT CAST(mesa_id AS TEXT) as mesa_id_txt, MAX(id) as max_id
-            FROM codigos_acesso
-            WHERE status = 'ativo'
-            GROUP BY CAST(mesa_id AS TEXT)
-          ) ca2 ON ca1.id = ca2.max_id
-        ) ca ON (CAST(ca.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(ca.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
-      `); 
+      let mesasResult;
+      try {
+        mesasResult = await query(`
+          SELECT m.*,
+            p.id as pedido_id,
+            p.created_at as pedido_created_at,
+            COALESCE(p.garcom_id, m.garcom_id) as garcom_id,
+            p.status as pedido_status,
+            p.solicitou_fechamento as solicitou_fechamento,
+            p.fechamento_solicitado_em as fechamento_solicitado_em,
+            p.fechamento_liberado as fechamento_liberado,
+            p.forma_pagamento as forma_pagamento,
+            p.transferencia_origem as transferencia_origem,
+            ca.codigo as codigo_acesso,
+            ca.criado_at as codigo_criado_at,
+            (CASE WHEN m.status != 'livre' AND (SELECT COUNT(id) FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(m.numero AS TEXT)) AND status = 'rascunho') > 0 THEN 1 ELSE 0 END) as tem_rascunho
+          FROM mesas m
+          LEFT JOIN (
+            SELECT p1.*
+            FROM pedidos p1
+            INNER JOIN (
+              SELECT CAST(mesa_id AS TEXT) as mesa_id_txt, MAX(id) as max_id
+              FROM pedidos
+              WHERE status NOT IN ('entregue', 'cancelado', 'rascunho')
+              GROUP BY CAST(mesa_id AS TEXT)
+            ) p2 ON p1.id = p2.max_id
+          ) p ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
+          LEFT JOIN (
+            SELECT ca1.*
+            FROM codigos_acesso ca1
+            INNER JOIN (
+              SELECT CAST(mesa_id AS TEXT) as mesa_id_txt, MAX(id) as max_id
+              FROM codigos_acesso
+              WHERE status = 'ativo'
+              GROUP BY CAST(mesa_id AS TEXT)
+            ) ca2 ON ca1.id = ca2.max_id
+          ) ca ON (CAST(ca.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(ca.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
+        `); 
+      } catch (errCol) {
+        mesasResult = await query(`
+          SELECT m.*,
+            p.id as pedido_id,
+            p.created_at as pedido_created_at,
+            COALESCE(p.garcom_id, m.garcom_id) as garcom_id,
+            p.status as pedido_status,
+            p.solicitou_fechamento as solicitou_fechamento,
+            p.fechamento_solicitado_em as fechamento_solicitado_em,
+            p.fechamento_liberado as fechamento_liberado,
+            p.forma_pagamento as forma_pagamento,
+            ca.codigo as codigo_acesso,
+            ca.criado_at as codigo_criado_at,
+            (CASE WHEN m.status != 'livre' AND (SELECT COUNT(id) FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(m.numero AS TEXT)) AND status = 'rascunho') > 0 THEN 1 ELSE 0 END) as tem_rascunho
+          FROM mesas m
+          LEFT JOIN (
+            SELECT p1.*
+            FROM pedidos p1
+            INNER JOIN (
+              SELECT CAST(mesa_id AS TEXT) as mesa_id_txt, MAX(id) as max_id
+              FROM pedidos
+              WHERE status NOT IN ('entregue', 'cancelado', 'rascunho')
+              GROUP BY CAST(mesa_id AS TEXT)
+            ) p2 ON p1.id = p2.max_id
+          ) p ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
+          LEFT JOIN (
+            SELECT ca1.*
+            FROM codigos_acesso ca1
+            INNER JOIN (
+              SELECT CAST(mesa_id AS TEXT) as mesa_id_txt, MAX(id) as max_id
+              FROM codigos_acesso
+              WHERE status = 'ativo'
+              GROUP BY CAST(mesa_id AS TEXT)
+            ) ca2 ON ca1.id = ca2.max_id
+          ) ca ON (CAST(ca.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(ca.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
+        `); 
+      } 
 
       const mesasRows = (mesasResult.rows || []).map(m => {
         const numTrim = String(m.numero || '').trim();

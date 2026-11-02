@@ -2926,7 +2926,7 @@ async function initDb() {
   const tables = [
     `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero TEXT NOT NULL, status TEXT DEFAULT 'livre', garcom_id TEXT, is_comanda INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, preco_original REAL, descricao TEXT, imagem TEXT, estoque INTEGER DEFAULT -1, validade DATE, enviar_cozinha BOOLEAN DEFAULT TRUE, enviar_churrasco BOOLEAN DEFAULT NULL, visivel BOOLEAN DEFAULT TRUE, visivel_delivery BOOLEAN DEFAULT TRUE, em_promocao BOOLEAN DEFAULT FALSE)`,
-    `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
+    `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0, transferencia_origem TEXT)`,
     `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
     `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT, comissao REAL DEFAULT 0, is_online BOOLEAN DEFAULT FALSE, last_assigned_at TIMESTAMP, cargo TEXT DEFAULT 'garcom', ativo BOOLEAN DEFAULT TRUE)`,
@@ -3111,6 +3111,7 @@ async function initDb() {
     await addCol('pedidos', 'balcao_imediato', 'INTEGER DEFAULT 0');
     await addCol('pedidos', 'mesa_numero', 'TEXT');
     await addCol('pedidos', 'is_comanda', 'INTEGER DEFAULT 0');
+    await addCol('pedidos', 'transferencia_origem', 'TEXT');
     
     // Garante que a tabela pagamentos tenha as colunas necessárias
     await addCol('pagamentos', 'recebido', 'REAL DEFAULT 0');
@@ -3211,6 +3212,7 @@ async function lazyInitDb() {
             await db.query(`
               ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS mesa_numero TEXT;
               ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0;
+              ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS transferencia_origem TEXT;
               ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS notificado_atraso INTEGER DEFAULT 0;
               ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS notificado_atraso_fechamento INTEGER DEFAULT 0;
               ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS solicitou_fechamento BOOLEAN DEFAULT FALSE;
@@ -6201,9 +6203,43 @@ const transferirMesaServerHandler = async (req, res) => {
     let merged = false;
     let finalPedidoId = pedido.id;
 
+    // Identificar o nome formatado da mesa de origem para exibição informativa no modal
+    let mesaOrigemObj = null;
+    if (mesaOrigemId) {
+      mesaOrigemObj = (await query("SELECT numero, is_comanda, tipo FROM mesas WHERE (id = ? OR CAST(id AS TEXT) = ? OR CAST(numero AS TEXT) = ?) LIMIT 1", [mesaOrigemId, String(mesaOrigemId), String(mesaOrigemId)])).rows?.[0];
+    }
+    const numOrigem = mesaOrigemObj?.numero || mesaOrigemNumero || pedido.mesa_numero || mesaOrigemId;
+    const isComOrigem = (mesaOrigemObj && mesaOrigemObj.is_comanda !== undefined)
+      ? Number(mesaOrigemObj.is_comanda)
+      : (pedido.is_comanda !== undefined ? Number(pedido.is_comanda) : 0);
+    const tipoOrigem = mesaOrigemObj?.tipo || (pedido.mesa_tipo) || '';
+
+    const formatarNomeOrigem = (num, isCom, tipo) => {
+      if (!num) return 'Balcão';
+      const str = String(num).trim();
+      if (/^(mesa|comanda|delivery|balcão|balcao)\b/i.test(str)) return str;
+      if (tipo === 'balcao' || str.toLowerCase().includes('balc')) return `Balcão ${str}`;
+      if (Number(isCom) === 1 || tipo === 'comanda' || str.toLowerCase().startsWith('comanda')) return `Comanda ${str}`;
+      return `Mesa ${str}`;
+    };
+
+    const nomeOrigemFmt = formatarNomeOrigem(numOrigem, isComOrigem, tipoOrigem);
+    let novoTextoTransf = '';
+
     if (pedidoDestino && String(pedidoDestino.id) !== String(pedido.id)) {
       merged = true;
       finalPedidoId = pedidoDestino.id;
+
+      // Texto informativo para unificação de mesas
+      if (!pedidoDestino.transferencia_origem) {
+        novoTextoTransf = `Recebeu itens da ${nomeOrigemFmt}`;
+      } else if (pedidoDestino.transferencia_origem.toLowerCase().includes(nomeOrigemFmt.toLowerCase())) {
+        novoTextoTransf = pedidoDestino.transferencia_origem;
+      } else if (pedidoDestino.transferencia_origem.toLowerCase().startsWith('recebeu itens da')) {
+        novoTextoTransf = `${pedidoDestino.transferencia_origem} e ${nomeOrigemFmt}`;
+      } else {
+        novoTextoTransf = `${pedidoDestino.transferencia_origem} | Recebeu itens da ${nomeOrigemFmt}`;
+      }
 
       await query("UPDATE pedido_itens SET pedido_id = ? WHERE (pedido_id = ? OR CAST(pedido_id AS TEXT) = ?)", [pedidoDestino.id, pedido.id, String(pedido.id)]);
 
@@ -6220,31 +6256,36 @@ const transferirMesaServerHandler = async (req, res) => {
       const novoAcrescimo = (parseFloat(pedidoDestino.acrescimo) || 0) + (parseFloat(pedido.acrescimo) || 0);
       const novoPagoParcial = (parseFloat(pedidoDestino.pago_parcial) || 0) + (parseFloat(pedido.pago_parcial) || 0);
 
-      await query("UPDATE pedidos SET total = ?, desconto = ?, acrescimo = ?, pago_parcial = ? WHERE (id = ? OR CAST(id AS TEXT) = ?)", [total, novoDesconto, novoAcrescimo, novoPagoParcial, pedidoDestino.id, String(pedidoDestino.id)]);
+      await query("UPDATE pedidos SET total = ?, desconto = ?, acrescimo = ?, pago_parcial = ?, transferencia_origem = ? WHERE (id = ? OR CAST(id AS TEXT) = ?)", [total, novoDesconto, novoAcrescimo, novoPagoParcial, novoTextoTransf, pedidoDestino.id, String(pedidoDestino.id)]);
 
       const obsTransf = ` [Itens transferidos para Pedido #${pedidoDestino.id} - Mesa ${mesaDestino.numero}]`;
       await query("UPDATE pedidos SET status = 'cancelado', observacao = COALESCE(observacao, '') || ? WHERE (id = ? OR CAST(id AS TEXT) = ?)", [obsTransf, pedido.id, String(pedido.id)]);
 
       await query("UPDATE mesas SET status = 'ocupada' WHERE (id = ? OR CAST(id AS TEXT) = ?)", [mesaDestino.id, String(mesaDestino.id)]);
     } else {
+      // Texto informativo para transferência para mesa vazia
+      novoTextoTransf = `Transferida da ${nomeOrigemFmt}`;
       const isComandaDest = (Number(mesaDestino.is_comanda) === 1 || mesaDestino.tipo === 'balcao' || mesaDestino.tipo === 'comanda') ? 1 : 0;
-      await query("UPDATE pedidos SET mesa_id = ?, mesa_numero = ?, is_comanda = ? WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [
+      await query("UPDATE pedidos SET mesa_id = ?, mesa_numero = ?, is_comanda = ?, transferencia_origem = ? WHERE (id = ? OR CAST(id AS TEXT) = ?)", [
         mesaDestino.id,
         mesaDestino.numero,
         isComandaDest,
-        pedido.id
+        novoTextoTransf,
+        pedido.id,
+        String(pedido.id)
       ]);
 
-      await query("UPDATE mesas SET status = 'ocupada', garcom_id = COALESCE(?, garcom_id) WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [
+      await query("UPDATE mesas SET status = 'ocupada', garcom_id = COALESCE(?, garcom_id) WHERE (id = ? OR CAST(id AS TEXT) = ?)", [
         pedido.garcom_id,
-        mesaDestino.id
+        mesaDestino.id,
+        String(mesaDestino.id)
       ]);
     }
 
     if (mesaOrigemId) {
       const ativosRestantes = (await query("SELECT id FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND CAST(id AS TEXT) != CAST(? AS TEXT)", [mesaOrigemId, pedido.id])).rows;
       if (ativosRestantes.length === 0) {
-        await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [mesaOrigemId]);
+        await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE (id = ? OR CAST(id AS TEXT) = ?)", [mesaOrigemId, String(mesaOrigemId)]);
       }
     }
 
@@ -6261,7 +6302,8 @@ const transferirMesaServerHandler = async (req, res) => {
     await safePusherTrigger('garconnexpress', 'pedido-atualizado', {
       id: finalPedidoId,
       mesa_id: mesaDestino.id,
-      mesa_numero: mesaDestino.numero
+      mesa_numero: mesaDestino.numero,
+      transferencia_origem: novoTextoTransf
     });
 
     if (mesaOrigemId) {
@@ -6287,6 +6329,7 @@ const transferirMesaServerHandler = async (req, res) => {
       pedido_id: finalPedidoId,
       mesa_origem: mesaOrigemNumero || mesaOrigemId,
       mesa_destino: mesaDestino.numero,
+      transferencia_origem: novoTextoTransf,
       mensagem: merged 
         ? `Itens transferidos e unificados com sucesso na Mesa ${mesaDestino.numero}!` 
         : `Pedido transferido com sucesso para a Mesa ${mesaDestino.numero}!`
@@ -8703,7 +8746,7 @@ app.get('/api/diag', isAdmin, async (req, res) => {
       const tables = [
         `CREATE TABLE IF NOT EXISTS mesas (id SERIAL PRIMARY KEY, numero TEXT NOT NULL, status TEXT DEFAULT 'livre', garcom_id TEXT, is_comanda INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
         `CREATE TABLE IF NOT EXISTS menu (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria TEXT NOT NULL, preco REAL NOT NULL, preco_original REAL, descricao TEXT, imagem TEXT, estoque INTEGER DEFAULT -1, validade DATE, enviar_cozinha BOOLEAN DEFAULT TRUE, visivel BOOLEAN DEFAULT TRUE, visivel_delivery BOOLEAN DEFAULT TRUE, em_promocao BOOLEAN DEFAULT FALSE)`,
-        `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0, transferencia_origem TEXT)`,
         `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
         `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
         `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT, comissao REAL DEFAULT 0, is_online BOOLEAN DEFAULT FALSE, last_assigned_at TIMESTAMP, cargo TEXT DEFAULT 'garcom', ativo BOOLEAN DEFAULT TRUE)`,
