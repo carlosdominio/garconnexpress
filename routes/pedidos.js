@@ -26,11 +26,74 @@ module.exports = (ctx) => {
     getFilterPreparo,
     sendWhatsAppMessage,
     isPostgres,
-    getWhatsappSocket
+    getWhatsappSocket,
+    consolidarItensPedido: ctxConsolidarItensPedido
   } = ctx;
 
   const router = express.Router();
   const marcarEntregueLocks = new Set();
+
+  // Consolidação de itens idênticos (mesmo produto, observação, status e preço)
+  const consolidarItensPedido = ctxConsolidarItensPedido || (async (pedidoId, customQuery = query) => {
+    if (!pedidoId) return;
+    try {
+      const itens = (await customQuery(`
+        SELECT pi.id, pi.menu_id, pi.quantidade, pi.observacao, pi.status, COALESCE(pi.preco, m.preco) as preco
+        FROM pedido_itens pi
+        LEFT JOIN menu m ON pi.menu_id = m.id
+        WHERE (pi.pedido_id = ? OR CAST(pi.pedido_id AS TEXT) = ?)
+        ORDER BY pi.id ASC
+      `, [pedidoId, String(pedidoId)])).rows || [];
+
+      if (itens.length <= 1) return;
+
+      const vistos = {};
+      let houveMesclagem = false;
+
+      for (const item of itens) {
+        if (item.status && item.status.toLowerCase() === 'cancelado') continue;
+
+        const obsNorm = (item.observacao || '').trim().toLowerCase();
+        const statusNorm = (item.status || 'pendente').trim().toLowerCase();
+        const precoUnit = parseFloat(item.preco || 0).toFixed(2);
+        const chave = `${item.menu_id}_${obsNorm}_${statusNorm}_${precoUnit}`;
+
+        if (vistos[chave]) {
+          houveMesclagem = true;
+          const novaQtd = Number(vistos[chave].quantidade) + Number(item.quantidade);
+          await customQuery("UPDATE pedido_itens SET quantidade = ?, preco = COALESCE(preco, ?) WHERE id = ?", [
+            novaQtd,
+            parseFloat(item.preco || 0),
+            vistos[chave].id
+          ]);
+          await customQuery("DELETE FROM pedido_itens WHERE id = ?", [item.id]);
+          vistos[chave].quantidade = novaQtd;
+        } else {
+          vistos[chave] = { id: item.id, quantidade: Number(item.quantidade) };
+        }
+      }
+
+      if (houveMesclagem) {
+        const todosItens = (await customQuery(`
+          SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco 
+          FROM pedido_itens i 
+          LEFT JOIN menu m ON i.menu_id = m.id 
+          WHERE (i.pedido_id = ? OR CAST(i.pedido_id AS TEXT) = ?) 
+            AND (i.status IS NULL OR LOWER(i.status) != 'cancelado')
+        `, [pedidoId, String(pedidoId)])).rows || [];
+
+        const subtotal = todosItens.reduce((sum, i) => sum + ((parseFloat(i.preco) || 0) * (Number(i.quantidade) || 0)), 0);
+        const ped = (await customQuery("SELECT cobrar_taxa FROM pedidos WHERE (id = ? OR CAST(id AS TEXT) = ?)", [pedidoId, String(pedidoId)])).rows?.[0];
+        const cobrarTaxa = ped ? (ped.cobrar_taxa == 1 || ped.cobrar_taxa === true) : false;
+        const taxaMultiplicador = cobrarTaxa ? (await getTaxaServicoMultiplicador()) : 1;
+        const total = Math.round(subtotal * taxaMultiplicador * 100) / 100;
+
+        await customQuery("UPDATE pedidos SET total = ? WHERE (id = ? OR CAST(id AS TEXT) = ?)", [total, pedidoId, String(pedidoId)]);
+      }
+    } catch (err) {
+      console.warn(`⚠️ [CONSOLIDAR_ITENS] Erro ao consolidar pedido #${pedidoId}:`, err.message);
+    }
+  });
 
   function getColPagamento(forma) {
     const formasValidas = {
@@ -450,6 +513,7 @@ module.exports = (ctx) => {
     try {
       const pedidoRes = await query("SELECT garcom_id FROM pedidos WHERE id = ?", [req.params.id]);
       if (pedidoRes.rows.length === 0) return res.status(404).json({ error: 'Pedido não encontrado' });
+      await consolidarItensPedido(req.params.id);
       const result = await query(`SELECT pi.*, m.nome, COALESCE(pi.preco, m.preco) as preco, m.categoria, m.enviar_cozinha, m.enviar_churrasco, m.imagem FROM pedido_itens pi JOIN menu m ON pi.menu_id = m.id WHERE pi.pedido_id = ? ORDER BY pi.status DESC, pi.id ASC`, [req.params.id]);
       res.json(result.rows);
     } catch (error) {
@@ -1464,20 +1528,27 @@ module.exports = (ctx) => {
         merged = true;
         finalPedidoId = pedidoDestino.id;
 
-        await query("UPDATE pedido_itens SET pedido_id = ? WHERE CAST(pedido_id AS TEXT) = CAST(? AS TEXT)", [pedidoDestino.id, pedido.id]);
+        await query("UPDATE pedido_itens SET pedido_id = ? WHERE (pedido_id = ? OR CAST(pedido_id AS TEXT) = ?)", [pedidoDestino.id, pedido.id, String(pedido.id)]);
 
-        const todosItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE CAST(i.pedido_id AS TEXT) = CAST(? AS TEXT) AND (i.status IS NULL OR LOWER(i.status) != 'cancelado')", [pedidoDestino.id])).rows;
+        // Consolidação de itens duplicados (mesmo menu_id, observação, status e preço)
+        await consolidarItensPedido(pedidoDestino.id);
+
+        const todosItens = (await query("SELECT i.quantidade, COALESCE(i.preco, m.preco) as preco FROM pedido_itens i JOIN menu m ON i.menu_id = m.id WHERE (i.pedido_id = ? OR CAST(i.pedido_id AS TEXT) = ?) AND (i.status IS NULL OR LOWER(i.status) != 'cancelado')", [pedidoDestino.id, String(pedidoDestino.id)])).rows;
         const subtotal = todosItens.reduce((sum, i) => sum + ((parseFloat(i.preco) || 0) * i.quantidade), 0);
         const cobrarTaxa = (pedidoDestino.cobrar_taxa == 1 || pedidoDestino.cobrar_taxa === true);
         const taxaMultiplicador = cobrarTaxa ? await getTaxaServicoMultiplicador() : 1;
         const total = Math.round(subtotal * taxaMultiplicador * 100) / 100;
 
-        await query("UPDATE pedidos SET total = ? WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [total, pedidoDestino.id]);
+        const novoDesconto = (parseFloat(pedidoDestino.desconto) || 0) + (parseFloat(pedido.desconto) || 0);
+        const novoAcrescimo = (parseFloat(pedidoDestino.acrescimo) || 0) + (parseFloat(pedido.acrescimo) || 0);
+        const novoPagoParcial = (parseFloat(pedidoDestino.pago_parcial) || 0) + (parseFloat(pedido.pago_parcial) || 0);
+
+        await query("UPDATE pedidos SET total = ?, desconto = ?, acrescimo = ?, pago_parcial = ? WHERE (id = ? OR CAST(id AS TEXT) = ?)", [total, novoDesconto, novoAcrescimo, novoPagoParcial, pedidoDestino.id, String(pedidoDestino.id)]);
 
         const obsTransf = ` [Itens transferidos para Pedido #${pedidoDestino.id} - Mesa ${mesaDestino.numero}]`;
-        await query("UPDATE pedidos SET status = 'cancelado', observacao = COALESCE(observacao, '') || ? WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [obsTransf, pedido.id]);
+        await query("UPDATE pedidos SET status = 'cancelado', observacao = COALESCE(observacao, '') || ? WHERE (id = ? OR CAST(id AS TEXT) = ?)", [obsTransf, pedido.id, String(pedido.id)]);
 
-        await query("UPDATE mesas SET status = 'ocupada' WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [mesaDestino.id]);
+        await query("UPDATE mesas SET status = 'ocupada' WHERE (id = ? OR CAST(id AS TEXT) = ?)", [mesaDestino.id, String(mesaDestino.id)]);
       } else {
         const isComandaDest = (Number(mesaDestino.is_comanda) === 1 || mesaDestino.tipo === 'balcao' || mesaDestino.tipo === 'comanda') ? 1 : 0;
         await query("UPDATE pedidos SET mesa_id = ?, mesa_numero = ?, is_comanda = ? WHERE CAST(id AS TEXT) = CAST(? AS TEXT)", [
@@ -1671,6 +1742,9 @@ module.exports = (ctx) => {
         }
         await query("UPDATE pedido_itens SET status = 'entregue' WHERE pedido_id = ? AND status != 'cancelado'", [id]);
       }
+
+      // Consolidação de itens duplicados após entrega
+      await consolidarItensPedido(id);
 
       const itens = (await query("SELECT status FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
       const todosEntregues = itens.every(i => i.status === 'entregue' || i.status === 'cancelado');
