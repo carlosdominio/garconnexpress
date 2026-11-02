@@ -5840,6 +5840,8 @@ function abrirModalDetalheHistorico(p) {
   const itensLista = document.getElementById('modal-historico-itens-lista');
   const financeiro = document.getElementById('modal-historico-financeiro');
   const btnReimprimir = document.getElementById('btn-reimprimir-historico');
+  const btnExcluir = document.getElementById('btn-excluir-historico');
+  const btnExcluirHeader = document.getElementById('btn-excluir-historico-header');
 
   const mesaLabel = formatarNomeMesaHistorico(p);
   if (header) header.style.background = p.status === 'cancelado' ? '#e74c3c' : '#27ae60';
@@ -5991,6 +5993,8 @@ function abrirModalDetalheHistorico(p) {
   }
 
   if (btnReimprimir) btnReimprimir.onclick = () => reimprimirCupomById(p.id);
+  if (btnExcluir) btnExcluir.onclick = () => excluirPedidoHistoricoIndividual(p.id);
+  if (btnExcluirHeader) btnExcluirHeader.onclick = () => excluirPedidoHistoricoIndividual(p.id);
 
   modal.classList.remove('hidden');
   modal.style.display = 'flex';
@@ -5999,6 +6003,54 @@ function abrirModalDetalheHistorico(p) {
 function fecharModalDetalheHistorico() {
   const modal = document.getElementById('modal-detalhe-historico');
   if (modal) modal.style.display = 'none';
+}
+
+async function excluirPedidoHistoricoIndividual(pedidoId) {
+  if (!pedidoId) return;
+  const p = (Array.isArray(historico) && historico.find(item => String(item.id) === String(pedidoId))) || { id: pedidoId };
+  const mesaLabel = formatarNomeMesaHistorico(p);
+  const statusLabel = p.status === 'cancelado' ? 'CANCELADO' : 'FINALIZADO';
+
+  const confirmacao = await Swal.fire({
+    title: 'Apagar do Histórico?',
+    html: `Deseja realmente apagar o pedido <b>#${pedidoId}</b> (${mesaLabel} - ${statusLabel}) do histórico?<br><small style="color: #64748b; display: block; margin-top: 8px;">⚠️ Essa ação removerá este registro permanentemente do banco de dados.</small>`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#e74c3c',
+    cancelButtonColor: '#94a3b8',
+    confirmButtonText: '🗑️ Sim, apagar',
+    cancelButtonText: 'Cancelar',
+    reverseButtons: true
+  });
+
+  if (!confirmacao.isConfirmed) return;
+
+  try {
+    const res = await fetch(`/api/pedidos/${pedidoId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (res.ok) {
+      fecharModalDetalheHistorico();
+      // Remove imediatamente da lista local em memória para atualização instantânea da tela
+      if (Array.isArray(historico)) {
+        historico = historico.filter(item => String(item.id) !== String(pedidoId));
+      }
+      exibirHistorico();
+      mostrarToast(`🗑️ Pedido #${pedidoId} apagado do histórico com sucesso!`, 'success');
+      // Sincroniza com o servidor em segundo plano
+      if (typeof carregarHistorico === 'function') {
+        carregarHistorico();
+      }
+    } else {
+      const data = await res.json().catch(() => ({}));
+      Swal.fire('Erro', data.error || 'Não foi possível apagar o pedido do histórico.', 'error');
+    }
+  } catch (err) {
+    console.error("Erro ao apagar pedido do histórico:", err);
+    Swal.fire('Erro de Conexão', 'Não foi possível conectar ao servidor para apagar o pedido.', 'error');
+  }
 }
 
 

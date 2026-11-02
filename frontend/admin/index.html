@@ -746,7 +746,10 @@
       <div class="modal-content" style="max-width: 500px; max-height: 90vh; display: flex; flex-direction: column; padding: 0; border-radius: 12px; overflow: hidden;">
         <div id="modal-historico-header" style="padding: 15px 20px; color: white; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
           <h2 id="modal-historico-titulo" style="margin: 0; font-size: 1.3rem;">Pedido #---</h2>
-          <span class="close" onclick="fecharModalDetalheHistorico()">&times;</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button id="btn-excluir-historico-header" title="Apagar este pedido do histórico" style="background: rgba(0, 0, 0, 0.2); border: none; color: white; border-radius: 8px; width: 34px; height: 34px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; transition: background 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.4)'" onmouseout="this.style.background='rgba(0,0,0,0.2)'">🗑️</button>
+            <span class="close" onclick="fecharModalDetalheHistorico()" style="font-size: 1.6rem; cursor: pointer; line-height: 1; padding: 0 4px;">&times;</span>
+          </div>
         </div>
         <div style="padding: 20px; background: #f8fafc; overflow-y: auto; flex: 1;">
           <p id="modal-historico-info" style="font-weight: bold; color: #64748b; margin-top: 0;"></p>
@@ -758,7 +761,8 @@
           <div id="modal-historico-financeiro" style="background: #2c3e50; color: white; padding: 15px; border-radius: 8px;"></div>
         </div>
         <div style="padding: 15px; background: white; border-top: 1px solid #e2e8f0; display: flex; gap: 10px;">
-          <button id="btn-reimprimir-historico" style="flex: 1; padding: 10px; background: #3498db; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">🖨️ REIMPRIMIR</button>
+          <button id="btn-reimprimir-historico" style="flex: 2; padding: 10px; background: #3498db; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;">🖨️ REIMPRIMIR</button>
+          <button id="btn-excluir-historico" style="flex: 1.3; padding: 10px; background: #e74c3c; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;" title="Apagar este pedido do histórico">🗑️ APAGAR</button>
           <button onclick="fecharModalDetalheHistorico()" style="flex: 1; padding: 10px; background: #f1f2f6; color: #2c3e50; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">FECHAR</button>
         </div>
       </div>
@@ -2391,7 +2395,7 @@
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="app_v3.js?v=1.6.2-ajustes-porcentagem-fix-balcao"></script>
+  <script src="app_v3.js?v=1.6.3-apagar-historico"></script>
   <!-- Modal: Mesa Aguardando Cliente -->
   <div id="modal-mesa-aguardando" class="modal">
     <div class="modal-content" style="max-width: 420px; border-radius: 16px; overflow: hidden; padding: 0;">

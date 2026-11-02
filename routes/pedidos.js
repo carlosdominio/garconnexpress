@@ -608,9 +608,9 @@ module.exports = (ctx) => {
       const temCozinha = itensPendentes.length > 0 ? await checkTemItemCozinha(itensPendentes.map(i => i.menu_id)) : false;
       const temChurrasco = itensPendentes.length > 0 ? await checkTemItemChurrasco(itensPendentes.map(i => i.menu_id)) : false;
       
-      await query("DELETE FROM pedido_itens WHERE pedido_id = ?", [id]);
-      await query("DELETE FROM pagamentos WHERE pedido_id = ?", [id]);
-      await query("DELETE FROM pedidos WHERE id = ?", [id]);
+      await query("DELETE FROM pedido_itens WHERE (pedido_id = ? OR CAST(pedido_id AS TEXT) = ?)", [id, String(id)]);
+      await query("DELETE FROM pagamentos WHERE (pedido_id = ? OR CAST(pedido_id AS TEXT) = ?)", [id, String(id)]);
+      await query("DELETE FROM pedidos WHERE (id = ? OR CAST(id AS TEXT) = ?)", [id, String(id)]);
       
       if (pedido) {
         const mesaRefId = pedido.mesa_id || null;
