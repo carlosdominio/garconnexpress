@@ -2795,9 +2795,9 @@ async function abrirModalCriarComandaGarcom() {
     html: `
       <div style="text-align: left; margin-top: 5px;">
         <label style="display: block; font-weight: bold; color: #334155; font-size: 0.88rem; margin-bottom: 6px;">
-          Número ou Nome da Comanda (máx 15 letras):
+          Número ou Nome da Comanda (máx 11 letras):
         </label>
-        <input type="text" id="swal-input-comanda-nome" placeholder="ex: 15, VIP, Lucas, Comanda 02..." maxlength="15"
+        <input type="text" id="swal-input-comanda-nome" placeholder="ex: 15, VIP, Lucas, Comanda 02..." maxlength="11"
                style="width: 100%; padding: 12px 14px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc; color: #1e293b; margin-bottom: 14px;">
 
         <label style="display: block; font-weight: bold; color: #334155; font-size: 0.88rem; margin-bottom: 6px;">
@@ -2979,9 +2979,9 @@ async function abrirModalTransferirMesaGarcom() {
               Transferindo itens de <b>${nomeOrigem}</b> para uma nova comanda:
             </p>
             <label style="display: block; font-weight: bold; color: #334155; font-size: 0.85rem; margin-bottom: 5px;">
-              Número ou Nome da Nova Comanda (máx 15 letras):
+              Número ou Nome da Nova Comanda (máx 11 letras):
             </label>
-            <input type="text" id="swal-input-transf-comanda-nome" placeholder="ex: 15, Lucas, Comanda 08..." maxlength="15"
+            <input type="text" id="swal-input-transf-comanda-nome" placeholder="ex: 15, Lucas, Comanda 08..." maxlength="11"
                    style="width: 100%; padding: 12px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: bold; background: #f8fafc; color: #1e293b; box-sizing: border-box; margin-bottom: 14px;">
             <label style="display: block; font-weight: bold; color: #334155; font-size: 0.85rem; margin-bottom: 5px;">
               Tipo:
