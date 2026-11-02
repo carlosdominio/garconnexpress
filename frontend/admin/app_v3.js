@@ -5840,7 +5840,6 @@ function abrirModalDetalheHistorico(p) {
   const itensLista = document.getElementById('modal-historico-itens-lista');
   const financeiro = document.getElementById('modal-historico-financeiro');
   const btnReimprimir = document.getElementById('btn-reimprimir-historico');
-  const btnExcluir = document.getElementById('btn-excluir-historico');
   const btnExcluirHeader = document.getElementById('btn-excluir-historico-header');
 
   const mesaLabel = formatarNomeMesaHistorico(p);
@@ -5993,7 +5992,6 @@ function abrirModalDetalheHistorico(p) {
   }
 
   if (btnReimprimir) btnReimprimir.onclick = () => reimprimirCupomById(p.id);
-  if (btnExcluir) btnExcluir.onclick = () => excluirPedidoHistoricoIndividual(p.id);
   if (btnExcluirHeader) btnExcluirHeader.onclick = () => excluirPedidoHistoricoIndividual(p.id);
 
   modal.classList.remove('hidden');
