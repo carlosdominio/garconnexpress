@@ -1381,7 +1381,7 @@ async function configurarPusher() {
       if (isMesaDeOutroGarcom(mesaId) || (respGarcom && String(respGarcom).trim().toLowerCase() !== String(garcomLogado?.usuario).trim().toLowerCase())) return;
 
       if (deveTocarSom('pedido-atrasado-garcom')) tocarCampainha();
-      dispararToastSistema('pedido-atrasado-garcom', { mesa: data.mesa_numero || 'Mesa', pedido_id: data.pedido_id }, data.mensagem, 'error');
+      dispararToastSistema('pedido-atrasado-garcom', { mesa: formatarNomeMesaGarcom(data.mesa_numero ? data : 'Mesa', false), pedido_id: data.pedido_id }, data.mensagem, 'error');
     });
 
     channel.bind('pedido-pronto', (data) => {
@@ -1404,7 +1404,7 @@ async function configurarPusher() {
       if (deveTocarSom('pedido-pronto')) tocarCampainha();
 
       // Mostra Toast em tempo real configurado no Admin
-      const mesaVal = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : null) || 'Mesa';
+      const mesaVal = formatarNomeMesaGarcom(data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : null) || 'Mesa', false);
       dispararToastSistema('pedido-pronto', { mesa: mesaVal, pedido_id: data.pedido_id || (data.pedido ? data.pedido.id : '') }, data.mensagem, 'success');
 
       clearTimeout(timeoutPusher);
@@ -1461,20 +1461,15 @@ async function configurarPusher() {
       // Garçom toca som suave para novos pedidos / adições
       if (deveTocarSom(evKey)) tocarCampainha(true);
 
-      // Extrai número da mesa se disponível
+      // Extrai número da mesa/balcão se disponível
       let mesaRaw = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : null) || data.mesa_id || (data.pedido ? data.pedido.mesa_id : null) || 'X';
-      let mesaStr = mesaRaw;
-      if (mesaRaw !== 'X' && !String(mesaRaw).toUpperCase().includes('MESA') && !String(mesaRaw).toUpperCase().includes('BALCÃO')) {
-          mesaStr = `Mesa ${mesaRaw}`;
-      } else if (mesaRaw === 'X') {
-          mesaStr = 'Mesa';
-      }
+      let mesaStr = formatarNomeMesaGarcom(mesaRaw, false);
 
       // Mostra Toast e Notificação Nativa
       if (isAddition) {
-        dispararToastSistema('item-adicionado', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `➕ Novos itens adicionados na ${mesaStr}!`, 'info');
+        dispararToastSistema('item-adicionado', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `➕ Novos itens adicionados em ${mesaStr}!`, 'info');
       } else {
-        dispararToastSistema('novo-pedido', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `Novo pedido recebido da ${mesaStr}`, 'info');
+        dispararToastSistema('novo-pedido', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `Novo pedido recebido de ${mesaStr}`, 'info');
       }
 
       clearTimeout(timeoutPusher);
@@ -1510,8 +1505,7 @@ async function configurarPusher() {
       // Mostra o toast da taxa de 10% APENAS se a mesa pertencer ao garçom logado
       if (data && data.cobrar_taxa !== undefined) {
         const nMesa = data.mesa_numero || data.mesa_id || 'X';
-        let strMesa = nMesa.toString();
-        if (!strMesa.toLowerCase().startsWith('mesa') && strMesa.toLowerCase() !== 'balcão') strMesa = `Mesa ${strMesa}`;
+        const strMesa = formatarNomeMesaGarcom(nMesa, false);
         dispararToastSistema('taxa-atualizada', { mesa: strMesa }, `ℹ️ ${strMesa}: Taxa de 10% ${data.cobrar_taxa ? 'ativada' : 'desativada'} pelo Admin`, 'info');
       }
 
@@ -1523,17 +1517,14 @@ async function configurarPusher() {
         carregarMesas();
         if (data) {
           const nMesa = data.mesa_numero || data.mesa_id || 'X';
-          let strMesa = nMesa.toString();
-          if (!strMesa.toLowerCase().startsWith('mesa') && strMesa.toLowerCase() !== 'balcão') {
-             strMesa = `Mesa ${strMesa}`;
-          }
+          const strMesa = formatarNomeMesaGarcom(nMesa, false);
           
           if (data.status === 'liberada') {
             if (deveTocarSom('mesa-liberada')) tocarCampainha(true);
             dispararToastSistema('mesa-liberada', { mesa: strMesa }, `✅ ${strMesa} liberada`, 'success');
           } else if (data.status === 'servido') {
             if (deveTocarSom('pedido-servido')) tocarCampainha(true);
-            dispararToastSistema('pedido-servido', { mesa: strMesa, pedido_id: data.pedido_id || '' }, `🍽️ Pedido da ${strMesa} entregue!`, 'success');
+            dispararToastSistema('pedido-servido', { mesa: strMesa, pedido_id: data.pedido_id || '' }, `🍽️ Pedido de ${strMesa} entregue!`, 'success');
           } else if (data.status === 'itens_atualizados') {
             const isPropriaEdicaoGarcom = (ultimoPedidoEditadoPeloGarcom !== null) && (
               String(data.pedido_id) === String(ultimoPedidoEditadoPeloGarcom)
@@ -1592,11 +1583,9 @@ async function configurarPusher() {
 
       const msg = data.mensagem || `🚨 Pedido #${data.pedido_id} foi REMOVIDO pelo Admin.`;
 
-      // Extrai identificador da mesa/comanda se disponível
+      // Extrai identificador da mesa/balcão se disponível
       const mesaRaw = data.mesa_numero || data.mesa_id || 'Mesa';
-      const mesaStr = /^(mesa|comanda|balcão|balcao|delivery)\b/i.test(String(mesaRaw).trim())
-        ? String(mesaRaw).trim()
-        : (Number(data.is_comanda) === 1 ? `Comanda ${mesaRaw}` : `Mesa ${mesaRaw}`);
+      const mesaStr = formatarNomeMesaGarcom(data.mesa_numero ? data : mesaRaw, false);
 
       if (deveTocarSom('pedido-cancelado')) tocarCampainha(); // Som normal (mais forte) para cancelamento
       dispararToastSistema('pedido-cancelado', { mesa: mesaStr }, msg, 'error');
@@ -1692,8 +1681,8 @@ async function configurarPusher() {
       const modalCarrinhoAberto = document.getElementById('modal-carrinho') && document.getElementById('modal-carrinho').style.display === 'flex';
 
       if (cardapioAberto || carrinhoComItens || modalOpcoesAberto || modalCarrinhoAberto) {
-        const mesaNumStr = data.mesa_numero || mesaId;
-        mostrarToast(`📝 Novo rascunho recebido da Mesa ${mesaNumStr}. Acesse a mesa para ver.`, "info", "Rascunho Recebido", 8000);
+        const mesaNumStr = formatarNomeMesaGarcom(data.mesa_numero ? data : mesaId, false);
+        mostrarToast(`📝 Novo rascunho recebido em ${mesaNumStr}. Acesse para ver.`, "info", "Rascunho Recebido", 8000);
         carregarMesas();
       } else {
         mostrarRascunho(data);
@@ -1807,10 +1796,11 @@ async function abrirRascunhoMesaAtual() {
 }
 
 async function mostrarRascunho(data) {
+  const nomeRascunho = formatarNomeMesaGarcom(data.mesa_numero ? data : (data.mesa_id || 'Mesa'), false);
   const itensHtml = data.itens.map(i => `<li>${i.quantidade}x ${i.nome}</li>`).join('');
   const msgHtml = `
     <div style="text-align: left; background: #2f3542; padding: 15px; border-radius: 10px; border: 1px solid #34495e; color: #ffffff;">
-      <p style="margin-bottom: 10px; font-weight: bold; color: #f1c40f;">Mesa ${data.mesa_numero} enviou um rascunho:</p>
+      <p style="margin-bottom: 10px; font-weight: bold; color: #f1c40f;">${nomeRascunho} enviou um rascunho:</p>
       <ul style="padding-left: 20px; margin-bottom: 15px; color: #ffffff;">${itensHtml}</ul>
       <p style="font-size: 0.85rem; color: #bdc3c7; border-top: 1px dashed #57606f; padding-top: 10px;">Deseja carregar estes itens no carrinho agora?</p>
     </div>
@@ -1849,7 +1839,7 @@ async function mostrarRascunho(data) {
     modal.style.display = 'none';
     atualizarBloqueioScroll();
     
-    const recusar = await mostrarConfirmacao(`Deseja realmente RECUSAR o rascunho da Mesa ${data.mesa_numero}?`, "Aviso de Recusa", "Sim, Recusar", "Cancelar", "⚠️");
+    const recusar = await mostrarConfirmacao(`Deseja realmente RECUSAR o rascunho de ${nomeRascunho}?`, "Aviso de Recusa", "Sim, Recusar", "Cancelar", "⚠️");
     if (recusar) {
       showLoading(true);
       try {
@@ -1863,7 +1853,7 @@ async function mostrarRascunho(data) {
           body: JSON.stringify({ mesa_id: data.mesa_id })
         });
         if (res.ok) {
-          mostrarToast(`Rascunho da Mesa ${data.mesa_numero} recusado com sucesso.`, 'success');
+          mostrarToast(`Rascunho de ${nomeRascunho} recusado com sucesso.`, 'success');
           await carregarMesas();
         } else {
           mostrarToast('Erro ao recusar rascunho.', 'error');
@@ -1929,7 +1919,8 @@ async function aceitarRascunho(data) {
   // 5. Abre o modal do carrinho automaticamente para o garçom revisar e enviar
   toggleCarrinho();
   
-  mostrarToast(`Mesa ${data.mesa_numero}: Itens carregados no carrinho!`);
+  const nomeRascunhoToast = formatarNomeMesaGarcom(data.mesa_numero ? data : 'Mesa', false);
+  mostrarToast(`${nomeRascunhoToast}: Itens carregados no carrinho!`);
 }
 
 function solicitarPermissaoNotificacao() {
@@ -2164,6 +2155,61 @@ function filtrarMesas(filtro, element) {
   exibirMesas();
 }
 
+function formatarNomeMesaGarcom(m, incluirIcone = true) {
+  if (!m) return 'Mesa';
+
+  // Se for primitivo (string ou número)
+  if (typeof m === 'string' || typeof m === 'number') {
+    const str = String(m).trim();
+    if (/^balc[aã]o/i.test(str)) {
+      const numTrim = str.replace(/^balc[aã]o\s*/i, '').trim();
+      const txt = numTrim ? `Balcão ${numTrim}` : 'Balcão';
+      return incluirIcone ? `🏪 ${txt}` : txt;
+    }
+    if (/^comanda\s*balc[aã]o/i.test(str)) {
+      const numTrim = str.replace(/^comanda\s*balc[aã]o\s*/i, '').trim();
+      const txt = numTrim ? `Balcão ${numTrim}` : 'Balcão';
+      return incluirIcone ? `🏪 ${txt}` : txt;
+    }
+    if (/^comanda/i.test(str)) {
+      const numTrim = str.replace(/^comanda\s*/i, '').trim();
+      const txt = numTrim ? `Comanda ${numTrim}` : 'Comanda';
+      return incluirIcone ? `🧾 ${txt}` : txt;
+    }
+    if (/^mesa/i.test(str)) {
+      const numTrim = str.replace(/^mesa\s*/i, '').trim();
+      const txt = numTrim ? `Mesa ${numTrim}` : 'Mesa';
+      return incluirIcone ? `🪑 ${txt}` : txt;
+    }
+    return incluirIcone ? `🪑 Mesa ${str}` : `Mesa ${str}`;
+  }
+
+  // Se for objeto (mesa ou pedido)
+  const numRaw = (m.numero !== undefined && m.numero !== null) 
+    ? String(m.numero).trim() 
+    : ((m.mesa_numero !== undefined && m.mesa_numero !== null) ? String(m.mesa_numero).trim() : '');
+  const tipo = String(m.tipo || m.mesa_tipo || '').toLowerCase();
+  const isBalcao = tipo === 'balcao' || /^balc[aã]o/i.test(numRaw) || /^comanda\s*balc[aã]o/i.test(numRaw) || (m.is_balcao == 1 || m.is_balcao === true);
+  const isComanda = !isBalcao && (tipo === 'comanda' || Number(m.is_comanda) === 1 || /^comanda/i.test(numRaw));
+
+  let limpo = numRaw;
+  if (/^comanda\s*balc[aã]o\s*/i.test(limpo)) limpo = limpo.replace(/^comanda\s*balc[aã]o\s*/i, '').trim();
+  else if (/^balc[aã]o\s*/i.test(limpo)) limpo = limpo.replace(/^balc[aã]o\s*/i, '').trim();
+  else if (/^comanda\s*/i.test(limpo)) limpo = limpo.replace(/^comanda\s*/i, '').trim();
+  else if (/^mesa\s*/i.test(limpo)) limpo = limpo.replace(/^mesa\s*/i, '').trim();
+
+  if (isBalcao) {
+    const txt = limpo ? `Balcão ${limpo}` : 'Balcão';
+    return incluirIcone ? `🏪 ${txt}` : txt;
+  }
+  if (isComanda) {
+    const txt = limpo ? `Comanda ${limpo}` : 'Comanda';
+    return incluirIcone ? `🧾 ${txt}` : txt;
+  }
+  const txt = limpo ? `Mesa ${limpo}` : (numRaw ? `Mesa ${numRaw}` : 'Mesa');
+  return incluirIcone ? `🪑 ${txt}` : txt;
+}
+
 function exibirMesas() {
   const grid = document.getElementById('mesas-grid');
   if (!grid) return;
@@ -2369,7 +2415,7 @@ function exibirMesas() {
 
     return `
       <div class="mesa ${mesa.status} ${classeAlerta} ${classeBloqueada}" data-id="${mesa.id}" style="cursor:pointer">
-        <h3>Mesa ${mesa.numero}</h3>
+        <h3>${formatarNomeMesaGarcom(mesa)}</h3>
         <p style="font-weight:bold">${statusTexto}</p>
         ${cronometroHtml}
       </div>
@@ -2416,9 +2462,10 @@ async function mostrarOpcoesMesa(mesa) {
   atualizarVisibilidadeOpcoesMesa(mesa);
 
   // Lógica de exibição do código ativo no título
-  let tituloModal = `Mesa ${mesa.numero}`;
+  const nomeFormatado = formatarNomeMesaGarcom(mesa);
+  let tituloModal = nomeFormatado;
   if (mesa.codigo_acesso && mesa.status !== 'livre') {
-    tituloModal = `Mesa ${mesa.numero} [Código: ${mesa.codigo_acesso}]`;
+    tituloModal = `${nomeFormatado} [Código: ${mesa.codigo_acesso}]`;
   }
 
   document.getElementById('modal-mesa-titulo').textContent = tituloModal;
@@ -2437,6 +2484,9 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
   const btnExpandir = document.getElementById('btn-opcoes-expandir');
 
   const estaFechando = mesa.solicitou_fechamento || mesa.status === 'fechando';
+  const isBalcao = (mesa.tipo === 'balcao' || mesa.mesa_tipo === 'balcao' || String(mesa.numero || '').toLowerCase().includes('balc'));
+  const isComanda = !isBalcao && (mesa.tipo === 'comanda' || Number(mesa.is_comanda) === 1 || String(mesa.numero || '').toLowerCase().includes('comanda'));
+  const labelEntidade = isBalcao ? 'Balcão' : (isComanda ? 'Comanda' : 'Mesa');
 
   if (btnExpandir) {
     btnExpandir.style.display = 'block';
@@ -2452,7 +2502,7 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
         btnFecharConta.style.background = '#e67e22'; // Laranja
         btnFecharConta.style.animation = 'pulsar-amarelo 1.5s infinite';
       } else {
-        btnFecharConta.innerText = '💰 Fechar Conta (Liberar)';
+        btnFecharConta.innerText = isBalcao ? '💰 Fechar Balcão (Liberar)' : (isComanda ? '💰 Fechar Comanda (Liberar)' : '💰 Fechar Conta (Liberar)');
         btnFecharConta.style.background = '#9b59b6'; // Roxo padrão
         btnFecharConta.style.animation = 'none';
       }
@@ -2464,7 +2514,7 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
     if (btnVerItens) btnVerItens.style.display = (opcoesExpandidas && pedidoAbertoNaMesa) ? 'block' : 'none';
     if (btnAdd) {
       btnAdd.style.display = dispSecundario;
-      btnAdd.innerText = pedidoAbertoNaMesa ? '➕ Adicionar mais itens' : '📝 Abrir Mesa / Pedido';
+      btnAdd.innerText = pedidoAbertoNaMesa ? '➕ Adicionar mais itens' : `📝 Abrir ${labelEntidade} / Pedido`;
     }
     if (btnGerarQr) btnGerarQr.style.display = dispSecundario;
     if (btnGerarCodigo) btnGerarCodigo.style.display = 'none';
@@ -2477,11 +2527,11 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
     if (btnVerItens) btnVerItens.style.display = pedidoAbertoNaMesa ? 'block' : 'none';
     if (btnAdd) {
       btnAdd.style.display = 'block';
-      btnAdd.innerText = pedidoAbertoNaMesa ? '➕ Adicionar mais itens' : '📝 Abrir Mesa / Pedido';
+      btnAdd.innerText = pedidoAbertoNaMesa ? '➕ Adicionar mais itens' : `📝 Abrir ${labelEntidade} / Pedido`;
     }
     if (btnFecharConta) {
       btnFecharConta.style.display = (pedidoAbertoNaMesa && mesa.status !== 'fechando') ? 'block' : 'none';
-      btnFecharConta.innerText = '💰 Fechar Conta (Liberar)';
+      btnFecharConta.innerText = isBalcao ? '💰 Fechar Balcão (Liberar)' : (isComanda ? '💰 Fechar Comanda (Liberar)' : '💰 Fechar Conta (Liberar)');
       btnFecharConta.style.background = '#9b59b6';
       btnFecharConta.style.animation = 'none';
     }
@@ -2507,7 +2557,7 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
     if (btnTransferirMesa) btnTransferirMesa.style.display = 'none';
     if (btnAdd) {
       btnAdd.style.display = 'block';
-      btnAdd.innerText = '📝 Abrir Mesa / Pedido';
+      btnAdd.innerText = `📝 Abrir ${labelEntidade} / Pedido`;
     }
     if (btnGerarQr) btnGerarQr.style.display = 'block';
     if (btnGerarCodigo) btnGerarCodigo.style.display = 'block';
@@ -2543,16 +2593,17 @@ async function abrirModalTransferirMesaGarcom() {
       const isLivre = (m.status || 'livre').toLowerCase() === 'livre';
       const statusTxt = isLivre ? 'LIVRE' : 'OCUPADA (JUNTAR)';
       const icone = isLivre ? '🟢' : '🟡';
-      const tipoTxt = m.tipo === 'balcao' ? 'Balcão' : 'Mesa';
-      return `<option value="${m.id}" data-status="${isLivre ? 'livre' : 'ocupada'}">${icone} ${tipoTxt} ${m.numero} (${statusTxt})</option>`;
+      const nomeMesaDest = formatarNomeMesaGarcom(m, false);
+      return `<option value="${m.id}" data-status="${isLivre ? 'livre' : 'ocupada'}">${icone} ${nomeMesaDest} (${statusTxt})</option>`;
     }).join('');
 
+    const nomeOrigem = formatarNomeMesaGarcom(mesaOrigemSnapshot, false);
     const { value: mesaDestinoId } = await Swal.fire({
-      title: '🔄 Transferir de Mesa',
+      title: '🔄 Transferir',
       html: `
-        <p style="font-size:0.95rem; color:#64748b; margin-bottom:12px;">Selecione a mesa de destino para transferir a <b>Mesa ${mesaOrigemSnapshot.numero}</b>:</p>
+        <p style="font-size:0.95rem; color:#64748b; margin-bottom:12px;">Selecione o destino para transferir <b>${nomeOrigem}</b>:</p>
         <select id="swal-select-transferir-garcom" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; font-weight:bold; font-size:1rem; background:#f8fafc; color:#334155; box-sizing:border-box;">
-          <option value="">Selecione a Mesa de Destino...</option>
+          <option value="">Selecione o Destino...</option>
           ${optionsHtml}
         </select>
       `,
@@ -2582,9 +2633,10 @@ async function abrirModalTransferirMesaGarcom() {
     const isOcupada = mesaDestinoObj && (mesaDestinoObj.status || 'livre').toLowerCase() !== 'livre';
 
     if (isOcupada) {
+      const nomeDestino = formatarNomeMesaGarcom(mesaDestinoObj, false);
       const confMerge = await Swal.fire({
         title: 'Juntar Pedidos?',
-        html: `A <b>Mesa ${mesaDestinoObj.numero}</b> já está ocupada.<br><br>Deseja juntar os pedidos nesta mesa?`,
+        html: `<b>${nomeDestino}</b> já está ocupado(a).<br><br>Deseja juntar os pedidos neste local?`,
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Sim, Juntar',
@@ -2690,7 +2742,7 @@ async function verItensDaMesa(isSilencioso = false) {
 
     renderizarItensMesaGarcom();
     
-    document.getElementById('resumo-mesa-titulo').textContent = `Resumo - Mesa ${mesaAtual.numero}`;
+    document.getElementById('resumo-mesa-titulo').textContent = `Resumo - ${formatarNomeMesaGarcom(mesaAtual)}`;
     fecharOpcoes();
     document.getElementById('modal-resumo-mesa').style.display = 'block';
     atualizarBloqueioScroll();
@@ -3061,14 +3113,15 @@ function abrirCardapio() {
     // SEGURANÇA: Se mesaAtual for null, tenta recuperar pelo título do modal antes de crashar
     if (!mesaAtual) {
       const modalTitulo = document.getElementById('modal-mesa-titulo');
-      if (modalTitulo && modalTitulo.innerText.includes('Mesa')) {
-          const num = modalTitulo.innerText.replace('Mesa ', '');
-          mesaAtual = mesas.find(m => m.numero == num);
+      if (modalTitulo && modalTitulo.innerText) {
+          const num = modalTitulo.innerText.replace(/^(🪑|🏪|🧾)?\s*(mesa|balc[aã]o|comanda)\s*/i, '').split('[')[0].trim();
+          mesaAtual = mesas.find(m => String(m.numero).trim() === num || String(m.id).trim() === num);
       }
     }
 
     if (mesaTxt && mesaAtual) {
-      mesaTxt.textContent = pedidoAbertoNaMesa ? `${mesaAtual.numero} (+ itens)` : mesaAtual.numero;
+      const nomeExib = formatarNomeMesaGarcom(mesaAtual, false);
+      mesaTxt.textContent = pedidoAbertoNaMesa ? `${nomeExib} (+ itens)` : nomeExib;
     } else if (mesaTxt) {
       console.warn("⚠️ abrirCardapio chamado sem mesaAtual definida.");
       mesaTxt.textContent = "---";
@@ -3200,6 +3253,10 @@ async function finalizarEDesocupar() {
     
     const modalFechamento = document.getElementById('modal-fechamento-garcom');
     if (modalFechamento) {
+      const tituloFechar = document.getElementById('titulo-fechamento-garcom');
+      if (tituloFechar && mesaAtual) {
+        tituloFechar.textContent = `Fechar ${formatarNomeMesaGarcom(mesaAtual, false)}`;
+      }
       modalFechamento.style.display = 'flex';
       atualizarBloqueioScroll();
     }
@@ -3769,7 +3826,7 @@ async function gerarCodigoAcesso() {
     if (data.success) {
       fecharOpcoes();
       showLoading(false);
-      await mostrarAlerta(`CÓDIGO DE ACESSO: ${data.codigo}\n\nInforme este código ao cliente para liberar o cardápio digital na Mesa ${mesaAtual.numero}.`, "Código Gerado", "🔑", data.codigo);
+      await mostrarAlerta(`CÓDIGO DE ACESSO: ${data.codigo}\n\nInforme este código ao cliente para liberar o cardápio digital em ${formatarNomeMesaGarcom(mesaAtual, false)}.`, "Código Gerado", "🔑", data.codigo);
     } else {
       showLoading(false);
       await mostrarAlerta("Erro ao gerar código.", "Erro", "❌");
@@ -3783,7 +3840,7 @@ async function gerarCodigoAcesso() {
 async function cancelarCodigoAcesso() {
   if (!mesaAtual) return;
   
-  const confirm = await mostrarConfirmacao(`Deseja realmente CANCELAR o acesso digital da Mesa ${mesaAtual.numero}? O cliente será deslogado e a mesa ficará livre.`, "Confirmar Cancelamento", "Confirmar", "Cancelar", "❓");
+  const confirm = await mostrarConfirmacao(`Deseja realmente CANCELAR o acesso digital de ${formatarNomeMesaGarcom(mesaAtual, false)}? O cliente será deslogado e o local ficará livre.`, "Confirmar Cancelamento", "Confirmar", "Cancelar", "❓");
   if (!confirm) return;
 
   try {
@@ -3844,7 +3901,7 @@ function verQRCodeMesa() {
   
   const html = `
     <div style="text-align: center; padding: 10px;">
-      <p style="margin-bottom: 15px; font-weight: bold; color: #2c3e50; font-size: 1.2rem;">Acesso Digital - Mesa ${mesaAtual.numero}</p>
+      <p style="margin-bottom: 15px; font-weight: bold; color: #2c3e50; font-size: 1.2rem;">Acesso Digital - ${formatarNomeMesaGarcom(mesaAtual)}</p>
       <div style="background: white; padding: 15px; border-radius: 15px; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 15px;">
         <img src="${qrUrl}" style="width: 220px; height: 220px; display: block;">
       </div>
