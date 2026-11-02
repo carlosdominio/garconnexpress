@@ -2147,10 +2147,115 @@ function calcularMinutos(dataIso) {
 }
 
 let filtroMesaAtual = 'todas';
+const ordemFiltrosMesas = ['todas', 'ocupadas', 'fechamentos'];
+
+function isModalAbertoGarcom() {
+  const telaPedido = document.getElementById('pedido');
+  if (telaPedido && !telaPedido.classList.contains('hidden')) return true;
+
+  const telaMesas = document.getElementById('mesas');
+  if (telaMesas && telaMesas.classList.contains('hidden')) return true;
+
+  if (document.querySelector('.swal2-container')) return true;
+
+  const painelNotif = document.getElementById('painel-notificacoes');
+  if (painelNotif && painelNotif.style.display !== 'none' && painelNotif.style.display !== '') return true;
+
+  const loading = document.getElementById('loading-rapido');
+  if (loading && loading.style.display !== 'none' && loading.style.display !== '') return true;
+
+  const modais = ['.modal', '.modal-opcoes', '.modal-carrinho'];
+  return modais.some(seletor => {
+    const elementos = document.querySelectorAll(seletor);
+    return Array.from(elementos).some(el => {
+      if (el.style.display && el.style.display !== 'none') return true;
+      try {
+        return window.getComputedStyle(el).display !== 'none';
+      } catch (e) {
+        return false;
+      }
+    });
+  });
+}
+
+function alternarFiltroMesaPorGesto(direcao) {
+  const indexAtual = ordemFiltrosMesas.indexOf(filtroMesaAtual);
+  if (indexAtual === -1) return;
+  const novoIndex = indexAtual + direcao;
+  if (novoIndex >= 0 && novoIndex < ordemFiltrosMesas.length) {
+    const novoFiltro = ordemFiltrosMesas[novoIndex];
+    filtrarMesas(novoFiltro);
+  }
+}
+
+let gestoDeslizarConfigurado = false;
+function configurarGestoDeslizarMesas() {
+  if (gestoDeslizarConfigurado) return;
+  const containerMesas = document.getElementById('mesas');
+  if (!containerMesas) return;
+  gestoDeslizarConfigurado = true;
+
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+
+  containerMesas.addEventListener('touchstart', (e) => {
+    if (isModalAbertoGarcom()) return;
+    if (e.target.closest('.btn-filtro-mesa')) return;
+    if (!e.touches || e.touches.length !== 1) return;
+
+    const t = e.touches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+    touchStartTime = Date.now();
+  }, { passive: true });
+
+  containerMesas.addEventListener('touchend', (e) => {
+    if (isModalAbertoGarcom()) return;
+    if (!touchStartTime) return;
+    if (!e.changedTouches || e.changedTouches.length !== 1) return;
+
+    const t = e.changedTouches[0];
+    const diffX = t.clientX - touchStartX;
+    const diffY = t.clientY - touchStartY;
+    const elapsed = Date.now() - touchStartTime;
+
+    touchStartTime = 0;
+
+    // Distância mínima de 45px, movimento horizontal predominante (diffX > 1.3 * diffY), e tempo até 600ms
+    if (Math.abs(diffX) >= 45 && Math.abs(diffX) > Math.abs(diffY) * 1.3 && elapsed <= 600) {
+      window.foiGestoSwipeRecente = true;
+      setTimeout(() => {
+        window.foiGestoSwipeRecente = false;
+      }, 350);
+
+      if (diffX < 0) {
+        // Deslizar para a esquerda (⬅️) -> Avança coluna
+        alternarFiltroMesaPorGesto(1);
+      } else {
+        // Deslizar para a direita (➡️) -> Retorna coluna
+        alternarFiltroMesaPorGesto(-1);
+      }
+    }
+  }, { passive: true });
+
+  containerMesas.addEventListener('touchcancel', () => {
+    touchStartTime = 0;
+  }, { passive: true });
+}
 
 function filtrarMesas(filtro, element) {
   filtroMesaAtual = filtro;
   
+  if (!element) {
+    const mapIds = {
+      todas: 'btn-filtro-todas',
+      ocupadas: 'btn-filtro-ocupadas',
+      fechamentos: 'btn-filtro-fechamentos'
+    };
+    element = document.getElementById(mapIds[filtro]);
+  }
+
   // Atualiza visual dos botões de filtro (define inline cinza para os inativos)
   document.querySelectorAll('.btn-filtro-mesa').forEach(btn => {
     btn.classList.remove('ativa');
@@ -2169,6 +2274,12 @@ function filtrarMesas(filtro, element) {
     } else {
       element.style.background = '#27ae60'; // Verde (LIVRES)
       element.style.color = 'white';
+    }
+
+    if (typeof element.scrollIntoView === 'function') {
+      try {
+        element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      } catch (e) {}
     }
   }
   
@@ -2446,6 +2557,7 @@ function exibirMesas() {
 
   document.querySelectorAll('.mesa').forEach(mesaEl => {
     mesaEl.onclick = async () => {
+      if (window.foiGestoSwipeRecente) return;
       if (!caixaAberto) {
         mostrarToast("O CAIXA ESTÁ FECHADO!", "error", "🔒 AVISO");
         return;
@@ -3890,6 +4002,7 @@ async function cancelarCodigoAcesso() {
 function configurarEventos() {
   document.getElementById('enviar-pedido').addEventListener('click', enviarPedido);
   document.getElementById('voltar-mesas').addEventListener('click', voltarParaMesas);
+  configurarGestoDeslizarMesas();
   const categorias = ['todas', ...new Set(menu.map(item => item.categoria))];
   const container = document.getElementById('categorias');
   if (container) {
