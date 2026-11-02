@@ -2502,7 +2502,14 @@ function exibirMesas() {
     let iconeVazio = '🟢';
     let tituloVazio = 'Nenhuma mesa livre';
     let subVazio = 'Todas as comandas estão em atendimento.';
-    if (filtroMesaAtual === 'ocupadas') {
+    let btnExtraVazio = '';
+    if (filtroMesaAtual === 'todas') {
+      btnExtraVazio = `
+        <button onclick="abrirModalCriarComandaGarcom()" style="margin-top: 18px; pointer-events: auto; background: #2980b9; color: white; border: none; padding: 10px 18px; border-radius: 20px; font-weight: bold; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(41,128,185,0.25);">
+          <span>➕</span> Criar Comanda / Balcão
+        </button>
+      `;
+    } else if (filtroMesaAtual === 'ocupadas') {
       iconeVazio = '🟠';
       tituloVazio = 'Nenhuma mesa ocupada';
       subVazio = 'Todas as mesas estão livres no momento.';
@@ -2516,6 +2523,7 @@ function exibirMesas() {
         <div style="font-size: 3rem; margin-bottom: 12px;">${iconeVazio}</div>
         <h3 style="margin: 0 0 8px 0; color: #2c3e50; font-size: 1.15rem; font-weight: bold;">${tituloVazio}</h3>
         <p style="margin: 0; font-size: 0.9rem; color: #95a5a6;">${subVazio}</p>
+        ${btnExtraVazio}
       </div>
     `;
     return;
@@ -2691,6 +2699,7 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
   const btnCancelarCodigo = document.querySelector('.btn-cancelar-codigo');
   const btnGerarQr = document.querySelector('.btn-gerar-qr');
   const btnExpandir = document.getElementById('btn-opcoes-expandir');
+  const btnCriarComanda = document.getElementById('btn-opcoes-criar-comanda');
 
   const estaFechando = mesa.solicitou_fechamento || mesa.status === 'fechando';
   const isBalcao = (mesa.tipo === 'balcao' || mesa.mesa_tipo === 'balcao' || String(mesa.numero || '').toLowerCase().includes('balc'));
@@ -2728,6 +2737,7 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
     if (btnGerarQr) btnGerarQr.style.display = dispSecundario;
     if (btnGerarCodigo) btnGerarCodigo.style.display = 'none';
     if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'none';
+    if (btnCriarComanda) btnCriarComanda.style.display = 'none';
   } else if (mesa.status === 'ocupada') {
     // CATEGORIA OCUPADA:
     if (btnRascunho) {
@@ -2757,6 +2767,7 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
     if (btnCancelarCodigo) {
       btnCancelarCodigo.style.display = (!pedidoAbertoNaMesa && mesa.codigo_acesso) ? dispSecundario : 'none';
     }
+    if (btnCriarComanda) btnCriarComanda.style.display = 'none';
   } else {
     // CATEGORIA LIVRE:
     if (btnExpandir) btnExpandir.style.display = 'none';
@@ -2768,10 +2779,134 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
       btnAdd.style.display = 'block';
       btnAdd.innerText = `📝 Abrir ${labelEntidade} / Pedido`;
     }
+    if (btnCriarComanda) btnCriarComanda.style.display = 'block';
     if (btnGerarQr) btnGerarQr.style.display = 'block';
     if (btnGerarCodigo) btnGerarCodigo.style.display = 'block';
     if (btnCancelarCodigo) btnCancelarCodigo.style.display = 'none';
     if (btnFecharConta) btnFecharConta.style.display = 'none';
+  }
+}
+
+async function abrirModalCriarComandaGarcom() {
+  fecharOpcoes();
+
+  const { value: formValues, isConfirmed, isDenied } = await Swal.fire({
+    title: '🧾 Nova Comanda',
+    html: `
+      <div style="text-align: left; margin-top: 5px;">
+        <label style="display: block; font-weight: bold; color: #334155; font-size: 0.88rem; margin-bottom: 6px;">
+          Número ou Nome da Comanda (máx 15 letras):
+        </label>
+        <input type="text" id="swal-input-comanda-nome" placeholder="ex: 15, VIP, Lucas, Comanda 02..." maxlength="15"
+               style="width: 100%; padding: 12px 14px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc; color: #1e293b; margin-bottom: 14px;">
+
+        <label style="display: block; font-weight: bold; color: #334155; font-size: 0.88rem; margin-bottom: 6px;">
+          Direcionar para:
+        </label>
+        <select id="swal-select-comanda-tipo" style="width: 100%; padding: 12px 14px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc; color: #1e293b;">
+          <option value="comanda">🍽️ Comanda de Mesa</option>
+          <option value="balcao">🏪 Comanda de Balcão</option>
+        </select>
+        <p style="font-size: 0.78rem; color: #64748b; margin: 10px 0 0 0;">
+          💡 Disponível imediatamente no app do garçom e no painel admin.
+        </p>
+      </div>
+    `,
+    showCancelButton: true,
+    showDenyButton: true,
+    confirmButtonText: '🚀 Criar & Lançar',
+    denyButtonText: '💾 Apenas Criar',
+    cancelButtonText: 'Cancelar',
+    confirmButtonColor: '#27ae60',
+    denyButtonColor: '#2980b9',
+    cancelButtonColor: '#95a5a6',
+    heightAuto: false,
+    didOpen: () => {
+      const inp = document.getElementById('swal-input-comanda-nome');
+      if (inp) setTimeout(() => inp.focus(), 150);
+    },
+    preConfirm: () => {
+      const nome = document.getElementById('swal-input-comanda-nome')?.value.trim();
+      const tipo = document.getElementById('swal-select-comanda-tipo')?.value || 'comanda';
+      if (!nome) {
+        Swal.showValidationMessage('Informe o número ou nome da comanda!');
+        return false;
+      }
+      return { nome, tipo, abrirDireto: true };
+    },
+    preDeny: () => {
+      const nome = document.getElementById('swal-input-comanda-nome')?.value.trim();
+      const tipo = document.getElementById('swal-select-comanda-tipo')?.value || 'comanda';
+      if (!nome) {
+        Swal.showValidationMessage('Informe o número ou nome da comanda!');
+        return false;
+      }
+      return { nome, tipo, abrirDireto: false };
+    }
+  });
+
+  if (!isConfirmed && !isDenied) return;
+
+  const dados = formValues;
+  if (!dados || !dados.nome) return;
+
+  const abrirDireto = isConfirmed;
+
+  try {
+    showLoading(true, 'Criando comanda...');
+    const res = await fetch('/api/mesas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        numero: dados.nome,
+        tipo: dados.tipo,
+        is_comanda: 1
+      })
+    });
+
+    const data = await res.json();
+    showLoading(false);
+
+    if (!res.ok) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Atenção',
+        text: data.error || 'Não foi possível criar a comanda.',
+        heightAuto: false
+      });
+      return;
+    }
+
+    // Comanda criada com sucesso! Atualiza lista de mesas
+    await carregarMesas();
+
+    const mesaCriada = (mesas || []).find(m => String(m.id) === String(data.id)) || {
+      id: data.id,
+      numero: data.numero || dados.nome,
+      tipo: data.tipo || dados.tipo,
+      is_comanda: 1,
+      status: 'livre'
+    };
+
+    if (abrirDireto) {
+      mesaAtual = mesaCriada;
+      pedidoAbertoNaMesa = null;
+      abrirCardapio();
+      mostrarToast(`🧾 Comanda "${dados.nome}" aberta para lançamento!`);
+    } else {
+      mostrarToast(`✅ Comanda "${dados.nome}" criada com sucesso!`);
+      const btnLivres = document.getElementById('btn-filtro-todas');
+      if (btnLivres) filtrarMesas('todas', btnLivres);
+    }
+  } catch (err) {
+    showLoading(false);
+    console.error('Erro ao criar comanda garçom:', err);
+    await Swal.fire({
+      icon: 'error',
+      title: 'Erro de Conexão',
+      text: 'Não foi possível conectar ao servidor.',
+      heightAuto: false
+    });
   }
 }
 
@@ -2791,10 +2926,6 @@ async function abrirModalTransferirMesaGarcom() {
       return true;
     });
 
-    if (outrasMesas.length === 0) {
-      return await mostrarAlerta('Não há outras mesas cadastradas para transferir.', 'Aviso', '⚠️');
-    }
-
     // Fecha o modal inferior de opções para que o modal de transferência apareça limpo e na frente
     fecharOpcoes();
 
@@ -2813,6 +2944,7 @@ async function abrirModalTransferirMesaGarcom() {
         <p style="font-size:0.95rem; color:#64748b; margin-bottom:12px;">Selecione o destino para transferir <b>${nomeOrigem}</b>:</p>
         <select id="swal-select-transferir-garcom" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; font-weight:bold; font-size:1rem; background:#f8fafc; color:#334155; box-sizing:border-box;">
           <option value="">Selecione o Destino...</option>
+          <option value="__NOVA_COMANDA__" style="font-weight: 800; color: #2563eb;">➕ Criar Nova Comanda de Destino...</option>
           ${optionsHtml}
         </select>
       `,
@@ -2835,6 +2967,92 @@ async function abrirModalTransferirMesaGarcom() {
     if (!mesaDestinoId) {
       // Reabre as opções caso o garçom cancele
       mostrarOpcoesMesa(mesaOrigemSnapshot);
+      return;
+    }
+
+    if (mesaDestinoId === '__NOVA_COMANDA__') {
+      const { value: dadosNovaComanda } = await Swal.fire({
+        title: '➕ Nova Comanda de Destino',
+        html: `
+          <div style="text-align: left;">
+            <p style="font-size: 0.88rem; color: #64748b; margin-bottom: 12px;">
+              Transferindo itens de <b>${nomeOrigem}</b> para uma nova comanda:
+            </p>
+            <label style="display: block; font-weight: bold; color: #334155; font-size: 0.85rem; margin-bottom: 5px;">
+              Número ou Nome da Nova Comanda (máx 15 letras):
+            </label>
+            <input type="text" id="swal-input-transf-comanda-nome" placeholder="ex: 15, Lucas, Comanda 08..." maxlength="15"
+                   style="width: 100%; padding: 12px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: bold; background: #f8fafc; color: #1e293b; box-sizing: border-box; margin-bottom: 14px;">
+            <label style="display: block; font-weight: bold; color: #334155; font-size: 0.85rem; margin-bottom: 5px;">
+              Tipo:
+            </label>
+            <select id="swal-select-transf-comanda-tipo" style="width: 100%; padding: 12px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: bold; background: #f8fafc; color: #1e293b; box-sizing: border-box;">
+              <option value="comanda">🍽️ Comanda de Mesa</option>
+              <option value="balcao">🏪 Comanda de Balcão</option>
+            </select>
+          </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Transferir Agora',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#2563eb',
+        cancelButtonColor: '#95a5a6',
+        heightAuto: false,
+        didOpen: () => {
+          document.getElementById('swal-input-transf-comanda-nome')?.focus();
+        },
+        preConfirm: () => {
+          const nome = document.getElementById('swal-input-transf-comanda-nome')?.value.trim();
+          const tipo = document.getElementById('swal-select-transf-comanda-tipo')?.value || 'comanda';
+          if (!nome) {
+            Swal.showValidationMessage('Informe o nome ou número da comanda!');
+            return false;
+          }
+          return { nome, tipo };
+        }
+      });
+
+      if (!dadosNovaComanda) {
+        mostrarOpcoesMesa(mesaOrigemSnapshot);
+        return;
+      }
+
+      showLoading(true, 'Criando comanda e transferindo...');
+      const pedidoId = pedidoAbertoNaMesa ? pedidoAbertoNaMesa.id : null;
+      const resTransf = await fetch('/api/pedidos/transferir-mesa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pedido_id: pedidoId,
+          mesa_origem_id: mesaOrigemSnapshot.id,
+          novo_nome_comanda: dadosNovaComanda.nome,
+          tipo: dadosNovaComanda.tipo
+        })
+      });
+
+      const dataRes = await resTransf.json();
+      showLoading(false);
+
+      if (resTransf.ok) {
+        await Swal.fire({
+          icon: 'success',
+          title: 'Transferido!',
+          text: dataRes.mensagem || `Itens transferidos para a nova comanda "${dadosNovaComanda.nome}"!`,
+          timer: 2000,
+          showConfirmButton: false,
+          heightAuto: false
+        });
+        mesaAtual = null;
+        await carregarMesas();
+      } else {
+        await Swal.fire({
+          icon: 'error',
+          title: 'Erro',
+          text: dataRes.error || 'Erro ao transferir para a nova comanda.',
+          heightAuto: false
+        });
+        mostrarOpcoesMesa(mesaOrigemSnapshot);
+      }
       return;
     }
 
