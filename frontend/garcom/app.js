@@ -2154,9 +2154,24 @@ function isModalAbertoGarcom() {
   if (telaPedido && !telaPedido.classList.contains('hidden')) return true;
 
   const telaMesas = document.getElementById('mesas');
-  if (telaMesas && telaMesas.classList.contains('hidden')) return true;
+  if (!telaMesas || telaMesas.classList.contains('hidden')) return true;
 
   if (document.querySelector('.swal2-container')) return true;
+
+  const backdrop = document.getElementById('modal-opcoes-backdrop');
+  if (backdrop && backdrop.style.display === 'block') return true;
+
+  const modalOpcoes = document.getElementById('modal-opcoes');
+  if (modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.style.display !== '') return true;
+
+  const modalResumo = document.getElementById('modal-resumo-mesa');
+  if (modalResumo && modalResumo.style.display !== 'none' && modalResumo.style.display !== '') return true;
+
+  const modalFechamento = document.getElementById('modal-fechamento-garcom');
+  if (modalFechamento && modalFechamento.style.display !== 'none' && modalFechamento.style.display !== '') return true;
+
+  const modalSistema = document.getElementById('modal-sistema');
+  if (modalSistema && modalSistema.style.display !== 'none' && modalSistema.style.display !== '') return true;
 
   const painelNotif = document.getElementById('painel-notificacoes');
   if (painelNotif && painelNotif.style.display !== 'none' && painelNotif.style.display !== '') return true;
@@ -2164,44 +2179,33 @@ function isModalAbertoGarcom() {
   const loading = document.getElementById('loading-rapido');
   if (loading && loading.style.display !== 'none' && loading.style.display !== '') return true;
 
-  const modais = ['.modal', '.modal-opcoes', '.modal-carrinho'];
-  return modais.some(seletor => {
-    const elementos = document.querySelectorAll(seletor);
-    return Array.from(elementos).some(el => {
-      if (el.style.display && el.style.display !== 'none') return true;
-      try {
-        return window.getComputedStyle(el).display !== 'none';
-      } catch (e) {
-        return false;
-      }
-    });
-  });
+  return false;
 }
 
 function alternarFiltroMesaPorGesto(direcao) {
   const indexAtual = ordemFiltrosMesas.indexOf(filtroMesaAtual);
   if (indexAtual === -1) return;
-  const novoIndex = indexAtual + direcao;
-  if (novoIndex >= 0 && novoIndex < ordemFiltrosMesas.length) {
-    const novoFiltro = ordemFiltrosMesas[novoIndex];
-    filtrarMesas(novoFiltro);
+  let novoIndex = indexAtual + direcao;
+  if (novoIndex < 0) {
+    novoIndex = ordemFiltrosMesas.length - 1; // Permite ciclo contínuo
+  } else if (novoIndex >= ordemFiltrosMesas.length) {
+    novoIndex = 0; // Permite ciclo contínuo
   }
+  const novoFiltro = ordemFiltrosMesas[novoIndex];
+  filtrarMesas(novoFiltro);
 }
 
 let gestoDeslizarConfigurado = false;
 function configurarGestoDeslizarMesas() {
   if (gestoDeslizarConfigurado) return;
-  const containerMesas = document.getElementById('mesas');
-  if (!containerMesas) return;
   gestoDeslizarConfigurado = true;
 
   let touchStartX = 0;
   let touchStartY = 0;
   let touchStartTime = 0;
 
-  containerMesas.addEventListener('touchstart', (e) => {
+  document.addEventListener('touchstart', (e) => {
     if (isModalAbertoGarcom()) return;
-    if (e.target.closest('.btn-filtro-mesa')) return;
     if (!e.touches || e.touches.length !== 1) return;
 
     const t = e.touches[0];
@@ -2210,10 +2214,16 @@ function configurarGestoDeslizarMesas() {
     touchStartTime = Date.now();
   }, { passive: true });
 
-  containerMesas.addEventListener('touchend', (e) => {
-    if (isModalAbertoGarcom()) return;
+  document.addEventListener('touchend', (e) => {
     if (!touchStartTime) return;
-    if (!e.changedTouches || e.changedTouches.length !== 1) return;
+    if (isModalAbertoGarcom()) {
+      touchStartTime = 0;
+      return;
+    }
+    if (!e.changedTouches || e.changedTouches.length !== 1) {
+      touchStartTime = 0;
+      return;
+    }
 
     const t = e.changedTouches[0];
     const diffX = t.clientX - touchStartX;
@@ -2222,24 +2232,24 @@ function configurarGestoDeslizarMesas() {
 
     touchStartTime = 0;
 
-    // Distância mínima de 45px, movimento horizontal predominante (diffX > 1.3 * diffY), e tempo até 600ms
-    if (Math.abs(diffX) >= 45 && Math.abs(diffX) > Math.abs(diffY) * 1.3 && elapsed <= 600) {
+    // Distância mínima de 40px, movimento horizontal predominante (diffX > 1.2 * diffY), e tempo até 750ms
+    if (Math.abs(diffX) >= 40 && Math.abs(diffX) > Math.abs(diffY) * 1.2 && elapsed <= 750) {
       window.foiGestoSwipeRecente = true;
       setTimeout(() => {
         window.foiGestoSwipeRecente = false;
       }, 350);
 
       if (diffX < 0) {
-        // Deslizar para a esquerda (⬅️) -> Avança coluna
+        // Deslizar para a esquerda (⬅️) -> Avança coluna (LIVRES -> OCUPADAS -> A LIBERAR)
         alternarFiltroMesaPorGesto(1);
       } else {
-        // Deslizar para a direita (➡️) -> Retorna coluna
+        // Deslizar para a direita (➡️) -> Retorna coluna (A LIBERAR -> OCUPADAS -> LIVRES)
         alternarFiltroMesaPorGesto(-1);
       }
     }
   }, { passive: true });
 
-  containerMesas.addEventListener('touchcancel', () => {
+  document.addEventListener('touchcancel', () => {
     touchStartTime = 0;
   }, { passive: true });
 }
@@ -2276,9 +2286,11 @@ function filtrarMesas(filtro, element) {
       element.style.color = 'white';
     }
 
-    if (typeof element.scrollIntoView === 'function') {
+    const containerFiltros = document.getElementById('container-filtros-mesas');
+    if (containerFiltros) {
       try {
-        element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        const scrollAlvo = element.offsetLeft - (containerFiltros.clientWidth / 2) + (element.clientWidth / 2);
+        containerFiltros.scrollTo({ left: Math.max(0, scrollAlvo), behavior: 'smooth' });
       } catch (e) {}
     }
   }
@@ -2468,6 +2480,29 @@ function exibirMesas() {
     return;
   }
   window.ultimoEstadoMesasKey = estadoAtualKey;
+
+  if (mesasExibidas.length === 0) {
+    let iconeVazio = '🟢';
+    let tituloVazio = 'Nenhuma mesa livre';
+    let subVazio = 'Todas as comandas estão em atendimento.';
+    if (filtroMesaAtual === 'ocupadas') {
+      iconeVazio = '🟠';
+      tituloVazio = 'Nenhuma mesa ocupada';
+      subVazio = 'Todas as mesas estão livres no momento.';
+    } else if (filtroMesaAtual === 'fechamentos') {
+      iconeVazio = '🟡';
+      tituloVazio = 'Nenhuma mesa a liberar';
+      subVazio = 'Não há solicitações de fechamento pendentes.';
+    }
+    grid.innerHTML = `
+      <div style="grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 50px 20px; color: #7f8c8d; text-align: center; pointer-events: none; user-select: none;">
+        <div style="font-size: 3rem; margin-bottom: 12px;">${iconeVazio}</div>
+        <h3 style="margin: 0 0 8px 0; color: #2c3e50; font-size: 1.15rem; font-weight: bold;">${tituloVazio}</h3>
+        <p style="margin: 0; font-size: 0.9rem; color: #95a5a6;">${subVazio}</p>
+      </div>
+    `;
+    return;
+  }
 
   grid.innerHTML = mesasExibidas.map(mesa => {
     let cronometroHtml = '';
