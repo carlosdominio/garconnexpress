@@ -379,6 +379,30 @@ async function carregarConfigCategoriasChurrasco() {
   }
 }
 
+// --- Identificação Precisa de Pedido Balcão vs Mesa / Comanda ---
+function isPedidoBalcao(pedido) {
+  if (!pedido) return false;
+  // Delivery nunca é balcão
+  if (pedido.garcom_id === 'DELIVERY' || String(pedido.mesa_numero || '').toUpperCase().includes('DELIVERY')) {
+    return false;
+  }
+  // Se for explicitamente tipo balcão
+  if (pedido.mesa_tipo === 'balcao') return true;
+
+  // Se o identificador da mesa contiver 'BALC' ou emoji de loja '🏪'
+  const numStr = String(pedido.mesa_numero || '').toUpperCase();
+  if (numStr.includes('BALC') || numStr.includes('🏪')) return true;
+
+  // Se não tem mesa_id e o identificador for vazio ou 'BALCAO'
+  if ((pedido.mesa_id === null || pedido.mesa_id === undefined || pedido.mesa_id === '') && (!pedido.mesa_numero || numStr === 'BALCÃO' || numStr === 'BALCAO')) {
+    return true;
+  }
+
+  // Se tem mesa_id ou mesa_numero com número/comanda, NÃO é balcão (mesmo que garcom_id === 'ADMIN')
+  return false;
+}
+window.isPedidoBalcao = isPedidoBalcao;
+
 // --- Utilitários de Máscara de Moeda (Ponto e Vírgula Automáticos) ---
 function converterMoedaParaFloat(val) {
   if (val === undefined || val === null || val === '') return 0;
@@ -442,6 +466,22 @@ function formatarDescontoFechamentoEvent(input) {
 }
 window.formatarDescontoFechamentoEvent = formatarDescontoFechamentoEvent;
 
+function formatarAcrescimoFechamentoEvent(input) {
+  if (!input) return;
+  if (tipoAcrescimoAdmin === 'porcentagem') {
+    let v = input.value.replace(/\D/g, '');
+    if (v !== '') {
+      let num = parseInt(v, 10);
+      if (num > 100) num = 100;
+      input.value = num;
+    }
+    recalcularTotalFechamentoAdmin();
+    return;
+  }
+  formatarMoedaInputEvent(input, recalcularTotalFechamentoAdmin);
+}
+window.formatarAcrescimoFechamentoEvent = formatarAcrescimoFechamentoEvent;
+
 function tratarPasteMoeda(e, callback) {
   const pasteData = (e.clipboardData || window.clipboardData)?.getData('text');
   if (!pasteData) return;
@@ -455,34 +495,137 @@ function tratarPasteMoeda(e, callback) {
 }
 window.tratarPasteMoeda = tratarPasteMoeda;
 
-let tipoDescontoAdmin = 'real'; // Padrão: em R$
+// --- Controles de Tipo (% ou R$) no Modal de Fechamento ---
+let tipoAcrescimoAdmin = 'real'; // Padrão: em R$
+let tipoDescontoAdmin = 'real';  // Padrão: em R$
 let veioDoFechamento = false; 
+
+function toggleTipoAcrescimo(isPorcentagem) {
+  tipoAcrescimoAdmin = isPorcentagem ? 'porcentagem' : 'real';
+  const label = document.getElementById('label-acrescimo-admin');
+  const input = document.getElementById('fechamento-acrescimo-admin');
+  
+  if (tipoAcrescimoAdmin === 'real') {
+    if (label) label.textContent = 'Acréscimo (R$):';
+    if (input) {
+      input.placeholder = '0,00';
+      if (input.value) {
+        const num = parseFloat(input.value) || 0;
+        input.value = num > 0 ? formatarMoedaInput(num) : '';
+      }
+    }
+  } else {
+    if (label) label.textContent = 'Acréscimo (%):';
+    if (input) {
+      input.placeholder = 'Valor em %';
+      if (input.value) {
+        const num = converterMoedaParaFloat(input.value);
+        input.value = num > 0 ? Math.min(100, Math.round(num)) : '';
+      }
+    }
+  }
+  recalcularTotalFechamentoAdmin();
+}
+window.toggleTipoAcrescimo = toggleTipoAcrescimo;
 
 function toggleTipoDesconto(isPorcentagem) {
   tipoDescontoAdmin = isPorcentagem ? 'porcentagem' : 'real';
   const label = document.getElementById('label-desconto-admin');
   const input = document.getElementById('fechamento-desconto-admin');
-  const span = document.getElementById('span-tipo-desconto');
   
   if (tipoDescontoAdmin === 'real') {
-    label.textContent = 'Desconto (R$):';
-    if (span) span.textContent = 'R$';
-    input.placeholder = '0,00';
-    if (input.value) {
-      const num = parseFloat(input.value) || 0;
-      input.value = num > 0 ? formatarMoedaInput(num) : '';
+    if (label) label.textContent = 'Desconto (R$):';
+    if (input) {
+      input.placeholder = '0,00';
+      if (input.value) {
+        const num = parseFloat(input.value) || 0;
+        input.value = num > 0 ? formatarMoedaInput(num) : '';
+      }
     }
   } else {
-    label.textContent = 'Desconto (%):';
-    if (span) span.textContent = '%';
-    input.placeholder = 'Valor em %';
-    if (input.value) {
-      const num = converterMoedaParaFloat(input.value);
-      input.value = num > 0 ? Math.min(100, Math.round(num)) : '';
+    if (label) label.textContent = 'Desconto (%):';
+    if (input) {
+      input.placeholder = 'Valor em %';
+      if (input.value) {
+        const num = converterMoedaParaFloat(input.value);
+        input.value = num > 0 ? Math.min(100, Math.round(num)) : '';
+      }
     }
   }
   recalcularTotalFechamentoAdmin();
 }
+window.toggleTipoDesconto = toggleTipoDesconto;
+
+// --- Controles de Tipo (% ou R$) no Modal de Opções da Mesa (Ajuste da Conta) ---
+let tipoAjusteOpcoesAcrescimo = 'real';
+let tipoAjusteOpcoesDesconto = 'real';
+
+function toggleTipoAjusteOpcoes(campo, isPorcento) {
+  const isAcresc = campo === 'acrescimo';
+  const label = document.getElementById(isAcresc ? 'lbl-tipo-ajuste-acrescimo' : 'lbl-tipo-ajuste-desconto');
+  const input = document.getElementById(isAcresc ? 'input-ajuste-acrescimo' : 'input-ajuste-desconto');
+  const subtotal = window.subtotalModalOpcoes || 0;
+
+  if (isAcresc) {
+    tipoAjusteOpcoesAcrescimo = isPorcento ? 'porcentagem' : 'real';
+  } else {
+    tipoAjusteOpcoesDesconto = isPorcento ? 'porcentagem' : 'real';
+  }
+
+  const modo = isAcresc ? tipoAjusteOpcoesAcrescimo : tipoAjusteOpcoesDesconto;
+  const icone = isAcresc ? '➕ Acréscimo' : '➖ Desconto';
+
+  if (modo === 'porcentagem') {
+    if (label) label.textContent = `${icone} (%)`;
+    if (input) {
+      input.placeholder = 'Valor em %';
+      const valorAtual = converterMoedaParaFloat(input.value);
+      if (valorAtual > 0 && subtotal > 0) {
+        const perc = Math.round((valorAtual / subtotal) * 100);
+        input.value = perc > 0 ? perc : '';
+      } else {
+        input.value = '';
+      }
+    }
+  } else {
+    if (label) label.textContent = `${icone} (R$)`;
+    if (input) {
+      input.placeholder = '0,00';
+      const percAtual = parseFloat(input.value) || 0;
+      if (percAtual > 0 && subtotal > 0) {
+        const valorReal = Math.round((subtotal * (percAtual / 100)) * 100) / 100;
+        input.value = formatarMoedaInput(valorReal);
+      } else {
+        input.value = '';
+      }
+    }
+  }
+}
+window.toggleTipoAjusteOpcoes = toggleTipoAjusteOpcoes;
+
+function formatarInputAjusteOpcoes(campo, input) {
+  if (!input) return;
+  const modo = campo === 'acrescimo' ? tipoAjusteOpcoesAcrescimo : tipoAjusteOpcoesDesconto;
+  if (modo === 'porcentagem') {
+    let v = input.value.replace(/\D/g, '');
+    if (v !== '') {
+      let num = parseInt(v, 10);
+      if (num > 100) num = 100;
+      input.value = num;
+    }
+    return;
+  }
+  formatarMoedaInputEvent(input);
+}
+window.formatarInputAjusteOpcoes = formatarInputAjusteOpcoes;
+
+function tratarPasteAjusteOpcoes(campo, e) {
+  const modo = campo === 'acrescimo' ? tipoAjusteOpcoesAcrescimo : tipoAjusteOpcoesDesconto;
+  if (modo !== 'porcentagem') {
+    tratarPasteMoeda(e);
+  }
+}
+window.tratarPasteAjusteOpcoes = tratarPasteAjusteOpcoes;
 
 function switchSubTab(sub) {
   subAbaAtiva = sub;
@@ -6619,7 +6762,7 @@ async function exibirPedidos() {
       const isDelivery = (pedido.garcom_id === 'DELIVERY');
       const isRetirada = isDelivery && isPedidoRetiradaLocal(pedido);
       const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '') && (pedido.mesa_tipo !== 'balcao');
-      const isBalcao = !isDelivery && (!isMesa || pedido.mesa_tipo === 'balcao' || pedido.garcom_id === 'ADMIN' || !pedido.mesa_numero || String(pedido.mesa_numero).toUpperCase().includes('BALC'));
+      const isBalcao = isPedidoBalcao(pedido);
       let mesaNomeExibicao;
       if (isRetirada) {
         mesaNomeExibicao = `🛍️ RETIRADA #${pedido.id}`;
@@ -7449,24 +7592,15 @@ async function marcarPedidoEntregue(id) {
 async function liberarMesa(idPedido, idMesa, temPendentes = false) {
   const pedidoObj = (Array.isArray(pedidos) ? pedidos.find(p => p.id === idPedido) : null);
   const isDelivery = pedidoObj && pedidoObj.garcom_id === 'DELIVERY';
-  const isMesa = pedidoObj && (pedidoObj.mesa_id !== null && pedidoObj.mesa_id !== undefined && pedidoObj.mesa_id !== '') && (pedidoObj.mesa_tipo !== 'balcao');
-  const isBalcao = !isDelivery && (
-    !idMesa ||
-    (pedidoObj && (
-      pedidoObj.mesa_tipo === 'balcao' ||
-      pedidoObj.garcom_id === 'ADMIN' ||
-      !pedidoObj.mesa_numero ||
-      String(pedidoObj.mesa_numero).toUpperCase().includes('BALC') ||
-      String(pedidoObj.mesa_numero).includes('🏪')
-    ))
-  );
+  const isBalcao = isPedidoBalcao(pedidoObj);
+  const nomeIdentificacao = pedidoObj ? (typeof formatarNomeMesaHistorico === 'function' ? formatarNomeMesaHistorico(pedidoObj) : (pedidoObj.mesa_numero ? 'Mesa ' + pedidoObj.mesa_numero : (isBalcao ? 'Balcão' : 'Mesa'))) : (isBalcao ? 'Balcão' : 'Mesa');
 
-  const tituloModal = isBalcao ? "Liberar Balcão" : "Liberar Mesa";
-  let msg = isBalcao ? "Liberar balcão agora?" : "Liberar mesa agora?";
+  const tituloModal = isBalcao ? "Liberar Balcão" : `Liberar ${nomeIdentificacao}`;
+  let msg = isBalcao ? "Liberar balcão agora?" : `Liberar ${nomeIdentificacao} agora?`;
   if (temPendentes) {
     msg = isBalcao
       ? "⚠️ ATENÇÃO: Este pedido de Balcão possui itens PENDENTES de entrega! Tem certeza que deseja LIBERAR e encerrar o pedido sem entregar tudo?"
-      : "⚠️ ATENÇÃO: Esta mesa possui itens PENDENTES de entrega! Tem certeza que deseja LIBERAR a mesa e encerrar o pedido sem entregar tudo?";
+      : `⚠️ ATENÇÃO: ${nomeIdentificacao} possui itens PENDENTES de entrega! Tem certeza que deseja LIBERAR e encerrar o pedido sem entregar tudo?`;
   }
   if (await mostrarConfirmacao(msg, tituloModal, "Confirmar", "Cancelar", "🔓")) {
     // Agora chama o modal de fechamento para conferência antes de liberar
@@ -8120,14 +8254,7 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null, dados
   });
 
   const isDelivery = (pedidoParaFecharAdmin.garcom_id === 'DELIVERY');
-  const isBalcao = (
-    pedidoParaFecharAdmin.mesa_tipo === 'balcao' ||
-    !pedidoParaFecharAdmin.mesa_id ||
-    pedidoParaFecharAdmin.garcom_id === 'ADMIN' ||
-    !pedidoParaFecharAdmin.mesa_numero || 
-    String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('BALC') ||
-    String(pedidoParaFecharAdmin.mesa_numero).includes('🏪')
-  );
+  const isBalcao = isPedidoBalcao(pedidoParaFecharAdmin);
 
   // --- TRAVA DE COZINHA E CHURRASQUEIRA INTELIGENTE ---
   // Filtra itens pendentes (EM PREPARO) que SÃO da cozinha ou churrasqueira
@@ -8260,9 +8387,11 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null, dados
   if (isDelivery) {
       titleHTML = `Finalizar Delivery <span id="fechamento-mesa-admin">#${pedidoParaFecharAdmin.id}</span>`;
   } else if (isBalcao) {
-      titleHTML = `Finalizar Pedido <span id="fechamento-mesa-admin">BALCÃO</span>`;
+      const numB = pedidoParaFecharAdmin.mesa_numero ? 'Balcão ' + String(pedidoParaFecharAdmin.mesa_numero).replace(/balc[aã]o/i, '').replace(/🏪/g, '').trim() : 'BALCÃO';
+      titleHTML = `Finalizar Pedido <span id="fechamento-mesa-admin">${numB}</span>`;
   } else {
-      titleHTML = `Finalizar e Liberar <span id="fechamento-mesa-admin">Mesa ${pedidoParaFecharAdmin.mesa_numero}</span>`;
+      const nomeMesa = typeof formatarNomeMesaHistorico === 'function' ? formatarNomeMesaHistorico(pedidoParaFecharAdmin) : (pedidoParaFecharAdmin.mesa_numero ? 'Mesa ' + pedidoParaFecharAdmin.mesa_numero : 'Mesa');
+      titleHTML = `Finalizar e Liberar <span id="fechamento-mesa-admin">${nomeMesa}</span>`;
   }
   
   const spanMesaAdmin = document.getElementById('fechamento-mesa-admin');
@@ -8353,18 +8482,22 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null, dados
   };
   document.getElementById('fechamento-divisao-pessoas').value = pedidoParaFecharAdmin.num_pessoas || 1;
   
-  // Reseta tipo de desconto para R$ ao abrir (Desativado por padrão)
+  // Reseta tipos de acréscimo e desconto para R$ ao abrir (Desativado por padrão)
+  tipoAcrescimoAdmin = 'real';
+  const checkTipoAcresc = document.getElementById('check-tipo-acrescimo');
+  if (checkTipoAcresc) checkTipoAcresc.checked = false;
+  const labelAcrescimo = document.getElementById('label-acrescimo-admin');
+  if (labelAcrescimo) labelAcrescimo.textContent = 'Acréscimo (R$):';
+  const inputAcrescimo = document.getElementById('fechamento-acrescimo-admin');
+  if (inputAcrescimo) inputAcrescimo.placeholder = '0,00';
+
   tipoDescontoAdmin = 'real';
   const checkTipo = document.getElementById('check-tipo-desconto');
   if (checkTipo) checkTipo.checked = false;
-  const spanTipo = document.getElementById('span-tipo-desconto');
-  if (spanTipo) spanTipo.textContent = 'R$';
   const labelDesconto = document.getElementById('label-desconto-admin');
   if (labelDesconto) labelDesconto.textContent = 'Desconto (R$):';
   const inputDesconto = document.getElementById('fechamento-desconto-admin');
-  if (inputDesconto) {
-    inputDesconto.placeholder = '0,00';
-  }
+  if (inputDesconto) inputDesconto.placeholder = '0,00';
 
   const pagoParcial = pedidoParaFecharAdmin.pago_parcial || 0;
   const elPagoContainer = document.getElementById('fechamento-pago-parcial-container');
@@ -8542,7 +8675,14 @@ function recalcularTotalFechamentoAdmin() {
     ? parseFloat(pedidoParaFecharAdmin.taxa_entrega)
     : 3.00;
   const taxa = cobrarTaxa ? (isDelivery ? taxaEntregaVal : subtotalConsumoAdmin * 0.10) : 0;
-  const acrescimo = converterMoedaParaFloat(document.getElementById('fechamento-acrescimo-admin')?.value);
+  const rawAcrescimo = document.getElementById('fechamento-acrescimo-admin')?.value;
+  const acrescimoInput = tipoAcrescimoAdmin === 'porcentagem'
+    ? (parseFloat(rawAcrescimo) || 0)
+    : converterMoedaParaFloat(rawAcrescimo);
+  let acrescimo = acrescimoInput;
+  if (tipoAcrescimoAdmin === 'porcentagem') {
+    acrescimo = subtotalConsumoAdmin * (acrescimoInput / 100);
+  }
 
   const rawDesconto = document.getElementById('fechamento-desconto-admin')?.value;
   const descontoInput = tipoDescontoAdmin === 'porcentagem'
@@ -8727,7 +8867,14 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
   const todosItensSelecionados = selecionados.length === itensFechamentoAdmin.length;
 
   const forma_pagamento = document.getElementById('fechamento-forma-admin').value;
-  const acrescimo = converterMoedaParaFloat(document.getElementById('fechamento-acrescimo-admin')?.value);
+  const rawAcrescimo = document.getElementById('fechamento-acrescimo-admin')?.value;
+  const acrescimoInput = tipoAcrescimoAdmin === 'porcentagem'
+    ? (parseFloat(rawAcrescimo) || 0)
+    : converterMoedaParaFloat(rawAcrescimo);
+  let acrescimo = acrescimoInput;
+  if (tipoAcrescimoAdmin === 'porcentagem') {
+    acrescimo = subtotalLocal * (acrescimoInput / 100);
+  }
 
   const rawDesconto = document.getElementById('fechamento-desconto-admin')?.value;
   const descontoInput = tipoDescontoAdmin === 'porcentagem'
@@ -11055,7 +11202,7 @@ async function abrirModalOpcoes(pedidoId) {
   const isDelivery = (pedido.garcom_id === 'DELIVERY');
   const isRetirada = isDelivery && isPedidoRetiradaLocal(pedido);
   const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '') && (pedido.mesa_tipo !== 'balcao');
-  const isBalcao = !isDelivery && ((pedido.mesa_tipo === 'balcao') || (pedido.garcom_id === 'ADMIN' && !isMesa) || !pedido.mesa_numero || String(pedido.mesa_numero).toUpperCase().includes('BALC'));
+  const isBalcao = isPedidoBalcao(pedido);
   const mesaNome = isDelivery ? (isRetirada ? '🛍️ RETIRADA #' + pedido.id : '🛵 DELIVERY #' + pedido.id) : (typeof obterNomeExibicaoCard === 'function' ? obterNomeExibicaoCard(pedido) : (pedido.mesa_tipo === 'balcao' ? '🏪 Balcão ' + pedido.mesa_numero : (pedido.mesa_numero ? 'Mesa ' + pedido.mesa_numero : 'Balcão')));
   const mesaId = pedido.mesa_id;
   
@@ -11103,6 +11250,7 @@ async function abrirModalOpcoes(pedidoId) {
   const cobrarTaxaNoPedido = (pedidosStatusTaxa[pedidoId] !== undefined) ? pedidosStatusTaxa[pedidoId] : (pedido.cobrar_taxa === undefined || pedido.cobrar_taxa === null ? true : (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true));
   const itensParaSomaModal = itens.filter(i => (i.status || '').toLowerCase() !== 'cancelado');
   const subtotal = itensParaSomaModal.reduce((sum, i) => sum + ((i.preco || 0) * (i.quantidade || 1)), 0);
+  window.subtotalModalOpcoes = subtotal;
   const taxaServico = cobrarTaxaNoPedido ? (isDelivery ? taxaDeliveryModalVal : (subtotal * 0.10)) : 0;
   const pagoParcial = pedido.pago_parcial || 0;
   const acrescimo = parseFloat(pedido.acrescimo) || 0;
@@ -11145,12 +11293,29 @@ async function abrirModalOpcoes(pedidoId) {
     ${htmlPagamentoModal}
   `;
 
-  // Preenche inputs de ajuste antecipado (acréscimo e desconto)
+  // Preenche inputs e reseta switches de ajuste antecipado (acréscimo e desconto)
+  tipoAjusteOpcoesAcrescimo = 'real';
+  tipoAjusteOpcoesDesconto = 'real';
+  const checkAcrescOpcoes = document.getElementById('check-ajuste-acrescimo-porcento');
+  if (checkAcrescOpcoes) checkAcrescOpcoes.checked = false;
+  const checkDescOpcoes = document.getElementById('check-ajuste-desconto-porcento');
+  if (checkDescOpcoes) checkDescOpcoes.checked = false;
+  const lblAcrescOpcoes = document.getElementById('lbl-tipo-ajuste-acrescimo');
+  if (lblAcrescOpcoes) lblAcrescOpcoes.textContent = '➕ Acréscimo (R$)';
+  const lblDescOpcoes = document.getElementById('lbl-tipo-ajuste-desconto');
+  if (lblDescOpcoes) lblDescOpcoes.textContent = '➖ Desconto (R$)';
+
   const inputAcrescimo = document.getElementById('input-ajuste-acrescimo');
   const inputDesconto = document.getElementById('input-ajuste-desconto');
   const labelStatusAjustes = document.getElementById('label-status-ajustes');
-  if (inputAcrescimo) inputAcrescimo.value = acrescimo > 0 ? formatarMoedaInput(acrescimo) : '';
-  if (inputDesconto) inputDesconto.value = desconto > 0 ? formatarMoedaInput(desconto) : '';
+  if (inputAcrescimo) {
+    inputAcrescimo.placeholder = '0,00';
+    inputAcrescimo.value = acrescimo > 0 ? formatarMoedaInput(acrescimo) : '';
+  }
+  if (inputDesconto) {
+    inputDesconto.placeholder = '0,00';
+    inputDesconto.value = desconto > 0 ? formatarMoedaInput(desconto) : '';
+  }
   if (labelStatusAjustes) {
     labelStatusAjustes.style.color = '#16a34a';
     labelStatusAjustes.innerText = (acrescimo > 0 || desconto > 0) ? '✅ Salvo no pedido' : '';
@@ -11549,8 +11714,23 @@ window.salvarAjustesMesaOpcoes = async function() {
   const btnSalvar = document.getElementById('btn-salvar-ajustes-mesa');
   const labelStatus = document.getElementById('label-status-ajustes');
 
-  const acrescimo = Math.max(0, converterMoedaParaFloat(inputAcrescimo ? inputAcrescimo.value : 0));
-  const desconto = Math.max(0, converterMoedaParaFloat(inputDesconto ? inputDesconto.value : 0));
+  const subtotal = window.subtotalModalOpcoes || 0;
+
+  let acrescimo = 0;
+  if (tipoAjusteOpcoesAcrescimo === 'porcentagem') {
+    const perc = parseFloat(inputAcrescimo ? inputAcrescimo.value : 0) || 0;
+    acrescimo = Math.max(0, Math.round(subtotal * (perc / 100) * 100) / 100);
+  } else {
+    acrescimo = Math.max(0, converterMoedaParaFloat(inputAcrescimo ? inputAcrescimo.value : 0));
+  }
+
+  let desconto = 0;
+  if (tipoAjusteOpcoesDesconto === 'porcentagem') {
+    const perc = parseFloat(inputDesconto ? inputDesconto.value : 0) || 0;
+    desconto = Math.max(0, Math.round(subtotal * (perc / 100) * 100) / 100);
+  } else {
+    desconto = Math.max(0, converterMoedaParaFloat(inputDesconto ? inputDesconto.value : 0));
+  }
 
   const textoOriginalBtn = btnSalvar ? btnSalvar.innerHTML : '💾 SALVAR';
   if (btnSalvar) {

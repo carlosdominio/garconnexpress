@@ -1920,13 +1920,19 @@
 
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
                 <div>
-                  <label style="display:block; font-size: 0.75rem; font-weight: bold; color: #64748b;">Acréscimo (R$):</label>
-                  <input type="text" inputmode="numeric" id="fechamento-acrescimo-admin" placeholder="0,00" oninput="formatarMoedaInputEvent(this, recalcularTotalFechamentoAdmin)" onpaste="tratarPasteMoeda(event, recalcularTotalFechamentoAdmin)" style="width: 100%; padding: 8px; border: 1px solid #cbd5e0; border-radius: 6px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                    <label id="label-acrescimo-admin" style="font-size: 0.75rem; font-weight: bold; color: #64748b;">Acréscimo (R$):</label>
+                    <label class="switch" style="transform: scale(0.7); margin-top: -5px;" title="Alternar entre R$ e %">
+                      <input type="checkbox" id="check-tipo-acrescimo" onchange="toggleTipoAcrescimo(this.checked)">
+                      <span class="slider round"></span>
+                    </label>
+                  </div>
+                  <input type="text" inputmode="numeric" id="fechamento-acrescimo-admin" placeholder="0,00" oninput="formatarAcrescimoFechamentoEvent(this)" onpaste="if(tipoAcrescimoAdmin!=='porcentagem')tratarPasteMoeda(event, recalcularTotalFechamentoAdmin)" style="width: 100%; padding: 8px; border: 1px solid #cbd5e0; border-radius: 6px;">
                 </div>
                 <div>
-                  <div style="display: flex; justify-content: space-between;">
-                    <label id="label-desconto-admin" style="font-size: 0.75rem; font-weight: bold; color: #64748b;">Desconto (%):</label>
-                    <label class="switch" style="transform: scale(0.7); margin-top: -5px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                    <label id="label-desconto-admin" style="font-size: 0.75rem; font-weight: bold; color: #64748b;">Desconto (R$):</label>
+                    <label class="switch" style="transform: scale(0.7); margin-top: -5px;" title="Alternar entre R$ e %">
                       <input type="checkbox" id="check-tipo-desconto" onchange="toggleTipoDesconto(this.checked)">
                       <span class="slider round"></span>
                     </label>
@@ -2211,12 +2217,24 @@
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: flex-end;">
             <div>
-              <label style="font-size: 0.72rem; font-weight: 700; color: #27ae60; display: block; margin-bottom: 3px;">➕ Acréscimo (R$)</label>
-              <input type="text" inputmode="numeric" id="input-ajuste-acrescimo" placeholder="0,00" oninput="formatarMoedaInputEvent(this)" onpaste="tratarPasteMoeda(event)" onkeydown="if(event.key==='Enter'){event.preventDefault();salvarAjustesMesaOpcoes();}" style="width: 100%; padding: 7px 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; font-weight: bold; color: #1e293b; outline: none; box-sizing: border-box;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                <label id="lbl-tipo-ajuste-acrescimo" style="font-size: 0.72rem; font-weight: 700; color: #27ae60;">➕ Acréscimo (R$)</label>
+                <label class="switch" style="transform: scale(0.65); margin: 0;" title="Alternar entre R$ e %">
+                  <input type="checkbox" id="check-ajuste-acrescimo-porcento" onchange="toggleTipoAjusteOpcoes('acrescimo', this.checked)">
+                  <span class="slider round"></span>
+                </label>
+              </div>
+              <input type="text" inputmode="numeric" id="input-ajuste-acrescimo" placeholder="0,00" oninput="formatarInputAjusteOpcoes('acrescimo', this)" onpaste="tratarPasteAjusteOpcoes('acrescimo', event)" onkeydown="if(event.key==='Enter'){event.preventDefault();salvarAjustesMesaOpcoes();}" style="width: 100%; padding: 7px 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; font-weight: bold; color: #1e293b; outline: none; box-sizing: border-box;">
             </div>
             <div>
-              <label style="font-size: 0.72rem; font-weight: 700; color: #e74c3c; display: block; margin-bottom: 3px;">➖ Desconto (R$)</label>
-              <input type="text" inputmode="numeric" id="input-ajuste-desconto" placeholder="0,00" oninput="formatarMoedaInputEvent(this)" onpaste="tratarPasteMoeda(event)" onkeydown="if(event.key==='Enter'){event.preventDefault();salvarAjustesMesaOpcoes();}" style="width: 100%; padding: 7px 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; font-weight: bold; color: #1e293b; outline: none; box-sizing: border-box;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                <label id="lbl-tipo-ajuste-desconto" style="font-size: 0.72rem; font-weight: 700; color: #e74c3c;">➖ Desconto (R$)</label>
+                <label class="switch" style="transform: scale(0.65); margin: 0;" title="Alternar entre R$ e %">
+                  <input type="checkbox" id="check-ajuste-desconto-porcento" onchange="toggleTipoAjusteOpcoes('desconto', this.checked)">
+                  <span class="slider round"></span>
+                </label>
+              </div>
+              <input type="text" inputmode="numeric" id="input-ajuste-desconto" placeholder="0,00" oninput="formatarInputAjusteOpcoes('desconto', this)" onpaste="tratarPasteAjusteOpcoes('desconto', event)" onkeydown="if(event.key==='Enter'){event.preventDefault();salvarAjustesMesaOpcoes();}" style="width: 100%; padding: 7px 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; font-weight: bold; color: #1e293b; outline: none; box-sizing: border-box;">
             </div>
             <button type="button" id="btn-salvar-ajustes-mesa" onclick="salvarAjustesMesaOpcoes()" style="background: #2c3e50; color: white; border: none; padding: 7px 14px; border-radius: 8px; font-size: 0.82rem; font-weight: 800; cursor: pointer; height: 35px; white-space: nowrap; transition: 0.2s;" title="Salvar acréscimo e desconto no pedido">💾 SALVAR</button>
           </div>
@@ -2373,7 +2391,7 @@
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="app_v3.js?v=1.6.1-mascara-moeda-ajustes"></script>
+  <script src="app_v3.js?v=1.6.2-ajustes-porcentagem-fix-balcao"></script>
   <!-- Modal: Mesa Aguardando Cliente -->
   <div id="modal-mesa-aguardando" class="modal">
     <div class="modal-content" style="max-width: 420px; border-radius: 16px; overflow: hidden; padding: 0;">
