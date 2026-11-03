@@ -695,7 +695,7 @@ async function sendWhatsAppMessage(text, targetNumber = null, pedidoId = 9999) {
       const uniqueNumbers = [...new Set(numbersList.map(n => n.replace(/\D/g, '')))];
       console.log(`🤖 [WhatsApp] Bot CONECTADO via Socket. Enviando para: ${uniqueNumbers.join(', ')}`);
 
-      let webVersion = '1.0.0';
+      let webVersion = '4.0.0';
       try {
         const vRow = (await query("SELECT valor FROM sistema_config WHERE chave = 'config_web_version'")).rows[0];
         if (vRow && vRow.valor) webVersion = vRow.valor;
@@ -7693,7 +7693,7 @@ app.post('/api/whatsapp-number', isAdmin, async (req, res) => {
     }
 
     if (whatsappSocket && whatsappSocket.connected && number) {
-      let webVersion = '1.0.0';
+      let webVersion = '4.0.0';
       try {
         const vRow = (await query("SELECT valor FROM sistema_config WHERE chave = 'config_web_version'")).rows[0];
         if (vRow && vRow.valor) webVersion = vRow.valor;
@@ -7789,7 +7789,7 @@ app.get('/api/config/versao-app', ensureDbInitialized, async (req, res) => {
     }
     res.json({
       success: true,
-      web_version: configMap['config_web_version'] || '1.0.0',
+      web_version: configMap['config_web_version'] || '4.0.0',
       garcom_apk_version: configMap['config_garcom_apk_version'] || '2.0.0',
       garcom_apk_url: configMap['config_garcom_apk_url'] || '/garcom-v1.1.0-portrait.apk',
       cozinha_apk_version: configMap['config_cozinha_apk_version'] || '2.0.0',
@@ -8720,7 +8720,7 @@ app.get('/api/debug-fechamentos', ensureDbInitialized, async (req, res) => {
     }
 });
 
-const SYSTEM_VERSION = '1.3.1';
+const SYSTEM_VERSION = '4.0.0';
 app.get('/api/versao', ensureDbInitialized, async (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate');
   res.set('Pragma', 'no-cache');

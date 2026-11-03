@@ -1675,7 +1675,7 @@ async function verificarAtualizacaoApk(appTipo, isFromPusher = false) {
   }
 }
 
-const CLIENT_VERSION = '1.3.1';
+const CLIENT_VERSION = '4.0.0';
 async function verificarVersaoSistema() {
     try {
         const res = await fetch(`${API_BASE_URL}/api/versao?_t=${Date.now()}`);

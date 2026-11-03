@@ -907,6 +907,9 @@ async function configurarPusher() {
 
         canal.bind('versao-app-atualizada', (data) => {
             console.log('🔄 Versão do código atualizada pelo Admin!', data);
+            if (data && data.web_version) {
+                localStorage.setItem('versao_web_cozinha', String(data.web_version));
+            }
             if (isNativeApp) {
                 verificarAtualizacaoApk('cozinha', true);
             } else {
@@ -1698,16 +1701,21 @@ async function verificarAtualizacaoApk(appTipo, isFromPusher = false) {
   }
 }
 
-const CLIENT_VERSION = '1.3.1';
+const CLIENT_VERSION = '4.0.0';
 async function verificarVersaoSistema() {
     try {
-        const res = await fetch(`${API_BASE_URL}/api/versao?_t=${Date.now()}`);
+        const res = await fetch(`${API_BASE_URL}/api/versao?_t=${Date.now()}`, { cache: 'no-store' });
         if (!res.ok) return;
         const data = await res.json();
-        if (data && data.versao && data.versao !== CLIENT_VERSION) {
-            console.log(`🔄 Nova versão do sistema encontrada (${data.versao}). Recarregando...`);
-            exibirTelaCarregamentoSistema('🍳 Atualizando Cozinha', 'Nova versão do sistema detectada. Aplicando atualizações...');
-            setTimeout(() => window.location.reload(true), 1500);
+        if (data && data.versao) {
+            const vServidor = String(data.versao).trim();
+            const versaoSalva = localStorage.getItem('versao_web_cozinha') || CLIENT_VERSION;
+            if (vServidor !== versaoSalva) {
+                localStorage.setItem('versao_web_cozinha', vServidor);
+                console.log(`🔄 Nova versão do sistema encontrada (${vServidor} vs ${versaoSalva}). Recarregando...`);
+                exibirTelaCarregamentoSistema('🍳 Atualizando Cozinha', 'Nova versão do sistema detectada. Aplicando atualizações...');
+                setTimeout(() => window.location.reload(true), 1500);
+            }
         }
     } catch (e) {
         console.error('Erro ao verificar versão do sistema:', e);

@@ -714,14 +714,17 @@ document.addEventListener('keydown', (e) => {
   realizarLoginAdmin();
 });
 let intervalPiscaTitulo = null;
-let versaoWebAtualAdmin = localStorage.getItem('versao_web_admin') || '';
+let versaoWebAtualAdmin = (localStorage.getItem('versao_web_admin') && localStorage.getItem('versao_web_admin') !== '1.3.1' && localStorage.getItem('versao_web_admin') !== '1.0.0') ? localStorage.getItem('versao_web_admin') : '4.0.0';
 const NOME_APP_ADMIN = "Guga-Bebidas — Painel Administrativo";
 const tituloOriginal = NOME_APP_ADMIN;
 
 function obterVersaoWebAtual() {
   const inWeb = document.getElementById('config-web-version');
-  const vInput = (inWeb && inWeb.value && inWeb.value.trim() && inWeb.value.trim() !== '1.0.0') ? inWeb.value.trim() : '';
-  return vInput || versaoWebAtualAdmin || localStorage.getItem('versao_web_admin') || '';
+  const vInput = (inWeb && inWeb.value && inWeb.value.trim() && inWeb.value.trim() !== '1.0.0' && inWeb.value.trim() !== '1.3.1') ? inWeb.value.trim() : '';
+  const vStorage = localStorage.getItem('versao_web_admin');
+  const vStorageValida = (vStorage && vStorage !== '1.0.0' && vStorage !== '1.3.1') ? vStorage : '';
+  const vAdminValida = (versaoWebAtualAdmin && versaoWebAtualAdmin !== '1.0.0' && versaoWebAtualAdmin !== '1.3.1') ? versaoWebAtualAdmin : '';
+  return vInput || vAdminValida || vStorageValida || '4.0.0';
 }
 
 function obterTituloNotificacaoAdmin(naoLidas = 0) {
@@ -768,7 +771,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (inWebEl) {
     inWebEl.addEventListener('input', () => {
       const val = inWebEl.value.trim();
-      if (val && val !== '1.0.0') {
+      if (val) {
         versaoWebAtualAdmin = val;
         localStorage.setItem('versao_web_admin', val);
         atualizarBadgeNotificacoes();
@@ -776,19 +779,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Carrega versão do servidor e sincroniza
-  try {
-    const resVersao = await fetch('/api/versao?_t=' + Date.now());
-    if (resVersao.ok) {
-      const dataVersao = await resVersao.json();
-      if (dataVersao && dataVersao.versao && dataVersao.versao !== '1.0.0' && dataVersao.versao !== '1.3.1') {
-        versaoWebAtualAdmin = String(dataVersao.versao);
-        localStorage.setItem('versao_web_admin', versaoWebAtualAdmin);
-      }
-    }
-  } catch(e) { console.warn('Erro ao buscar versão:', e); }
-
-  // Verifica versão do sistema contra descompasso de deploy
+  // Carrega configurações de versão e verifica versão do sistema
+  carregarVersaoApp();
   verificarVersaoSistema();
   setInterval(verificarVersaoSistema, 5 * 60 * 1000);
 });
@@ -840,18 +832,28 @@ function executarRecargaPorAtualizacao(novaVersao) {
 
 async function verificarVersaoSistema() {
   try {
-    const res = await fetch('/api/versao?_t=' + Date.now());
+    const res = await fetch('/api/versao?_t=' + Date.now(), { cache: 'no-store' });
     if (!res.ok) return;
     const data = await res.json();
     if (data && data.versao) {
+      const vServidor = (data.versao === '1.0.0' || data.versao === '1.3.1') ? '4.0.0' : String(data.versao);
+      const inWeb = document.getElementById('config-web-version');
+      if (inWeb && document.activeElement !== inWeb) {
+        inWeb.value = vServidor;
+      }
+      if (versaoWebAtualAdmin !== vServidor) {
+        versaoWebAtualAdmin = vServidor;
+        localStorage.setItem('versao_web_admin', vServidor);
+        atualizarBadgeNotificacoes();
+      }
       const versaoSalva = localStorage.getItem('versao_web_admin');
-      if (!versaoSalva) {
-        localStorage.setItem('versao_web_admin', String(data.versao));
+      if (!versaoSalva || versaoSalva === '1.0.0' || versaoSalva === '1.3.1') {
+        localStorage.setItem('versao_web_admin', vServidor);
         return;
       }
-      if (String(data.versao) !== String(versaoSalva)) {
-        console.log(`🔄 Nova versão do sistema encontrada (${data.versao} vs ${versaoSalva}). Recarregando...`);
-        executarRecargaPorAtualizacao(data.versao);
+      if (vServidor !== versaoSalva) {
+        console.log(`🔄 Nova versão do sistema encontrada (${vServidor} vs ${versaoSalva}). Recarregando...`);
+        executarRecargaPorAtualizacao(vServidor);
       }
     }
   } catch (e) {
@@ -10291,6 +10293,11 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
 
     channel.bind('versao-app-atualizada', (data) => {
       console.log('🔄 Versão do código web atualizada via Pusher!', data);
+      if (data && data.web_version) {
+        versaoWebAtualAdmin = String(data.web_version);
+        localStorage.setItem('versao_web_admin', String(data.web_version));
+        atualizarBadgeNotificacoes();
+      }
       executarRecargaPorAtualizacao(data?.web_version);
     });
 
@@ -13785,7 +13792,13 @@ async function carregarVersaoApp() {
       const inChurrasqueiroApk = document.getElementById('config-churrasqueiro-apk-version');
       const inChurrasqueiroUrl = document.getElementById('config-churrasqueiro-apk-url');
 
-      if (inWeb && data.web_version) inWeb.value = data.web_version;
+      if (inWeb && data.web_version) {
+        const vFinal = (data.web_version === '1.0.0' || data.web_version === '1.3.1') ? '4.0.0' : data.web_version;
+        inWeb.value = vFinal;
+        versaoWebAtualAdmin = String(vFinal);
+        localStorage.setItem('versao_web_admin', String(vFinal));
+        atualizarBadgeNotificacoes();
+      }
       
       if (inGarcomApk && data.garcom_apk_version) inGarcomApk.value = data.garcom_apk_version;
       if (inGarcomUrl && data.garcom_apk_url) inGarcomUrl.value = data.garcom_apk_url;
@@ -13855,7 +13868,7 @@ async function salvarVersaoAppWeb() {
     return;
   }
   setBtnState('btn-salvar-versao-app', false, '#6366f1', '⏳ SALVANDO...', '⏳ SALVANDO...');
-  const web_version = document.getElementById('config-web-version')?.value || '1.0.0';
+  const web_version = document.getElementById('config-web-version')?.value?.trim() || '4.0.0';
   const garcom_apk_version = document.getElementById('config-garcom-apk-version')?.value || '2.0.0';
   const garcom_apk_url = converterParaLinkDireto(document.getElementById('config-garcom-apk-url')?.value || '');
   const cozinha_apk_version = document.getElementById('config-cozinha-apk-version')?.value || '2.0.0';
@@ -13873,6 +13886,9 @@ async function salvarVersaoAppWeb() {
     const data = await res.json();
     if (data.success) {
       snapshotVersaoWebOriginal = coletarEstadoVersaoWeb();
+      versaoWebAtualAdmin = String(web_version);
+      localStorage.setItem('versao_web_admin', String(web_version));
+      atualizarBadgeNotificacoes();
       await mostrarConfirmacaoFCM('Sucesso', '⚙️ Versão Web atualizada com sucesso!', 'sucesso', true);
       carregarVersaoApp();
     } else { throw new Error(data.error || 'Erro desconhecido'); }
