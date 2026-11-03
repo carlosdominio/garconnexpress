@@ -2168,10 +2168,10 @@ const ordemFiltrosMesas = ['todas', 'ocupadas', 'fechamentos'];
 
 function isModalAbertoGarcom() {
   const telaPedido = document.getElementById('pedido');
-  if (telaPedido && !telaPedido.classList.contains('hidden')) return true;
+  if (telaPedido && !telaPedido.classList.contains('hidden') && telaPedido.style.display !== 'none') return true;
 
   const telaMesas = document.getElementById('mesas');
-  if (!telaMesas || telaMesas.classList.contains('hidden')) return true;
+  if (!telaMesas || telaMesas.classList.contains('hidden') || telaMesas.style.display === 'none') return true;
 
   if (document.querySelector('.swal2-container')) return true;
 
@@ -3601,9 +3601,18 @@ function abrirCardapio() {
       c.classList.toggle('ativa', c.dataset.categoria === 'todas');
     });
 
-    document.getElementById('mesas').classList.add('hidden');
-    document.getElementById('pedido').classList.remove('hidden');
+    const secMesas = document.getElementById('mesas');
+    const secPedido = document.getElementById('pedido');
+    if (secMesas) {
+      secMesas.classList.add('hidden');
+      secMesas.style.display = 'none';
+    }
+    if (secPedido) {
+      secPedido.classList.remove('hidden');
+      secPedido.style.display = 'block';
+    }
     document.getElementById('btn-header-mesas').style.display = 'flex';
+    window.scrollTo({ top: 0, behavior: 'instant' });
     // Esconde o modal do carrinho caso esteja aberto
     const modalCarrinho = document.getElementById('modal-carrinho');
     if (modalCarrinho) {
@@ -3645,24 +3654,42 @@ function voltarParaMesas() {
   if (pedidoAtual.length > 0) {
     mostrarConfirmacao("Você tem itens no carrinho. Deseja realmente voltar e descartar este pedido?", "Aviso", "Sim, descartar", "Não, manter").then(confirm => {
       if (confirm) {
-        document.getElementById('pedido').classList.add('hidden');
-        document.getElementById('mesas').classList.remove('hidden');
+        const secMesas = document.getElementById('mesas');
+        const secPedido = document.getElementById('pedido');
+        if (secPedido) {
+          secPedido.classList.add('hidden');
+          secPedido.style.display = 'none';
+        }
+        if (secMesas) {
+          secMesas.classList.remove('hidden');
+          secMesas.style.display = 'flex';
+        }
         document.getElementById('btn-header-mesas').style.display = 'none';
         document.getElementById('modal-carrinho').style.display = 'none';
         pedidoAtual = [];
         mesaAtual = null;
         pedidoAbertoNaMesa = null;
         atualizarBloqueioScroll(); // Destrava o scroll
+        window.scrollTo({ top: 0, behavior: 'instant' });
       }
     });
   } else {
-    document.getElementById('pedido').classList.add('hidden');
-    document.getElementById('mesas').classList.remove('hidden');
+    const secMesas = document.getElementById('mesas');
+    const secPedido = document.getElementById('pedido');
+    if (secPedido) {
+      secPedido.classList.add('hidden');
+      secPedido.style.display = 'none';
+    }
+    if (secMesas) {
+      secMesas.classList.remove('hidden');
+      secMesas.style.display = 'flex';
+    }
     document.getElementById('btn-header-mesas').style.display = 'none';
     pedidoAtual = [];
     mesaAtual = null;
     pedidoAbertoNaMesa = null;
     atualizarBloqueioScroll();
+    window.scrollTo({ top: 0, behavior: 'instant' });
   }
 }
 
@@ -4041,9 +4068,18 @@ async function exibirMenu(categoria, queryTexto = '') {
         itemIdSendoSubstituido = null;
         
         // Volta para a visualização de mesas (escondendo o cardápio)
-        document.getElementById('pedido').classList.add('hidden');
-        document.getElementById('mesas').classList.remove('hidden');
+        const secMesas = document.getElementById('mesas');
+        const secPedido = document.getElementById('pedido');
+        if (secPedido) {
+          secPedido.classList.add('hidden');
+          secPedido.style.display = 'none';
+        }
+        if (secMesas) {
+          secMesas.classList.remove('hidden');
+          secMesas.style.display = 'flex';
+        }
         document.getElementById('btn-header-mesas').style.display = 'none';
+        window.scrollTo({ top: 0, behavior: 'instant' });
 
         // Abre de novo o modal de resumo da mesa com os dados atualizados!
         renderizarItensMesaGarcom();
@@ -4255,9 +4291,18 @@ async function enviarPedido() {
         atualizarBloqueioScroll(); // Destrava o scroll
       }
 
-      document.getElementById('pedido').classList.add('hidden');
-      document.getElementById('mesas').classList.remove('hidden');
+      const secMesas = document.getElementById('mesas');
+      const secPedido = document.getElementById('pedido');
+      if (secPedido) {
+        secPedido.classList.add('hidden');
+        secPedido.style.display = 'none';
+      }
+      if (secMesas) {
+        secMesas.classList.remove('hidden');
+        secMesas.style.display = 'flex';
+      }
       document.getElementById('btn-header-mesas').style.display = 'none';
+      window.scrollTo({ top: 0, behavior: 'instant' });
       mostrarToast(isAdicao ? '✅ Itens adicionados com sucesso!' : '✅ Pedido enviado com sucesso!', "success", "Sucesso", 2500);
       carregarMesas();
     } else {

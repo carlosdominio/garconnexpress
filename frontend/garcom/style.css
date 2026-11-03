@@ -250,20 +250,29 @@ main {
 
 
 
+#mesas {
+  min-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+}
+
+#mesas.hidden {
+  display: none !important;
+}
+
+#pedido.hidden {
+  display: none !important;
+}
+
 #mesas-grid {
-
+  flex: 1;
+  min-height: 250px;
   display: grid;
-
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-
   gap: 0.8rem;
-
   margin-top: 1rem;
-
   align-content: start; /* Mantém os cards agrupados no topo com o mesmo espaçamento constante, sem esticar linhas */
-
   align-items: stretch;
-
 }
 
 
@@ -726,7 +735,7 @@ main {
 
 
 
-.hidden { display: none; }
+.hidden { display: none !important; }
 
 
 
