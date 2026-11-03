@@ -260,7 +260,9 @@ main {
 
   margin-top: 1rem;
 
-  align-items: start; /* Evita que todas as mesas da linha estiquem quando uma cresce */
+  align-content: start; /* Mantém os cards agrupados no topo com o mesmo espaçamento constante, sem esticar linhas */
+
+  align-items: stretch;
 
 }
 
@@ -370,9 +372,9 @@ main {
 
   background-color: white;
 
-  padding: 1rem;
+  padding: 0.75rem 0.5rem;
 
-  border-radius: 8px;
+  border-radius: 12px;
 
   text-align: center;
 
@@ -384,7 +386,9 @@ main {
 
   min-height: 110px;
 
-  height: 110px;
+  height: 100%;
+
+  box-sizing: border-box;
 
   display: flex;
 
@@ -398,9 +402,9 @@ main {
 
 
 
-.mesa h3 { font-size: 1rem; margin-bottom: 2px; }
+.mesa h3 { font-size: 0.95rem; margin-bottom: 3px; line-height: 1.2; word-break: break-word; }
 
-.mesa p { font-size: 0.8rem; margin: 0; }
+.mesa p { font-size: 0.78rem; margin: 0; line-height: 1.2; }
 
 
 
@@ -445,13 +449,13 @@ main {
 
 .cronometro {
 
-  margin-top: 5px;
+  margin-top: 4px;
 
-  font-size: 0.85rem;
+  font-size: 0.78rem;
 
   background: rgba(0,0,0,0.3);
 
-  padding: 2px 8px;
+  padding: 2px 7px;
 
   border-radius: 16px;
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'garcom-cache-v16'; // Incrementado para forçar atualização
+const CACHE_NAME = 'garcom-cache-v17'; // Incrementado para forçar atualização de layout
 const urlsToCache = [
   'index.html',
   'style.css',
