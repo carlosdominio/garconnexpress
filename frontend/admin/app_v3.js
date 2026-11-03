@@ -714,7 +714,24 @@ document.addEventListener('keydown', (e) => {
   realizarLoginAdmin();
 });
 let intervalPiscaTitulo = null;
-const tituloOriginal = "Guga-Bebidas — Painel Admin";
+let versaoWebAtualAdmin = localStorage.getItem('versao_web_admin') || '';
+const NOME_APP_ADMIN = "Guga-Bebidas — Painel Administrativo";
+const tituloOriginal = NOME_APP_ADMIN;
+
+function obterVersaoWebAtual() {
+  const inWeb = document.getElementById('config-web-version');
+  const vInput = (inWeb && inWeb.value && inWeb.value.trim() && inWeb.value.trim() !== '1.0.0') ? inWeb.value.trim() : '';
+  return vInput || versaoWebAtualAdmin || localStorage.getItem('versao_web_admin') || '';
+}
+
+function obterTituloNotificacaoAdmin(naoLidas = 0) {
+  const v = obterVersaoWebAtual();
+  const versaoTxt = v ? ` - V.${v}` : '';
+  if (naoLidas > 0) {
+    return `(${naoLidas}) Notificação Painel${versaoTxt}`;
+  }
+  return NOME_APP_ADMIN;
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Injeta estilos da aba piscante de alerta de atrasos
@@ -745,6 +762,31 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     iniciarPainelAdmin();
   }
+
+  // Listener em tempo real no campo de versão web
+  const inWebEl = document.getElementById('config-web-version');
+  if (inWebEl) {
+    inWebEl.addEventListener('input', () => {
+      const val = inWebEl.value.trim();
+      if (val && val !== '1.0.0') {
+        versaoWebAtualAdmin = val;
+        localStorage.setItem('versao_web_admin', val);
+        atualizarBadgeNotificacoes();
+      }
+    });
+  }
+
+  // Carrega versão do servidor e sincroniza
+  try {
+    const resVersao = await fetch('/api/versao?_t=' + Date.now());
+    if (resVersao.ok) {
+      const dataVersao = await resVersao.json();
+      if (dataVersao && dataVersao.versao && dataVersao.versao !== '1.0.0' && dataVersao.versao !== '1.3.1') {
+        versaoWebAtualAdmin = String(dataVersao.versao);
+        localStorage.setItem('versao_web_admin', versaoWebAtualAdmin);
+      }
+    }
+  } catch(e) { console.warn('Erro ao buscar versão:', e); }
 
   // Verifica versão do sistema contra descompasso de deploy
   verificarVersaoSistema();
@@ -9663,7 +9705,12 @@ async function carregarCardapio() {
 }
 
 function iniciarPiscarTitulo() { if (intervalPiscaTitulo) return; let alt = false; intervalPiscaTitulo = setInterval(() => { document.title = alt ? '🔔 NOVO!' : '⚠️ VERIFIQUE'; alt = !alt; }, 1000); }
-function pararPiscarTitulo() { clearInterval(intervalPiscaTitulo); intervalPiscaTitulo = null; document.title = tituloOriginal; }
+function pararPiscarTitulo() {
+  clearInterval(intervalPiscaTitulo);
+  intervalPiscaTitulo = null;
+  const naoLidas = (typeof notificacoesGerais !== 'undefined') ? notificacoesGerais.filter(n => !n.lida).length : 0;
+  document.title = obterTituloNotificacaoAdmin(naoLidas);
+}
 function solicitarPermissaoNotificacao() { if ("Notification" in window) Notification.requestPermission(); }
 function exibirNotificacaoNativa(tit, msg, tagId = 'geral') { 
   const somWindows = localStorage.getItem('admin_som_windows') === 'true';
@@ -9683,7 +9730,11 @@ function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
 
   if ("Notification" in window && Notification.permission === "granted") {
     try {
-      const n = new Notification(tit, { 
+      const v = obterVersaoWebAtual();
+      const versaoTxt = v ? ` - V.${v}` : '';
+      const naoLidas = (typeof notificacoesGerais !== 'undefined') ? notificacoesGerais.filter(n => !n.lida).length : 1;
+      const titFormatado = `(${naoLidas}) Notificação Painel${versaoTxt} • ${tit}`;
+      const n = new Notification(titFormatado, { 
         body: msg,
         tag: tagId, // Evita empilhamento: nova notificação da mesma tag substitui a antiga
         renotify: true,
@@ -12401,7 +12452,6 @@ function atualizarBadgeNotificacoes() {
   if (!badge) return;
 
   const naoLidas = notificacoesGerais.filter(n => !n.lida).length;
-  const baseTitle = "Guga-Bebidas — Painel Admin";
 
   const changeFavicon = (src) => {
     let link = document.getElementById('dynamic-favicon');
@@ -12417,7 +12467,7 @@ function atualizarBadgeNotificacoes() {
   if (naoLidas > 0) {
     badge.innerText = naoLidas > 99 ? '99+' : naoLidas;
     badge.classList.remove('hidden');
-    document.title = `(${naoLidas}) ${baseTitle}`;
+    document.title = obterTituloNotificacaoAdmin(naoLidas);
     
     const numTxt = naoLidas > 9 ? '9+' : naoLidas;
     // Bolinha vermelha centralizada no ícone
@@ -12425,7 +12475,7 @@ function atualizarBadgeNotificacoes() {
     changeFavicon("data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgAlert))));
   } else {
     badge.classList.add('hidden');
-    document.title = baseTitle;
+    document.title = NOME_APP_ADMIN;
     changeFavicon("favicon.svg");
   }
 }

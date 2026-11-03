@@ -695,13 +695,26 @@ async function sendWhatsAppMessage(text, targetNumber = null, pedidoId = 9999) {
       const uniqueNumbers = [...new Set(numbersList.map(n => n.replace(/\D/g, '')))];
       console.log(`🤖 [WhatsApp] Bot CONECTADO via Socket. Enviando para: ${uniqueNumbers.join(', ')}`);
 
+      let webVersion = '1.0.0';
+      try {
+        const vRow = (await query("SELECT valor FROM sistema_config WHERE chave = 'config_web_version'")).rows[0];
+        if (vRow && vRow.valor) webVersion = vRow.valor;
+      } catch(e) {}
+
+      // Se for notificação para o contato do admin, inclui o cabeçalho Notificação Painel - V.{versão}
+      let msgParaContato = text;
+      if (!targetNumber && !text.includes('Notificação Painel')) {
+        msgParaContato = `🔔 *Notificação Painel - V.${webVersion}*\n\n${text}`;
+      }
+
       uniqueNumbers.forEach(num => {
         // Renomeia o chat caso seja a primeira vez ou tenha perdido o nome
-        whatsappSocket.emit('rename_chat', { jid: num + '@s.whatsapp.net', name: 'Notificações Meu zap 🔔' });
+        const nomeChat = `Notificação Painel - V.${webVersion}`;
+        whatsappSocket.emit('rename_chat', { jid: num + '@s.whatsapp.net', name: nomeChat });
         // Fixa a conversa (PIN) no WhatsApp para sempre ficar no topo
         whatsappSocket.emit('pin_chat', { jid: num + '@s.whatsapp.net' });
         // Envia para o bot usando apenas os dígitos (formato que funcionou nos testes)
-        whatsappSocket.emit('send_msg', { number: num, text: text });
+        whatsappSocket.emit('send_msg', { number: num, text: msgParaContato });
       });
 
       // AWAIT CRÍTICO PARA VERCEL: Dá 1.5s para o socket enviar os pacotes antes da Vercel congelar a execução
@@ -7680,9 +7693,14 @@ app.post('/api/whatsapp-number', isAdmin, async (req, res) => {
     }
 
     if (whatsappSocket && whatsappSocket.connected && number) {
+      let webVersion = '1.0.0';
+      try {
+        const vRow = (await query("SELECT valor FROM sistema_config WHERE chave = 'config_web_version'")).rows[0];
+        if (vRow && vRow.valor) webVersion = vRow.valor;
+      } catch(e) {}
       const numbersList = number.split(',').map(n => n.trim().replace(/\D/g, '') + '@s.whatsapp.net');
       numbersList.forEach(jid => {
-        whatsappSocket.emit('rename_chat', { jid, name: 'Notificações Meu zap 🔔' });
+        whatsappSocket.emit('rename_chat', { jid, name: `Notificação Painel - V.${webVersion}` });
       });
     }
 
@@ -7754,6 +7772,9 @@ app.post('/api/config/categorias-churrasco', isAdmin, async (req, res) => {
 });
 
 app.get('/api/config/versao-app', ensureDbInitialized, async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   try {
     const configRows = (await query("SELECT chave, valor FROM sistema_config WHERE chave IN (" +
       "'config_web_version', " +
@@ -7818,6 +7839,17 @@ app.post('/api/config/versao-app', ensureDbInitialized, isAdmin, async (req, res
         motoboy_apk_version: motoboy_apk_version || '2.0.0',
         motoboy_apk_url: motoboy_apk_url || '/motoboy-v2.0.0-portrait.apk'
       });
+    }
+    if (whatsappSocket && whatsappSocket.connected && web_version) {
+      try {
+        const configNums = await query("SELECT valor FROM sistema_config WHERE chave = 'whatsapp_notify_numbers'");
+        if (configNums.rows && configNums.rows[0]?.valor) {
+          const numbersList = configNums.rows[0].valor.split(',').map(n => n.trim().replace(/\D/g, '') + '@s.whatsapp.net');
+          numbersList.forEach(jid => {
+            whatsappSocket.emit('rename_chat', { jid, name: `Notificação Painel - V.${web_version}` });
+          });
+        }
+      } catch(e) {}
     }
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
@@ -8690,6 +8722,9 @@ app.get('/api/debug-fechamentos', ensureDbInitialized, async (req, res) => {
 
 const SYSTEM_VERSION = '1.3.1';
 app.get('/api/versao', ensureDbInitialized, async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   try {
     const row = (await query("SELECT valor FROM sistema_config WHERE chave = 'config_web_version'")).rows[0];
     const versao = (row && row.valor) ? row.valor : SYSTEM_VERSION;

@@ -1,7 +1,7 @@
 {
-  "name": "Guga-Bebidas — Painel Admin",
+  "name": "Guga-Bebidas — Painel Administrativo",
   "short_name": "Guga-Bebidas",
-  "description": "Painel de Administração - Guga-Bebidas",
+  "description": "Painel Administrativo - Guga-Bebidas",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#ffffff",
