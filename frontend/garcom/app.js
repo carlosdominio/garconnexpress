@@ -2798,6 +2798,7 @@ async function abrirModalCriarComandaGarcom() {
           Número ou Nome da Comanda (máx 11 letras):
         </label>
         <input type="text" id="swal-input-comanda-nome" placeholder="ex: 15, VIP, Lucas, Comanda 02..." maxlength="11"
+               oninput="if(this.value.length > 11) this.value = this.value.slice(0, 11);"
                style="width: 100%; padding: 12px 14px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc; color: #1e293b; margin-bottom: 14px;">
 
         <label style="display: block; font-weight: bold; color: #334155; font-size: 0.88rem; margin-bottom: 6px;">
@@ -2823,25 +2824,42 @@ async function abrirModalCriarComandaGarcom() {
     heightAuto: false,
     didOpen: () => {
       const inp = document.getElementById('swal-input-comanda-nome');
-      if (inp) setTimeout(() => inp.focus(), 150);
+      if (inp) {
+        setTimeout(() => inp.focus(), 150);
+        ['input', 'paste', 'keyup', 'change'].forEach(evt => {
+          inp.addEventListener(evt, function() {
+            if (this.value && this.value.length > 11) {
+              this.value = this.value.slice(0, 11);
+            }
+          });
+        });
+      }
     },
     preConfirm: () => {
-      const nome = document.getElementById('swal-input-comanda-nome')?.value.trim();
+      let nome = document.getElementById('swal-input-comanda-nome')?.value.trim();
       const tipo = document.getElementById('swal-select-comanda-tipo')?.value || 'comanda';
       if (!nome) {
         Swal.showValidationMessage('Informe o número ou nome da comanda!');
         return false;
       }
-      return { nome, tipo, abrirDireto: true };
+      if (nome.length > 11) {
+        Swal.showValidationMessage('O nome da comanda não pode ter mais de 11 caracteres!');
+        return false;
+      }
+      return { nome: nome.slice(0, 11), tipo, abrirDireto: true };
     },
     preDeny: () => {
-      const nome = document.getElementById('swal-input-comanda-nome')?.value.trim();
+      let nome = document.getElementById('swal-input-comanda-nome')?.value.trim();
       const tipo = document.getElementById('swal-select-comanda-tipo')?.value || 'comanda';
       if (!nome) {
         Swal.showValidationMessage('Informe o número ou nome da comanda!');
         return false;
       }
-      return { nome, tipo, abrirDireto: false };
+      if (nome.length > 11) {
+        Swal.showValidationMessage('O nome da comanda não pode ter mais de 11 caracteres!');
+        return false;
+      }
+      return { nome: nome.slice(0, 11), tipo, abrirDireto: false };
     }
   });
 
@@ -2982,6 +3000,7 @@ async function abrirModalTransferirMesaGarcom() {
               Número ou Nome da Nova Comanda (máx 11 letras):
             </label>
             <input type="text" id="swal-input-transf-comanda-nome" placeholder="ex: 15, Lucas, Comanda 08..." maxlength="11"
+                   oninput="if(this.value.length > 11) this.value = this.value.slice(0, 11);"
                    style="width: 100%; padding: 12px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: bold; background: #f8fafc; color: #1e293b; box-sizing: border-box; margin-bottom: 14px;">
             <label style="display: block; font-weight: bold; color: #334155; font-size: 0.85rem; margin-bottom: 5px;">
               Tipo:
@@ -2999,16 +3018,30 @@ async function abrirModalTransferirMesaGarcom() {
         cancelButtonColor: '#95a5a6',
         heightAuto: false,
         didOpen: () => {
-          document.getElementById('swal-input-transf-comanda-nome')?.focus();
+          const inp = document.getElementById('swal-input-transf-comanda-nome');
+          if (inp) {
+            setTimeout(() => inp.focus(), 150);
+            ['input', 'paste', 'keyup', 'change'].forEach(evt => {
+              inp.addEventListener(evt, function() {
+                if (this.value && this.value.length > 11) {
+                  this.value = this.value.slice(0, 11);
+                }
+              });
+            });
+          }
         },
         preConfirm: () => {
-          const nome = document.getElementById('swal-input-transf-comanda-nome')?.value.trim();
+          let nome = document.getElementById('swal-input-transf-comanda-nome')?.value.trim();
           const tipo = document.getElementById('swal-select-transf-comanda-tipo')?.value || 'comanda';
           if (!nome) {
             Swal.showValidationMessage('Informe o nome ou número da comanda!');
             return false;
           }
-          return { nome, tipo };
+          if (nome.length > 11) {
+            Swal.showValidationMessage('O nome da comanda não pode ter mais de 11 caracteres!');
+            return false;
+          }
+          return { nome: nome.slice(0, 11), tipo };
         }
       });
 

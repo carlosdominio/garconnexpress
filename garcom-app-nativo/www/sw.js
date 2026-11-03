@@ -1,4 +1,4 @@
-const CACHE_NAME = 'garcom-cache-v15'; // Incrementado para forçar atualização
+const CACHE_NAME = 'garcom-cache-v16'; // Incrementado para forçar atualização
 const urlsToCache = [
   'index.html',
   'style.css',
@@ -113,17 +113,25 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Estratégia Network-First para a página principal (garante última versão online)
-  if (event.request.mode === 'navigate' || event.request.url.includes('index.html')) {
+  // Estratégia Network-First para a página principal, scripts e folhas de estilo (garante última versão online)
+  if (event.request.mode === 'navigate' || event.request.url.includes('index.html') || event.request.url.includes('app.js') || event.request.url.includes('style.css')) {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match(event.request).then(res => res || new Response("", { status: 200, statusText: "OK" }));
-      })
+      fetch(event.request)
+        .then(response => {
+          if (response && response.status === 200) {
+            const cloned = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, cloned));
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request).then(res => res || new Response("", { status: 200, statusText: "OK" }));
+        })
     );
     return;
   }
   
-  // Estratégia Cache-First para os assets estáticos (CSS, JS, Favicon)
+  // Estratégia Cache-First para outros assets estáticos (Favicon, sons, etc.)
   event.respondWith(
     caches.match(event.request).then(response => {
       if (response) return response;

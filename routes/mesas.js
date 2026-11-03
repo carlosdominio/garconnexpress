@@ -12,6 +12,9 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
         tipo = 'comanda';
       }
       if (!numOuNome) return res.status(400).json({ error: 'Informe o número ou nome da mesa/comanda' });
+      if (numOuNome.length > 11) {
+        return res.status(400).json({ error: 'O número ou nome da comanda/mesa não pode ter mais de 11 caracteres!' });
+      }
 
       // TRAVA DE DUPLICIDADE (Case-insensitive) - Separado por tipo para não colidir mesa física com balcão
       let existing;
@@ -122,6 +125,9 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       const novoNome = String(req.body.numero || '').trim();
       const pedidoId = req.body.pedido_id;
       if (!novoNome) return res.status(400).json({ error: 'Nome inválido' });
+      if (novoNome.length > 11) {
+        return res.status(400).json({ error: 'O número ou nome da mesa/comanda não pode exceder 11 caracteres!' });
+      }
 
       // 1. Atualiza na tabela mesas por ID ou por número
       await query('UPDATE mesas SET numero = ? WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)', [novoNome, mesaId, mesaId]);

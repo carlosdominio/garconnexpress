@@ -1495,7 +1495,10 @@ module.exports = (ctx) => {
       }
 
       if (!mesaDestino && novo_nome_comanda) {
-        const nomeTrim = String(novo_nome_comanda).trim();
+        let nomeTrim = String(novo_nome_comanda).trim();
+        if (nomeTrim.length > 11) {
+          nomeTrim = nomeTrim.slice(0, 11);
+        }
         const tipoMesa = tipo || (nomeTrim.toLowerCase().includes('balc') ? 'balcao' : (nomeTrim.toLowerCase().includes('comanda') ? 'comanda' : 'mesa'));
         const isCom = (tipoMesa === 'balcao' || tipoMesa === 'comanda' || nomeTrim.toLowerCase().startsWith('comanda')) ? 1 : 0;
         
