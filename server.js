@@ -2914,7 +2914,7 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
     }
 
     if (adminMsg) {
-      await sendWhatsAppMessage(adminMsg).catch(e => console.error('Erro Wpp Admin Notification:', e.message));
+      sendWhatsAppMessage(adminMsg).catch(e => console.error('Erro Wpp Admin Notification:', e.message));
     }
 
   } catch (e) { console.error('Erro ao notificar status:', e.message); }

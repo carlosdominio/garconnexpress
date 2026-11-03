@@ -3430,7 +3430,7 @@ async function salvarAlteracoesGarcom() {
       const containerBotaoSalvar = document.getElementById('container-salvar-alteracoes-garcom');
       if (containerBotaoSalvar) containerBotaoSalvar.remove();
 
-      await mostrarAlerta(`Pedido atualizado com sucesso!${det}`, "Sucesso", "✅");
+      mostrarToast(`✅ Pedido atualizado com sucesso!${det}`, "success", "Sucesso", 2500);
       verItensDaMesa(true);
     } else {
       const err = await res.json();
@@ -3472,12 +3472,15 @@ function fecharResumoMesa() {
 }
 
 async function marcarComoServido(idPedido) {
-  showLoading(true, 'Verificando itens...');
   try {
-    // Busca itens atuais para saber se tem algo em preparo
-    const resItens = await fetch(`/api/pedidos/${idPedido}/itens`);
-    const itens = await resItens.json();
-    showLoading(false);
+    // 1. Usa itens já em memória para resposta instantânea (ou busca com fallback rápido)
+    let itens = (itensEmEdicaoGarcom && itensEmEdicaoGarcom.length > 0) ? itensEmEdicaoGarcom : null;
+    if (!itens) {
+      showLoading(true, 'Verificando itens...');
+      const resItens = await fetch(`/api/pedidos/${idPedido}/itens`);
+      itens = await resItens.json();
+      showLoading(false);
+    }
 
     const emPreparoCozinha = itens.filter(i => i.status === 'pendente' && (isItemParaCozinha(i) || isItemParaChurrasco(i)));
     const prontosOuForaCozinha = itens.filter(i => i.status === 'pronto' || (i.status === 'pendente' && !isItemParaCozinha(i) && !isItemParaChurrasco(i)));
@@ -3508,9 +3511,12 @@ async function marcarComoServido(idPedido) {
         showLoading(false);
 
         if (res.ok) {
-          await mostrarAlerta("Itens prontos marcados como entregues! Os demais continuam em preparo.", "Entrega Realizada", "🚚");
+          mostrarToast("🚚 Itens prontos entregues! Os demais seguem em preparo.", "success", "Entrega Parcial", 3000);
           verItensDaMesa();
           carregarMesas();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          await mostrarAlerta(err.mensagem || err.error || "Erro ao registrar entrega.", "Erro", "❌");
         }
       } else {
         // Se SÓ houver itens de cozinha em preparo, bloqueio total
@@ -3542,10 +3548,13 @@ async function marcarComoServido(idPedido) {
     showLoading(false);
 
     if (res.ok) {
-      await mostrarAlerta("Sucesso! Todos os itens foram entregues.", "Sucesso", "✅");
       document.getElementById('modal-resumo-mesa').style.display = 'none';
       atualizarBloqueioScroll();
+      mostrarToast("✅ Todos os itens foram entregues com sucesso!", "success", "Sucesso", 2500);
       carregarMesas();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      await mostrarAlerta(err.mensagem || err.error || "Erro ao atualizar status de entrega.", "Erro", "❌");
     }
   } catch (error) { showLoading(false); await mostrarAlerta("Erro ao atualizar status de entrega.", "Erro", "❌"); }
 }
@@ -3917,7 +3926,7 @@ async function confirmarSolicitacaoFechamento() {
       }
       
       showLoading(false);
-      await mostrarAlerta("Solicitação de fechamento enviada ao caixa!", "Sucesso", "✅");
+      mostrarToast("✅ Solicitação de fechamento enviada ao caixa!", "success", "Sucesso", 2500);
       carregarMesas();
     } else {
       throw new Error("Falha na solicitação");
@@ -4234,7 +4243,7 @@ async function enviarPedido() {
     
     if (res.ok) {
       showLoading(false);
-      await mostrarAlerta(pedidoAbertoNaMesa ? 'Itens adicionados!' : 'Pedido enviado!', "Sucesso", "✅");
+      const isAdicao = !!pedidoAbertoNaMesa;
       pedidoAtual = [];
       pedidoAbertoNaMesa = null;
       mesaAtual = null; // Limpa mesa atual
@@ -4249,6 +4258,7 @@ async function enviarPedido() {
       document.getElementById('pedido').classList.add('hidden');
       document.getElementById('mesas').classList.remove('hidden');
       document.getElementById('btn-header-mesas').style.display = 'none';
+      mostrarToast(isAdicao ? '✅ Itens adicionados com sucesso!' : '✅ Pedido enviado com sucesso!', "success", "Sucesso", 2500);
       carregarMesas();
     } else {
       showLoading(false);
