@@ -299,6 +299,58 @@ app.post('/api/configs/mesas-compartilhadas-toggle', ensureDbInitialized, isAdmi
   }
 });
 
+// --- CONFIGURAÇÃO: LETREIRO DIGITAL DE ATUALIZAÇÕES DO SISTEMA ---
+app.get('/api/configs/letreiro', ensureDbInitialized, async (req, res) => {
+  try {
+    const result = await query("SELECT chave, valor FROM sistema_config WHERE chave LIKE 'letreiro_%'");
+    const configMap = {};
+    for (const r of (result.rows || [])) configMap[r.chave] = r.valor;
+    
+    res.json({
+      ativo: configMap['letreiro_ativo'] === 'true',
+      mensagem: configMap['letreiro_mensagem'] || '',
+      tipo: configMap['letreiro_tipo'] || 'atualizacao',
+      publico: configMap['letreiro_publico'] || 'todos'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/configs/letreiro', ensureDbInitialized, isAdmin, async (req, res) => {
+  const { ativo, mensagem, tipo, publico } = req.body;
+  try {
+    const salvar = async (chave, valor) => {
+      const vStr = String(valor ?? '');
+      if (isPostgres) {
+        await query("INSERT INTO sistema_config (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [chave, vStr]);
+      } else {
+        await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES (?, ?)", [chave, vStr]);
+      }
+    };
+
+    await salvar('letreiro_ativo', ativo ? 'true' : 'false');
+    await salvar('letreiro_mensagem', mensagem || '');
+    await salvar('letreiro_tipo', tipo || 'atualizacao');
+    await salvar('letreiro_publico', publico || 'todos');
+
+    const payload = {
+      ativo: !!ativo,
+      mensagem: mensagem || '',
+      tipo: tipo || 'atualizacao',
+      publico: publico || 'todos'
+    };
+
+    if (typeof safePusherTrigger !== 'undefined') {
+      await safePusherTrigger('garconnexpress', 'letreiro-atualizado', payload);
+    }
+
+    res.json({ success: true, ...payload });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- AGENDAMENTO AUTOMÁTICO DO CARDÁPIO ---
 app.get('/api/configs/cardapio-horarios', ensureDbInitialized, async (req, res) => {
   try {

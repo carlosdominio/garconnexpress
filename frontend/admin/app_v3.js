@@ -750,6 +750,153 @@ function atualizarExibicaoVersaoAdmin() {
   }
 }
 
+function deveMostrarNotificacaoAba() {
+  const salvo = localStorage.getItem('admin_notif_aba_ativa');
+  return salvo === null ? true : salvo === 'true';
+}
+
+function alternarNotificacaoAba() {
+  const checkHeader = document.getElementById('check-notif-aba');
+  const checkConfig = document.getElementById('config-check-notif-aba');
+  
+  let ativo = true;
+  if (checkHeader && document.activeElement === checkHeader) {
+    ativo = checkHeader.checked;
+  } else if (checkConfig && document.activeElement === checkConfig) {
+    ativo = checkConfig.checked;
+  } else {
+    ativo = checkHeader ? checkHeader.checked : (checkConfig ? checkConfig.checked : true);
+  }
+
+  if (checkHeader) checkHeader.checked = ativo;
+  if (checkConfig) checkConfig.checked = ativo;
+
+  localStorage.setItem('admin_notif_aba_ativa', ativo ? 'true' : 'false');
+
+  if (!ativo) {
+    pararPiscarTitulo();
+    document.title = obterTituloSemNotificacaoAdmin();
+    const link = document.getElementById('dynamic-favicon');
+    if (link) link.href = 'favicon.svg';
+    if ('clearAppBadge' in navigator) {
+      navigator.clearAppBadge().catch(() => {});
+    }
+  } else {
+    atualizarBadgeNotificacoes();
+  }
+}
+
+// ==========================================
+// LETREIRO DIGITAL DE ATUALIZAÇÕES DO SISTEMA
+// ==========================================
+let letreiroFechadoNestaSessao = false;
+
+async function carregarLetreiroSistema() {
+  try {
+    const res = await fetch('/api/configs/letreiro?_t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const chkAtivo = document.getElementById('letreiro-config-ativo');
+    const txtMsg = document.getElementById('letreiro-config-mensagem');
+    const selTipo = document.getElementById('letreiro-config-tipo');
+    const selPub = document.getElementById('letreiro-config-publico');
+
+    if (chkAtivo && data.ativo !== undefined) chkAtivo.checked = !!data.ativo;
+    if (txtMsg && data.mensagem !== undefined) txtMsg.value = data.mensagem;
+    if (selTipo && data.tipo) selTipo.value = data.tipo;
+    if (selPub && data.publico) selPub.value = data.publico;
+
+    renderizarLetreiroSistema(data);
+  } catch (err) {
+    console.error('Erro ao carregar letreiro do sistema:', err);
+  }
+}
+
+function renderizarLetreiroSistema(data) {
+  const container = document.getElementById('letreiro-sistema-container');
+  const track = document.getElementById('letreiro-track');
+  const tag = document.getElementById('letreiro-tag');
+  if (!container || !track) return;
+
+  if (!data || !data.ativo || !data.mensagem || !data.mensagem.trim() || letreiroFechadoNestaSessao) {
+    container.style.display = 'none';
+    return;
+  }
+
+  const publico = data.publico || 'todos';
+  if (publico !== 'todos' && publico !== 'equipe' && publico !== 'admin') {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.classList.remove('letreiro-atualizacao', 'letreiro-aviso', 'letreiro-alerta');
+  const tipo = data.tipo || 'atualizacao';
+  container.classList.add(`letreiro-${tipo}`);
+
+  if (tag) {
+    if (tipo === 'aviso') tag.innerText = 'AVISO IMPORTANTE';
+    else if (tipo === 'alerta') tag.innerText = 'ALERTA DO SISTEMA';
+    else tag.innerText = 'ATUALIZAÇÃO';
+  }
+
+  const msg = data.mensagem.trim();
+  track.innerText = `${msg}    ✦    ${msg}    ✦    ${msg}`;
+  container.style.display = 'flex';
+}
+
+function fecharLetreiroSessao() {
+  letreiroFechadoNestaSessao = true;
+  const container = document.getElementById('letreiro-sistema-container');
+  if (container) container.style.display = 'none';
+}
+
+async function salvarLetreiroSistema() {
+  const btn = document.getElementById('btn-salvar-letreiro');
+  const ativo = document.getElementById('letreiro-config-ativo')?.checked || false;
+  const mensagem = document.getElementById('letreiro-config-mensagem')?.value?.trim() || '';
+  const tipo = document.getElementById('letreiro-config-tipo')?.value || 'atualizacao';
+  const publico = document.getElementById('letreiro-config-publico')?.value || 'todos';
+
+  if (ativo && !mensagem) {
+    mostrarToast('⚠️ Digite a mensagem antes de ativar o letreiro.', 'alerta');
+    return;
+  }
+
+  const textoBtnOriginal = btn ? btn.innerHTML : '💾 Salvar e Publicar Letreiro';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Salvando...';
+  }
+
+  try {
+    const res = await fetch('/api/configs/letreiro', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '')
+      },
+      body: JSON.stringify({ ativo, mensagem, tipo, publico })
+    });
+    const data = await res.json();
+    if (data.success) {
+      letreiroFechadoNestaSessao = false;
+      renderizarLetreiroSistema(data);
+      mostrarToast(ativo ? '📢 Letreiro publicado com sucesso!' : 'ℹ️ Letreiro desativado.', 'sucesso');
+    } else {
+      throw new Error(data.error || 'Erro ao salvar letreiro');
+    }
+  } catch (err) {
+    console.error('Erro ao salvar letreiro:', err);
+    mostrarToast('❌ Erro ao salvar letreiro: ' + err.message, 'erro');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = textoBtnOriginal;
+    }
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   // Injeta estilos da aba piscante de alerta de atrasos
   const style = document.createElement('style');
@@ -798,10 +945,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // Configuração inicial do switch de notificações na aba
+  const notifAbaAtiva = deveMostrarNotificacaoAba();
+  const chkNotifHeader = document.getElementById('check-notif-aba');
+  const chkNotifConfig = document.getElementById('config-check-notif-aba');
+  if (chkNotifHeader) chkNotifHeader.checked = notifAbaAtiva;
+  if (chkNotifConfig) chkNotifConfig.checked = notifAbaAtiva;
+
   // Carrega configurações de versão e verifica versão do sistema
   carregarVersaoApp();
   verificarVersaoSistema();
   setInterval(verificarVersaoSistema, 5 * 60 * 1000);
+
+  // Carrega letreiro digital de avisos e atualizações
+  carregarLetreiroSistema();
 });
 
 let recargaEmAndamento = false;
@@ -9726,12 +9883,24 @@ async function carregarCardapio() {
   }
 }
 
-function iniciarPiscarTitulo() { if (intervalPiscaTitulo) return; let alt = false; intervalPiscaTitulo = setInterval(() => { document.title = alt ? '🔔 NOVO!' : '⚠️ VERIFIQUE'; alt = !alt; }, 1000); }
+function iniciarPiscarTitulo() {
+  if (typeof deveMostrarNotificacaoAba === 'function' && !deveMostrarNotificacaoAba()) return;
+  if (intervalPiscaTitulo) return;
+  let alt = false;
+  intervalPiscaTitulo = setInterval(() => {
+    document.title = alt ? '🔔 NOVO!' : '⚠️ VERIFIQUE';
+    alt = !alt;
+  }, 1000);
+}
 function pararPiscarTitulo() {
   clearInterval(intervalPiscaTitulo);
   intervalPiscaTitulo = null;
   const naoLidas = (typeof notificacoesGerais !== 'undefined') ? notificacoesGerais.filter(n => !n.lida).length : 0;
-  document.title = obterTituloNotificacaoAdmin(naoLidas);
+  if (typeof deveMostrarNotificacaoAba === 'function' && !deveMostrarNotificacaoAba()) {
+    document.title = obterTituloSemNotificacaoAdmin();
+  } else {
+    document.title = (naoLidas > 0) ? obterTituloNotificacaoAdmin(naoLidas) : obterTituloSemNotificacaoAdmin();
+  }
 }
 function solicitarPermissaoNotificacao() { if ("Notification" in window) Notification.requestPermission(); }
 function exibirNotificacaoNativa(tit, msg, tagId = 'geral') { 
@@ -10316,9 +10485,24 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       if (data && data.web_version) {
         versaoWebAtualAdmin = String(data.web_version);
         localStorage.setItem('versao_web_admin', String(data.web_version));
+        atualizarExibicaoVersaoAdmin();
         atualizarBadgeNotificacoes();
       }
       executarRecargaPorAtualizacao(data?.web_version);
+    });
+
+    channel.bind('letreiro-atualizado', (data) => {
+      console.log('📢 Letreiro atualizado via Pusher!', data);
+      letreiroFechadoNestaSessao = false;
+      renderizarLetreiroSistema(data);
+      const chkAtivo = document.getElementById('letreiro-config-ativo');
+      const txtMsg = document.getElementById('letreiro-config-mensagem');
+      const selTipo = document.getElementById('letreiro-config-tipo');
+      const selPub = document.getElementById('letreiro-config-publico');
+      if (chkAtivo && data.ativo !== undefined) chkAtivo.checked = !!data.ativo;
+      if (txtMsg && data.mensagem !== undefined) txtMsg.value = data.mensagem;
+      if (selTipo && data.tipo) selTipo.value = data.tipo;
+      if (selPub && data.publico) selPub.value = data.publico;
     });
 
     } catch (e) {
@@ -12493,18 +12677,29 @@ function atualizarBadgeNotificacoes() {
     document.head.appendChild(link);
   };
 
+  const mostrarNaAba = deveMostrarNotificacaoAba();
+
   if (naoLidas > 0) {
     badge.innerText = naoLidas > 99 ? '99+' : naoLidas;
     badge.classList.remove('hidden');
-    document.title = obterTituloNotificacaoAdmin(naoLidas);
-    if ('setAppBadge' in navigator) {
-      navigator.setAppBadge(naoLidas).catch(() => {});
-    }
     
-    const numTxt = naoLidas > 9 ? '9+' : naoLidas;
-    // Bolinha vermelha centralizada no ícone
-    const svgAlert = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#2c3e50"/><path d="M20 70 L80 70 Q80 30 50 30 Q20 30 20 70 Z" fill="#27ae60"/><rect x="18" y="70" width="64" height="5" rx="2" fill="#ecf0f1"/><circle cx="50" cy="50" r="45" fill="#e74c3c"/><text x="50" y="67" font-family="Arial" font-size="50" font-weight="bold" fill="white" text-anchor="middle">${numTxt}</text></svg>`;
-    changeFavicon("data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgAlert))));
+    if (mostrarNaAba) {
+      document.title = obterTituloNotificacaoAdmin(naoLidas);
+      if ('setAppBadge' in navigator) {
+        navigator.setAppBadge(naoLidas).catch(() => {});
+      }
+      
+      const numTxt = naoLidas > 9 ? '9+' : naoLidas;
+      // Bolinha vermelha centralizada no ícone
+      const svgAlert = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#2c3e50"/><path d="M20 70 L80 70 Q80 30 50 30 Q20 30 20 70 Z" fill="#27ae60"/><rect x="18" y="70" width="64" height="5" rx="2" fill="#ecf0f1"/><circle cx="50" cy="50" r="45" fill="#e74c3c"/><text x="50" y="67" font-family="Arial" font-size="50" font-weight="bold" fill="white" text-anchor="middle">${numTxt}</text></svg>`;
+      changeFavicon("data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgAlert))));
+    } else {
+      document.title = obterTituloSemNotificacaoAdmin();
+      changeFavicon("favicon.svg");
+      if ('clearAppBadge' in navigator) {
+        navigator.clearAppBadge().catch(() => {});
+      }
+    }
   } else {
     badge.classList.add('hidden');
     document.title = obterTituloSemNotificacaoAdmin();

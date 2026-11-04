@@ -34,7 +34,7 @@
   <script defer src="/_vercel/insights/script.js"></script>
   <link id="dynamic-favicon" rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
-  <link rel="stylesheet" href="style.css?v=4.0.0">
+  <link rel="stylesheet" href="style.css?v=4.0.1">
   <style>
     .swal2-container {
       z-index: 999999 !important;
@@ -234,6 +234,13 @@
               <span class="slider"></span>
             </label>
           </div>
+          <div style="display: flex; align-items: center; gap: 6px; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 10px;" title="Ativar ou desativar notificações que alteram o título da aba do navegador / janela do PWA">
+            <span id="label-notif-aba" style="font-size: 0.65rem; font-weight: bold; color: #fff;">🏷️ ABA</span>
+            <label class="switch" style="width: 32px; height: 16px;">
+              <input type="checkbox" id="check-notif-aba" onchange="alternarNotificacaoAba()" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
         </div>
         <div class="dropdown-menu-header" id="notificacoes-container">
           <button onclick="toggleDropdownNotificacoes()" class="dropbtn-header" style="position: relative; padding: 8px 12px !important;">
@@ -315,6 +322,15 @@
       </div>
     </div>
   </header>
+
+  <!-- Letreiro Digital de Atualizações do Sistema -->
+  <div id="letreiro-sistema-container" class="letreiro-container letreiro-atualizacao" style="display: none;">
+    <div class="letreiro-badge"><i class="fa-solid fa-bullhorn"></i> <span id="letreiro-tag">ATUALIZAÇÃO</span></div>
+    <div class="letreiro-track-wrapper">
+      <div id="letreiro-track" class="letreiro-track"></div>
+    </div>
+    <button type="button" class="letreiro-btn-fechar" onclick="fecharLetreiroSessao()" title="Ocultar nesta sessão"><i class="fa-solid fa-xmark"></i></button>
+  </div>
 
   <main>
     <nav class="tabs">
@@ -1505,6 +1521,67 @@
                   </div>
                 </div>
 
+                <!-- Card: Notificações na Aba / Janela do PWA -->
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin-bottom: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <h4 style="margin: 0; color: #2c3e50;"><i class="fa-solid fa-window-maximize" style="color: #6366f1;"></i> Notificações na Aba do Navegador / Janela PWA</h4>
+                    <label class="switch" style="width: 38px; height: 20px;">
+                      <input type="checkbox" id="config-check-notif-aba" onchange="alternarNotificacaoAba()" checked>
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+                  <p style="margin: 0; font-size: 0.78rem; color: #64748b;">
+                    Exibe o contador '(1) Notificação Painel', pisca alertas de novidades e atualiza o ícone da aba. Desative se preferir a aba sempre com o nome fixo e estático do sistema.
+                  </p>
+                </div>
+
+                <!-- Card: Letreiro Digital de Atualizações do Sistema -->
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin-bottom: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h4 style="margin: 0; color: #2c3e50;"><i class="fa-solid fa-bullhorn" style="color: #e67e22;"></i> Letreiro Digital de Atualizações do Sistema</h4>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span style="font-size: 0.75rem; font-weight: bold; color: #64748b;">ATIVAR LETREIRO:</span>
+                      <label class="switch" style="width: 38px; height: 20px;">
+                        <input type="checkbox" id="letreiro-config-ativo">
+                        <span class="slider"></span>
+                      </label>
+                    </div>
+                  </div>
+                  <p style="margin: 0 0 14px 0; font-size: 0.78rem; color: #64748b;">
+                    Exibe uma faixa animada contínua no topo da tela informando novidades, correções ou melhorias do sistema para os usuários em tempo real.
+                  </p>
+
+                  <div style="margin-bottom: 14px;">
+                    <label style="font-size: 0.72rem; font-weight: bold; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 5px;">Texto da Mensagem de Atualização:</label>
+                    <textarea id="letreiro-config-mensagem" rows="2" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; resize: vertical; box-sizing: border-box;" placeholder="Ex: 🚀 Versão 4.0.1 liberada! Melhorias no desempenho e sincronização em tempo real."></textarea>
+                  </div>
+
+                  <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 16px;">
+                    <div style="flex: 1; min-width: 140px;">
+                      <label style="font-size: 0.72rem; font-weight: bold; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 5px;">Estilo Visual:</label>
+                      <select id="letreiro-config-tipo" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: bold; font-size: 0.82rem;">
+                        <option value="atualizacao">🚀 Atualização / Novidade (Azul/Escuro)</option>
+                        <option value="aviso">⚠️ Aviso Importante (Âmbar/Dourado)</option>
+                        <option value="alerta">🔴 Alerta Crítico (Vermelho)</option>
+                      </select>
+                    </div>
+                    <div style="flex: 1; min-width: 140px;">
+                      <label style="font-size: 0.72rem; font-weight: bold; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 5px;">Destinatários:</label>
+                      <select id="letreiro-config-publico" style="width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: bold; font-size: 0.82rem;">
+                        <option value="todos">🌐 Todos (Admin + Equipe + Clientes)</option>
+                        <option value="equipe">👥 Equipe + Admin (Garçom, Cozinha, etc.)</option>
+                        <option value="admin">🔒 Apenas no Painel Administrativo</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style="display: flex; gap: 10px; align-items: center; justify-content: flex-end;">
+                    <button id="btn-salvar-letreiro" onclick="salvarLetreiroSistema()" style="background: #e67e22; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: background 0.2s;">
+                      💾 Salvar e Publicar Letreiro
+                    </button>
+                  </div>
+                </div>
+
                 <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin-bottom: 16px;">
                   <h4 style="margin: 0 0 10px 0; color: #2c3e50;"><i class="fa-solid fa-android" style="color: #10b981;"></i> Atualização Obrigatória do APK (Android)</h4>
                   <p style="margin: 0 0 15px 0; font-size: 0.78rem; color: #64748b;">
@@ -2397,7 +2474,7 @@
   <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="app_v3.js?v=4.0.0"></script>
+  <script src="app_v3.js?v=4.0.1"></script>
   <!-- Modal: Mesa Aguardando Cliente -->
   <div id="modal-mesa-aguardando" class="modal">
     <div class="modal-content" style="max-width: 420px; border-radius: 16px; overflow: hidden; padding: 0;">
