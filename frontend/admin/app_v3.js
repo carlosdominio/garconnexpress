@@ -727,13 +727,27 @@ function obterVersaoWebAtual() {
   return vInput || vAdminValida || vStorageValida || '4.0.0';
 }
 
+function obterTituloSemNotificacaoAdmin() {
+  const v = obterVersaoWebAtual();
+  const versaoTxt = v ? ` - V.${v}` : '';
+  return `Guga-Bebidas — Painel Administrativo${versaoTxt}`;
+}
+
 function obterTituloNotificacaoAdmin(naoLidas = 0) {
   const v = obterVersaoWebAtual();
   const versaoTxt = v ? ` - V.${v}` : '';
   if (naoLidas > 0) {
     return `(${naoLidas}) Notificação Painel${versaoTxt}`;
   }
-  return NOME_APP_ADMIN;
+  return obterTituloSemNotificacaoAdmin();
+}
+
+function atualizarExibicaoVersaoAdmin() {
+  const v = obterVersaoWebAtual();
+  const elHeader = document.getElementById('versao-app-header');
+  if (elHeader) {
+    elHeader.innerText = v ? `V.${v}` : 'V.4.0.0';
+  }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -766,6 +780,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     iniciarPainelAdmin();
   }
 
+  // Atualiza exibição da versão no cabeçalho e título
+  atualizarExibicaoVersaoAdmin();
+  document.title = obterTituloSemNotificacaoAdmin();
+
   // Listener em tempo real no campo de versão web
   const inWebEl = document.getElementById('config-web-version');
   if (inWebEl) {
@@ -774,6 +792,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (val) {
         versaoWebAtualAdmin = val;
         localStorage.setItem('versao_web_admin', val);
+        atualizarExibicaoVersaoAdmin();
         atualizarBadgeNotificacoes();
       }
     });
@@ -846,6 +865,7 @@ async function verificarVersaoSistema() {
         localStorage.setItem('versao_web_admin', vServidor);
         atualizarBadgeNotificacoes();
       }
+      atualizarExibicaoVersaoAdmin();
       const versaoSalva = localStorage.getItem('versao_web_admin');
       if (!versaoSalva || versaoSalva === '1.0.0' || versaoSalva === '1.3.1') {
         localStorage.setItem('versao_web_admin', vServidor);
@@ -12458,6 +12478,8 @@ function atualizarBadgeNotificacoes() {
   const badge = document.getElementById('notificacoes-badge');
   if (!badge) return;
 
+  atualizarExibicaoVersaoAdmin();
+
   const naoLidas = notificacoesGerais.filter(n => !n.lida).length;
 
   const changeFavicon = (src) => {
@@ -12475,6 +12497,9 @@ function atualizarBadgeNotificacoes() {
     badge.innerText = naoLidas > 99 ? '99+' : naoLidas;
     badge.classList.remove('hidden');
     document.title = obterTituloNotificacaoAdmin(naoLidas);
+    if ('setAppBadge' in navigator) {
+      navigator.setAppBadge(naoLidas).catch(() => {});
+    }
     
     const numTxt = naoLidas > 9 ? '9+' : naoLidas;
     // Bolinha vermelha centralizada no ícone
@@ -12482,7 +12507,10 @@ function atualizarBadgeNotificacoes() {
     changeFavicon("data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgAlert))));
   } else {
     badge.classList.add('hidden');
-    document.title = NOME_APP_ADMIN;
+    document.title = obterTituloSemNotificacaoAdmin();
+    if ('clearAppBadge' in navigator) {
+      navigator.clearAppBadge().catch(() => {});
+    }
     changeFavicon("favicon.svg");
   }
 }
@@ -13797,6 +13825,7 @@ async function carregarVersaoApp() {
         inWeb.value = vFinal;
         versaoWebAtualAdmin = String(vFinal);
         localStorage.setItem('versao_web_admin', String(vFinal));
+        atualizarExibicaoVersaoAdmin();
         atualizarBadgeNotificacoes();
       }
       
@@ -13888,6 +13917,7 @@ async function salvarVersaoAppWeb() {
       snapshotVersaoWebOriginal = coletarEstadoVersaoWeb();
       versaoWebAtualAdmin = String(web_version);
       localStorage.setItem('versao_web_admin', String(web_version));
+      atualizarExibicaoVersaoAdmin();
       atualizarBadgeNotificacoes();
       await mostrarConfirmacaoFCM('Sucesso', '⚙️ Versão Web atualizada com sucesso!', 'sucesso', true);
       carregarVersaoApp();

@@ -102,7 +102,10 @@ header {
 .header-main h1 {
   font-size: 1.3rem;
   margin: 0;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .btn-whatsapp-header {
@@ -318,6 +321,20 @@ header {
   background-color: #e74c3c;
   color: white;
   border: 1px solid #ff7675;
+}
+
+.badge-versao-header {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
 }
 
 .btn-sair {
