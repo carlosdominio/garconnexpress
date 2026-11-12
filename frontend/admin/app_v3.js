@@ -980,7 +980,9 @@ let elginConfig = {
   largura: 80,
   baudRate: 115200,
   autoCorte: true,
-  autoImprimirFechamento: false
+  autoImprimirFechamento: false,
+  msgFestivaAtiva: false,
+  msgFestivaTexto: "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨"
 };
 window.dadosPreviaCupomAtual = null;
 
@@ -995,20 +997,46 @@ function carregarConfigElgin() {
   }
 }
 
+function atualizarPreviaMensagemCupom(texto) {
+  const container = document.getElementById('previa-msg-cupom-texto');
+  const check = document.getElementById('elgin-msg-festiva-ativa');
+  if (container) {
+    container.textContent = (texto && texto.trim()) ? texto.trim() : "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨";
+    container.style.opacity = (check && check.checked) ? "1" : "0.4";
+  }
+}
+window.atualizarPreviaMensagemCupom = atualizarPreviaMensagemCupom;
+
 function salvarConfigElgin() {
   try {
     const selLargura = document.getElementById('elgin-largura-select');
     const selBaud = document.getElementById('elgin-baud-select');
     const checkCorte = document.getElementById('elgin-auto-corte');
     const checkAuto = document.getElementById('elgin-imprimir-auto-fechamento');
+    const checkMsgFestiva = document.getElementById('elgin-msg-festiva-ativa');
+    const txtMsgFestiva = document.getElementById('elgin-msg-festiva-texto');
 
     if (selLargura) elginConfig.largura = parseInt(selLargura.value, 10);
     if (selBaud) elginConfig.baudRate = parseInt(selBaud.value, 10);
     if (checkCorte) elginConfig.autoCorte = checkCorte.checked;
     if (checkAuto) elginConfig.autoImprimirFechamento = checkAuto.checked;
+    if (checkMsgFestiva) elginConfig.msgFestivaAtiva = checkMsgFestiva.checked;
+    if (txtMsgFestiva) elginConfig.msgFestivaTexto = txtMsgFestiva.value.trim() || "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨";
 
     localStorage.setItem(ELGIN_CONFIG_KEY, JSON.stringify(elginConfig));
-    mostrarToast("⚙️ Configurações da Elgin salvas com sucesso!");
+    atualizarPreviaMensagemCupom(elginConfig.msgFestivaTexto);
+
+    // Sincroniza em background com o servidor (PostgreSQL/SQLite)
+    fetch('/api/config/mensagem-cupom', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ativa: elginConfig.msgFestivaAtiva,
+        texto: elginConfig.msgFestivaTexto
+      })
+    }).catch(err => console.warn('Sync mensagem cupom offline:', err));
+
+    mostrarToast("⚙️ Configurações da Impressora e Mensagem salvas com sucesso!");
   } catch (e) {
     console.error("Erro ao salvar config Elgin:", e);
   }
@@ -1020,17 +1048,36 @@ function aplicarConfigElginNaUI() {
   const selBaud = document.getElementById('elgin-baud-select');
   const checkCorte = document.getElementById('elgin-auto-corte');
   const checkAuto = document.getElementById('elgin-imprimir-auto-fechamento');
+  const checkMsgFestiva = document.getElementById('elgin-msg-festiva-ativa');
+  const txtMsgFestiva = document.getElementById('elgin-msg-festiva-texto');
 
   if (selLargura) selLargura.value = String(elginConfig.largura || 80);
   if (selBaud) selBaud.value = String(elginConfig.baudRate || 115200);
   if (checkCorte) checkCorte.checked = (elginConfig.autoCorte !== false);
   if (checkAuto) checkAuto.checked = !!elginConfig.autoImprimirFechamento;
+  if (checkMsgFestiva) checkMsgFestiva.checked = !!elginConfig.msgFestivaAtiva;
+  if (txtMsgFestiva) txtMsgFestiva.value = elginConfig.msgFestivaTexto || "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨";
 
+  atualizarPreviaMensagemCupom(elginConfig.msgFestivaTexto);
   atualizarStatusElginUI();
 }
 
 async function inicializarConfiguracaoElgin() {
   aplicarConfigElginNaUI();
+  try {
+    const res = await fetch('/api/config/mensagem-cupom');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data.ativa === 'boolean') {
+        elginConfig.msgFestivaAtiva = data.ativa;
+        if (data.texto) elginConfig.msgFestivaTexto = data.texto;
+        localStorage.setItem(ELGIN_CONFIG_KEY, JSON.stringify(elginConfig));
+        aplicarConfigElginNaUI();
+      }
+    }
+  } catch (e) {
+    // Modo offline continua com cache local
+  }
   await verificarAutoConexaoElgin();
 }
 
@@ -1330,6 +1377,10 @@ function gerarBytesEscPosPedido(pedido, itens) {
   // Rodapé
   str += divisorFino + '\n';
   str += '\x1B\x61\x01'; // Centralizado
+  if (typeof elginConfig !== 'undefined' && elginConfig.msgFestivaAtiva && elginConfig.msgFestivaTexto) {
+    str += removerAcentosTexto(elginConfig.msgFestivaTexto.toUpperCase()) + '\n';
+    str += divisorFino + '\n';
+  }
   str += 'OBRIGADO PELA PREFERENCIA!\n';
   str += 'GuGA Bebidas - Sistema de Gestao\n';
   str += '\n\n\n\n'; // Avanço do papel térmico
@@ -11003,6 +11054,11 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false, forcarNavegador 
     </div>
 
     <div class="cupom-central" style="text-align: center; margin-top: 15px;">
+      ${(typeof elginConfig !== 'undefined' && elginConfig.msgFestivaAtiva && elginConfig.msgFestivaTexto) ? `
+        <div style="margin: 8px 0 12px 0; padding: 6px 4px; border-top: 1px dashed #000; border-bottom: 1px dashed #000; font-weight: 900; font-size: 10pt; text-transform: uppercase;">
+          ${elginConfig.msgFestivaTexto}
+        </div>
+      ` : ''}
       <p style="margin: 5px 0; font-weight: bold;">OBRIGADO PELA PREFERÊNCIA!</p>
       <p style="margin: 2px 0; font-size: 8pt;">GuGA Bebidas - Sistema de Gestão</p>
     </div>

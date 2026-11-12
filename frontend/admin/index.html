@@ -1664,6 +1664,48 @@
                   </div>
                 </div>
 
+                <!-- Card de Mensagem Festiva no Cupom (Final de Ano / Boas Festas) -->
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-top: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                      <h4 style="margin: 0; color: #1e293b; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+                        ✨ Mensagem Especial no Cupom (Fim de Ano / Boas Festas)
+                      </h4>
+                      <p style="font-size: 0.82rem; color: #64748b; margin: 4px 0 0 0;">
+                        Exibe uma mensagem personalizada de votos no rodapé de todos os cupons impressos para os clientes.
+                      </p>
+                    </div>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 700; color: #1e293b; background: #fff; padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                      <input type="checkbox" id="elgin-msg-festiva-ativa" onchange="salvarConfigElgin()" style="width: 18px; height: 18px; accent-color: #2563eb;">
+                      <span>Ativar no Cupom</span>
+                    </label>
+                  </div>
+
+                  <div style="margin-top: 12px;">
+                    <label style="font-size: 0.8rem; font-weight: 700; color: #475569; display: block; margin-bottom: 6px;">
+                      Texto da Mensagem Festiva:
+                    </label>
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                      <input type="text" id="elgin-msg-festiva-texto" placeholder="Ex: ✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨" 
+                        style="flex: 1; min-width: 260px; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; font-weight: 600; color: #1e293b;"
+                        oninput="atualizarPreviaMensagemCupom(this.value)">
+                      <button type="button" onclick="salvarConfigElgin()" style="background: #2563eb; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-floppy-disk"></i> Salvar Mensagem
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Prévia do Rodapé do Cupom -->
+                  <div id="previa-msg-cupom-container" style="margin-top: 14px; padding: 12px; background: #fff; border: 1px dashed #94a3b8; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 0.72rem; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; font-weight: bold;">
+                      Prévia de como sairá no rodapé do cupom impresso:
+                    </div>
+                    <div id="previa-msg-cupom-texto" style="font-size: 0.92rem; font-weight: 900; color: #0f172a; border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 6px 10px; display: inline-block;">
+                      ✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨
+                    </div>
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>

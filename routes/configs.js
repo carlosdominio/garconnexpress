@@ -505,5 +505,38 @@ module.exports = (ctx) => {
     }
   });
 
+  // Configuração da Mensagem Festiva / Final de Ano no Cupom
+  router.get('/config/mensagem-cupom', ensureDbInitialized, async (req, res) => {
+    try {
+      const { rows } = await query("SELECT valor FROM sistema_config WHERE chave = 'mensagem_cupom_festiva'");
+      if (rows && rows.length > 0 && rows[0].valor) {
+        return res.json(JSON.parse(rows[0].valor));
+      }
+      res.json({ ativa: false, texto: "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨" });
+    } catch (err) {
+      console.error('Erro ao buscar mensagem festiva do cupom:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/config/mensagem-cupom', ensureDbInitialized, isAdmin, async (req, res) => {
+    try {
+      const { ativa, texto } = req.body;
+      const valor = JSON.stringify({
+        ativa: !!ativa,
+        texto: (texto || '').trim() || "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨"
+      });
+      if (isPostgres) {
+        await query("INSERT INTO sistema_config (chave, valor) VALUES ('mensagem_cupom_festiva', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [valor]);
+      } else {
+        await query("INSERT OR REPLACE INTO sistema_config (chave, valor) VALUES ('mensagem_cupom_festiva', ?)", [valor]);
+      }
+      res.json({ success: true, valor: JSON.parse(valor) });
+    } catch (err) {
+      console.error('Erro ao salvar mensagem festiva do cupom:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   return router;
 };
