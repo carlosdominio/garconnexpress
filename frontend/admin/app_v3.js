@@ -4227,12 +4227,14 @@ function notificarStatusEquipeAdmin(data) {
   
   let msg = '';
   if (tipoAcao === 'login') {
-    msg = `${identificador} realizou LOGIN (Disponível na ${info.fila})`;
+    msg = isPausado
+      ? `${identificador} realizou LOGIN (Continua PAUSADO fora da ${info.fila})`
+      : `${identificador} realizou LOGIN (Disponível na ${info.fila})`;
   } else if (tipoAcao === 'logout') {
     msg = `${identificador} realizou LOGOUT (Sessão encerrada)`;
   } else {
     msg = isPausado 
-      ? `${identificador} entrou em MODO PAUSA (Fora da Fila)` 
+      ? `${identificador} entrou em MODO PAUSA (Fora da ${info.fila})` 
       : `${identificador} entrou na ${info.fila}`;
   }
   
@@ -4254,9 +4256,22 @@ async function exibirGarconsConfig() {
 
   container.innerHTML = garcons.map((g, index) => {
     const isOnline = !!g.is_online;
+    const isPausado = !!g.pausado;
     const estaAtivo = g.ativo !== false;
-    const statusLabel = isOnline ? '🟢 DISPONÍVEL' : '🔴 PAUSADO';
-    const statusColor = isOnline ? '#27ae60' : '#e74c3c';
+
+    let statusLabel = '🟢 DISPONÍVEL';
+    let statusColor = '#27ae60';
+    let statusTitle = 'Colaborador ativo na fila. Clique para colocar em pausa';
+
+    if (isPausado) {
+      statusLabel = isOnline ? '⏸️ PAUSADO' : '⏸️ PAUSADO (OFF)';
+      statusColor = '#e67e22';
+      statusTitle = 'Colaborador fora da fila. Clique para ativar na fila';
+    } else if (!isOnline) {
+      statusLabel = '⚪ OFFLINE';
+      statusColor = '#94a3b8';
+      statusTitle = 'Colaborador deslogado. Clique para colocar em pausa antes de ele logar';
+    }
 
     const cargoBadgeMap = {
       garcom: { label: '🍽️ Garçom', bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
@@ -4281,7 +4296,7 @@ async function exibirGarconsConfig() {
             </span>
           ` : `
             <span style="font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; background: ${statusColor}22; color: ${statusColor}; font-weight: bold; border: 1px solid ${statusColor}44; cursor: pointer;" 
-                  onclick="toggleStatusGarcom(${g.id}, ${isOnline})" title="Clique para forçar alteração">
+                  onclick="toggleStatusGarcom(${g.id}, ${isPausado})" title="${statusTitle}">
               ${statusLabel}
             </span>
           `}
@@ -4303,11 +4318,12 @@ async function exibirGarconsConfig() {
   }).join('');
 }
 
-async function toggleStatusGarcom(id, currentStatus) {
+async function toggleStatusGarcom(id, isPausadoAtual) {
   const garcom = window.listaGarconsAtual ? window.listaGarconsAtual.find(g => g.id === id) : null;
   const nomeGarcom = garcom ? garcom.nome : "Colaborador";
   const cargoGarcom = garcom ? (garcom.cargo || 'garcom') : 'garcom';
-  const acao = currentStatus ? "PAUSAR" : "ATIVAR";
+  const estaPausado = garcom ? !!garcom.pausado : !!isPausadoAtual;
+  const acao = estaPausado ? "ATIVAR NA FILA" : "PAUSAR (TIRAR DA FILA)";
 
   const labelSetor = (cargoGarcom === 'cozinha' || cargoGarcom === 'churrasqueiro')
     ? `Deseja realmente ${acao} a disponibilidade de ${nomeGarcom} (${cargoGarcom.toUpperCase()})? Isso atualizará o status da FILA no aplicativo dele em tempo real.`
@@ -4319,12 +4335,13 @@ async function toggleStatusGarcom(id, currentStatus) {
   try {
     const res = await fetch(`/api/admin/garcons/${id}/toggle-status`, { method: 'POST' });
     if (res.ok) {
-      const novoStatusPausado = currentStatus ? true : false;
+      const data = await res.json();
       notificarStatusEquipeAdmin({
         cargo: cargoGarcom,
         usuario: garcom?.usuario,
         user_id: garcom?.usuario,
-        pausado: novoStatusPausado
+        pausado: data.pausado,
+        is_online: data.is_online
       });
       exibirGarconsConfig(); // Recarrega a lista
     } else {

@@ -896,6 +896,11 @@ async function realizarLogin() {
       garcomLogado = data.garcom;
       localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
       if (data.token) localStorage.setItem('garcom_token', data.token); // Salva token
+      if (data.garcom && typeof data.garcom.pausado !== 'undefined') {
+        garcomPausado = !!data.garcom.pausado;
+        localStorage.setItem('garcom_pausado', garcomPausado);
+        atualizarInterfacePausa();
+      }
       if (typeof mostrarToast === 'function') mostrarToast("Login realizado com sucesso!", "success");
       
       const telaLogin = document.getElementById('tela-login');
@@ -955,7 +960,6 @@ async function logout() {
   } finally {
     localStorage.removeItem('garcom_logado');
     localStorage.removeItem('garcom_token');
-    localStorage.removeItem('garcom_pausado');
     setTimeout(() => {
       location.reload();
     }, 1200);

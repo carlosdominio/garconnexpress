@@ -2942,7 +2942,7 @@ async function initDb() {
     `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0, transferencia_origem TEXT)`,
     `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
     `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT, comissao REAL DEFAULT 0, is_online BOOLEAN DEFAULT FALSE, last_assigned_at TIMESTAMP, cargo TEXT DEFAULT 'garcom', ativo BOOLEAN DEFAULT TRUE)`,
+    `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT, comissao REAL DEFAULT 0, is_online BOOLEAN DEFAULT FALSE, pausado BOOLEAN DEFAULT FALSE, last_assigned_at TIMESTAMP, cargo TEXT DEFAULT 'garcom', ativo BOOLEAN DEFAULT TRUE)`,
     `CREATE TABLE IF NOT EXISTS usuarios_admin (id SERIAL PRIMARY KEY, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS sistema_config (chave TEXT PRIMARY KEY, valor TEXT)`,
     `CREATE TABLE IF NOT EXISTS fluxo_caixa (id SERIAL PRIMARY KEY, data_abertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, data_fechamento TIMESTAMP, valor_inicial REAL NOT NULL, valor_final REAL, status TEXT DEFAULT 'aberto', total_dinheiro REAL DEFAULT 0, total_pix REAL DEFAULT 0, total_cartao REAL DEFAULT 0, total_vendas REAL DEFAULT 0)`,
@@ -3114,6 +3114,7 @@ async function initDb() {
     await addCol('garcons', 'comissao', 'REAL DEFAULT 0');
     await addCol('garcons', 'diaria', 'REAL DEFAULT 0');
     await addCol('garcons', 'is_online', 'BOOLEAN DEFAULT FALSE');
+    await addCol('garcons', 'pausado', 'BOOLEAN DEFAULT FALSE');
     await addCol('garcons', 'cargo', "TEXT DEFAULT 'garcom'");
     await addCol('garcons', 'ativo', "BOOLEAN DEFAULT TRUE");
     await addCol('garcons', 'last_assigned_at', 'TIMESTAMP');
@@ -3421,15 +3422,36 @@ app.post('/api/logout', async (req, res) => {
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
       if (decoded && decoded.role === 'garcom') {
+        let estadoPausaReal = false;
+        try {
+          const gCheck = await query("SELECT pausado FROM garcons WHERE id = ?", [decoded.id]);
+          if (gCheck && gCheck.rows && gCheck.rows.length > 0 && gCheck.rows[0].pausado !== undefined && gCheck.rows[0].pausado !== null) {
+            estadoPausaReal = Boolean(gCheck.rows[0].pausado);
+          }
+        } catch (e) {}
+
         await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isPostgres ? false : 0, decoded.id]);
-        console.log(`👋 Garçom ${decoded.usuario} offline.`);
+        console.log(`👋 Colaborador ${decoded.usuario} offline (deslogado, pausado=${estadoPausaReal}).`);
         await safePusherTrigger('garconnexpress', 'garcom-status-alterado', {
           garcom_id: decoded.id,
           usuario: decoded.usuario,
           cargo: decoded.cargo || 'garcom',
-          pausado: true,
+          pausado: estadoPausaReal,
+          is_online: false,
           tipo_acao: 'logout'
         });
+
+        const cargo = (decoded.cargo || 'garcom').toLowerCase().trim();
+        if (cargo === 'motoboy' || cargo === 'cozinha' || cargo === 'churrasqueiro') {
+          await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
+            app_type: cargo,
+            user_id: decoded.usuario,
+            garcom_id: decoded.id,
+            pausado: estadoPausaReal,
+            is_online: false,
+            tipo_acao: 'logout'
+          });
+        }
       }
     } catch (e) {
       console.error('Erro ao desativar online no logout:', e.message);
@@ -3451,14 +3473,13 @@ app.post('/api/garcom/pausar', isAuthenticated, async (req, res) => {
   }
 
   try {
-    const isOnline = pausado ? (isPostgres ? false : 0) : (isPostgres ? true : 1);
     const valPausado = !!pausado;
     let garcomId = req.user.id;
     let usuario = req.user.usuario;
     let cargo = (req.user.cargo || 'garcom').toLowerCase().trim();
 
     if (garcomId) {
-      await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isOnline, garcomId]);
+      await query("UPDATE garcons SET pausado = ? WHERE id = ?", [valPausado ? (isPostgres ? true : 1) : (isPostgres ? false : 0), garcomId]);
       await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [valPausado ? 1 : 0, String(garcomId), String(usuario)]).catch(() => {});
     }
     if (endpoint) {
@@ -3473,6 +3494,7 @@ app.post('/api/garcom/pausar', isAuthenticated, async (req, res) => {
       usuario: usuario,
       cargo: cargo,
       pausado: valPausado,
+      is_online: true,
       origem: 'colaborador'
     });
 
@@ -3483,6 +3505,7 @@ app.post('/api/garcom/pausar', isAuthenticated, async (req, res) => {
         user_id: usuario,
         garcom_id: garcomId,
         pausado: valPausado,
+        is_online: true,
         origem: 'colaborador'
       });
       if (cargo === 'churrasqueiro') {
@@ -3491,12 +3514,13 @@ app.post('/api/garcom/pausar', isAuthenticated, async (req, res) => {
           user_id: usuario,
           garcom_id: garcomId,
           pausado: valPausado,
+          is_online: true,
           origem: 'colaborador'
         });
       }
     }
 
-    res.json({ success: true, is_online: !valPausado });
+    res.json({ success: true, pausado: valPausado, is_online: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -3704,17 +3728,17 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
   try {
     let garcom;
     try {
-      garcom = (await query("SELECT id, nome, usuario, cargo, is_online FROM garcons WHERE id = ?", [id])).rows[0];
+      garcom = (await query("SELECT id, nome, usuario, cargo, is_online, pausado FROM garcons WHERE id = ?", [id])).rows[0];
     } catch (e1) {
-      garcom = (await query("SELECT id, usuario, is_online FROM garcons WHERE id = ?", [id])).rows[0];
+      garcom = (await query("SELECT id, usuario, is_online, pausado FROM garcons WHERE id = ?", [id])).rows[0];
     }
 
     if (!garcom) return res.status(404).json({ error: 'Colaborador não encontrado' });
 
-    const novoStatus = garcom.is_online ? (isPostgres ? false : 0) : (isPostgres ? true : 1);
-    await query("UPDATE garcons SET is_online = ? WHERE id = ?", [novoStatus, id]);
-
-    const pausado = novoStatus ? false : true;
+    // Alterna o status de pausa (se estava pausado, despausa; se não estava, pausa)
+    const novoPausado = !Boolean(garcom.pausado);
+    const valPausadoDb = novoPausado ? (isPostgres ? true : 1) : (isPostgres ? false : 0);
+    await query("UPDATE garcons SET pausado = ? WHERE id = ?", [valPausadoDb, id]);
     
     // Determina o cargo com fallback inteligente caso ainda não tenha sido editado no Admin
     let cargo = (garcom.cargo || '').toLowerCase().trim();
@@ -3731,16 +3755,17 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
       garcom_id: id,
       usuario: garcom.usuario,
       cargo: cargo,
-      pausado: pausado,
+      pausado: novoPausado,
+      is_online: Boolean(garcom.is_online),
       origem: 'admin'
     });
 
     // 2. Sincroniza a fila e push_subscriptions em tempo real
     try {
       if (cargo === 'cozinha' || cargo === 'churrasqueiro') {
-        await query("UPDATE push_subscriptions SET pausado = ? WHERE app_type = ? OR app_type = ?", [pausado ? 1 : 0, cargo, cargo === 'churrasqueiro' ? 'churrasco' : cargo]);
+        await query("UPDATE push_subscriptions SET pausado = ? WHERE app_type = ? OR app_type = ?", [novoPausado ? 1 : 0, cargo, cargo === 'churrasqueiro' ? 'churrasco' : cargo]);
       } else {
-        await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [pausado ? 1 : 0, String(id), String(garcom.usuario)]);
+        await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [novoPausado ? 1 : 0, String(id), String(garcom.usuario)]);
       }
     } catch(e) {}
 
@@ -3750,7 +3775,8 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
         app_type: cargo,
         user_id: garcom.usuario,
         garcom_id: id,
-        pausado: pausado,
+        pausado: novoPausado,
+        is_online: Boolean(garcom.is_online),
         origem: 'admin'
       });
       if (cargo === 'churrasqueiro') {
@@ -3758,11 +3784,12 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
           app_type: 'churrasco',
           user_id: garcom.usuario,
           garcom_id: id,
-          pausado: pausado,
+          pausado: novoPausado,
+          is_online: Boolean(garcom.is_online),
           origem: 'admin'
         });
       }
-      console.log(`📡 [Admin] Status de fila do setor ${cargo} alterado para ${pausado ? 'PAUSA' : 'FILA ON'} em tempo real.`);
+      console.log(`📡 [Admin] Status de fila do setor ${cargo} alterado para ${novoPausado ? 'PAUSA' : 'FILA ON'} em tempo real.`);
     }
 
     // 3. Dispara Notificação FCM / WebPush (para alertar mesmo com tela desligada / em background)
@@ -3770,10 +3797,10 @@ app.post('/api/admin/garcons/:id/toggle-status', isAdmin, async (req, res) => {
       garcomId: id,
       usuario: garcom.usuario,
       cargo: cargo,
-      pausado: pausado
+      pausado: novoPausado
     });
 
-    res.json({ success: true, is_online: !!novoStatus, pausado });
+    res.json({ success: true, is_online: Boolean(garcom.is_online), pausado: novoPausado });
   } catch (error) {
     console.error("Erro no toggle-status:", error.message);
     res.status(500).json({ error: error.message });
@@ -3834,14 +3861,14 @@ app.post('/api/setor/toggle-fila', isAuthenticated, async (req, res) => {
   const { app_type, pausado, endpoint, tipo_acao } = req.body;
   const userId = req.user ? (req.user.id || req.user.usuario) : null;
   const valPausado = (pausado === true || pausado === 1 || pausado === '1') ? 1 : 0;
-  const isOnline = valPausado ? (isPostgres ? false : 0) : (isPostgres ? true : 1);
+  const isLogout = tipo_acao === 'logout';
 
   try {
     let garcomAlvo = null;
 
     // 1. Tenta identificar o colaborador logado na tabela garcons
     if (req.user && req.user.id) {
-      const gRes = await query("SELECT id, nome, usuario, cargo FROM garcons WHERE id = ? OR usuario = ?", [
+      const gRes = await query("SELECT id, nome, usuario, cargo, is_online, pausado FROM garcons WHERE id = ? OR usuario = ?", [
         isNaN(Number(req.user.id)) ? -1 : Number(req.user.id),
         String(req.user.usuario || req.user.id)
       ]);
@@ -3853,37 +3880,50 @@ app.post('/api/setor/toggle-fila', isAuthenticated, async (req, res) => {
     // 2. Se não encontrou por ID (ex: token admin ou outro), busca pelo app_type ou cargo
     if (!garcomAlvo && app_type) {
       const cargoBusca = (app_type === 'churrasco' || app_type === 'churrasqueiro') ? 'churrasqueiro' : app_type;
-      const gRes = await query("SELECT id, nome, usuario, cargo FROM garcons WHERE cargo = ? OR usuario = ? LIMIT 1", [cargoBusca, app_type]);
+      const gRes = await query("SELECT id, nome, usuario, cargo, is_online, pausado FROM garcons WHERE cargo = ? OR usuario = ? LIMIT 1", [cargoBusca, app_type]);
       if (gRes && gRes.rows && gRes.rows.length > 0) {
         garcomAlvo = gRes.rows[0];
       }
     }
 
-    // 3. Atualiza o status is_online na tabela garcons
-    if (garcomAlvo) {
-      await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isOnline, garcomAlvo.id]);
-      console.log(`👤 [garcons] Colaborador ${garcomAlvo.usuario} (${garcomAlvo.cargo}) atualizado para is_online=${isOnline}`);
-    } else if (app_type) {
-      const cargoBusca = (app_type === 'churrasco' || app_type === 'churrasqueiro') ? 'churrasqueiro' : app_type;
-      await query("UPDATE garcons SET is_online = ? WHERE cargo = ? OR (cargo = 'churrasqueiro' AND ? = 'churrasco') OR usuario = ?", [isOnline, cargoBusca, app_type, app_type]);
+    // 3. Atualiza na tabela garcons
+    let estadoPausaFinal = garcomAlvo ? Boolean(garcomAlvo.pausado) : !!valPausado;
+    if (isLogout) {
+      // No logout, desativa online e preserva a pausa
+      if (garcomAlvo) {
+        await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isPostgres ? false : 0, garcomAlvo.id]);
+      } else if (app_type) {
+        const cargoBusca = (app_type === 'churrasco' || app_type === 'churrasqueiro') ? 'churrasqueiro' : app_type;
+        await query("UPDATE garcons SET is_online = ? WHERE cargo = ? OR (cargo = 'churrasqueiro' AND ? = 'churrasco') OR usuario = ?", [isPostgres ? false : 0, cargoBusca, app_type, app_type]);
+      }
+    } else {
+      // Toggle explícito de fila (pausa)
+      estadoPausaFinal = !!valPausado;
+      const valPausaDb = valPausado ? (isPostgres ? true : 1) : (isPostgres ? false : 0);
+      if (garcomAlvo) {
+        await query("UPDATE garcons SET pausado = ? WHERE id = ?", [valPausaDb, garcomAlvo.id]);
+      } else if (app_type) {
+        const cargoBusca = (app_type === 'churrasco' || app_type === 'churrasqueiro') ? 'churrasqueiro' : app_type;
+        await query("UPDATE garcons SET pausado = ? WHERE cargo = ? OR (cargo = 'churrasqueiro' AND ? = 'churrasco') OR usuario = ?", [valPausaDb, cargoBusca, app_type, app_type]);
+      }
+
+      // 4. Atualiza push_subscriptions
+      if (endpoint) {
+        await query("UPDATE push_subscriptions SET pausado = ? WHERE endpoint = ?", [valPausado, endpoint]);
+      }
+      if (garcomAlvo) {
+        await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [valPausado, String(garcomAlvo.id), String(garcomAlvo.usuario)]);
+      } else if (userId) {
+        await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ?", [valPausado, String(userId)]);
+      }
+      if (app_type) {
+        const tipo1 = app_type;
+        const tipo2 = (app_type === 'churrasqueiro') ? 'churrasco' : (app_type === 'churrasco' ? 'churrasqueiro' : app_type);
+        await query("UPDATE push_subscriptions SET pausado = ? WHERE app_type = ? OR app_type = ?", [valPausado, tipo1, tipo2]);
+      }
     }
 
-    // 4. Atualiza push_subscriptions
-    if (endpoint) {
-      await query("UPDATE push_subscriptions SET pausado = ? WHERE endpoint = ?", [valPausado, endpoint]);
-    }
-    if (garcomAlvo) {
-      await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [valPausado, String(garcomAlvo.id), String(garcomAlvo.usuario)]);
-    } else if (userId) {
-      await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ?", [valPausado, String(userId)]);
-    }
-    if (app_type) {
-      const tipo1 = app_type;
-      const tipo2 = (app_type === 'churrasqueiro') ? 'churrasco' : (app_type === 'churrasco' ? 'churrasqueiro' : app_type);
-      await query("UPDATE push_subscriptions SET pausado = ? WHERE app_type = ? OR app_type = ?", [valPausado, tipo1, tipo2]);
-    }
-
-    console.log(`👤 Fila [${app_type}]: Usuário ${userId || endpoint} agora está ${valPausado ? 'PAUSADO (FORA DA FILA)' : 'ATIVO (NA FILA)'}.`);
+    console.log(`👤 Fila [${app_type}]: Usuário ${userId || endpoint} (${tipo_acao || 'toggle'}) isOnline=${!isLogout}, pausado=${estadoPausaFinal}.`);
 
     const garcomIdFinal = garcomAlvo ? garcomAlvo.id : userId;
     const garcomUsuarioFinal = garcomAlvo ? garcomAlvo.usuario : (req.user ? req.user.usuario : String(userId || app_type));
@@ -3895,7 +3935,8 @@ app.post('/api/setor/toggle-fila', isAuthenticated, async (req, res) => {
       user_id: garcomUsuarioFinal,
       garcom_id: garcomIdFinal,
       cargo: garcomCargoFinal,
-      pausado: !!valPausado,
+      pausado: estadoPausaFinal,
+      is_online: !isLogout,
       tipo_acao: tipo_acao || (valPausado ? 'pausa' : 'ativo')
     });
     if (app_type === 'churrasqueiro' || app_type === 'churrasco') {
@@ -3905,7 +3946,8 @@ app.post('/api/setor/toggle-fila', isAuthenticated, async (req, res) => {
         user_id: garcomUsuarioFinal,
         garcom_id: garcomIdFinal,
         cargo: garcomCargoFinal,
-        pausado: !!valPausado,
+        pausado: estadoPausaFinal,
+        is_online: !isLogout,
         tipo_acao: tipo_acao || (valPausado ? 'pausa' : 'ativo')
       });
     }
@@ -3915,11 +3957,12 @@ app.post('/api/setor/toggle-fila', isAuthenticated, async (req, res) => {
       garcom_id: garcomIdFinal,
       usuario: garcomUsuarioFinal,
       cargo: garcomCargoFinal,
-      pausado: !!valPausado,
+      pausado: estadoPausaFinal,
+      is_online: !isLogout,
       tipo_acao: tipo_acao || (valPausado ? 'pausa' : 'ativo')
     });
 
-    res.json({ success: true, pausado: !!valPausado, is_online: !valPausado });
+    res.json({ success: true, pausado: estadoPausaFinal, is_online: !isLogout });
   } catch (error) {
     console.error("Erro ao alternar fila do setor:", error.message);
     res.status(500).json({ error: error.message });
@@ -3934,23 +3977,23 @@ app.get('/api/setor/status-fila', isAuthenticated, async (req, res) => {
     
     // 1. Prioriza a tabela garcons se o usuário estiver autenticado
     if (userId) {
-      const g = await query("SELECT is_online FROM garcons WHERE id = ? OR usuario = ?", [
+      const g = await query("SELECT pausado, is_online FROM garcons WHERE id = ? OR usuario = ?", [
         isNaN(Number(userId)) ? -1 : Number(userId),
         String(userId)
       ]);
       if (g && g.rows && g.rows.length > 0) {
-        isPausado = !Boolean(g.rows[0].is_online);
-        return res.json({ pausado: isPausado });
+        isPausado = Boolean(g.rows[0].pausado);
+        return res.json({ success: true, pausado: isPausado, is_online: Boolean(g.rows[0].is_online) });
       }
     }
 
     // 2. Se for setor (cozinha/churrasqueiro) sem garcom específico, busca pelo cargo
     if (app_type) {
       const cargoBusca = (app_type === 'churrasco' || app_type === 'churrasqueiro') ? 'churrasqueiro' : app_type;
-      const gCargo = await query("SELECT is_online FROM garcons WHERE cargo = ? OR usuario = ? LIMIT 1", [cargoBusca, app_type]);
+      const gCargo = await query("SELECT pausado, is_online FROM garcons WHERE cargo = ? OR usuario = ? LIMIT 1", [cargoBusca, app_type]);
       if (gCargo && gCargo.rows && gCargo.rows.length > 0) {
-        isPausado = !Boolean(gCargo.rows[0].is_online);
-        return res.json({ pausado: isPausado });
+        isPausado = Boolean(gCargo.rows[0].pausado);
+        return res.json({ success: true, pausado: isPausado, is_online: Boolean(gCargo.rows[0].is_online) });
       }
     }
 
@@ -3964,9 +4007,9 @@ app.get('/api/setor/status-fila', isAuthenticated, async (req, res) => {
     if (r && r.rows && r.rows.length > 0) {
       isPausado = (r.rows[0].pausado === 1 || r.rows[0].pausado === true);
     }
-    res.json({ pausado: isPausado });
+    res.json({ success: true, pausado: isPausado });
   } catch (error) {
-    res.json({ pausado: false });
+    res.json({ success: false, pausado: false });
   }
 });
 
@@ -6687,15 +6730,19 @@ app.get('/api/garcons', ensureDbInitialized, isAuthenticated, async (req, res) =
   try {
     let result;
     try {
-      result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online, cargo, ativo FROM garcons ORDER BY nome');
-    } catch (errCol) {
+      result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online, pausado, cargo, ativo FROM garcons ORDER BY nome');
+    } catch (errPausa) {
       try {
-        result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online, cargo FROM garcons ORDER BY nome');
-      } catch (e2) {
+        result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online, cargo, ativo FROM garcons ORDER BY nome');
+      } catch (errCol) {
         try {
-          result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online FROM garcons ORDER BY nome');
-        } catch (e3) {
-          result = await query('SELECT id, nome, usuario, telefone, comissao, is_online FROM garcons ORDER BY nome');
+          result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online, cargo FROM garcons ORDER BY nome');
+        } catch (e2) {
+          try {
+            result = await query('SELECT id, nome, usuario, telefone, comissao, diaria, is_online FROM garcons ORDER BY nome');
+          } catch (e3) {
+            result = await query('SELECT id, nome, usuario, telefone, comissao, is_online FROM garcons ORDER BY nome');
+          }
         }
       }
     }
@@ -7075,23 +7122,36 @@ app.post('/api/login', loginLimiter, async (req, res) => {
       const token = jwt.sign({ id: garcom.id, nome: garcom.nome, usuario: garcom.usuario, cargo: cargo, role: 'garcom' }, JWT_SECRET, { expiresIn: '15d' });
       
       const agora = new Date().toISOString();
-      await query("UPDATE garcons SET is_online = ?, last_assigned_at = ? WHERE id = ?", [isPostgres ? true : 1, agora, garcom.id]).catch(() => {});
-      await query("UPDATE push_subscriptions SET pausado = 0 WHERE garcom_id = ? OR garcom_id = ?", [String(garcom.id), String(garcom.usuario)]).catch(() => {});
+      let estadoPausaReal = false;
+      try {
+        const gCheck = await query("SELECT pausado FROM garcons WHERE id = ?", [garcom.id]);
+        if (gCheck && gCheck.rows && gCheck.rows.length > 0 && gCheck.rows[0].pausado !== undefined && gCheck.rows[0].pausado !== null) {
+          estadoPausaReal = Boolean(gCheck.rows[0].pausado);
+        }
+      } catch (e) {}
 
-      // Notifica o painel Admin em tempo real que o colaborador realizou login!
+      await query("UPDATE garcons SET is_online = ?, last_assigned_at = ? WHERE id = ?", [isPostgres ? true : 1, agora, garcom.id]).catch(() => {});
+      await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [estadoPausaReal ? 1 : 0, String(garcom.id), String(garcom.usuario)]).catch(() => {});
+
+      garcom.pausado = estadoPausaReal;
+      garcom.is_online = true;
+
+      // Notifica o painel Admin em tempo real que o colaborador realizou login preservando seu status de fila!
       await safePusherTrigger('garconnexpress', 'garcom-status-alterado', {
         garcom_id: garcom.id,
         usuario: garcom.usuario,
         cargo: cargo,
         app_type: appOrigem,
-        pausado: false,
+        pausado: estadoPausaReal,
+        is_online: true,
         tipo_acao: 'login'
       });
       await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
         app_type: appOrigem,
         user_id: garcom.usuario,
         garcom_id: garcom.id,
-        pausado: false,
+        pausado: estadoPausaReal,
+        is_online: true,
         tipo_acao: 'login'
       });
       
@@ -7236,8 +7296,8 @@ app.post('/api/acesso/qr', async (req, res) => {
 
     let acesso;
     if (mesa.status === 'livre') {
-      // LÓGICA DE RODÍZIO (Round-Robin): Pega o garçom online que está há mais tempo sem atender
-      const proximoGarcom = (await query("SELECT id, usuario, nome FROM garcons WHERE is_online = ? AND (cargo = 'garcom' OR cargo = 'todos' OR cargo IS NULL OR cargo = '') ORDER BY last_assigned_at ASC LIMIT 1", [isPostgres ? true : 1])).rows[0];
+      // LÓGICA DE RODÍZIO (Round-Robin): Pega o garçom online que está há mais tempo sem atender e NÃO está pausado
+      const proximoGarcom = (await query("SELECT id, usuario, nome FROM garcons WHERE is_online = ? AND (pausado IS NULL OR pausado = FALSE OR pausado = 0) AND (cargo = 'garcom' OR cargo = 'todos' OR cargo IS NULL OR cargo = '') ORDER BY last_assigned_at ASC LIMIT 1", [isPostgres ? true : 1])).rows[0];
       
       if (!proximoGarcom) {
         return res.status(503).json({ error: 'Nenhum garçom online no momento para te atender. Por favor, chame um atendente no balcão.' });
@@ -8784,7 +8844,7 @@ app.get('/api/diag', isAdmin, async (req, res) => {
         `CREATE TABLE IF NOT EXISTS pedidos (id SERIAL PRIMARY KEY, mesa_id INTEGER, garcom_id TEXT, status TEXT DEFAULT 'recebido', total REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, forma_pagamento TEXT, desconto REAL DEFAULT 0, acrescimo REAL DEFAULT 0, valor_recebido REAL DEFAULT 0, troco REAL DEFAULT 0, cobrar_taxa BOOLEAN DEFAULT TRUE, num_pessoas INTEGER DEFAULT 1, valor_por_pessoa REAL, observacao TEXT, pago_parcial REAL DEFAULT 0, transferencia_origem TEXT)`,
         `CREATE TABLE IF NOT EXISTS pedido_itens (id SERIAL PRIMARY KEY, pedido_id INTEGER, menu_id INTEGER, quantidade INTEGER, observacao TEXT, status TEXT DEFAULT 'pendente')`,
         `CREATE TABLE IF NOT EXISTS pagamentos (id SERIAL PRIMARY KEY, pedido_id INTEGER, valor REAL, forma_pagamento TEXT, recebido REAL, troco REAL, data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-        `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT, comissao REAL DEFAULT 0, is_online BOOLEAN DEFAULT FALSE, last_assigned_at TIMESTAMP, cargo TEXT DEFAULT 'garcom', ativo BOOLEAN DEFAULT TRUE)`,
+        `CREATE TABLE IF NOT EXISTS garcons (id SERIAL PRIMARY KEY, nome TEXT NOT NULL, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL DEFAULT '123', telefone TEXT, comissao REAL DEFAULT 0, is_online BOOLEAN DEFAULT FALSE, pausado BOOLEAN DEFAULT FALSE, last_assigned_at TIMESTAMP, cargo TEXT DEFAULT 'garcom', ativo BOOLEAN DEFAULT TRUE)`,
         `CREATE TABLE IF NOT EXISTS usuarios_admin (id SERIAL PRIMARY KEY, usuario TEXT UNIQUE NOT NULL, senha TEXT NOT NULL)`,
         `CREATE TABLE IF NOT EXISTS sistema_config (chave TEXT PRIMARY KEY, valor TEXT)`,
         `CREATE TABLE IF NOT EXISTS fluxo_caixa (id SERIAL PRIMARY KEY, data_abertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, data_fechamento TIMESTAMP, valor_inicial REAL NOT NULL, valor_final REAL, status TEXT DEFAULT 'aberto', total_dinheiro REAL DEFAULT 0, total_pix REAL DEFAULT 0, total_cartao REAL DEFAULT 0, total_vendas REAL DEFAULT 0)`,
