@@ -3241,8 +3241,16 @@ async function lazyInitDb() {
               ALTER TABLE menu ADD COLUMN IF NOT EXISTS enviar_churrasco BOOLEAN DEFAULT NULL;
               ALTER TABLE menu ADD COLUMN IF NOT EXISTS visivel_delivery BOOLEAN DEFAULT TRUE;
               ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS pausado INTEGER DEFAULT 0;
+              ALTER TABLE garcons ADD COLUMN IF NOT EXISTS pausado BOOLEAN DEFAULT FALSE;
             `);
           } catch(e) {}
+
+          // Pausado por colaborador (true = fora da fila, false = na fila)
+          try {
+            await db.query("ALTER TABLE garcons ADD COLUMN IF NOT EXISTS pausado BOOLEAN DEFAULT FALSE");
+          } catch(e) {
+            console.warn('Aviso ao adicionar coluna pausado em garcons:', e.message);
+          }
 
           // Diária fixa por garçom (consulta isolada para não afetar o lote acima)
           try {
