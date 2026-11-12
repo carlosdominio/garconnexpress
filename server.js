@@ -9058,6 +9058,28 @@ app.post('/api/bot-responses', isAdmin, async (req, res) => {
     }
 });
 
+// Endpoint Oficial de Saúde e Diagnóstico do Sistema (Health Check)
+app.get('/api/health', async (req, res) => {
+  let dbStatus = 'disconnected';
+  try {
+    const pingResult = await query('SELECT 1 as ping');
+    if (pingResult && pingResult.rows && pingResult.rows.length > 0) {
+      dbStatus = 'connected';
+    }
+  } catch (err) {
+    dbStatus = 'error: ' + (err.message || 'unknown');
+  }
+
+  res.json({
+    status: dbStatus === 'connected' ? 'ok' : 'degraded',
+    database: dbStatus,
+    driver: isPostgres ? 'postgresql' : 'sqlite',
+    uptime_seconds: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    version: '4.0.0'
+  });
+});
+
 // Middleware global de tratamento de erros para ocultar stack traces no Express
 app.use((err, req, res, next) => {
   console.error('❌ Erro Não Tratado:', err.stack);
@@ -9065,7 +9087,35 @@ app.use((err, req, res, next) => {
 });
 
 if (require.main === module) {
-  app.listen(PORT, () => console.log(`Rodando na porta ${PORT}`));
+  const server = app.listen(PORT, () => console.log(`Rodando na porta ${PORT}`));
+
+  // Graceful Shutdown: Encerramento limpo de conexões e pool ao receber SIGTERM ou SIGINT
+  const cleanupAndExit = async (signal) => {
+    console.log(`\n🛑 Recebido sinal ${signal}. Encerrando conexões graciosamente...`);
+    server.close(async () => {
+      try {
+        if (isPostgres && db && typeof db.end === 'function') {
+          await db.end();
+          console.log('✔ Pool PostgreSQL encerrado com sucesso.');
+        } else if (db && typeof db.close === 'function') {
+          db.close();
+          console.log('✔ Banco SQLite encerrado com sucesso.');
+        }
+      } catch (err) {
+        console.error('Erro ao fechar conexões:', err);
+      }
+      process.exit(0);
+    });
+
+    // Força encerramento se travar por mais de 5s
+    setTimeout(() => {
+      console.error('Forçando encerramento imediato após timeout de 5s.');
+      process.exit(1);
+    }, 5000).unref();
+  };
+
+  process.on('SIGTERM', () => cleanupAndExit('SIGTERM'));
+  process.on('SIGINT', () => cleanupAndExit('SIGINT'));
 }
 
 app.checkTemItemCozinha = checkTemItemCozinha;
