@@ -2077,35 +2077,29 @@ function abrirModalDetalheHistorico(p) {
 
   if (horarios) {
     horarios.style.display = 'flex';
-    horarios.style.flexDirection = 'column';
-    horarios.style.gap = '8px';
+    horarios.style.gap = '10px';
     horarios.style.background = '#f1f5f9';
     horarios.style.padding = '12px';
     horarios.style.borderRadius = '10px';
+    horarios.style.justifyContent = 'space-around';
     horarios.style.border = '1px dashed #cbd5e1';
     
     horarios.innerHTML = `
-      <div style="display: flex; justify-content: center; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 800; color: #475569; padding-bottom: 8px; border-bottom: 1px dashed #cbd5e1; width: 100%;">
-        <span>📅 DATA DO ATENDIMENTO:</span>
-        <span style="color: #0f172a; font-weight: 900;">${dataFormatada}</span>
+      <div style="text-align: center;">
+        <div style="font-size: 0.65rem; text-transform: uppercase; color: #64748b; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 2px;">🕒 Abertura</div>
+        <div style="font-size: 1.1rem; font-weight: 900; color: #1e293b;">${aberturaFormatada}</div>
       </div>
-      <div style="display: flex; justify-content: space-around; align-items: center; width: 100%;">
-        <div style="text-align: center;">
-          <div style="font-size: 0.65rem; text-transform: uppercase; color: #64748b; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 2px;">🕒 Abertura</div>
-          <div style="font-size: 1.1rem; font-weight: 900; color: #1e293b;">${aberturaFormatada}</div>
-        </div>
-        <div style="width: 1px; background: #cbd5e1; height: 30px; align-self: center;"></div>
-        ${duracaoFormatada ? `
-        <div style="text-align: center;">
-          <div style="font-size: 0.65rem; text-transform: uppercase; color: #0284c7; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 2px;">⏱️ Permanência</div>
-          <div style="font-size: 1.05rem; font-weight: 900; color: #0284c7;">${duracaoFormatada}</div>
-        </div>
-        <div style="width: 1px; background: #cbd5e1; height: 30px; align-self: center;"></div>
-        ` : ''}
-        <div style="text-align: center;">
-          <div style="font-size: 0.65rem; text-transform: uppercase; color: #64748b; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 2px;">${p.status === 'cancelado' ? '❌ Cancelamento' : '💳 Conta Paga'}</div>
-          <div style="font-size: 1.1rem; font-weight: 900; color: ${p.status === 'cancelado' ? '#e74c3c' : '#1e293b'};">${encerramentoFormatado}</div>
-        </div>
+      <div style="width: 1px; background: #cbd5e1; height: 30px; align-self: center;"></div>
+      ${duracaoFormatada ? `
+      <div style="text-align: center;">
+        <div style="font-size: 0.65rem; text-transform: uppercase; color: #0284c7; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 2px;">⏱️ Permanência</div>
+        <div style="font-size: 1.05rem; font-weight: 900; color: #0284c7;">${duracaoFormatada}</div>
+      </div>
+      <div style="width: 1px; background: #cbd5e1; height: 30px; align-self: center;"></div>
+      ` : ''}
+      <div style="text-align: center;">
+        <div style="font-size: 0.65rem; text-transform: uppercase; color: #64748b; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 2px;">${p.status === 'cancelado' ? '❌ Cancelamento' : '💳 Conta Paga'}</div>
+        <div style="font-size: 1.1rem; font-weight: 900; color: ${p.status === 'cancelado' ? '#e74c3c' : '#1e293b'};">${encerramentoFormatado}</div>
       </div>
     `;
   }
