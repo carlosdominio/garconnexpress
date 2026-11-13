@@ -5957,7 +5957,7 @@ function abrirModalDetalheHistorico(p) {
   const mesaLabel = formatarNomeMesaHistorico(p);
   if (header) header.style.background = p.status === 'cancelado' ? '#e74c3c' : '#27ae60';
   if (titulo) titulo.innerText = `${mesaLabel} (#${p.id || '---'})`;
-  const dataFormatada = p.created_at ? formatarData(p.created_at).split(' ')[0] : '--/--/----';
+  const dataFormatada = p.created_at ? formatarData(p.created_at).split(' ')[0].replace(',', '').trim() : '--/--/----';
   if (info) {
     info.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 4px;">
@@ -10735,7 +10735,7 @@ function formatarData(dataIso) {
     year: 'numeric',
     hour: '2-digit', 
     minute: '2-digit' 
-  });
+  }).replace(',', '');
 }
 
 function copiarPedido(btn, texto) {
