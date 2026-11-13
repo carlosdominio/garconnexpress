@@ -505,14 +505,16 @@ module.exports = (ctx) => {
     }
   });
 
-  // Configuração da Mensagem Festiva / Final de Ano no Cupom
+  // Configuração da Mensagem Festiva / Final de Ano no Cupom e Gorro Natalino no Caixa
   router.get('/config/mensagem-cupom', ensureDbInitialized, async (req, res) => {
     try {
       const { rows } = await query("SELECT valor FROM sistema_config WHERE chave = 'mensagem_cupom_festiva'");
       if (rows && rows.length > 0 && rows[0].valor) {
-        return res.json(JSON.parse(rows[0].valor));
+        const parsed = JSON.parse(rows[0].valor);
+        if (parsed.gorro_caixa_ativo === undefined) parsed.gorro_caixa_ativo = true;
+        return res.json(parsed);
       }
-      res.json({ ativa: false, texto: "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨" });
+      res.json({ ativa: false, texto: "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨", gorro_caixa_ativo: true });
     } catch (err) {
       console.error('Erro ao buscar mensagem festiva do cupom:', err);
       res.status(500).json({ error: err.message });
@@ -521,10 +523,11 @@ module.exports = (ctx) => {
 
   router.post('/config/mensagem-cupom', ensureDbInitialized, isAdmin, async (req, res) => {
     try {
-      const { ativa, texto } = req.body;
+      const { ativa, texto, gorro_caixa_ativo } = req.body;
       const valor = JSON.stringify({
         ativa: !!ativa,
-        texto: (texto || '').trim() || "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨"
+        texto: (texto || '').trim() || "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨",
+        gorro_caixa_ativo: gorro_caixa_ativo !== undefined ? !!gorro_caixa_ativo : true
       });
       if (isPostgres) {
         await query("INSERT INTO sistema_config (chave, valor) VALUES ('mensagem_cupom_festiva', ?) ON CONFLICT(chave) DO UPDATE SET valor = EXCLUDED.valor", [valor]);

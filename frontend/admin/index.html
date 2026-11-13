@@ -1675,10 +1675,16 @@
                         Exibe uma mensagem personalizada de votos no rodapé de todos os cupons impressos para os clientes.
                       </p>
                     </div>
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 700; color: #1e293b; background: #fff; padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 8px;">
-                      <input type="checkbox" id="elgin-msg-festiva-ativa" onchange="salvarConfigElgin()" style="width: 18px; height: 18px; accent-color: #2563eb;">
-                      <span>Ativar no Cupom</span>
-                    </label>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 700; color: #1e293b; background: #fff; padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                        <input type="checkbox" id="elgin-msg-festiva-ativa" onchange="salvarConfigElgin()" style="width: 18px; height: 18px; accent-color: #2563eb;">
+                        <span>Ativar no Cupom</span>
+                      </label>
+                      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 700; color: #1e293b; background: #fff; padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                        <input type="checkbox" id="admin-gorro-natal-ativo" onchange="salvarConfigElgin()" style="width: 18px; height: 18px; accent-color: #e11d48;" checked>
+                        <span>🎅 Gorro de Natal no Caixa</span>
+                      </label>
+                    </div>
                   </div>
 
                   <div style="margin-top: 12px;">

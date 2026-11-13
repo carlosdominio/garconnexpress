@@ -982,7 +982,8 @@ let elginConfig = {
   autoCorte: true,
   autoImprimirFechamento: false,
   msgFestivaAtiva: false,
-  msgFestivaTexto: "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨"
+  msgFestivaTexto: "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨",
+  gorroNatalAtivo: true
 };
 window.dadosPreviaCupomAtual = null;
 
@@ -1007,6 +1008,47 @@ function atualizarPreviaMensagemCupom(texto) {
 }
 window.atualizarPreviaMensagemCupom = atualizarPreviaMensagemCupom;
 
+function alternarGorroNatalAdmin(ativo) {
+  elginConfig.gorroNatalAtivo = !!ativo;
+  localStorage.setItem(ELGIN_CONFIG_KEY, JSON.stringify(elginConfig));
+  atualizarVisibilidadeGorroCaixa();
+  fetch('/api/config/mensagem-cupom', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ativa: elginConfig.msgFestivaAtiva,
+      texto: elginConfig.msgFestivaTexto,
+      gorro_caixa_ativo: elginConfig.gorroNatalAtivo
+    })
+  }).catch(err => console.warn('Sync gorro natal offline:', err));
+}
+window.alternarGorroNatalAdmin = alternarGorroNatalAdmin;
+
+function atualizarVisibilidadeGorroCaixa() {
+  const badge = document.getElementById('caixa-status-badge-admin');
+  if (!badge) return;
+  const gorroAtivo = (elginConfig.gorroNatalAtivo !== false);
+  const gorroSvg = badge.querySelector('.gorro-natal-svg');
+  if (gorroAtivo && !gorroSvg) {
+    const svgElem = document.createElement('div');
+    svgElem.innerHTML = `
+      <svg class="gorro-natal-svg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" title="Feliz Natal!">
+        <path d="M14 46 C 16 28, 28 12, 44 14 C 54 15, 59 22, 54 31 C 49 39, 42 41, 38 46 Z" fill="#E50914" />
+        <path d="M38 24 C 45 18, 52 20, 52 28 C 48 35, 42 39, 38 46 C 41 40, 44 32, 40 25 Z" fill="#B20710" opacity="0.85" />
+        <rect x="8" y="44" width="36" height="11" rx="5.5" fill="#FFFFFF" />
+        <circle cx="12" cy="49.5" r="3" fill="#E2E8F0" />
+        <circle cx="26" cy="49.5" r="3.5" fill="#E2E8F0" />
+        <circle cx="40" cy="49.5" r="3" fill="#E2E8F0" />
+        <circle cx="53" cy="33" r="6.5" fill="#FFFFFF" />
+        <circle cx="51.5" cy="31.5" r="4.5" fill="#F1F5F9" />
+      </svg>
+    `.trim();
+    badge.insertBefore(svgElem.firstElementChild, badge.firstChild);
+  } else if (!gorroAtivo && gorroSvg) {
+    gorroSvg.remove();
+  }
+}
+
 function salvarConfigElgin() {
   try {
     const selLargura = document.getElementById('elgin-largura-select');
@@ -1015,6 +1057,7 @@ function salvarConfigElgin() {
     const checkAuto = document.getElementById('elgin-imprimir-auto-fechamento');
     const checkMsgFestiva = document.getElementById('elgin-msg-festiva-ativa');
     const txtMsgFestiva = document.getElementById('elgin-msg-festiva-texto');
+    const checkGorro = document.getElementById('admin-gorro-natal-ativo');
 
     if (selLargura) elginConfig.largura = parseInt(selLargura.value, 10);
     if (selBaud) elginConfig.baudRate = parseInt(selBaud.value, 10);
@@ -1022,9 +1065,11 @@ function salvarConfigElgin() {
     if (checkAuto) elginConfig.autoImprimirFechamento = checkAuto.checked;
     if (checkMsgFestiva) elginConfig.msgFestivaAtiva = checkMsgFestiva.checked;
     if (txtMsgFestiva) elginConfig.msgFestivaTexto = txtMsgFestiva.value.trim() || "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨";
+    if (checkGorro) elginConfig.gorroNatalAtivo = checkGorro.checked;
 
     localStorage.setItem(ELGIN_CONFIG_KEY, JSON.stringify(elginConfig));
     atualizarPreviaMensagemCupom(elginConfig.msgFestivaTexto);
+    atualizarVisibilidadeGorroCaixa();
 
     // Sincroniza em background com o servidor (PostgreSQL/SQLite)
     fetch('/api/config/mensagem-cupom', {
@@ -1032,11 +1077,12 @@ function salvarConfigElgin() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ativa: elginConfig.msgFestivaAtiva,
-        texto: elginConfig.msgFestivaTexto
+        texto: elginConfig.msgFestivaTexto,
+        gorro_caixa_ativo: elginConfig.gorroNatalAtivo
       })
     }).catch(err => console.warn('Sync mensagem cupom offline:', err));
 
-    mostrarToast("⚙️ Configurações da Impressora e Mensagem salvas com sucesso!");
+    mostrarToast("⚙️ Configurações salvas com sucesso!");
   } catch (e) {
     console.error("Erro ao salvar config Elgin:", e);
   }
@@ -1050,6 +1096,7 @@ function aplicarConfigElginNaUI() {
   const checkAuto = document.getElementById('elgin-imprimir-auto-fechamento');
   const checkMsgFestiva = document.getElementById('elgin-msg-festiva-ativa');
   const txtMsgFestiva = document.getElementById('elgin-msg-festiva-texto');
+  const checkGorro = document.getElementById('admin-gorro-natal-ativo');
 
   if (selLargura) selLargura.value = String(elginConfig.largura || 80);
   if (selBaud) selBaud.value = String(elginConfig.baudRate || 115200);
@@ -1057,9 +1104,11 @@ function aplicarConfigElginNaUI() {
   if (checkAuto) checkAuto.checked = !!elginConfig.autoImprimirFechamento;
   if (checkMsgFestiva) checkMsgFestiva.checked = !!elginConfig.msgFestivaAtiva;
   if (txtMsgFestiva) txtMsgFestiva.value = elginConfig.msgFestivaTexto || "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨";
+  if (checkGorro) checkGorro.checked = (elginConfig.gorroNatalAtivo !== false);
 
   atualizarPreviaMensagemCupom(elginConfig.msgFestivaTexto);
   atualizarStatusElginUI();
+  atualizarVisibilidadeGorroCaixa();
 }
 
 async function inicializarConfiguracaoElgin() {
@@ -1071,6 +1120,7 @@ async function inicializarConfiguracaoElgin() {
       if (data && typeof data.ativa === 'boolean') {
         elginConfig.msgFestivaAtiva = data.ativa;
         if (data.texto) elginConfig.msgFestivaTexto = data.texto;
+        if (data.gorro_caixa_ativo !== undefined) elginConfig.gorroNatalAtivo = data.gorro_caixa_ativo;
         localStorage.setItem(ELGIN_CONFIG_KEY, JSON.stringify(elginConfig));
         aplicarConfigElginNaUI();
       }
@@ -3668,7 +3718,8 @@ async function carregarStatusCaixa() {
     badge.style.display = 'inline-flex';
     const statusTxt = caixaAtual ? 'CAIXA ABERTO' : 'CAIXA FECHADO';
     badge.className = `badge-caixa ${caixaAtual ? 'aberto' : 'fechado'}`;
-    badge.innerHTML = `
+    const gorroAtivo = (elginConfig.gorroNatalAtivo !== false);
+    const gorroHtml = gorroAtivo ? `
       <svg class="gorro-natal-svg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" title="Feliz Natal!">
         <path d="M14 46 C 16 28, 28 12, 44 14 C 54 15, 59 22, 54 31 C 49 39, 42 41, 38 46 Z" fill="#E50914" />
         <path d="M38 24 C 45 18, 52 20, 52 28 C 48 35, 42 39, 38 46 C 41 40, 44 32, 40 25 Z" fill="#B20710" opacity="0.85" />
@@ -3679,8 +3730,8 @@ async function carregarStatusCaixa() {
         <circle cx="53" cy="33" r="6.5" fill="#FFFFFF" />
         <circle cx="51.5" cy="31.5" r="4.5" fill="#F1F5F9" />
       </svg>
-      <span>${statusTxt}</span>
-    `;
+    ` : '';
+    badge.innerHTML = `${gorroHtml}<span>${statusTxt}</span>`;
   }
 
   const fechadoView = document.getElementById('caixa-fechado-view');
