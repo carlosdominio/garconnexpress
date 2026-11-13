@@ -163,15 +163,15 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
 
   async function limparComandasOrfasEmBackground() {
     const agora = Date.now();
-    if (limpandoComandas || (agora - ultimaLimpezaComandas < 60000)) return;
+    if (limpandoComandas || (agora - ultimaLimpezaComandas < 300000)) return;
     limpandoComandas = true;
     ultimaLimpezaComandas = agora;
     try {
       let comandasLivre;
       try {
-        comandasLivre = await query("SELECT id, numero, tipo, is_comanda, created_at FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR tipo = 'balcao' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%' OR LOWER(CAST(numero AS TEXT)) LIKE 'balc%')");
+        comandasLivre = await query("SELECT id, numero, tipo, is_comanda, created_at FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR tipo = 'balcao' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%' OR LOWER(CAST(numero AS TEXT)) LIKE 'balc%') ORDER BY id ASC");
       } catch (eCol) {
-        comandasLivre = await query("SELECT id, numero, tipo, is_comanda FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR tipo = 'balcao' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%' OR LOWER(CAST(numero AS TEXT)) LIKE 'balc%')");
+        comandasLivre = await query("SELECT id, numero, tipo, is_comanda FROM mesas WHERE status = 'livre' AND (COALESCE(is_comanda, 0) = 1 OR tipo = 'comanda' OR tipo = 'balcao' OR LOWER(CAST(numero AS TEXT)) LIKE 'comanda%' OR LOWER(CAST(numero AS TEXT)) LIKE 'balc%') ORDER BY id ASC");
       }
       let limpouAlguma = false;
 
@@ -328,9 +328,6 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       const mesasRows = (mesasResult.rows || []).map(m => {
         const numTrim = String(m.numero || '').trim();
         if (/^\d+$/.test(numTrim) && m.tipo !== 'comanda' && m.tipo !== 'balcao' && !numTrim.toLowerCase().startsWith('comanda')) {
-          if (Number(m.is_comanda) === 1) {
-            query("UPDATE mesas SET is_comanda = 0, tipo = 'mesa' WHERE id = ?", [m.id]).catch(() => {});
-          }
           m.is_comanda = 0;
           if (!m.tipo || m.tipo === '') m.tipo = 'mesa';
         }
