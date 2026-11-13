@@ -2057,7 +2057,7 @@ function abrirModalDetalheHistorico(p) {
     const fimMs = new Date(fimIso).getTime();
     if (!isNaN(iniMs) && !isNaN(fimMs) && fimMs >= iniMs) {
       const diffMin = Math.round((fimMs - iniMs) / 60000);
-      if (diffMin < 1) duracaoFormatada = '< 1 min';
+      if (diffMin <= 1) duracaoFormatada = '1 min';
       else if (diffMin < 60) duracaoFormatada = `${diffMin} min`;
       else {
         const h = Math.floor(diffMin / 60);
