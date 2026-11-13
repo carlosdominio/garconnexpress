@@ -202,12 +202,8 @@
     </form>
   </div>
 
-  <header style="position: relative; overflow: hidden;">
-    <!-- Decorações Festivas de Natal (Luzinhas e Neve Suave) -->
-    <div id="luzes-natal-container" class="luzes-natal-container"></div>
-    <div id="neve-natal-container" class="neve-natal-container"></div>
-
-    <div class="header-main" style="position: relative; z-index: 2;">
+  <header>
+    <div class="header-main">
       <div style="display:flex; flex-direction:column; gap:4px;">
         <h1 style="margin:0">Painel Administrativo</h1>
         <span id="caixa-status-badge-admin" class="badge-caixa" style="display:none; width:fit-content;"></span>
@@ -232,13 +228,6 @@
             <span id="label-delivery" style="font-size: 0.65rem; font-weight: bold; color: #fff;">🛵 DELIVERY</span>
             <label class="switch" style="width: 32px; height: 16px;">
               <input type="checkbox" id="check-delivery" onchange="alternarDelivery()">
-              <span class="slider"></span>
-            </label>
-          </div>
-          <div style="display: flex; align-items: center; gap: 6px; border-left: 1px solid rgba(255,255,255,0.2); padding-left: 10px;">
-            <span id="label-tema-natal" style="font-size: 0.65rem; font-weight: bold; color: #fff;">🎄 NATAL</span>
-            <label class="switch" style="width: 32px; height: 16px;">
-              <input type="checkbox" id="check-tema-natal" onchange="alternarTemaNatalino(this.checked)" checked>
               <span class="slider"></span>
             </label>
           </div>
@@ -1693,11 +1682,7 @@
                       </label>
                       <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 700; color: #1e293b; background: #fff; padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 8px;">
                         <input type="checkbox" id="admin-gorro-natal-ativo" onchange="salvarConfigElgin()" style="width: 18px; height: 18px; accent-color: #e11d48;" checked>
-                        <span>🎅 Gorro no Caixa</span>
-                      </label>
-                      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 700; color: #1e293b; background: #fff; padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 8px;">
-                        <input type="checkbox" id="admin-tema-natal-ativo" onchange="alternarTemaNatalino(this.checked)" style="width: 18px; height: 18px; accent-color: #16a34a;" checked>
-                        <span>🎄 Luzinhas & Neve</span>
+                        <span>🎅 Gorro de Natal no Caixa</span>
                       </label>
                     </div>
                   </div>
