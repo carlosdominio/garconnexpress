@@ -2074,3 +2074,119 @@ input:checked + .slider:before {
   z-index: 9999999 !important;
 }
 
+/* ==========================================================================
+   TEMA FESTIVO DE NATAL (LUZINHAS, NEVE E DECORAÇÕES)
+   ========================================================================== */
+.luzes-natal-container {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 14px;
+  pointer-events: none;
+  z-index: 10;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+body.tema-natalino-ativo .luzes-natal-container {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start;
+}
+
+.lampada-natal {
+  width: 8px;
+  height: 12px;
+  border-radius: 50% 50% 45% 45%;
+  margin: 0 4px;
+  position: relative;
+  flex-shrink: 0;
+  animation: piscaPiscaNatal 1.8s infinite alternate;
+}
+
+.lampada-natal::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 2px;
+  width: 4px;
+  height: 3px;
+  background: #1e3a1e;
+  border-radius: 1px;
+}
+
+.lampada-vermelha {
+  background: #ff3838;
+  box-shadow: 0 2px 8px #ff3838;
+  animation-delay: 0s;
+}
+
+.lampada-verde {
+  background: #2ecc71;
+  box-shadow: 0 2px 8px #2ecc71;
+  animation-delay: 0.45s;
+}
+
+.lampada-amarela {
+  background: #f1c40f;
+  box-shadow: 0 2px 8px #f1c40f;
+  animation-delay: 0.9s;
+}
+
+.lampada-azul {
+  background: #00d2d3;
+  box-shadow: 0 2px 8px #00d2d3;
+  animation-delay: 1.35s;
+}
+
+@keyframes piscaPiscaNatal {
+  0% { opacity: 0.35; filter: brightness(0.7); }
+  50% { opacity: 1; filter: brightness(1.4); }
+  100% { opacity: 0.65; filter: brightness(0.9); }
+}
+
+.neve-natal-container {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+body.tema-natalino-ativo .neve-natal-container {
+  display: block;
+}
+
+.floco-neve {
+  position: absolute;
+  top: -20px;
+  color: #ffffff;
+  user-select: none;
+  pointer-events: none;
+  animation: cairNeve linear infinite, oscilarNeve 3s ease-in-out infinite;
+  will-change: transform, top;
+}
+
+@keyframes cairNeve {
+  0% { top: -20px; }
+  100% { top: 100%; }
+}
+
+@keyframes oscilarNeve {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(14px); }
+}
+
+/* Toque festivo nos cards de resumo quando o tema estiver ativo */
+body.tema-natalino-ativo .faturamento-card,
+body.tema-natalino-ativo #card-faturamento-dia {
+  box-shadow: 0 4px 15px rgba(231, 76, 60, 0.15), 0 0 0 1px rgba(241, 196, 15, 0.4) !important;
+}
+
+

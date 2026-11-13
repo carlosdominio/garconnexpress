@@ -983,7 +983,8 @@ let elginConfig = {
   autoImprimirFechamento: false,
   msgFestivaAtiva: false,
   msgFestivaTexto: "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨",
-  gorroNatalAtivo: true
+  gorroNatalAtivo: true,
+  temaNatalinoAtivo: true
 };
 window.dadosPreviaCupomAtual = null;
 
@@ -996,6 +997,65 @@ function carregarConfigElgin() {
   } catch (e) {
     console.warn("Erro ao carregar config da Elgin:", e);
   }
+}
+
+function inicializarEfeitosNatalinos() {
+  const containerLuzes = document.getElementById('luzes-natal-container');
+  if (containerLuzes && containerLuzes.children.length === 0) {
+    const cores = ['vermelha', 'verde', 'amarela', 'azul'];
+    const totalLampadas = Math.max(25, Math.floor(window.innerWidth / 28) || 35);
+    let html = '';
+    for (let i = 0; i < totalLampadas; i++) {
+      const cor = cores[i % cores.length];
+      html += `<div class="lampada-natal lampada-${cor}"></div>`;
+    }
+    containerLuzes.innerHTML = html;
+  }
+
+  const containerNeve = document.getElementById('neve-natal-container');
+  if (containerNeve && containerNeve.children.length === 0) {
+    let flocosHtml = '';
+    const totalFlocos = 20;
+    for (let i = 0; i < totalFlocos; i++) {
+      const left = (Math.random() * 98).toFixed(1);
+      const size = (Math.random() * 0.55 + 0.65).toFixed(2);
+      const duration = (Math.random() * 4.5 + 4.5).toFixed(1);
+      const delay = (Math.random() * 6).toFixed(1);
+      const opacity = (Math.random() * 0.45 + 0.35).toFixed(2);
+      flocosHtml += `<div class="floco-neve" style="left: ${left}%; font-size: ${size}rem; animation-duration: ${duration}s, 3.2s; animation-delay: ${delay}s; opacity: ${opacity};">❄</div>`;
+    }
+    containerNeve.innerHTML = flocosHtml;
+  }
+}
+
+function alternarTemaNatalino(ativo) {
+  elginConfig.temaNatalinoAtivo = !!ativo;
+  localStorage.setItem(ELGIN_CONFIG_KEY, JSON.stringify(elginConfig));
+  aplicarTemaNatalinoNaUI(elginConfig.temaNatalinoAtivo);
+  fetch('/api/config/mensagem-cupom', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ativa: elginConfig.msgFestivaAtiva,
+      texto: elginConfig.msgFestivaTexto,
+      gorro_caixa_ativo: elginConfig.gorroNatalAtivo,
+      tema_natalino_ativo: elginConfig.temaNatalinoAtivo
+    })
+  }).catch(err => console.warn('Sync tema natal offline:', err));
+}
+window.alternarTemaNatalino = alternarTemaNatalino;
+
+function aplicarTemaNatalinoNaUI(ativo) {
+  if (ativo) {
+    document.body.classList.add('tema-natalino-ativo');
+    inicializarEfeitosNatalinos();
+  } else {
+    document.body.classList.remove('tema-natalino-ativo');
+  }
+  const checkHeader = document.getElementById('check-tema-natal');
+  if (checkHeader) checkHeader.checked = !!ativo;
+  const checkConfig = document.getElementById('admin-tema-natal-ativo');
+  if (checkConfig) checkConfig.checked = !!ativo;
 }
 
 function atualizarPreviaMensagemCupom(texto) {
@@ -1058,6 +1118,7 @@ function salvarConfigElgin() {
     const checkMsgFestiva = document.getElementById('elgin-msg-festiva-ativa');
     const txtMsgFestiva = document.getElementById('elgin-msg-festiva-texto');
     const checkGorro = document.getElementById('admin-gorro-natal-ativo');
+    const checkTemaNatal = document.getElementById('admin-tema-natal-ativo');
 
     if (selLargura) elginConfig.largura = parseInt(selLargura.value, 10);
     if (selBaud) elginConfig.baudRate = parseInt(selBaud.value, 10);
@@ -1066,10 +1127,12 @@ function salvarConfigElgin() {
     if (checkMsgFestiva) elginConfig.msgFestivaAtiva = checkMsgFestiva.checked;
     if (txtMsgFestiva) elginConfig.msgFestivaTexto = txtMsgFestiva.value.trim() || "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨";
     if (checkGorro) elginConfig.gorroNatalAtivo = checkGorro.checked;
+    if (checkTemaNatal) elginConfig.temaNatalinoAtivo = checkTemaNatal.checked;
 
     localStorage.setItem(ELGIN_CONFIG_KEY, JSON.stringify(elginConfig));
     atualizarPreviaMensagemCupom(elginConfig.msgFestivaTexto);
     atualizarVisibilidadeGorroCaixa();
+    aplicarTemaNatalinoNaUI(elginConfig.temaNatalinoAtivo);
 
     // Sincroniza em background com o servidor (PostgreSQL/SQLite)
     fetch('/api/config/mensagem-cupom', {
@@ -1078,7 +1141,8 @@ function salvarConfigElgin() {
       body: JSON.stringify({
         ativa: elginConfig.msgFestivaAtiva,
         texto: elginConfig.msgFestivaTexto,
-        gorro_caixa_ativo: elginConfig.gorroNatalAtivo
+        gorro_caixa_ativo: elginConfig.gorroNatalAtivo,
+        tema_natalino_ativo: elginConfig.temaNatalinoAtivo
       })
     }).catch(err => console.warn('Sync mensagem cupom offline:', err));
 
@@ -1097,6 +1161,7 @@ function aplicarConfigElginNaUI() {
   const checkMsgFestiva = document.getElementById('elgin-msg-festiva-ativa');
   const txtMsgFestiva = document.getElementById('elgin-msg-festiva-texto');
   const checkGorro = document.getElementById('admin-gorro-natal-ativo');
+  const checkTemaNatal = document.getElementById('admin-tema-natal-ativo');
 
   if (selLargura) selLargura.value = String(elginConfig.largura || 80);
   if (selBaud) selBaud.value = String(elginConfig.baudRate || 115200);
@@ -1105,10 +1170,12 @@ function aplicarConfigElginNaUI() {
   if (checkMsgFestiva) checkMsgFestiva.checked = !!elginConfig.msgFestivaAtiva;
   if (txtMsgFestiva) txtMsgFestiva.value = elginConfig.msgFestivaTexto || "✨ BOAS FESTAS E UM PRÓSPERO ANO NOVO! ✨";
   if (checkGorro) checkGorro.checked = (elginConfig.gorroNatalAtivo !== false);
+  if (checkTemaNatal) checkTemaNatal.checked = (elginConfig.temaNatalinoAtivo !== false);
 
   atualizarPreviaMensagemCupom(elginConfig.msgFestivaTexto);
   atualizarStatusElginUI();
   atualizarVisibilidadeGorroCaixa();
+  aplicarTemaNatalinoNaUI(elginConfig.temaNatalinoAtivo !== false);
 }
 
 async function inicializarConfiguracaoElgin() {
@@ -1121,6 +1188,7 @@ async function inicializarConfiguracaoElgin() {
         elginConfig.msgFestivaAtiva = data.ativa;
         if (data.texto) elginConfig.msgFestivaTexto = data.texto;
         if (data.gorro_caixa_ativo !== undefined) elginConfig.gorroNatalAtivo = data.gorro_caixa_ativo;
+        if (data.tema_natalino_ativo !== undefined) elginConfig.temaNatalinoAtivo = data.tema_natalino_ativo;
         localStorage.setItem(ELGIN_CONFIG_KEY, JSON.stringify(elginConfig));
         aplicarConfigElginNaUI();
       }
