@@ -23,9 +23,43 @@ module.exports = (ctx) => {
     if (token && token !== 'null') {
       try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        if (decoded && decoded.role === 'garcom') {
+        if (decoded && (decoded.role === 'garcom' || decoded.id)) {
+          let estadoPausaReal = false;
+          let garcomInfo = decoded;
+          try {
+            const gCheck = await query("SELECT id, usuario, nome, cargo, pausado FROM garcons WHERE id = ?", [decoded.id]);
+            if (gCheck && gCheck.rows && gCheck.rows.length > 0) {
+              garcomInfo = gCheck.rows[0];
+              if (garcomInfo.pausado !== undefined && garcomInfo.pausado !== null) {
+                estadoPausaReal = Boolean(garcomInfo.pausado);
+              }
+            }
+          } catch (e) {}
+
           await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isPostgres ? false : 0, decoded.id]);
-          console.log(`👋 Garçom ${decoded.usuario} offline.`);
+          console.log(`👋 Colaborador ${garcomInfo.usuario || decoded.usuario} offline (logout, pausado=${estadoPausaReal}).`);
+
+          if (typeof safePusherTrigger === 'function') {
+            const cargoFinal = (garcomInfo.cargo || decoded.cargo || 'garcom').toLowerCase().trim();
+            await safePusherTrigger('garconnexpress', 'garcom-status-alterado', {
+              garcom_id: decoded.id,
+              usuario: garcomInfo.usuario || decoded.usuario,
+              nome: garcomInfo.nome || decoded.nome,
+              cargo: cargoFinal,
+              pausado: estadoPausaReal,
+              is_online: false,
+              tipo_acao: 'logout'
+            });
+
+            await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
+              app_type: cargoFinal,
+              user_id: garcomInfo.usuario || decoded.usuario,
+              garcom_id: decoded.id,
+              pausado: estadoPausaReal,
+              is_online: false,
+              tipo_acao: 'logout'
+            });
+          }
         }
       } catch (e) {
         console.error('Erro ao desativar online no logout:', e.message);

@@ -106,10 +106,41 @@ module.exports = (ctx) => {
 
         const token = jwt.sign({ id: garcom.id, nome: garcom.nome, usuario: garcom.usuario, cargo: cargo, role: 'garcom' }, JWT_SECRET, { expiresIn: '15d' });
         
-        // Define garçom como ONLINE para o rodízio SOMENTE se for Garçom ou Todos (e estiver logando no app de Garçom)
-        if (appOrigem === 'garcom' && (cargo === 'garcom' || cargo === 'todos')) {
-          const agora = new Date().toISOString();
-          await query("UPDATE garcons SET is_online = ?, last_assigned_at = ? WHERE id = ?", [isPostgres ? true : 1, agora, garcom.id]);
+        const agora = new Date().toISOString();
+        let estadoPausaReal = false;
+        try {
+          const gCheck = await query("SELECT pausado FROM garcons WHERE id = ?", [garcom.id]);
+          if (gCheck && gCheck.rows && gCheck.rows.length > 0 && gCheck.rows[0].pausado !== undefined && gCheck.rows[0].pausado !== null) {
+            estadoPausaReal = Boolean(gCheck.rows[0].pausado);
+          }
+        } catch (e) {}
+
+        await query("UPDATE garcons SET is_online = ?, last_assigned_at = ? WHERE id = ?", [isPostgres ? true : 1, agora, garcom.id]).catch(() => {});
+        await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [estadoPausaReal ? 1 : 0, String(garcom.id), String(garcom.usuario)]).catch(() => {});
+
+        garcom.pausado = estadoPausaReal;
+        garcom.is_online = true;
+
+        // Dispara evento Pusher em tempo real para o Painel Admin!
+        if (typeof safePusherTrigger === 'function') {
+          await safePusherTrigger('garconnexpress', 'garcom-status-alterado', {
+            garcom_id: garcom.id,
+            usuario: garcom.usuario,
+            nome: garcom.nome,
+            cargo: cargo,
+            app_type: appOrigem,
+            pausado: estadoPausaReal,
+            is_online: true,
+            tipo_acao: 'login'
+          });
+          await safePusherTrigger('garconnexpress', 'setor-fila-alterada', {
+            app_type: appOrigem,
+            user_id: garcom.usuario,
+            garcom_id: garcom.id,
+            pausado: estadoPausaReal,
+            is_online: true,
+            tipo_acao: 'login'
+          });
         }
         
         const isProd = process.env.NODE_ENV === 'production';

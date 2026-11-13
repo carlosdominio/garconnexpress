@@ -10329,6 +10329,13 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
     channel.bind('garcom-status-alterado', (data) => {
       console.log('📢 Admin: Status de colaborador alterado!', data);
       notificarStatusEquipeAdmin(data);
+      if (data && data.garcom_id && window.listaGarconsAtual) {
+        const alvo = window.listaGarconsAtual.find(g => String(g.id) === String(data.garcom_id) || String(g.usuario) === String(data.usuario));
+        if (alvo) {
+          if (data.is_online !== undefined) alvo.is_online = data.is_online;
+          if (data.pausado !== undefined) alvo.pausado = data.pausado;
+        }
+      }
       exibirGarconsConfig();
     });
 
@@ -10336,6 +10343,13 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
     channel.bind('setor-fila-alterada', (data) => {
       console.log('📢 Admin: Status de fila do setor alterado!', data);
       notificarStatusEquipeAdmin(data);
+      if (data && (data.garcom_id || data.user_id) && window.listaGarconsAtual) {
+        const alvo = window.listaGarconsAtual.find(g => String(g.id) === String(data.garcom_id) || String(g.usuario) === String(data.user_id));
+        if (alvo) {
+          if (data.is_online !== undefined) alvo.is_online = data.is_online;
+          if (data.pausado !== undefined) alvo.pausado = data.pausado;
+        }
+      }
       exibirGarconsConfig();
     });
 
