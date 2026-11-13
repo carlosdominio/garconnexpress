@@ -296,11 +296,34 @@ header {
 }
 
 .badge-caixa {
-  padding: 3px 8px;
+  position: relative;
+  overflow: visible !important;
+  padding: 3px 10px 3px 14px;
   border-radius: 20px;
   font-size: 0.75rem;
   font-weight: bold;
   text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  margin-top: 6px;
+  user-select: none;
+}
+
+.badge-caixa .gorro-natal-svg {
+  position: absolute;
+  top: -14px;
+  left: -10px;
+  width: 28px;
+  height: 28px;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35));
+  transform: rotate(-10deg);
+  transition: transform 0.2s ease;
+  z-index: 5;
+}
+
+.badge-caixa:hover .gorro-natal-svg {
+  transform: rotate(-16deg) scale(1.12);
 }
 
 .badge-caixa.aberto {

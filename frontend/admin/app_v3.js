@@ -3665,14 +3665,22 @@ async function carregarStatusCaixa() {
   
   const badge = document.getElementById('caixa-status-badge-admin');
   if (badge) {
-    badge.style.display = 'inline-block';
-    if (caixaAtual) {
-      badge.textContent = 'CAIXA ABERTO';
-      badge.className = 'badge-caixa aberto';
-    } else {
-      badge.textContent = 'CAIXA FECHADO';
-      badge.className = 'badge-caixa fechado';
-    }
+    badge.style.display = 'inline-flex';
+    const statusTxt = caixaAtual ? 'CAIXA ABERTO' : 'CAIXA FECHADO';
+    badge.className = `badge-caixa ${caixaAtual ? 'aberto' : 'fechado'}`;
+    badge.innerHTML = `
+      <svg class="gorro-natal-svg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" title="Feliz Natal!">
+        <path d="M14 46 C 16 28, 28 12, 44 14 C 54 15, 59 22, 54 31 C 49 39, 42 41, 38 46 Z" fill="#E50914" />
+        <path d="M38 24 C 45 18, 52 20, 52 28 C 48 35, 42 39, 38 46 C 41 40, 44 32, 40 25 Z" fill="#B20710" opacity="0.85" />
+        <rect x="8" y="44" width="36" height="11" rx="5.5" fill="#FFFFFF" />
+        <circle cx="12" cy="49.5" r="3" fill="#E2E8F0" />
+        <circle cx="26" cy="49.5" r="3.5" fill="#E2E8F0" />
+        <circle cx="40" cy="49.5" r="3" fill="#E2E8F0" />
+        <circle cx="53" cy="33" r="6.5" fill="#FFFFFF" />
+        <circle cx="51.5" cy="31.5" r="4.5" fill="#F1F5F9" />
+      </svg>
+      <span>${statusTxt}</span>
+    `;
   }
 
   const fechadoView = document.getElementById('caixa-fechado-view');
