@@ -1107,12 +1107,9 @@ module.exports = (ctx) => {
       const statusAtualRes = await query("SELECT status FROM pedidos WHERE id = ?", [id]);
       const statusAnterior = statusAtualRes.rows[0] ? statusAtualRes.rows[0].status : '';
 
+      // Preserva o created_at original (horário de abertura da mesa/comanda)
       if (temPendente) {
-        if (statusAnterior !== 'recebido') {
-          await query("UPDATE pedidos SET total = ?, status = ?, created_at = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0 WHERE id = ?", [total, novoStatusPedido, agora, observacao || '', id]);
-        } else {
-          await query("UPDATE pedidos SET total = ?, status = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0 WHERE id = ?", [total, novoStatusPedido, observacao || '', id]);
-        }
+        await query("UPDATE pedidos SET total = ?, status = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0 WHERE id = ?", [total, novoStatusPedido, observacao || '', id]);
         
         const resMesa = await query("SELECT m.id, m.numero, m.is_comanda FROM pedidos p JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id]);
         const isCom = resMesa.rows[0] ? (resMesa.rows[0].is_comanda ? 1 : 0) : 0;
@@ -1209,11 +1206,8 @@ module.exports = (ctx) => {
       const statusAtualRes = await query("SELECT status FROM pedidos WHERE id = ?", [id]);
       const statusAnterior = statusAtualRes.rows[0] ? statusAtualRes.rows[0].status : '';
 
-      if (statusAnterior !== 'recebido') {
-        await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0 WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id]);
-      } else {
-        await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0 WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), observacao || '', id]);
-      }
+      // Preserva o created_at original (horário de abertura da mesa/comanda)
+      await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0 WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), observacao || '', id]);
       const pMesa = (await query("SELECT p.mesa_id, p.garcom_id, m.numero, m.is_comanda FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
       if (pMesa && pMesa.mesa_id) {
         const mesaIdNum = pMesa.mesa_id;
