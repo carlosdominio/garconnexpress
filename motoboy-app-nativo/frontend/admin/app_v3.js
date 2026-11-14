@@ -3007,31 +3007,7 @@ async function alternarTaxaPedido(id, checkboxEl) {
   }
 }
 
-// Bloco de funções duplicadas removido. Usando definições em L1530+
-
-// Funções de edição de itens consolidadas na parte inferior do arquivo (L1530+)
-
-function alternarSelecaoItem(index) {
-  itensEmEdicao[index].selecionado = !itensEmEdicao[index].selecionado;
-}
-
-function selecionarTodosItens(selecionar) {
-  itensEmEdicao.forEach(i => i.selecionado = selecionar);
-  renderizarItensEdicao();
-}
-
-async function removerItensSelecionados() {
-  const selecionados = itensEmEdicao.filter(i => i.selecionado);
-  if (selecionados.length === 0) return await mostrarAlerta("Selecione pelo menos um item!", "Aviso", "⚠️");
-  
-  if (await mostrarConfirmacao(`Deseja remover os ${selecionados.length} itens selecionados?`, "Remover Itens", "Confirmar", "Cancelar", "🗑️")) {
-    itensEmEdicao = itensEmEdicao.filter(i => !i.selecionado);
-    renderizarItensEdicao();
-    mostrarToast("✅ Itens selecionados removidos!");
-  }
-}
-
-// Funções de edição de itens consolidadas na parte inferior do arquivo
+// Funções de edição de itens consolidadas na parte inferior do arquivo (L3300+)
 
 async function excluirPedido(id) {
   if (await mostrarConfirmacao("⚠️ EXCLUIR PERMANENTEMENTE?\n\nIsso removerá o pedido do banco de dados e do histórico. Esta ação não pode ser desfeita.", "Excluir Registro", "Confirmar", "Cancelar", "🗑️")) {

@@ -19,7 +19,7 @@ const jidNormalization = `
 `;
 
 // Substitui a extração antiga de JID
-content = content.replace(/const rawJid = msg\.key\.remoteJid; const jid = rawJid\.replace\(/:\[0-9\]\+/, ''\);/, jidNormalization);
+content = content.replace("const rawJid = msg.key.remoteJid; const jid = rawJid.replace(/:[0-9]+/, '');", jidNormalization);
 
 // 2. Trava de Auto-Envio Reforçada (Ignorar se o JID final for o do Admin ou do Bot)
 const autoSendPrevention = `
