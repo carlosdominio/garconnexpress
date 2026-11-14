@@ -8870,12 +8870,7 @@ async function confirmarCancelamentoDesdeFechamento() {
   const isMesaAdmin = (pedidoParaFecharAdmin.mesa_id !== null && pedidoParaFecharAdmin.mesa_id !== undefined && pedidoParaFecharAdmin.mesa_id !== '') && (pedidoParaFecharAdmin.mesa_tipo !== 'balcao');
   const isBalcao = !isDelivery && (
     window.isFechamentoImediatoBalcao ||
-    pedidoParaFecharAdmin.mesa_tipo === 'balcao' ||
-    pedidoParaFecharAdmin.garcom_id === 'ADMIN' ||
-    !pedidoParaFecharAdmin.mesa_id ||
-    !pedidoParaFecharAdmin.mesa_numero || 
-    String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('BALC') ||
-    String(pedidoParaFecharAdmin.mesa_numero).includes('🏪')
+    isPedidoBalcao(pedidoParaFecharAdmin)
   );
 
   const pagoParcial = pedidoParaFecharAdmin.pago_parcial || 0;
@@ -9336,12 +9331,7 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
       const isMesaAdmin = pedidoParaFecharAdmin && (pedidoParaFecharAdmin.mesa_id !== null && pedidoParaFecharAdmin.mesa_id !== undefined && pedidoParaFecharAdmin.mesa_id !== '') && (pedidoParaFecharAdmin.mesa_tipo !== 'balcao');
       const isBalcao = pedidoParaFecharAdmin && !isDelivery && (
         window.isFechamentoImediatoBalcao ||
-        pedidoParaFecharAdmin.mesa_tipo === 'balcao' ||
-        pedidoParaFecharAdmin.garcom_id === 'ADMIN' ||
-        !pedidoParaFecharAdmin.mesa_id ||
-        !pedidoParaFecharAdmin.mesa_numero ||
-        String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('BALC') ||
-        String(pedidoParaFecharAdmin.mesa_numero).includes('🏪')
+        isPedidoBalcao(pedidoParaFecharAdmin)
       );
       const loadingTitle = isDelivery ? "Finalizando Delivery..." : (isBalcao ? "Finalizando Balcão..." : "Finalizando Conta...");
       const loadingMsg = isDelivery 
@@ -9378,10 +9368,10 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
       
       if (pedidoParaFecharAdmin && (pedidoParaFecharAdmin.garcom_id === 'DELIVERY' || (pedidoParaFecharAdmin.mesa_numero && String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('DELIVERY')))) {
         mostrarToast(`✅ DELIVERY #${idPedido} Concluído e Pago!`);
-      } else if (isBalcao || window.isFechamentoImediatoBalcao || (pedidoParaFecharAdmin && (pedidoParaFecharAdmin.mesa_tipo === 'balcao' || String(pedidoParaFecharAdmin.mesa_numero).toUpperCase().includes('BALC')))) {
+      } else if (isBalcao || window.isFechamentoImediatoBalcao) {
         mostrarToast(`✅ Pedido de Balcão #${idPedido} Concluído e Pago!`);
       } else {
-        const localNome = (pedidoParaFecharAdmin && pedidoParaFecharAdmin.mesa_numero) ? `Mesa ${pedidoParaFecharAdmin.mesa_numero}` : `Mesa`;
+        const localNome = typeof formatarNomeMesaHistorico === 'function' ? formatarNomeMesaHistorico(pedidoParaFecharAdmin) : (pedidoParaFecharAdmin && pedidoParaFecharAdmin.mesa_numero ? `Mesa ${pedidoParaFecharAdmin.mesa_numero}` : `Mesa`);
         mostrarToast(`✅ ${localNome} Finalizada e Liberada!`);
       }
       const novosPagamentosCount = (formasPagamentoPessoas && formasPagamentoPessoas.length) ? formasPagamentoPessoas.length : 1;
