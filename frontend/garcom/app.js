@@ -2771,16 +2771,16 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
     if (btnCriarComanda) btnCriarComanda.style.display = 'none';
   } else if (mesa.status === 'ocupada') {
     // CATEGORIA OCUPADA:
+    const temPedidoAtivo = Boolean(pedidoAbertoNaMesa || mesa.pedido_id);
+    const statusPed = (mesa.pedido_status || (pedidoAbertoNaMesa && pedidoAbertoNaMesa.status) || '').toLowerCase();
+    const jaEntregue = statusPed === 'servido' || statusPed === 'fechado' || statusPed === 'pago' || statusPed === 'concluido' || statusPed === 'cancelado';
+    const temItensProntos = Boolean(mesa.tem_itens_prontos && Number(mesa.tem_itens_prontos) > 0);
+    const temItensPendentes = Boolean(mesa.tem_itens_pendentes && Number(mesa.tem_itens_pendentes) > 0);
+
+    // Só exibe o botão se NÃO estiver já entregue/servido e houver itens pendentes ou prontos
+    const precisaEntregar = temPedidoAtivo && !estaFechando && !jaEntregue && (temItensProntos || temItensPendentes || statusPed === 'recebido' || statusPed === 'em_preparo' || statusPed === 'pronto');
+
     if (btnConfirmarEntrega) {
-      const temPedidoAtivo = Boolean(pedidoAbertoNaMesa || mesa.pedido_id);
-      const statusPed = (mesa.pedido_status || (pedidoAbertoNaMesa && pedidoAbertoNaMesa.status) || '').toLowerCase();
-      const jaEntregue = statusPed === 'servido' || statusPed === 'fechado' || statusPed === 'pago' || statusPed === 'concluido' || statusPed === 'cancelado';
-      const temItensProntos = Boolean(mesa.tem_itens_prontos && Number(mesa.tem_itens_prontos) > 0);
-      const temItensPendentes = Boolean(mesa.tem_itens_pendentes && Number(mesa.tem_itens_pendentes) > 0);
-
-      // Só exibe o botão se NÃO estiver já entregue/servido e houver itens pendentes ou prontos
-      const precisaEntregar = temPedidoAtivo && !estaFechando && !jaEntregue && (temItensProntos || temItensPendentes || statusPed === 'recebido' || statusPed === 'em_preparo' || statusPed === 'pronto');
-
       if (precisaEntregar) {
         btnConfirmarEntrega.style.display = 'block';
         if (statusPed === 'pronto' || temItensProntos) {
@@ -2805,7 +2805,9 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
       btnAdd.innerText = pedidoAbertoNaMesa ? '➕ Adicionar mais itens' : `📝 Abrir ${labelEntidade} / Pedido`;
     }
     if (btnFecharConta) {
-      btnFecharConta.style.display = (pedidoAbertoNaMesa && mesa.status !== 'fechando') ? 'block' : 'none';
+      // Bloqueia e oculta 'Fechar Conta (Liberar)' enquanto o pedido ainda estiver aguardando entrega / em preparo
+      const podeFecharConta = pedidoAbertoNaMesa && mesa.status !== 'fechando' && !precisaEntregar && jaEntregue;
+      btnFecharConta.style.display = podeFecharConta ? 'block' : 'none';
       btnFecharConta.innerText = isBalcao ? '💰 Fechar Balcão (Liberar)' : (isComanda ? '💰 Fechar Comanda (Liberar)' : '💰 Fechar Conta (Liberar)');
       btnFecharConta.style.background = '#9b59b6';
       btnFecharConta.style.animation = 'none';
