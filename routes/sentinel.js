@@ -312,42 +312,47 @@ Detalhes Adicionais: ${detalhes || 'Nenhum'}`;
     }
   });
 
-  // 7. Batimento Cardíaco (Heartbeat) autônomo 24h a cada 5 minutos (consumo mínimo < 0.05% CPU)
-  const heartbeatInterval = setInterval(async () => {
-    try {
-      const inicio = Date.now();
-      await query('SELECT 1');
-      const latencia = Date.now() - inicio;
+  // 7. Batimento Cardíaco (Heartbeat) autônomo 24h a cada 5 minutos
+  // Em servidores persistentes (Render, VPS, Railway), roda em segundo plano.
+  // Na Vercel (serverless efêmero), as lambdas congelam e o teste roda sob demanda.
+  if (!process.env.VERCEL) {
+    const heartbeatInterval = setInterval(async () => {
+      try {
+        const inicio = Date.now();
+        await query('SELECT 1');
+        const latencia = Date.now() - inicio;
 
-      if (latencia > 2000) {
-        await registrarIncidente({
+        // Se a latência for entre 2.000ms e 45.000ms, é uma lentidão real de rede/banco
+        if (latencia > 2000 && latencia < 60000) {
+          await registrarIncidente({
+            modulo: 'BANCO_DADOS',
+            gravidade: 'atencao',
+            mensagem: `Lentidão elevada no Banco de Dados: latência de ${latencia}ms`,
+            detalhes: `Limite esperado < 500ms. Verifique a carga do banco de dados na hospedagem.`
+          });
+        }
+
+        const mem = process.memoryUsage();
+        const memMb = Math.round(mem.rss / 1024 / 1024);
+        if (memMb > 480) {
+          await registrarIncidente({
+            modulo: 'SERVIDOR_MEMORIA',
+            gravidade: 'critico',
+            mensagem: `Alto consumo de memória RAM detectado: ${memMb}MB`,
+            detalhes: `Limite de segurança de 480MB excedido. Monitorar risco de reinício pelo container.`
+          });
+        }
+      } catch (e) {
+        registrarIncidente({
           modulo: 'BANCO_DADOS',
-          gravidade: 'atencao',
-          mensagem: `Lentidão elevada no Banco de Dados: latência de ${latencia}ms`,
-          detalhes: `Limite esperado < 500ms. Verifique a carga do banco de dados na hospedagem.`
-        });
-      }
-
-      const mem = process.memoryUsage();
-      const memMb = Math.round(mem.rss / 1024 / 1024);
-      if (memMb > 480) {
-        await registrarIncidente({
-          modulo: 'SERVIDOR_MEMORIA',
           gravidade: 'critico',
-          mensagem: `Alto consumo de memória RAM detectado: ${memMb}MB`,
-          detalhes: `Limite de segurança de 480MB excedido. Monitorar risco de reinício pelo container.`
-        });
+          mensagem: `Falha na verificação de batimento cardíaco (Heartbeat): ${e.message}`,
+          detalhes: 'O banco de dados não respondeu ao teste de pulso periódico.'
+        }).catch(() => {});
       }
-    } catch (e) {
-      registrarIncidente({
-        modulo: 'BANCO_DADOS',
-        gravidade: 'critico',
-        mensagem: `Falha na verificação de batimento cardíaco (Heartbeat): ${e.message}`,
-        detalhes: 'O banco de dados não respondeu ao teste de pulso periódico.'
-      }).catch(() => {});
-    }
-  }, 5 * 60 * 1000);
-  if (heartbeatInterval.unref) heartbeatInterval.unref();
+    }, 5 * 60 * 1000);
+    if (heartbeatInterval.unref) heartbeatInterval.unref();
+  }
 
   router.registrarIncidente = registrarIncidente;
   return router;
