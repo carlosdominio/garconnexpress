@@ -88,37 +88,41 @@ Gravidade: ${gravidade}
 Erro: ${mensagem}
 Detalhes Adicionais: ${detalhes || 'Nenhum'}`;
 
-    try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-          ],
-          temperature: 0.3,
-          max_tokens: 250
-        })
-      });
+    const modelosParaTentar = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'llama-3.3-70b-versatile'];
+    
+    for (const model of modelosParaTentar) {
+      try {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt }
+            ],
+            temperature: 0.3,
+            max_tokens: 200
+          })
+        });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        console.warn('🛡️ [Sentinel AI] Falha na API da Groq:', response.status, errText);
-        return diagnosticoRegraEspecialista(modulo, mensagem, detalhes);
+        if (response.ok) {
+          const data = await response.json();
+          const respostaIA = data.choices?.[0]?.message?.content?.trim();
+          if (respostaIA) return respostaIA;
+        } else {
+          const errText = await response.text();
+          console.warn(`🛡️ [Sentinel AI] Falha no modelo ${model}:`, response.status, errText);
+        }
+      } catch (err) {
+        console.warn(`🛡️ [Sentinel AI] Exceção com modelo ${model}:`, err.message);
       }
-
-      const data = await response.json();
-      const respostaIA = data.choices?.[0]?.message?.content?.trim();
-      return respostaIA || diagnosticoRegraEspecialista(modulo, mensagem, detalhes);
-    } catch (err) {
-      console.warn('🛡️ [Sentinel AI] Exceção ao consultar Groq:', err.message);
-      return diagnosticoRegraEspecialista(modulo, mensagem, detalhes);
     }
+
+    return diagnosticoRegraEspecialista(modulo, mensagem, detalhes);
   }
 
   // Motor Especialista Fallback (caso a Groq esteja sem chave ou sem internet)
@@ -258,7 +262,7 @@ Detalhes Adicionais: ${detalhes || 'Nenhum'}`;
       res.json({
         success: true,
         usou_groq: Boolean(chaveGroq),
-        modelo: chaveGroq ? 'llama-3.3-70b-versatile' : 'Motor Especialista Local (Fallback)',
+        modelo: chaveGroq ? 'Groq AI (Qwen / GPT-OSS)' : 'Motor Especialista Local (Fallback)',
         diagnostico,
         log: logCriado
       });
