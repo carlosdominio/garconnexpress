@@ -896,6 +896,11 @@ async function realizarLogin() {
       garcomLogado = data.garcom;
       localStorage.setItem('garcom_logado', JSON.stringify(garcomLogado));
       if (data.token) localStorage.setItem('garcom_token', data.token); // Salva token
+      if (data.garcom && typeof data.garcom.pausado !== 'undefined') {
+        garcomPausado = !!data.garcom.pausado;
+        localStorage.setItem('garcom_pausado', garcomPausado);
+        atualizarInterfacePausa();
+      }
       if (typeof mostrarToast === 'function') mostrarToast("Login realizado com sucesso!", "success");
       
       const telaLogin = document.getElementById('tela-login');
@@ -955,7 +960,6 @@ async function logout() {
   } finally {
     localStorage.removeItem('garcom_logado');
     localStorage.removeItem('garcom_token');
-    localStorage.removeItem('garcom_pausado');
     setTimeout(() => {
       location.reload();
     }, 1200);
@@ -2497,6 +2501,7 @@ function exibirMesas() {
       fechamento_liberado: m.fechamento_liberado,
       forma_pagamento: m.forma_pagamento,
       tem_rascunho: m.tem_rascunho,
+      tem_itens_prontos: m.tem_itens_prontos,
       minutos: minutos
     };
   })) + filtroMesaAtual + String(caixaAberto) + String(mesasCompartilhadasAtivas);
@@ -2588,8 +2593,8 @@ function exibirMesas() {
         statusTexto = 'OCUPADA' + (mesasCompartilhadasAtivas && mesa.garcom_id && !eMeuPedido ? ` (${mesa.garcom_id})` : '');
       }
       
-      // DESTAQUE PARA PEDIDO PRONTO NA COZINHA (Se não estiver solicitando fechamento)
-      if (mesa.pedido_status === 'pronto' && !mesa.solicitou_fechamento) {
+      // DESTAQUE PARA PEDIDO OU ITENS PRONTOS NA COZINHA/CHURRASQUEIRO (Se não estiver solicitando fechamento)
+      if ((mesa.pedido_status === 'pronto' || mesa.tem_itens_prontos) && !mesa.solicitou_fechamento) {
         classeAlerta = 'pedido-pronto-alert';
         statusTexto = '🔥 PRONTO PARA ENTREGA';
       }
@@ -2603,7 +2608,7 @@ function exibirMesas() {
       } else if (mesa.pedido_created_at && mesa.pedido_status !== 'servido') {
         const minutos = calcularMinutos(mesa.pedido_created_at);
         cronometroHtml = `<div class="cronometro">⏱️ ${minutos} min</div>`;
-        if (mesa.pedido_status !== 'pronto') {
+        if (mesa.pedido_status !== 'pronto' && !mesa.tem_itens_prontos) {
           statusTexto = '⏳ AGUARDANDO ENTREGA';
           if (minutos >= 10 && mesa.status !== 'fechando' && !mesa.solicitou_fechamento) {
             classeAlerta = 'alerta-atraso-ocupada';
@@ -2700,6 +2705,7 @@ async function mostrarOpcoesMesa(mesa) {
 
 function atualizarVisibilidadeOpcoesMesa(mesa) {
   const btnRascunho = document.getElementById('btn-opcoes-rascunho');
+  const btnConfirmarEntrega = document.getElementById('btn-opcoes-confirmar-entrega');
   const btnVerItens = document.querySelector('.btn-ver-itens');
   const btnFecharConta = document.querySelector('.btn-fechar-conta');
   const btnAdd = document.querySelector('.btn-adicionar');
@@ -2720,6 +2726,7 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
   }
 
   if (estaFechando) {
+    if (btnConfirmarEntrega) btnConfirmarEntrega.style.display = 'none';
     // CATEGORIA A LIBERAR: Mostra por padrão apenas "Processar Fechamento"
     if (btnFecharConta) {
       btnFecharConta.style.display = 'block';
@@ -2748,6 +2755,9 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
     if (btnCriarComanda) btnCriarComanda.style.display = 'none';
   } else if (mesa.status === 'ocupada') {
     // CATEGORIA OCUPADA:
+    if (btnConfirmarEntrega) {
+      btnConfirmarEntrega.style.display = ((mesa.pedido_status === 'pronto' || mesa.tem_itens_prontos) && !estaFechando) ? 'block' : 'none';
+    }
     if (btnRascunho) {
       btnRascunho.style.display = (mesa.tem_rascunho || mesa.tem_rascunho === 1) ? 'block' : 'none';
     }
@@ -2778,6 +2788,7 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
     if (btnCriarComanda) btnCriarComanda.style.display = 'none';
   } else {
     // CATEGORIA LIVRE:
+    if (btnConfirmarEntrega) btnConfirmarEntrega.style.display = 'none';
     if (btnExpandir) btnExpandir.style.display = 'none';
     if (btnRascunho) btnRascunho.style.display = 'none';
     if (btnVerItens) btnVerItens.style.display = 'none';
@@ -3259,6 +3270,7 @@ function renderizarItensMesaGarcom() {
         </div>
         <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
           <p style="white-space: nowrap; font-weight: bold; margin: 0; color: #2c3e50; font-size: 0.95rem;">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
+          ${isPronto ? `<button onclick="entregarItemIndividualGarcom(${item.id})" style="background: #27ae60; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.85rem; font-weight: bold;" title="Confirmar Entrega">🚚 Entregar</button>` : ''}
           <button onclick="substituirItemGarcom(${item.id})" style="background: #3498db; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;" title="Substituir Item">🔄</button>
           <button onclick="removerItemLocalGarcom(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;" title="Remover Item">🗑️</button>
         </div>
@@ -3267,7 +3279,11 @@ function renderizarItensMesaGarcom() {
   };
 
   if (pendentes.length > 0) {
+    const temProntos = pendentes.some(i => i.status === 'pronto');
     html += `<h4 style="color:#e74c3c; margin-bottom:10px; border-bottom:2px solid #e74c3c; padding-bottom: 4px; font-weight: 800; font-size: 0.9rem;">⏳ PARA ENTREGAR AGORA</h4>`;
+    if (temProntos) {
+      html += `<button class="btn-opcoes" onclick="confirmarEntregaProntaGarcom()" style="background-color: #27ae60; color: white; margin: 0 0 10px 0; width: 100%; font-weight: 800; animation: pulsar-verde 1.5s infinite; border: 2px solid #2ecc71;">🚚 CONFIRMAR ENTREGA DOS PRONTOS (COZINHA/CHURRASQUEIRO)</button>`;
+    }
     html += pendentes.map(renderLinhaItem).join('');
     html += `<button class="btn-opcoes" onclick="marcarComoServido(${pedidoAbertoNaMesa.id})" style="background-color: #27ae60; margin: 1rem 0; width: 100%;">🚚 ENTREGUEI ESTES ITENS</button>`;
   }
@@ -3566,6 +3582,99 @@ async function marcarComoServido(idPedido) {
     }
   } catch (error) { showLoading(false); await mostrarAlerta("Erro ao atualizar status de entrega.", "Erro", "❌"); }
 }
+
+async function confirmarEntregaProntaGarcom() {
+  if (!mesaAtual) return;
+  const nomeMesa = formatarNomeMesaGarcom(mesaAtual);
+  
+  if (!pedidoAbertoNaMesa && mesaAtual.pedido_id) {
+    pedidoAbertoNaMesa = { id: mesaAtual.pedido_id };
+  }
+  
+  if (!pedidoAbertoNaMesa) {
+    showLoading(true, 'Buscando pedido...');
+    try {
+      const res = await fetch(`/api/pedidos/mesa/${mesaAtual.id}`);
+      pedidoAbertoNaMesa = await res.json();
+    } catch (e) {}
+    showLoading(false);
+  }
+
+  if (!pedidoAbertoNaMesa || !pedidoAbertoNaMesa.id) {
+    mostrarToast("Nenhum pedido ativo encontrado para esta mesa.", "warning", "⚠️ AVISO");
+    return;
+  }
+
+  const confirmado = await mostrarConfirmacao(
+    `<div style="text-align: center;">
+      <div style="font-size: 2.8rem; margin-bottom: 0.5rem;">🚚</div>
+      <p style="font-weight: bold; color: #27ae60; font-size: 1.1rem; margin-bottom: 6px;">ENTREGA DA COZINHA / CHURRASQUEIRO</p>
+      <p style="font-size: 0.95rem; color: #2c3e50;">Confirmar a entrega dos itens prontos na <strong>${nomeMesa}</strong>?</p>
+    </div>`,
+    "Confirmar Entrega",
+    "Sim, Confirmar Entrega",
+    "Cancelar",
+    "🚚"
+  );
+
+  if (!confirmado) return;
+
+  showLoading(true, 'Confirmando entrega...');
+  try {
+    const res = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/marcar-entregue`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apenasProntos: true })
+    });
+    showLoading(false);
+
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      fecharOpcoes();
+      const modalResumo = document.getElementById('modal-resumo-mesa');
+      if (modalResumo && modalResumo.style.display !== 'none') {
+        modalResumo.style.display = 'none';
+        atualizarBloqueioScroll();
+      }
+      mostrarToast(data.todosEntregues ? "🎉 Todos os itens foram entregues!" : "🚚 Itens prontos entregues na mesa com sucesso!", "success", "Entrega Confirmada", 3000);
+      await carregarMesas();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      await mostrarAlerta(err.mensagem || err.error || "Erro ao confirmar entrega.", "Erro", "❌");
+    }
+  } catch (error) {
+    showLoading(false);
+    await mostrarAlerta("Erro de conexão ao confirmar entrega.", "Erro", "❌");
+  }
+}
+
+async function entregarItemIndividualGarcom(itemId) {
+  if (!pedidoAbertoNaMesa || !pedidoAbertoNaMesa.id) return;
+  const confirmado = await mostrarConfirmacao("Confirmar a entrega deste item na mesa?", "Entregar Item", "Sim, Entregar", "Cancelar", "🚚");
+  if (!confirmado) return;
+
+  showLoading(true, 'Entregando item...');
+  try {
+    const res = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/itens/${itemId}/entregar`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    showLoading(false);
+
+    if (res.ok) {
+      mostrarToast("Item entregue com sucesso!", "success", "Item Entregue", 2000);
+      await verItensDaMesa(true);
+      await carregarMesas();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      await mostrarAlerta(err.mensagem || err.error || "Erro ao entregar item.", "Erro", "❌");
+    }
+  } catch (err) {
+    showLoading(false);
+    await mostrarAlerta("Erro ao entregar item individual.", "Erro", "❌");
+  }
+}
+
 function fecharResumoMesa() {
   document.getElementById('modal-resumo-mesa').style.display = 'none';
   document.getElementById('modal-opcoes').style.display = 'block';
