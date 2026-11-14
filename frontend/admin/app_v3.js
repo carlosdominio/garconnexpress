@@ -11767,20 +11767,58 @@ async function abrirModalOpcoes(pedidoId) {
           const garcons = await resG.json();
           const garconsOnline = garcons.filter(g => g.is_online === true || g.is_online === 1);
           const selectG = document.getElementById('select-transferir-garcom');
+          const btnTransf = document.getElementById('btn-transferir-garcom');
+          const lblTransf = document.getElementById('label-transferir-garcom');
           if (selectG) {
             selectG.innerHTML = '';
             if (garconsOnline.length === 0) {
               selectG.innerHTML = '<option value="">Sem garçons online</option>';
-              document.getElementById('btn-transferir-garcom').disabled = true;
-              document.getElementById('btn-transferir-garcom').style.opacity = 0.5;
+              if (btnTransf) {
+                btnTransf.disabled = true;
+                btnTransf.style.opacity = '0.5';
+              }
             } else {
-              document.getElementById('btn-transferir-garcom').disabled = false;
-              document.getElementById('btn-transferir-garcom').style.opacity = 1;
+              if (btnTransf) {
+                btnTransf.disabled = false;
+                btnTransf.style.opacity = '1';
+              }
+
+              // Checa se já existe um garçom atribuído à mesa (desconsidera ADMIN e QRCODE)
+              const garcomAtualValido = pedido.garcom_id && pedido.garcom_id !== 'ADMIN' && pedido.garcom_id !== 'DELIVERY' && pedido.garcom_id !== 'QRCODE';
+              const garcomEncontrado = garcomAtualValido ? garcons.find(g => g.usuario === pedido.garcom_id) : null;
+              const temGarcomAtribuido = Boolean(garcomEncontrado);
+
+              if (lblTransf) {
+                lblTransf.textContent = temGarcomAtribuido ? 'Garçom da Mesa (Transferir)' : 'Atribuir Garçom';
+              }
+              if (btnTransf) {
+                btnTransf.textContent = temGarcomAtribuido ? 'Transferir' : 'Atribuir';
+              }
+
+              // Se a mesa ainda NÃO tem garçom atribuído, exibe "Selecione um garçom..." na caixa
+              if (!temGarcomAtribuido) {
+                const optPlaceholder = document.createElement('option');
+                optPlaceholder.value = '';
+                optPlaceholder.textContent = 'Selecione um garçom...';
+                optPlaceholder.disabled = true;
+                optPlaceholder.selected = true;
+                selectG.appendChild(optPlaceholder);
+              }
+
+              // Se o garçom atual está atribuído mas está offline no momento, mantém na lista para visualização
+              if (garcomEncontrado && !garconsOnline.some(g => g.usuario === garcomEncontrado.usuario)) {
+                const optAtualOffline = document.createElement('option');
+                optAtualOffline.value = garcomEncontrado.usuario;
+                optAtualOffline.textContent = `${garcomEncontrado.nome} (Atual - Offline)`;
+                optAtualOffline.selected = true;
+                selectG.appendChild(optAtualOffline);
+              }
+
               garconsOnline.forEach(g => {
                 const opt = document.createElement('option');
                 opt.value = g.usuario;
                 opt.textContent = g.nome;
-                if (pedido.garcom_id === g.usuario) {
+                if (temGarcomAtribuido && pedido.garcom_id === g.usuario) {
                   opt.selected = true;
                 }
                 selectG.appendChild(opt);
@@ -11796,7 +11834,7 @@ async function abrirModalOpcoes(pedidoId) {
         const selectG = document.getElementById('select-transferir-garcom');
         const garcomSelecionado = selectG.value;
         if (!garcomSelecionado) {
-          return mostrarAlerta("Selecione um garçom online para transferir.");
+          return mostrarAlerta("Selecione um garçom na lista para atribuir à mesa.", "Atenção", "⚠️");
         }
         
         try {
@@ -11809,13 +11847,15 @@ async function abrirModalOpcoes(pedidoId) {
           if (resTransf.ok) {
             fecharModalOpcoes();
             carregarPedidos();
-            mostrarAlerta("Mesa transferida com sucesso!", "Sucesso", "✅");
+            const garcomAtualValido = pedido.garcom_id && pedido.garcom_id !== 'ADMIN' && pedido.garcom_id !== 'DELIVERY' && pedido.garcom_id !== 'QRCODE';
+            const msgSucesso = garcomAtualValido ? "Mesa transferida com sucesso!" : "Garçom atribuído com sucesso!";
+            mostrarAlerta(msgSucesso, "Sucesso", "✅");
           } else {
             const dataErr = await resTransf.json();
-            mostrarAlerta(dataErr.error || "Erro ao transferir mesa.");
+            mostrarAlerta(dataErr.error || "Erro ao atribuir garçom.");
           }
         } catch (err) {
-          mostrarAlerta("Erro de conexão ao transferir.");
+          mostrarAlerta("Erro de conexão ao atribuir garçom.");
         }
       };
     } else {
