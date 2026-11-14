@@ -9161,6 +9161,16 @@ app.get('/api/health', async (req, res) => {
 // Middleware global de tratamento de erros para ocultar stack traces no Express
 app.use((err, req, res, next) => {
   console.error('❌ Erro Não Tratado:', err.stack);
+  try {
+    if (sentinelRouter && typeof sentinelRouter.registrarIncidente === 'function') {
+      sentinelRouter.registrarIncidente({
+        modulo: 'BACKEND_EXPRESS',
+        gravidade: 'critico',
+        mensagem: `${req.method} ${req.originalUrl || req.url}: ${err.message || 'Erro interno'}`,
+        detalhes: err.stack ? err.stack.split('\n').slice(0, 4).join('\n') : null
+      }).catch(() => {});
+    }
+  } catch (e) {}
   res.status(500).json({ error: 'Erro interno no servidor' });
 });
 

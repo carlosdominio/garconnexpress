@@ -15694,3 +15694,26 @@ window.carregarStatusMonitoramento = carregarStatusMonitoramento;
 window.testarIASentinel = testarIASentinel;
 window.salvarChaveGroqSentinel = salvarChaveGroqSentinel;
 window.limparLogsSentinel = limparLogsSentinel;
+
+// Telemetria inteligente para o Sentinel AI (silenciosa e otimizada)
+window.addEventListener('error', function(event) {
+  try {
+    if (!event || !event.message) return;
+    if (event.filename && !event.filename.includes(window.location.host) && !event.filename.startsWith('/')) return;
+    
+    const agora = Date.now();
+    if (window._ultimoEnvioTelemetriaSentinel && (agora - window._ultimoEnvioTelemetriaSentinel < 30000)) return;
+    window._ultimoEnvioTelemetriaSentinel = agora;
+
+    fetch('/api/sentinel/telemetria', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        modulo: 'ADMIN_FRONTEND',
+        gravidade: 'atencao',
+        mensagem: String(event.message).slice(0, 250),
+        detalhes: `${event.filename || 'app'}:${event.lineno || 0}:${event.colno || 0}`
+      })
+    }).catch(function() {});
+  } catch (e) {}
+});
