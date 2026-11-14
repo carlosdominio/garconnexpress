@@ -2756,7 +2756,21 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
   } else if (mesa.status === 'ocupada') {
     // CATEGORIA OCUPADA:
     if (btnConfirmarEntrega) {
-      btnConfirmarEntrega.style.display = ((mesa.pedido_status === 'pronto' || mesa.tem_itens_prontos) && !estaFechando) ? 'block' : 'none';
+      const temPedidoAtivo = Boolean(pedidoAbertoNaMesa || mesa.pedido_id);
+      if (temPedidoAtivo && !estaFechando) {
+        btnConfirmarEntrega.style.display = 'block';
+        if (mesa.pedido_status === 'pronto' || mesa.tem_itens_prontos) {
+          btnConfirmarEntrega.innerHTML = '🚚 CONFIRMAR ENTREGA (COZINHA/CHURRASQUEIRO)';
+          btnConfirmarEntrega.style.animation = 'pulsar-verde 1.5s infinite';
+          btnConfirmarEntrega.style.border = '2px solid #2ecc71';
+        } else {
+          btnConfirmarEntrega.innerHTML = '🚚 Confirmar Entrega do Pedido';
+          btnConfirmarEntrega.style.animation = 'none';
+          btnConfirmarEntrega.style.border = 'none';
+        }
+      } else {
+        btnConfirmarEntrega.style.display = 'none';
+      }
     }
     if (btnRascunho) {
       btnRascunho.style.display = (mesa.tem_rascunho || mesa.tem_rascunho === 1) ? 'block' : 'none';
@@ -3270,7 +3284,7 @@ function renderizarItensMesaGarcom() {
         </div>
         <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
           <p style="white-space: nowrap; font-weight: bold; margin: 0; color: #2c3e50; font-size: 0.95rem;">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
-          ${isPronto ? `<button onclick="entregarItemIndividualGarcom(${item.id})" style="background: #27ae60; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.85rem; font-weight: bold;" title="Confirmar Entrega">🚚 Entregar</button>` : ''}
+          ${item.status !== 'entregue' ? `<button onclick="entregarItemIndividualGarcom(${item.id})" style="background: #27ae60; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.85rem; font-weight: bold;" title="Confirmar Entrega">🚚 Entregar</button>` : ''}
           <button onclick="substituirItemGarcom(${item.id})" style="background: #3498db; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;" title="Substituir Item">🔄</button>
           <button onclick="removerItemLocalGarcom(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;" title="Remover Item">🗑️</button>
         </div>
@@ -3509,88 +3523,131 @@ async function marcarComoServido(idPedido) {
     const emPreparoCozinha = itens.filter(i => i.status === 'pendente' && (isItemParaCozinha(i) || isItemParaChurrasco(i)));
     const prontosOuForaCozinha = itens.filter(i => i.status === 'pronto' || (i.status === 'pendente' && !isItemParaCozinha(i) && !isItemParaChurrasco(i)));
 
+    let resultadoAcao = 'tudo';
+
     if (emPreparoCozinha.length > 0) {
-      // Se houver itens fora da cozinha/churrasco ou prontos para entregar...
+      const listaHtml = emPreparoCozinha.map(i => `<div style="font-weight: 600; color: #334155; margin-bottom: 2px;">• ${i.quantidade}x ${i.nome}</div>`).join('');
+
       if (prontosOuForaCozinha.length > 0) {
-        const confirmParcial = await mostrarConfirmacao(
-          `<div style="text-align: center;">
-            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🚚</div>
-            <p style="font-weight: bold; color: #e67e22;">ENTREGA PARCIAL</p>
-            <p style="font-size: 0.95rem; margin-bottom: 10px;">Existem <strong>${emPreparoCozinha.length} itens</strong> ainda em preparo (Cozinha/Churrasco). Deseja entregar apenas as bebidas e itens prontos agora?</p>
-            <p style="font-size: 0.8rem; color: #7f8c8d;">O cronômetro continuará rodando para os itens que ficarem.</p>
-          </div>`,
-          "Preparo em Andamento",
-          "Sim, Entregar Prontos",
-          "Não, Cancelar"
-        );
-
-        if (!confirmParcial) return;
-
-        showLoading(true, 'Registrando entrega parcial...');
-        const res = await fetch(`/api/pedidos/${idPedido}/marcar-entregue`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apenasProntos: true })
+        // Existem itens em preparo e também bebidas / prontos
+        const resSwal = await Swal.fire({
+          title: '🚚 Opções de Entrega',
+          html: `
+            <div style="text-align: left; font-size: 0.9rem;">
+              <p style="margin: 0 0 8px 0; color: #475569;">
+                Existem <strong>${emPreparoCozinha.length} item(ns)</strong> ainda em preparo (Cozinha/Churrasco):
+              </p>
+              <div style="background: #fff5f5; border: 1px solid #fed7d7; border-radius: 8px; padding: 8px 12px; max-height: 110px; overflow-y: auto; margin-bottom: 12px;">
+                ${listaHtml}
+              </div>
+              <p style="margin: 0; color: #64748b; font-size: 0.85rem; text-align: center;">
+                Escolha uma das ações abaixo:
+              </p>
+            </div>
+          `,
+          icon: 'question',
+          showCancelButton: true,
+          showDenyButton: true,
+          confirmButtonText: '⚡ Confirmar Entrega de Tudo',
+          confirmButtonColor: '#e67e22',
+          denyButtonText: '🚚 Entregar Só Prontos / Bebidas',
+          denyButtonColor: '#27ae60',
+          cancelButtonText: 'Voltar',
+          cancelButtonColor: '#95a5a6'
         });
-        showLoading(false);
 
-        if (res.ok) {
-          mostrarToast("🚚 Itens prontos entregues! Os demais seguem em preparo.", "success", "Entrega Parcial", 3000);
-          verItensDaMesa();
-          carregarMesas();
+        if (resSwal.isConfirmed) {
+          resultadoAcao = 'tudo';
+        } else if (resSwal.isDenied) {
+          resultadoAcao = 'parcial';
         } else {
-          const err = await res.json().catch(() => ({}));
-          await mostrarAlerta(err.mensagem || err.error || "Erro ao registrar entrega.", "Erro", "❌");
+          return;
         }
       } else {
-        // Se SÓ houver itens de cozinha em preparo, bloqueio total
-        const msgHtml = `
-          <div style="text-align: center;">
-            <div style="font-size: 3rem; margin-bottom: 1rem;">🍳</div>
-            <p style="font-weight: bold; color: #e74c3c; font-size: 1.1rem; margin-bottom: 10px;">AGUARDANDO COZINHA!</p>
-            <p style="color: #2c3e50; margin-bottom: 15px;">Todos os itens deste pedido estão sendo feitos na cozinha agora.</p>
-            <div style="background: #fff5f5; padding: 10px; border-radius: 8px; border: 1px solid #feb2b2; text-align: left; font-size: 0.9rem;">
-              ${emPreparoCozinha.map(i => `• ${i.quantidade}x ${i.nome}`).join('<br>')}
+        // SÓ há itens da cozinha/churrasco em preparo (mesmo sem a cozinha marcar como pronto)
+        const resSwal = await Swal.fire({
+          title: '🍳 Cozinha / Churrasqueiro',
+          html: `
+            <div style="text-align: left; font-size: 0.9rem;">
+              <p style="margin: 0 0 8px 0; color: #475569;">
+                Estes itens ainda constam em preparo na Cozinha / Churrasqueiro:
+              </p>
+              <div style="background: #fff5f5; border: 1px solid #fed7d7; border-radius: 8px; padding: 8px 12px; max-height: 120px; overflow-y: auto; margin-bottom: 12px;">
+                ${listaHtml}
+              </div>
+              <p style="margin: 0; color: #1e293b; font-weight: bold; text-align: center;">
+                Confirmar que já foram entregues ao cliente na mesa?
+              </p>
             </div>
-            <p style="font-size: 0.8rem; color: #666; margin-top: 15px;">Você só poderá confirmar a entrega quando a cozinha finalizar ou quando houver bebidas prontas.</p>
-          </div>
-        `;
-        return await mostrarAlerta(msgHtml, "Cozinha Ativa", "🍳");
-      }
-      return;
-    }
+          `,
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: '⚡ Sim, Confirmar Entrega de Tudo',
+          confirmButtonColor: '#27ae60',
+          cancelButtonText: 'Cancelar',
+          cancelButtonColor: '#95a5a6'
+        });
 
-    // Se não tem nada em preparo na cozinha, confirmação normal de tudo
-    if (!await mostrarConfirmacao("Deseja marcar todos os itens como entregues?", "Entregar Pedido", "Confirmar", "Cancelar", "🚚")) return;
+        if (resSwal.isConfirmed) {
+          resultadoAcao = 'tudo';
+        } else {
+          return;
+        }
+      }
+    } else {
+      // Se não há itens em preparo (apenas bebidas ou itens já prontos)
+      const resSwal = await Swal.fire({
+        title: '🚚 Entregar Pedido',
+        text: 'Confirmar a entrega de todos os itens deste pedido na mesa?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sim, Confirmar Entrega',
+        confirmButtonColor: '#27ae60',
+        cancelButtonText: 'Cancelar',
+        cancelButtonColor: '#95a5a6'
+      });
+      if (!resSwal.isConfirmed) return;
+      resultadoAcao = 'tudo';
+    }
 
     showLoading(true, 'Registrando entrega...');
     const res = await fetch(`/api/pedidos/${idPedido}/marcar-entregue`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apenasProntos: false })
+      body: JSON.stringify({ 
+        apenasProntos: resultadoAcao === 'parcial',
+        forcarEntrega: resultadoAcao === 'tudo'
+      })
     });
     showLoading(false);
 
     if (res.ok) {
-      document.getElementById('modal-resumo-mesa').style.display = 'none';
+      const modalResumo = document.getElementById('modal-resumo-mesa');
+      if (modalResumo) modalResumo.style.display = 'none';
+      fecharOpcoes();
       atualizarBloqueioScroll();
-      mostrarToast("✅ Todos os itens foram entregues com sucesso!", "success", "Sucesso", 2500);
-      carregarMesas();
+      if (resultadoAcao === 'parcial') {
+        mostrarToast("🚚 Bebidas e itens prontos entregues! Os demais seguem em preparo.", "success", "Entrega Parcial", 3000);
+        verItensDaMesa();
+      } else {
+        mostrarToast("✅ Todos os itens foram entregues com sucesso!", "success", "Sucesso", 2500);
+      }
+      await carregarMesas();
     } else {
       const err = await res.json().catch(() => ({}));
-      await mostrarAlerta(err.mensagem || err.error || "Erro ao atualizar status de entrega.", "Erro", "❌");
+      await mostrarAlerta(err.mensagem || err.error || "Erro ao registrar entrega.", "Erro", "❌");
     }
-  } catch (error) { showLoading(false); await mostrarAlerta("Erro ao atualizar status de entrega.", "Erro", "❌"); }
+  } catch (error) { 
+    showLoading(false); 
+    await mostrarAlerta("Erro ao atualizar status de entrega.", "Erro", "❌"); 
+  }
 }
 
 async function confirmarEntregaProntaGarcom() {
   if (!mesaAtual) return;
-  const nomeMesa = formatarNomeMesaGarcom(mesaAtual);
-  
   if (!pedidoAbertoNaMesa && mesaAtual.pedido_id) {
     pedidoAbertoNaMesa = { id: mesaAtual.pedido_id };
   }
-  
   if (!pedidoAbertoNaMesa) {
     showLoading(true, 'Buscando pedido...');
     try {
@@ -3605,53 +3662,26 @@ async function confirmarEntregaProntaGarcom() {
     return;
   }
 
-  const confirmado = await mostrarConfirmacao(
-    `<div style="text-align: center;">
-      <div style="font-size: 2.8rem; margin-bottom: 0.5rem;">🚚</div>
-      <p style="font-weight: bold; color: #27ae60; font-size: 1.1rem; margin-bottom: 6px;">ENTREGA DA COZINHA / CHURRASQUEIRO</p>
-      <p style="font-size: 0.95rem; color: #2c3e50;">Confirmar a entrega dos itens prontos na <strong>${nomeMesa}</strong>?</p>
-    </div>`,
-    "Confirmar Entrega",
-    "Sim, Confirmar Entrega",
-    "Cancelar",
-    "🚚"
-  );
-
-  if (!confirmado) return;
-
-  showLoading(true, 'Confirmando entrega...');
-  try {
-    const res = await fetch(`/api/pedidos/${pedidoAbertoNaMesa.id}/marcar-entregue`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apenasProntos: true })
-    });
-    showLoading(false);
-
-    if (res.ok) {
-      const data = await res.json().catch(() => ({}));
-      fecharOpcoes();
-      const modalResumo = document.getElementById('modal-resumo-mesa');
-      if (modalResumo && modalResumo.style.display !== 'none') {
-        modalResumo.style.display = 'none';
-        atualizarBloqueioScroll();
-      }
-      mostrarToast(data.todosEntregues ? "🎉 Todos os itens foram entregues!" : "🚚 Itens prontos entregues na mesa com sucesso!", "success", "Entrega Confirmada", 3000);
-      await carregarMesas();
-    } else {
-      const err = await res.json().catch(() => ({}));
-      await mostrarAlerta(err.mensagem || err.error || "Erro ao confirmar entrega.", "Erro", "❌");
-    }
-  } catch (error) {
-    showLoading(false);
-    await mostrarAlerta("Erro de conexão ao confirmar entrega.", "Erro", "❌");
-  }
+  // Executa o fluxo unificado de confirmação de entrega do pedido
+  await marcarComoServido(pedidoAbertoNaMesa.id);
 }
 
 async function entregarItemIndividualGarcom(itemId) {
   if (!pedidoAbertoNaMesa || !pedidoAbertoNaMesa.id) return;
-  const confirmado = await mostrarConfirmacao("Confirmar a entrega deste item na mesa?", "Entregar Item", "Sim, Entregar", "Cancelar", "🚚");
-  if (!confirmado) return;
+  const item = (itensEmEdicaoGarcom || []).find(i => i.id == itemId);
+  const nomeItem = item ? `${item.quantidade}x ${item.nome}` : 'este item';
+
+  const resSwal = await Swal.fire({
+    title: '🚚 Entregar Item',
+    html: `Confirmar a entrega de <strong>${nomeItem}</strong> na mesa?`,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Sim, Entregar',
+    confirmButtonColor: '#27ae60',
+    cancelButtonText: 'Cancelar',
+    cancelButtonColor: '#95a5a6'
+  });
+  if (!resSwal.isConfirmed) return;
 
   showLoading(true, 'Entregando item...');
   try {

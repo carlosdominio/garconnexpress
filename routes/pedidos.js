@@ -1747,7 +1747,7 @@ module.exports = (ctx) => {
   // PUT /api/pedidos/:id/marcar-entregue
   router.put('/:id/marcar-entregue', statusLimiter || ((req, res, next) => next()), isAuthenticated, async (req, res) => {
     const { id } = req.params;
-    const { apenasProntos, forcarAdmin } = req.body;
+    const { apenasProntos, forcarAdmin, forcarEntrega } = req.body;
     if (marcarEntregueLocks.has(id)) return res.status(429).json({ error: 'Processando requisição anterior, aguarde...' });
     marcarEntregueLocks.add(id);
     try {
@@ -1761,7 +1761,7 @@ module.exports = (ctx) => {
           AND (status = 'pronto' OR (status = 'pendente' AND menu_id IN (SELECT id FROM menu m WHERE NOT (${filterPreparo}))))
         `, [id]);
       } else {
-        if (!forcarAdmin) {
+        if (!forcarAdmin && !forcarEntrega) {
           const prep = await query(`
             SELECT pi.id 
             FROM pedido_itens pi 
