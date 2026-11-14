@@ -307,7 +307,10 @@
     </div>
     <div id="lista-itens-mesa" style="text-align: left; margin-bottom: 1.5rem;"></div>
     <div id="total-resumo-mesa" style="font-weight: bold; font-size: 1.2rem; margin-bottom: 1rem;">Total: R$ 0,00</div>
-    <button id="btn-fechar-resumo-mesa" class="btn-opcoes btn-cancelar" onclick="fecharResumoMesa()">Fechar</button>
+    <div style="display: flex; gap: 10px; width: 100%;">
+      <button id="btn-fechar-resumo-mesa" class="btn-opcoes btn-cancelar" onclick="fecharResumoMesa()" style="flex: 1; margin: 0;">Voltar</button>
+      <button id="btn-resumo-adicionar-itens" class="btn-opcoes" onclick="adicionarItensDiretoDoResumo()" style="flex: 1.4; background-color: #2980b9; color: white; margin: 0; font-weight: bold;">➕ Adicionar Itens</button>
+    </div>
   </div>
 
   <!-- Modal de Fechamento (Novo) -->

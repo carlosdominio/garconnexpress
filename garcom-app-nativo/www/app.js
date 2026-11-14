@@ -2813,13 +2813,12 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
       btnFecharConta.style.animation = 'none';
     }
 
-    const btnTransferirMesa = document.getElementById('btn-opcoes-transferir-mesa');
-    if (btnTransferirMesa) {
-      btnTransferirMesa.style.display = (pedidoAbertoNaMesa && mesa.status !== 'fechando') ? 'block' : 'none';
-    }
-
     // Opções secundárias (visíveis apenas se expandido)
     const dispSecundario = opcoesExpandidas ? 'block' : 'none';
+    const btnTransferirMesa = document.getElementById('btn-opcoes-transferir-mesa');
+    if (btnTransferirMesa) {
+      btnTransferirMesa.style.display = (pedidoAbertoNaMesa && mesa.status !== 'fechando') ? dispSecundario : 'none';
+    }
     if (btnGerarQr) btnGerarQr.style.display = dispSecundario;
     if (btnGerarCodigo) btnGerarCodigo.style.display = 'none';
     if (btnCancelarCodigo) {
@@ -3514,24 +3513,44 @@ async function salvarAlteracoesGarcom() {
 }
 
 function fecharResumoMesa() {
-  // Se houver alterações locais não salvas, pede confirmação
-  if (verificarSeHaAlteracoesGarcom()) {
-    mostrarConfirmacao("Você possui alterações não salvas. Deseja descartá-las e fechar?", "Descartar Alterações").then(confirmed => {
-      if (confirmed) {
-        itensEmEdicaoGarcom = [];
-        itensOriginaisGarcom = [];
-        const containerBotaoSalvar = document.getElementById('container-salvar-alteracoes-garcom');
-        if (containerBotaoSalvar) containerBotaoSalvar.remove();
-        
-        document.getElementById('modal-resumo-mesa').style.display = 'none';
-        atualizarBloqueioScroll();
-      }
-    });
-  } else {
+  const fechar = () => {
     itensEmEdicaoGarcom = [];
     itensOriginaisGarcom = [];
+    const containerBotaoSalvar = document.getElementById('container-salvar-alteracoes-garcom');
+    if (containerBotaoSalvar) containerBotaoSalvar.remove();
     document.getElementById('modal-resumo-mesa').style.display = 'none';
+    if (mesaAtual) {
+      document.getElementById('modal-opcoes').style.display = 'block';
+    }
     atualizarBloqueioScroll();
+  };
+
+  if (verificarSeHaAlteracoesGarcom()) {
+    mostrarConfirmacao("Você possui alterações não salvas. Deseja descartá-las e fechar?", "Descartar Alterações").then(confirmed => {
+      if (confirmed) fechar();
+    });
+  } else {
+    fechar();
+  }
+}
+
+function adicionarItensDiretoDoResumo() {
+  const proceed = () => {
+    itensEmEdicaoGarcom = [];
+    itensOriginaisGarcom = [];
+    const containerBotaoSalvar = document.getElementById('container-salvar-alteracoes-garcom');
+    if (containerBotaoSalvar) containerBotaoSalvar.remove();
+    document.getElementById('modal-resumo-mesa').style.display = 'none';
+    fecharOpcoes();
+    abrirCardapio();
+  };
+
+  if (verificarSeHaAlteracoesGarcom()) {
+    mostrarConfirmacao("Você possui alterações não salvas no resumo. Deseja descartá-las e abrir o cardápio?", "Abrir Cardápio").then(confirmed => {
+      if (confirmed) proceed();
+    });
+  } else {
+    proceed();
   }
 }
 
@@ -3729,12 +3748,6 @@ async function entregarItemIndividualGarcom(itemId) {
     showLoading(false);
     await mostrarAlerta("Erro ao entregar item individual.", "Erro", "❌");
   }
-}
-
-function fecharResumoMesa() {
-  document.getElementById('modal-resumo-mesa').style.display = 'none';
-  document.getElementById('modal-opcoes').style.display = 'block';
-  atualizarBloqueioScroll();
 }
 
 function fecharOpcoes() {
