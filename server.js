@@ -6974,6 +6974,10 @@ app.use('/api/pedidos', pedidosRouter);
 const itensRouter = require('./routes/itens')(routerCtx);
 app.use('/api/itens', itensRouter);
 
+// 12. Sentinel AI (Monitoramento 24h & Diagnóstico Inteligente com Groq)
+const sentinelRouter = require('./routes/sentinel')(routerCtx);
+app.use('/api/sentinel', sentinelRouter);
+
 
 
 app.get('/api/pedidos/mesa/:mesaId', isAuthenticated, async (req, res) => { 

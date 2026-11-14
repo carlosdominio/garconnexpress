@@ -2245,6 +2245,9 @@ function switchConfigSubTab(subTab) {
   else if (subTab === 'impressora') {
     aplicarConfigElginNaUI();
   }
+  else if (subTab === 'monitoramento') {
+    carregarStatusMonitoramento();
+  }
   else if (subTab === 'relatorios') {
     const dataInicio = document.getElementById('rel-data-inicio');
     const dataFim = document.getElementById('rel-data-fim');
@@ -10515,6 +10518,21 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       executarRecargaPorAtualizacao(data?.web_version);
     });
 
+    channel.bind('sentinel-novo-log', (data) => {
+      console.log('🛡️ [Sentinel AI] Novo log recebido via Pusher:', data);
+      const subSec = document.getElementById('config-sub-monitoramento');
+      if (subSec && subSec.classList.contains('active')) {
+        carregarStatusMonitoramento();
+      }
+    });
+
+    channel.bind('sentinel-logs-limpos', () => {
+      const subSec = document.getElementById('config-sub-monitoramento');
+      if (subSec && subSec.classList.contains('active')) {
+        carregarStatusMonitoramento();
+      }
+    });
+
     } catch (e) {
     console.warn('❌ Erro na inicialização do Pusher:', e);
     }
@@ -15454,3 +15472,225 @@ async function recusarRascunhoAdmin(data) {
     mostrarToast('Erro ao se conectar ao servidor.', 'error');
   }
 }
+
+// ─── SENTINEL AI: MONITORAMENTO 24H E DIAGNÓSTICO INTELIGENTE ──────────────
+let sentinelPollingTimer = null;
+
+async function carregarStatusMonitoramento(manual = false) {
+  try {
+    const resStatus = await fetch('/api/sentinel/status');
+    if (resStatus.ok) {
+      const s = await resStatus.json();
+      
+      const badgeStatus = document.getElementById('sentinel-badge-status');
+      const labelStatus = document.getElementById('sentinel-label-status');
+      if (badgeStatus && labelStatus) {
+        if (s.saude === 'operacional') {
+          badgeStatus.style.background = '#dcfce7';
+          badgeStatus.style.color = '#166534';
+          badgeStatus.style.border = '1px solid #bbf7d0';
+          labelStatus.textContent = 'Operacional 24h';
+        } else {
+          badgeStatus.style.background = '#fef3c7';
+          badgeStatus.style.color = '#92400e';
+          badgeStatus.style.border = '1px solid #fde68a';
+          labelStatus.textContent = 'Atenção Operacional';
+        }
+      }
+
+      const elLat = document.getElementById('sentinel-db-latencia');
+      if (elLat) elLat.textContent = `${s.latencia_db_ms} ms`;
+
+      const elDbTipo = document.getElementById('sentinel-db-tipo');
+      if (elDbTipo) elDbTipo.textContent = s.banco_tipo;
+
+      const elUp = document.getElementById('sentinel-uptime');
+      if (elUp) elUp.textContent = s.uptime_formatado;
+
+      const elMem = document.getElementById('sentinel-memoria');
+      if (elMem) elMem.textContent = `${s.memoria_rss_mb} MB`;
+
+      const elPed = document.getElementById('sentinel-pedidos-ativos');
+      if (elPed) elPed.textContent = s.pedidos_ativos;
+
+      const elInc = document.getElementById('sentinel-incidentes-hoje');
+      if (elInc) elInc.textContent = s.incidentes_hoje;
+
+      const groqBadge = document.getElementById('sentinel-groq-badge');
+      if (groqBadge) {
+        if (s.groq_ativo) {
+          groqBadge.textContent = 'IA Groq Conectada (Llama 3.3)';
+          groqBadge.style.background = '#ede9fe';
+          groqBadge.style.color = '#6d28d9';
+        } else {
+          groqBadge.textContent = 'Motor Local Fallback (Sem Chave)';
+          groqBadge.style.background = '#f1f5f9';
+          groqBadge.style.color = '#64748b';
+        }
+      }
+    }
+
+    const resLogs = await fetch('/api/sentinel/logs');
+    if (resLogs.ok) {
+      const logs = await resLogs.json();
+      renderizarLogsSentinel(logs);
+    }
+
+    if (manual) {
+      mostrarToast('Métricas do Sentinel AI atualizadas com sucesso!', 'sucesso');
+    }
+  } catch (err) {
+    console.error('Erro ao carregar métricas do Sentinel AI:', err);
+    if (manual) mostrarAlerta('Falha ao comunicar com o Sentinel AI.', 'Erro', '❌');
+  }
+}
+
+function renderizarLogsSentinel(logs) {
+  const tbody = document.getElementById('sentinel-logs-tbody');
+  if (!tbody) return;
+
+  if (!Array.isArray(logs) || logs.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align: center; padding: 35px 20px; color: #166534; background: #f0fdf4;">
+          <i class="fa-solid fa-circle-check" style="font-size: 2rem; color: #22c55e; display: block; margin-bottom: 8px;"></i>
+          <b>Nenhum incidente registrado!</b><br>
+          <span style="font-size: 0.8rem; color: #64748b;">Todos os subsistemas do GarçomExpress estão operando com 100% de estabilidade.</span>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = logs.map(l => {
+    const dataObj = new Date(l.created_at);
+    const dataStr = dataObj.toLocaleDateString('pt-BR');
+    const horaStr = dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    let badgeGravidade = '';
+    if (l.gravidade === 'critica') {
+      badgeGravidade = '<span style="background: #fee2e2; color: #dc2626; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 0.75rem;">Crítica</span>';
+    } else if (l.gravidade === 'info') {
+      badgeGravidade = '<span style="background: #e0f2fe; color: #0284c7; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 0.75rem;">Info</span>';
+    } else {
+      badgeGravidade = '<span style="background: #fef3c7; color: #d97706; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 0.75rem;">Atenção</span>';
+    }
+
+    return `
+      <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
+        <td style="padding: 10px 12px; color: #64748b; font-size: 0.8rem; font-weight: 500;">
+          ${dataStr} <b style="color: #0f172a;">${horaStr}</b>
+        </td>
+        <td style="padding: 10px 12px; font-weight: bold; color: #334155; font-size: 0.8rem;">
+          <span style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; border: 1px solid #e2e8f0;">${l.modulo}</span>
+        </td>
+        <td style="padding: 10px 12px;">
+          ${badgeGravidade}
+        </td>
+        <td style="padding: 10px 12px; color: #1e293b; max-width: 250px; word-break: break-word;">
+          <div style="font-weight: 600; font-size: 0.83rem;">${l.mensagem || '--'}</div>
+          ${l.detalhes ? `<div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">${l.detalhes}</div>` : ''}
+        </td>
+        <td style="padding: 10px 12px; color: #4338ca; background: #faf5ff; font-size: 0.82rem; line-height: 1.4; border-left: 2px solid #a855f7;">
+          <div style="display: flex; gap: 6px; align-items: flex-start;">
+            <i class="fa-solid fa-robot" style="margin-top: 3px; color: #9333ea;"></i>
+            <div>${l.diagnostico_ia || 'Diagnóstico em processamento...'}</div>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function testarIASentinel() {
+  const btn = document.getElementById('btn-testar-sentinel-ia');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Consultando IA...';
+  }
+
+  try {
+    const res = await fetch('/api/sentinel/testar-ia', { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      Swal.fire({
+        title: '🧪 Diagnóstico Sentinel AI',
+        html: `
+          <div style="text-align: left; font-size: 0.9rem; line-height: 1.5; color: #334155;">
+            <p><b>Modelo Utilizado:</b> <span style="color: #6d28d9; font-weight: bold;">${data.modelo}</span></p>
+            <div style="background: #f5f3ff; border: 1.5px solid #c4b5fd; border-radius: 8px; padding: 12px; margin-top: 10px; color: #4c1d95;">
+              <b>Resposta da IA:</b><br>
+              ${data.diagnostico}
+            </div>
+            <p style="font-size: 0.78rem; color: #64748b; margin-top: 10px;">
+              ✓ O teste foi concluído com sucesso e gravado na linha do tempo do painel.
+            </p>
+          </div>
+        `,
+        icon: 'success',
+        confirmButtonColor: '#8b5cf6',
+        confirmButtonText: 'Entendido'
+      });
+      await carregarStatusMonitoramento();
+    } else {
+      mostrarAlerta(data.error || 'Erro no teste da IA.', 'Falha', '❌');
+    }
+  } catch (err) {
+    mostrarAlerta('Erro ao conectar ao Sentinel AI.', 'Erro', '❌');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-flask"></i> Testar Diagnóstico IA';
+    }
+  }
+}
+
+async function salvarChaveGroqSentinel() {
+  const input = document.getElementById('input-sentinel-groq-key');
+  const chave = input ? input.value.trim() : '';
+
+  try {
+    const res = await fetch('/api/sentinel/salvar-chave-groq', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chave })
+    });
+    if (res.ok) {
+      if (input) input.value = '';
+      mostrarToast(chave ? 'Chave da Groq salva com sucesso!' : 'Chave da Groq removida.', 'sucesso');
+      await carregarStatusMonitoramento();
+    } else {
+      mostrarAlerta('Erro ao salvar chave da Groq.', 'Erro', '❌');
+    }
+  } catch (err) {
+    mostrarAlerta('Erro de conexão ao salvar chave.', 'Erro', '❌');
+  }
+}
+
+async function limparLogsSentinel() {
+  const confirmar = await mostrarConfirmacao(
+    'Deseja realmente limpar todo o histórico de ocorrências do Sentinel AI?',
+    'Limpar Histórico',
+    'Sim, Limpar',
+    'Cancelar',
+    '🗑️'
+  );
+  if (!confirmar) return;
+
+  try {
+    const res = await fetch('/api/sentinel/limpar-logs', { method: 'POST' });
+    if (res.ok) {
+      mostrarToast('Histórico do Sentinel limpo com sucesso!', 'sucesso');
+      await carregarStatusMonitoramento();
+    } else {
+      mostrarAlerta('Erro ao limpar histórico.', 'Erro', '❌');
+    }
+  } catch (err) {
+    mostrarAlerta('Erro de conexão ao limpar histórico.', 'Erro', '❌');
+  }
+}
+
+window.carregarStatusMonitoramento = carregarStatusMonitoramento;
+window.testarIASentinel = testarIASentinel;
+window.salvarChaveGroqSentinel = salvarChaveGroqSentinel;
+window.limparLogsSentinel = limparLogsSentinel;
