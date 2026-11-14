@@ -2499,6 +2499,27 @@ async function consolidarItensPedido(pedidoId, customQuery = query) {
   }
 }
 
+async function executarUpdateAberturaMesa(queryFn, sqlComAbertura, sqlSemAbertura, paramsComAbertura, paramsSemAbertura) {
+  try {
+    return await queryFn(sqlComAbertura, paramsComAbertura);
+  } catch (err) {
+    if (String(err.message || '').includes('abertura_mesa')) {
+      try {
+        if (isPostgres) {
+          await queryFn("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS abertura_mesa TIMESTAMP");
+        } else {
+          await queryFn("ALTER TABLE pedidos ADD COLUMN abertura_mesa TIMESTAMP");
+        }
+        return await queryFn(sqlComAbertura, paramsComAbertura);
+      } catch (innerErr) {
+        console.warn("⚠️ Fallback para query sem abertura_mesa:", innerErr.message);
+        return await queryFn(sqlSemAbertura, paramsSemAbertura);
+      }
+    }
+    throw err;
+  }
+}
+
 const recentStockAlertsMap = new Map();
 async function verificarEstoqueBaixo(menuId) {
   try {
@@ -3232,6 +3253,7 @@ async function lazyInitDb() {
             await db.query(`
               ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS mesa_numero TEXT;
               ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0;
+              ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS abertura_mesa TIMESTAMP;
               ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS transferencia_origem TEXT;
               ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS notificado_atraso INTEGER DEFAULT 0;
               ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS notificado_atraso_fechamento INTEGER DEFAULT 0;
@@ -3290,6 +3312,15 @@ async function lazyInitDb() {
             console.error("Erro ao rodar migracao churrasco no Postgres lazy loading:", e.message);
           }
         }
+      }
+
+      if (!isPostgres) {
+        try {
+          const cols = await query("PRAGMA table_info(pedidos)");
+          if (cols.rows && !cols.rows.some(col => col.name === 'abertura_mesa')) {
+            await query("ALTER TABLE pedidos ADD COLUMN abertura_mesa TIMESTAMP");
+          }
+        } catch(e) {}
       }
 
       // Auto-consolidação de itens duplicados em pedidos ativos (ex: mesas transferidas anteriormente)
@@ -5671,7 +5702,7 @@ app.post('/api/pedidos', orderLimiter, async (req, res, next) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) => {
+app.put('/api/pedidos/:id/atualizar-itens', ensureDbInitialized, isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { itens: rawItens, observacao } = req.body;
   try {
@@ -5800,7 +5831,13 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
 
     // Reinicia o cronômetro para os novos itens adicionados (created_at = agora) e preserva abertura_mesa original
     if (temPendente) {
-      await query("UPDATE pedidos SET total = ?, status = ?, created_at = ?, abertura_mesa = COALESCE(abertura_mesa, created_at), observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?", [total, novoStatusPedido, agora, observacao || '', id]);
+      await executarUpdateAberturaMesa(
+        query,
+        "UPDATE pedidos SET total = ?, status = ?, created_at = ?, abertura_mesa = COALESCE(abertura_mesa, created_at), observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+        "UPDATE pedidos SET total = ?, status = ?, created_at = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+        [total, novoStatusPedido, agora, observacao || '', id],
+        [total, novoStatusPedido, agora, observacao || '', id]
+      );
       
       const resMesa = await query("SELECT m.id, m.numero FROM pedidos p JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id]);
       const mesaNum = resMesa.rows[0] ? resMesa.rows[0].numero : 'BALCÃO';
@@ -5841,7 +5878,7 @@ app.put('/api/pedidos/:id/atualizar-itens', isAuthenticated, async (req, res) =>
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
+app.put('/api/pedidos/:id/adicionar', ensureDbInitialized, isAuthenticated, async (req, res) => {
   const { id } = req.params;
   const { itens, cobrar_taxa, observacao } = req.body;
   try {
@@ -5908,7 +5945,13 @@ app.put('/api/pedidos/:id/adicionar', isAuthenticated, async (req, res) => {
     const statusAnterior = statusAtualRes.rows[0] ? statusAtualRes.rows[0].status : '';
 
     // Reinicia o cronômetro para os novos itens adicionados (created_at = agora) e preserva abertura_mesa original
-    await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, abertura_mesa = COALESCE(abertura_mesa, created_at), observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id]);
+    await executarUpdateAberturaMesa(
+      query,
+      "UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, abertura_mesa = COALESCE(abertura_mesa, created_at), observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+      "UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+      [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id],
+      [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id]
+    );
     const pMesa = (await query("SELECT p.mesa_id, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
     if (pMesa && pMesa.mesa_id) {
       const mesaIdNum = pMesa.mesa_id;

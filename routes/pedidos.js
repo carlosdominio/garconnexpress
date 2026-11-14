@@ -33,6 +33,27 @@ module.exports = (ctx) => {
   const router = express.Router();
   const marcarEntregueLocks = new Set();
 
+  async function executarUpdateAberturaMesa(queryFn, sqlComAbertura, sqlSemAbertura, paramsComAbertura, paramsSemAbertura) {
+    try {
+      return await queryFn(sqlComAbertura, paramsComAbertura);
+    } catch (err) {
+      if (String(err.message || '').includes('abertura_mesa')) {
+        try {
+          if (isPostgres) {
+            await queryFn("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS abertura_mesa TIMESTAMP");
+          } else {
+            await queryFn("ALTER TABLE pedidos ADD COLUMN abertura_mesa TIMESTAMP");
+          }
+          return await queryFn(sqlComAbertura, paramsComAbertura);
+        } catch (innerErr) {
+          console.warn("⚠️ Fallback para query sem abertura_mesa:", innerErr.message);
+          return await queryFn(sqlSemAbertura, paramsSemAbertura);
+        }
+      }
+      throw err;
+    }
+  }
+
   // Consolidação de itens idênticos (mesmo produto, observação, status e preço)
   const consolidarItensPedido = ctxConsolidarItensPedido || (async (pedidoId, customQuery = query) => {
     if (!pedidoId) return;
@@ -1109,7 +1130,13 @@ module.exports = (ctx) => {
 
       // Reinicia o cronômetro para os novos itens adicionados (created_at = agora) e preserva abertura_mesa original
       if (temPendente) {
-        await query("UPDATE pedidos SET total = ?, status = ?, created_at = ?, abertura_mesa = COALESCE(abertura_mesa, created_at), observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?", [total, novoStatusPedido, agora, observacao || '', id]);
+        await executarUpdateAberturaMesa(
+          query,
+          "UPDATE pedidos SET total = ?, status = ?, created_at = ?, abertura_mesa = COALESCE(abertura_mesa, created_at), observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+          "UPDATE pedidos SET total = ?, status = ?, created_at = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+          [total, novoStatusPedido, agora, observacao || '', id],
+          [total, novoStatusPedido, agora, observacao || '', id]
+        );
         
         const resMesa = await query("SELECT m.id, m.numero, m.is_comanda FROM pedidos p JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id]);
         const isCom = resMesa.rows[0] ? (resMesa.rows[0].is_comanda ? 1 : 0) : 0;
@@ -1207,7 +1234,13 @@ module.exports = (ctx) => {
       const statusAnterior = statusAtualRes.rows[0] ? statusAtualRes.rows[0].status : '';
 
       // Reinicia o cronômetro para os novos itens adicionados (created_at = agora) e preserva abertura_mesa original
-      await query("UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, abertura_mesa = COALESCE(abertura_mesa, created_at), observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?", [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id]);
+      await executarUpdateAberturaMesa(
+        query,
+        "UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, abertura_mesa = COALESCE(abertura_mesa, created_at), observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+        "UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+        [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id],
+        [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id]
+      );
       const pMesa = (await query("SELECT p.mesa_id, p.garcom_id, m.numero, m.is_comanda FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
       if (pMesa && pMesa.mesa_id) {
         const mesaIdNum = pMesa.mesa_id;
