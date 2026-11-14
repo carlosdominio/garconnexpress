@@ -2126,7 +2126,22 @@ async function carregarMesas() {
     const res = await fetch('/api/mesas');
     if (!res.ok) return; 
     mesas = await res.json();
-    if (Array.isArray(mesas)) exibirMesas();
+    if (Array.isArray(mesas)) {
+      exibirMesas();
+      const modalOpcoes = document.getElementById('modal-opcoes');
+      if (modalOpcoes && modalOpcoes.style.display !== 'none' && mesaAtual) {
+        const mesaAtualizada = mesas.find(m => m.id == mesaAtual.id);
+        if (mesaAtualizada) {
+          mesaAtual = mesaAtualizada;
+          if (mesaAtualizada.pedido_id) {
+            pedidoAbertoNaMesa = { id: mesaAtualizada.pedido_id, status: mesaAtualizada.pedido_status };
+          } else {
+            pedidoAbertoNaMesa = null;
+          }
+          atualizarVisibilidadeOpcoesMesa(mesaAtualizada);
+        }
+      }
+    }
   } catch (e) {
     console.warn('⚠️ Falha temporária de conexão ao carregar mesas:', e.message || e);
   } finally {
@@ -2502,6 +2517,7 @@ function exibirMesas() {
       forma_pagamento: m.forma_pagamento,
       tem_rascunho: m.tem_rascunho,
       tem_itens_prontos: m.tem_itens_prontos,
+      tem_itens_pendentes: m.tem_itens_pendentes,
       minutos: minutos
     };
   })) + filtroMesaAtual + String(caixaAberto) + String(mesasCompartilhadasAtivas);
@@ -2757,9 +2773,17 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
     // CATEGORIA OCUPADA:
     if (btnConfirmarEntrega) {
       const temPedidoAtivo = Boolean(pedidoAbertoNaMesa || mesa.pedido_id);
-      if (temPedidoAtivo && !estaFechando) {
+      const statusPed = (mesa.pedido_status || (pedidoAbertoNaMesa && pedidoAbertoNaMesa.status) || '').toLowerCase();
+      const jaEntregue = statusPed === 'servido' || statusPed === 'fechado' || statusPed === 'pago' || statusPed === 'concluido' || statusPed === 'cancelado';
+      const temItensProntos = Boolean(mesa.tem_itens_prontos && Number(mesa.tem_itens_prontos) > 0);
+      const temItensPendentes = Boolean(mesa.tem_itens_pendentes && Number(mesa.tem_itens_pendentes) > 0);
+
+      // Só exibe o botão se NÃO estiver já entregue/servido e houver itens pendentes ou prontos
+      const precisaEntregar = temPedidoAtivo && !estaFechando && !jaEntregue && (temItensProntos || temItensPendentes || statusPed === 'recebido' || statusPed === 'em_preparo' || statusPed === 'pronto');
+
+      if (precisaEntregar) {
         btnConfirmarEntrega.style.display = 'block';
-        if (mesa.pedido_status === 'pronto' || mesa.tem_itens_prontos) {
+        if (statusPed === 'pronto' || temItensProntos) {
           btnConfirmarEntrega.innerHTML = '🚚 CONFIRMAR ENTREGA (COZINHA/CHURRASQUEIRO)';
           btnConfirmarEntrega.style.animation = 'pulsar-verde 1.5s infinite';
           btnConfirmarEntrega.style.border = '2px solid #2ecc71';

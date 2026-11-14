@@ -265,6 +265,7 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
             ca.codigo as codigo_acesso,
             ca.criado_at as codigo_criado_at,
             (CASE WHEN p.id IS NOT NULL AND (SELECT COUNT(pi.id) FROM pedido_itens pi WHERE pi.pedido_id = p.id AND pi.status = 'pronto') > 0 THEN 1 ELSE 0 END) as tem_itens_prontos,
+            (CASE WHEN p.id IS NOT NULL AND (SELECT COUNT(pi.id) FROM pedido_itens pi WHERE pi.pedido_id = p.id AND pi.status IN ('pendente', 'pronto')) > 0 THEN 1 ELSE 0 END) as tem_itens_pendentes,
             (CASE WHEN m.status != 'livre' AND (SELECT COUNT(id) FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(m.numero AS TEXT)) AND status = 'rascunho') > 0 THEN 1 ELSE 0 END) as tem_rascunho
           FROM mesas m
           LEFT JOIN (
@@ -302,6 +303,7 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
             ca.codigo as codigo_acesso,
             ca.criado_at as codigo_criado_at,
             (CASE WHEN p.id IS NOT NULL AND (SELECT COUNT(pi.id) FROM pedido_itens pi WHERE pi.pedido_id = p.id AND pi.status = 'pronto') > 0 THEN 1 ELSE 0 END) as tem_itens_prontos,
+            (CASE WHEN p.id IS NOT NULL AND (SELECT COUNT(pi.id) FROM pedido_itens pi WHERE pi.pedido_id = p.id AND pi.status IN ('pendente', 'pronto')) > 0 THEN 1 ELSE 0 END) as tem_itens_pendentes,
             (CASE WHEN m.status != 'livre' AND (SELECT COUNT(id) FROM pedidos WHERE (CAST(mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(m.numero AS TEXT)) AND status = 'rascunho') > 0 THEN 1 ELSE 0 END) as tem_rascunho
           FROM mesas m
           LEFT JOIN (
