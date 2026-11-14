@@ -3581,6 +3581,8 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false, skipConfirmation 
       };
 
   try {
+    window.adminEnviandoPedidoTimestamp = Date.now();
+    window.adminEnviandoPedidoMesaId = valorMesaOriginal;
     const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
@@ -3698,6 +3700,8 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false, skipConfirmation 
     await mostrarAlerta("Erro de conexão", "Erro", "❌");
   } finally {
     enviandoPedidoLote = false;
+    window.adminEnviandoPedidoTimestamp = null;
+    window.adminEnviandoPedidoMesaId = null;
     if (btn) { btn.disabled = false; btn.innerText = "🚀 LANÇAR PEDIDO AGORA"; }
   }
 }
@@ -9322,9 +9326,11 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
 
       window.ultimoPedidoFinalizadoPeloAdmin = idPedido;
       window.ultimaMesaLiberadaPeloAdmin = idMesa;
+      window.adminFinalizandoPedidoId = idPedido;
       setTimeout(() => {
         window.ultimoPedidoFinalizadoPeloAdmin = null;
         window.ultimaMesaLiberadaPeloAdmin = null;
+        window.adminFinalizandoPedidoId = null;
       }, 7000);
 
       const isDelivery = pedidoParaFecharAdmin && pedidoParaFecharAdmin.garcom_id === 'DELIVERY';
@@ -9941,6 +9947,20 @@ function isRecentAdditionNotified(pedidoId) {
   return false;
 }
 
+const recentClosureNotifiedMap = new Map();
+function markRecentClosureNotified(identificador) {
+  if (!identificador) return;
+  recentClosureNotifiedMap.set(String(identificador), Date.now());
+}
+function isRecentClosureNotified(identificador) {
+  if (!identificador) return false;
+  const t = recentClosureNotifiedMap.get(String(identificador));
+  if (!t) return false;
+  if (Date.now() - t < 7000) return true;
+  recentClosureNotifiedMap.delete(String(identificador));
+  return false;
+}
+
 let nativeSseAdmin = null;
 function initNativeSSEAdmin() {
   if (nativeSseAdmin) return;
@@ -10051,6 +10071,12 @@ async function configurarPusher() {
         return; // Delivery não gera alerta de fechamento de conta de mesa
       }
       console.log('📢 Admin: Solicitação de fechamento recebida!', data);
+
+      // Marca para deduplicar com o evento status-atualizado (aguardando_fechamento)
+      if (data.pedido_id) markRecentClosureNotified(data.pedido_id);
+      if (data.mesa_id) markRecentClosureNotified(`mesa-${data.mesa_id}`);
+      if (data.mesa_numero) markRecentClosureNotified(`mesa-num-${data.mesa_numero}`);
+
       tocarNotificacao('campainha');
       iniciarPiscarTitulo();
 
@@ -10102,9 +10128,14 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
         (p && String(p.id) === String(ultimoPedidoEditadoPeloAdmin)) ||
         (data && String(data.pedido_id) === String(ultimoPedidoEditadoPeloAdmin))
       );
-      const isProprioNovoPedidoAdmin = (window.ultimoPedidoCriadoPeloAdmin !== null && window.ultimoPedidoCriadoPeloAdmin !== undefined) && (
+      const isProprioNovoPedidoAdmin = (window.ultimoPedidoCriadoPeloAdmin !== null && window.ultimoPedidoCriadoPeloAdmin !== undefined && (
         (p && String(p.id) === String(window.ultimoPedidoCriadoPeloAdmin)) ||
         (data && String(data.pedido_id) === String(window.ultimoPedidoCriadoPeloAdmin))
+      )) || (
+        Boolean(enviandoPedidoLote) && 
+        Boolean(p) && 
+        (p.garcom_id === 'ADMIN' || (window.adminEnviandoPedidoMesaId && String(p.mesa_id) === String(window.adminEnviandoPedidoMesaId))) &&
+        (Date.now() - (window.adminEnviandoPedidoTimestamp || 0) < 7000)
       );
 
       const isDelivery = (p && p.garcom_id === 'DELIVERY');
@@ -10259,6 +10290,23 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
           mostrarToast(`📦 Pedido Entregue: ${nMesa}`);
           return;
         }
+
+        // Se o próprio Admin está em processo de pagamento/finalização deste pedido, suprime toast intermediário
+        const isPropriaFinalizacao = (window.adminFinalizandoPedidoId !== null && window.adminFinalizandoPedidoId !== undefined) && (
+          String(data.pedido_id) === String(window.adminFinalizandoPedidoId)
+        );
+        if (isPropriaFinalizacao) {
+          return;
+        }
+
+        // Se já foi notificado recentemente pelo evento 'solicitacao-fechamento-cliente', suprime o toast duplicado
+        const jaNotificado = (data.pedido_id && isRecentClosureNotified(data.pedido_id)) ||
+                             (data.mesa_id && isRecentClosureNotified(`mesa-${data.mesa_id}`)) ||
+                             (data.mesa_numero && isRecentClosureNotified(`mesa-num-${data.mesa_numero}`));
+        if (jaNotificado) {
+          return;
+        }
+
         adicionarNotificacao('🛎️ Fechamento', `${nMesa} está aguardando fechamento.`, '💰');
         tocarNotificacao();
         exibirNotificacaoNativa('🛎️ Fechamento', `${nMesa} está aguardando fechamento.`, tagMesa);
