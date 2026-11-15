@@ -10152,16 +10152,47 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
 
       const mesaId = p ? p.mesa_id : 'geral';
 
-      if (isAddition) {
+      const isRemoval = !!data.is_removal || (data.tipo_edicao === 'remocao') ||
+        (data.detalhes_edicao && data.detalhes_edicao.includes('➖') && !data.detalhes_edicao.includes('➕') && !data.detalhes_edicao.includes('🔄'));
+      const isSubstitution = !!data.is_substitution || (data.tipo_edicao === 'substituicao') ||
+        (data.detalhes_edicao && data.detalhes_edicao.includes('🔄') && !data.detalhes_edicao.includes('➕') && !data.detalhes_edicao.includes('➖'));
+      const isMixed = (data.tipo_edicao === 'misto') ||
+        (data.detalhes_edicao && data.detalhes_edicao.includes('➕') && data.detalhes_edicao.includes('➖'));
+      const isAdditionOrEdit = isAddition || isRemoval || isSubstitution || isMixed;
+
+      if (isAdditionOrEdit) {
         markRecentAdditionNotified(p ? p.id : (data.pedido_id || data.id));
-        const descTexto = data.detalhes_edicao ? `${nomeExibicao} — ${data.detalhes_edicao}` : `Novos itens adicionados na ${nomeExibicao}.`;
-        adicionarNotificacao('➕ ITEM ADICIONADO', descTexto, '➕');
+
+        let tituloNotif = '➕ ITEM ADICIONADO';
+        let iconeNotif = '➕';
+        let textoAcao = 'Item Adicionado';
+        let textoPadrao = `Novos itens adicionados na ${nomeExibicao}.`;
+
+        if (isRemoval) {
+          tituloNotif = '🗑️ ITEM REMOVIDO';
+          iconeNotif = '🗑️';
+          textoAcao = 'Item Removido';
+          textoPadrao = `Item removido na ${nomeExibicao}.`;
+        } else if (isSubstitution) {
+          tituloNotif = '🔄 ITEM SUBSTITUÍDO';
+          iconeNotif = '🔄';
+          textoAcao = 'Item Substituído';
+          textoPadrao = `Item substituído na ${nomeExibicao}.`;
+        } else if (isMixed) {
+          tituloNotif = '✏️ PEDIDO ATUALIZADO';
+          iconeNotif = '✏️';
+          textoAcao = 'Pedido Atualizado';
+          textoPadrao = `Itens atualizados na ${nomeExibicao}.`;
+        }
+
+        const descTexto = data.detalhes_edicao ? `${nomeExibicao} — ${data.detalhes_edicao}` : textoPadrao;
+        adicionarNotificacao(tituloNotif, descTexto, iconeNotif);
         
         if (!isPropriaEdicaoAdmin) {
           tocarNotificacao(); 
           iniciarPiscarTitulo();
-          exibirNotificacaoNativa('➕ ITEM ADICIONADO', descTexto, `mesa-${mesaId}`);
-          mostrarToast(`➕ Item Adicionado: ${data.detalhes_edicao ? `${nomeExibicao} (${data.detalhes_edicao})` : nomeExibicao}`);
+          exibirNotificacaoNativa(tituloNotif, descTexto, `mesa-${mesaId}`);
+          mostrarToast(`${iconeNotif} ${textoAcao}: ${data.detalhes_edicao ? `${nomeExibicao} (${data.detalhes_edicao})` : nomeExibicao}`);
         }
       } else {
         if (!isProprioNovoPedidoAdmin) {

@@ -1465,17 +1465,26 @@ async function configurarPusher() {
         return; // Ignora o alerta para o próprio autor da edição
       }
 
-      const evKey = isAddition ? 'item-adicionado' : 'novo-pedido';
+      const isRemoval = !!data.is_removal || (data.tipo_edicao === 'remocao') ||
+        (data.detalhes_edicao && data.detalhes_edicao.includes('➖') && !data.detalhes_edicao.includes('➕') && !data.detalhes_edicao.includes('🔄'));
+      const isSubstitution = !!data.is_substitution || (data.tipo_edicao === 'substituicao') ||
+        (data.detalhes_edicao && data.detalhes_edicao.includes('🔄') && !data.detalhes_edicao.includes('➕') && !data.detalhes_edicao.includes('➖'));
+      const isRealAddition = !isRemoval && (isAddition || (data.detalhes_edicao && data.detalhes_edicao.includes('➕')));
+      const evKey = isRemoval ? 'item-removido' : (isRealAddition ? 'item-adicionado' : 'novo-pedido');
 
-      // Garçom toca som suave para novos pedidos / adições
-      if (deveTocarSom(evKey)) tocarCampainha(true);
+      // Garçom toca som suave para novos pedidos / adições / remoções
+      if (deveTocarSom(evKey) || (isRemoval && deveTocarSom('item-adicionado')) || deveTocarSom('novo-pedido')) tocarCampainha(true);
 
       // Extrai número da mesa/balcão se disponível
       let mesaRaw = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : null) || data.mesa_id || (data.pedido ? data.pedido.mesa_id : null) || 'X';
       let mesaStr = formatarNomeMesaGarcom(mesaRaw, false);
 
       // Mostra Toast e Notificação Nativa
-      if (isAddition) {
+      if (isRemoval) {
+        dispararToastSistema('item-removido', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `🗑️ Item removido em ${mesaStr}!`, 'info');
+      } else if (isSubstitution) {
+        dispararToastSistema('item-substituido', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `🔄 Item substituído em ${mesaStr}!`, 'info');
+      } else if (isRealAddition) {
         dispararToastSistema('item-adicionado', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `➕ Novos itens adicionados em ${mesaStr}!`, 'info');
       } else {
         dispararToastSistema('novo-pedido', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `Novo pedido recebido de ${mesaStr}`, 'info');

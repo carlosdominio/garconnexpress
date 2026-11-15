@@ -1208,25 +1208,37 @@ async function safePusherTrigger(channel, event, data) {
         let msgMotoboy = { title: 'Delivery Express', body: '' };
 
         if (event === 'novo-pedido') {
-          const evKey = data.is_addition ? 'item-adicionado' : 'novo-pedido';
-          const defT = data.is_addition ? '➕ ITEM ADICIONADO' : '🚀 NOVO PEDIDO';
+          const isRemoval = !!data.is_removal || (data.tipo_edicao === 'remocao');
+          const isSubst = !!data.is_substitution || (data.tipo_edicao === 'substituicao');
+          const evKey = isRemoval ? 'item-removido' : (data.is_addition ? 'item-adicionado' : 'novo-pedido');
           
-          const defB_Garcom = data.is_addition 
-            ? (resumoTodos ? `{mesa} • ➕ {itens}` : (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : '{mesa} pediu mais itens!'))
-            : (resumoTodos ? `{mesa} • {itens}` : '{mesa}');
+          let defT = '🚀 NOVO PEDIDO';
+          if (isRemoval) defT = '🗑️ ITEM REMOVIDO';
+          else if (isSubst) defT = '🔄 ITEM SUBSTITUÍDO';
+          else if (data.is_addition) defT = '➕ ITEM ADICIONADO';
+          
+          const defB_Garcom = isRemoval
+            ? (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : '{mesa} teve item removido!')
+            : (data.is_addition 
+              ? (resumoTodos ? `{mesa} • ➕ {itens}` : (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : '{mesa} pediu mais itens!'))
+              : (resumoTodos ? `{mesa} • {itens}` : '{mesa}'));
 
-          const defB_Cozinha = data.is_addition 
-            ? (resumoCozinha ? `{mesa} • ➕ {itens}` : (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : '{mesa} pediu mais itens!'))
-            : (resumoCozinha ? `{mesa} • {itens}` : '{mesa}');
+          const defB_Cozinha = isRemoval
+            ? (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : '{mesa} teve item cancelado!')
+            : (data.is_addition 
+              ? (resumoCozinha ? `{mesa} • ➕ {itens}` : (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : '{mesa} pediu mais itens!'))
+              : (resumoCozinha ? `{mesa} • {itens}` : '{mesa}'));
 
-          const defB_Churrasco = data.is_addition 
-            ? (resumoChurrasco ? `{mesa} • ➕ {itens}` : (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : '{mesa} pediu mais itens!'))
-            : (resumoChurrasco ? `{mesa} • {itens}` : '{mesa}');
+          const defB_Churrasco = isRemoval
+            ? (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : '{mesa} teve item cancelado!')
+            : (data.is_addition 
+              ? (resumoChurrasco ? `{mesa} • ➕ {itens}` : (data.detalhes_edicao ? `{mesa} • ${data.detalhes_edicao}` : '{mesa} pediu mais itens!'))
+              : (resumoChurrasco ? `{mesa} • {itens}` : '{mesa}'));
 
           msgGarcom = resolveTemplate(evKey, defT, defB_Garcom, 'todos');
           msgCozinha = resolveTemplate(evKey, defT, defB_Cozinha, 'cozinha');
           msgChurrasco = resolveTemplate(evKey, defT, defB_Churrasco, 'churrasqueiro');
-          msgMotoboy = resolveTemplate(evKey, data.is_addition ? '➕ ITEM ADICIONADO' : '🚀 NOVO DELIVERY', defB_Garcom, 'todos');
+          msgMotoboy = resolveTemplate(evKey, isRemoval ? '🗑️ ITEM REMOVIDO' : (data.is_addition ? '➕ ITEM ADICIONADO' : '🚀 NOVO DELIVERY'), defB_Garcom, 'todos');
         } else if (event === 'pedido-cancelado') {
           msgGarcom = resolveTemplate('pedido-cancelado', '❌ PEDIDO CANCELADO', '{mesa}');
           msgCozinha = resolveTemplate('pedido-cancelado', '❌ PEDIDO CANCELADO', '{mesa}');
@@ -1336,7 +1348,17 @@ async function safePusherTrigger(channel, event, data) {
             let bodyMotoboy = msgMotoboy.body;
             if (!bodyMotoboy) {
               if (event === 'novo-pedido') {
-                bodyMotoboy = data.is_addition ? `➕ ITEM ADICIONADO: ${mesaFormatada}` : `🚀 NOVO PEDIDO: ${mesaFormatada}`;
+                const isRemoval = !!data.is_removal || (data.tipo_edicao === 'remocao');
+                const isSubst = !!data.is_substitution || (data.tipo_edicao === 'substituicao');
+                if (isRemoval) {
+                  bodyMotoboy = `🗑️ ITEM REMOVIDO: ${mesaFormatada}`;
+                } else if (isSubst) {
+                  bodyMotoboy = `🔄 ITEM SUBSTITUÍDO: ${mesaFormatada}`;
+                } else if (data.is_addition) {
+                  bodyMotoboy = `➕ ITEM ADICIONADO: ${mesaFormatada}`;
+                } else {
+                  bodyMotoboy = `🚀 NOVO PEDIDO: ${mesaFormatada}`;
+                }
               } else if (event === 'pedido-cancelado') {
                 bodyMotoboy = `❌ PEDIDO CANCELADO: ${mesaFormatada}`;
               } else {
@@ -5274,16 +5296,37 @@ app.delete('/api/pedidos/itens/:id', isAuthenticated, async (req, res) => {
 
       await notifyStatus(item.pedido_id, pedido ? pedido.mesa_id : null, 'cancelado');
     } else {
-      const pedidoObj = (await query("SELECT mesa_id FROM pedidos WHERE id = ?", [item.pedido_id])).rows[0];
+      const pedidoObj = (await query("SELECT p.mesa_id, p.garcom_id, m.numero, m.is_comanda FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [item.pedido_id])).rows[0];
+      const isCom = pedidoObj ? (pedidoObj.is_comanda ? 1 : 0) : 0;
+      const fmtFn = formatarNomeMesaOuComanda || ((n, c) => (Number(c) === 1 ? `Comanda ${n}` : `Mesa ${n}`));
+      const mesaNum = pedidoObj ? fmtFn(pedidoObj.numero, isCom) : 'BALCÃO';
+      const pMenu = (await query("SELECT nome FROM menu WHERE id = ?", [item.menu_id])).rows[0];
+      const nomeItem = pMenu ? pMenu.nome : `Item #${item.menu_id}`;
+      const detalhesEdicao = `➖ ${item.quantidade}x ${nomeItem}`;
+
       if (pedidoObj && pedidoObj.mesa_id) {
         safePusherTrigger('garconnexpress', `item-removido-mesa-${pedidoObj.mesa_id}`, {
           pedido_id: item.pedido_id,
           item_id: id
         }).catch(console.error);
       }
+
+      safePusherTrigger('garconnexpress', 'novo-pedido', {
+        para_cozinha: false,
+        para_churrasco: false,
+        is_addition: false,
+        is_removal: true,
+        tipo_edicao: 'remocao',
+        detalhes_edicao: detalhesEdicao,
+        is_comanda: isCom,
+        mesa_numero: mesaNum,
+        garcom_id: pedidoObj ? (pedidoObj.garcom_id || 'ADMIN') : 'ADMIN',
+        pedido: { id: item.pedido_id, mesa_numero: mesaNum, is_comanda: isCom, status: 'recebido', garcom_id: pedidoObj ? (pedidoObj.garcom_id || 'ADMIN') : 'ADMIN' }
+      }).catch(console.error);
+
       const temPendente = itensRestantes.some(i => i.status === 'pendente');
       if (!temPendente) { await query("UPDATE pedidos SET status = 'servido' WHERE id = ?", [item.pedido_id]); await notifyStatus(item.pedido_id, null, 'servido'); }
-      else await notifyStatus(item.pedido_id, null, 'itens_atualizados');
+      else await notifyStatus(item.pedido_id, null, 'itens_atualizados', null, detalhesEdicao);
     }
     await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
     res.json({ success: true });
@@ -5848,6 +5891,11 @@ app.put('/api/pedidos/:id/atualizar-itens', ensureDbInitialized, isAuthenticated
       // Busca garcom_id para notificação
       const pMesa = (await query("SELECT garcom_id FROM pedidos WHERE id = ?", [id])).rows[0];
 
+      const apenasRemocao = (removidos || []).length > 0 && (adicionados || []).length === 0 && (substituicoes || []).length === 0;
+      const apenasAdicao = (adicionados || []).length > 0 && (removidos || []).length === 0 && (substituicoes || []).length === 0;
+      const temSubstituicao = (substituicoes || []).length > 0 && (adicionados || []).length === 0 && (removidos || []).length === 0;
+      const tipoEdicao = apenasRemocao ? 'remocao' : (temSubstituicao ? 'substituicao' : (apenasAdicao ? 'adicao' : 'misto'));
+
       // Apenas itens EFETIVAMENTE ADICIONADOS ou com quantidade aumentada disparam notificação de preparo para Cozinha ou Churrasqueiro!
       // Itens que já existiam e foram entregues no passado NÃO alertam a cozinha/churrasco novamente.
       const idsAdicionados = (adicionados || []).map(a => a.menu_id);
@@ -5861,7 +5909,10 @@ app.put('/api/pedidos/:id/atualizar-itens', ensureDbInitialized, isAuthenticated
         safePusherTrigger('garconnexpress', 'novo-pedido', { 
           para_cozinha: temItemCozinha,
           para_churrasco: temItemChurrasco,
-          is_addition: true,
+          is_addition: !apenasRemocao,
+          is_removal: apenasRemocao,
+          is_substitution: temSubstituicao,
+          tipo_edicao: tipoEdicao,
           detalhes_edicao: detalhesEdicao,
           itens: adicionados,
           pedido: { id: id, mesa_numero: mesaNum, status: 'recebido', garcom_id: pMesa ? pMesa.garcom_id : null } 
@@ -5869,10 +5920,38 @@ app.put('/api/pedidos/:id/atualizar-itens', ensureDbInitialized, isAuthenticated
       ]);
     } else {
       await query("UPDATE pedidos SET total = ?, status = ?, observacao = ? WHERE id = ?", [total, novoStatusPedido, observacao || '', id]);
-      await Promise.all([
+      
+      const resMesa = await query("SELECT m.id, m.numero FROM pedidos p JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id]);
+      const mesaNum = resMesa.rows[0] ? resMesa.rows[0].numero : 'BALCÃO';
+      const pMesa = (await query("SELECT garcom_id FROM pedidos WHERE id = ?", [id])).rows[0];
+
+      const apenasRemocao = (removidos || []).length > 0 && (adicionados || []).length === 0 && (substituicoes || []).length === 0;
+      const apenasAdicao = (adicionados || []).length > 0 && (removidos || []).length === 0 && (substituicoes || []).length === 0;
+      const temSubstituicao = (substituicoes || []).length > 0 && (adicionados || []).length === 0 && (removidos || []).length === 0;
+      const tipoEdicao = apenasRemocao ? 'remocao' : (temSubstituicao ? 'substituicao' : (apenasAdicao ? 'adicao' : 'misto'));
+
+      const promises = [
         notifyStatus(id, null, 'itens_atualizados', null, detalhesEdicao, false, false),
         safePusherTrigger('garconnexpress', 'menu-atualizado', {})
-      ]);
+      ];
+
+      if (totalAlteracoes.length > 0) {
+        promises.push(
+          safePusherTrigger('garconnexpress', 'novo-pedido', { 
+            para_cozinha: false,
+            para_churrasco: false,
+            is_addition: !apenasRemocao,
+            is_removal: apenasRemocao,
+            is_substitution: temSubstituicao,
+            tipo_edicao: tipoEdicao,
+            detalhes_edicao: detalhesEdicao,
+            itens: adicionados,
+            pedido: { id: id, mesa_numero: mesaNum, status: 'servido', garcom_id: pMesa ? pMesa.garcom_id : null } 
+          })
+        );
+      }
+
+      await Promise.all(promises);
     }
     res.json({ success: true, detalhes_edicao: detalhesEdicao });
   } catch (error) { res.status(500).json({ error: error.message }); }
