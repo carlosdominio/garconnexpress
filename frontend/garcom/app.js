@@ -1234,11 +1234,13 @@ function isMesaDeOutroGarcom(mesaIdOuNumero) {
 
 const realtimeEventDeduplicationMap = new Map();
 function isDuplicateRealtimeEvent(event, data) {
-  const dataKey = data ? (data.pedido_id || data.id || data.mesa_id || data.mesa_numero || JSON.stringify(data)) : '';
+  const dataKey = data ? (data.pedido_id || (data.pedido && data.pedido.id) || data.id || data.mesa_id || data.mesa_numero || JSON.stringify(data)) : '';
+  const statusKey = data && data.status ? `:${data.status}` : '';
+  const extraKey = data && (data.tipo_atualizacao || data.detalhes_edicao) ? `:${data.tipo_atualizacao || ''}:${data.detalhes_edicao || ''}` : '';
   const now = Date.now();
-  const key = `${event}:${dataKey}`;
+  const key = `${event}:${dataKey}${statusKey}${extraKey}`;
   const lastTime = realtimeEventDeduplicationMap.get(key) || 0;
-  if (now - lastTime < 3000) {
+  if (now - lastTime < 2500) {
     return true;
   }
   realtimeEventDeduplicationMap.set(key, now);
@@ -1284,6 +1286,7 @@ async function configurarPusher() {
     pusher.connection.bind('connected', () => {
       console.log('✅ Conectado ao Pusher com sucesso!');
       atualizarIconeSom();
+      carregarMesas();
     });
 
     pusher.connection.bind('error', function(err) {
@@ -1495,23 +1498,47 @@ async function configurarPusher() {
     });
 
     channel.bind('status-atualizado', (data) => {
-      // 1. Apenas se o garçom já estiver com o modal daquela mesa ABERTO na tela, atualiza silenciosamente
+      const isMesaAlvo = mesaAtual && data && (
+        mesaAtual.id == data.mesa_id || 
+        mesaAtual.numero == data.mesa_id || 
+        mesaAtual.id == data.mesa_numero || 
+        mesaAtual.numero == data.mesa_numero
+      );
+
+      // 1. Se a mesa foi LIBERADA, fecha os modais daquela mesa imediatamente (seja pelo Admin ou por qualquer garçom)
+      if (data && data.status === 'liberada' && isMesaAlvo) {
+        const modalResumo = document.getElementById('modal-resumo-mesa');
+        const modalOpcoes = document.getElementById('modal-opcoes');
+        if (modalResumo) modalResumo.style.display = 'none';
+        if (modalOpcoes) modalOpcoes.style.display = 'none';
+        voltarParaMesas();
+      }
+
+      // 2. Se o garçom está com o modal de resumo ABERTO para esta mesa, atualiza silenciosamente (sem piscar a tela)
       const modalResumo = document.getElementById('modal-resumo-mesa');
       const isModalAberto = modalResumo && modalResumo.style.display !== 'none' && modalResumo.style.display !== '';
-      if (isModalAberto && mesaAtual && data && data.mesa_id && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_id)) {
+      if (isModalAberto && isMesaAlvo) {
         if (data.tipo_atualizacao === 'renomear_mesa' && data.mesa_numero) {
           mesaAtual.numero = data.mesa_numero;
         }
-        verItensDaMesa(false);
+        verItensDaMesa(true);
       }
 
+      // 3. Se o garçom está com o modal de opções ABERTO para esta mesa, atualiza botões e status em tempo real
       const modalOpcoes = document.getElementById('modal-opcoes');
       const isOpcoesAberto = modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.style.display !== '';
-      if (isOpcoesAberto && mesaAtual && data && data.mesa_id && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_id)) {
+      if (isOpcoesAberto && isMesaAlvo) {
         if (data.tipo_atualizacao === 'renomear_mesa' && data.mesa_numero) {
           mesaAtual.numero = data.mesa_numero;
           const elTitulo = document.getElementById('modal-mesa-titulo');
           if (elTitulo) elTitulo.textContent = formatarNomeMesaGarcom(mesaAtual);
+        }
+        if (data.status) {
+          mesaAtual.pedido_status = data.status;
+          if (data.status === 'servido') {
+            mesaAtual.tem_itens_pendentes = 0;
+            mesaAtual.tem_itens_prontos = 0;
+          }
         }
         if (data.transferencia_origem) {
           mesaAtual.transferencia_origem = data.transferencia_origem;
@@ -1530,6 +1557,7 @@ async function configurarPusher() {
             bannerTransf.style.display = 'block';
           }
         }
+        atualizarVisibilidadeOpcoesMesa(mesaAtual);
       }
 
       // Se foi renomeação de mesa/comanda pelo Admin, sincroniza imediatamente para todos os garçons
@@ -3597,11 +3625,17 @@ function fecharResumoMesa() {
       // Sincroniza com os dados mais recentes recebidos do servidor
       const mesaMaisRecente = (mesas && Array.isArray(mesas)) ? (mesas.find(m => m.id == mesaAtual.id) || mesaAtual) : mesaAtual;
       mesaAtual = mesaMaisRecente;
-      if (mesaMaisRecente.pedido_id) {
-        pedidoAbertoNaMesa = { id: mesaMaisRecente.pedido_id, status: mesaMaisRecente.pedido_status };
+      if (mesaMaisRecente.status === 'livre') {
+        voltarParaMesas();
+      } else {
+        if (mesaMaisRecente.pedido_id) {
+          pedidoAbertoNaMesa = { id: mesaMaisRecente.pedido_id, status: mesaMaisRecente.pedido_status };
+        } else {
+          pedidoAbertoNaMesa = null;
+        }
+        atualizarVisibilidadeOpcoesMesa(mesaAtual);
+        document.getElementById('modal-opcoes').style.display = 'block';
       }
-      atualizarVisibilidadeOpcoesMesa(mesaAtual);
-      document.getElementById('modal-opcoes').style.display = 'block';
     }
     atualizarBloqueioScroll();
   };

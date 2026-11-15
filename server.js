@@ -6503,6 +6503,12 @@ const transferirMesaServerHandler = async (req, res) => {
       const ativosRestantes = (await query("SELECT id FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND CAST(id AS TEXT) != CAST(? AS TEXT)", [mesaOrigemId, pedido.id])).rows;
       if (ativosRestantes.length === 0) {
         await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE (id = ? OR CAST(id AS TEXT) = ?)", [mesaOrigemId, String(mesaOrigemId)]);
+        await safePusherTrigger('garconnexpress', 'status-atualizado', {
+          mesa_id: mesaOrigemId,
+          mesa_numero: mesaOrigemNumero || mesaOrigemId,
+          status: 'liberada',
+          origem: 'transferencia'
+        });
       }
     }
 

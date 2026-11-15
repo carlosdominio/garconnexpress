@@ -10223,7 +10223,9 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       timeoutPusher = setTimeout(() => {
         carregarPedidos();
         carregarHistorico();
+        atualizarModaisAdminAbertosEmTempoReal();
       }, 100);
+      atualizarModaisAdminAbertosEmTempoReal();
     });
 
     // EVENTO: PEDIDO PRONTO (COZINHA / CHURRASQUEIRO)
@@ -10257,7 +10259,9 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       timeoutPusher = setTimeout(() => {
         carregarPedidos();
         carregarHistorico();
+        atualizarModaisAdminAbertosEmTempoReal();
       }, 100);
+      atualizarModaisAdminAbertosEmTempoReal();
     });
 
       // EVENTO: MENU ATUALIZADO (SINCRONIZAÇÃO DE ESTOQUE)
@@ -10475,7 +10479,9 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       timeoutPusher = setTimeout(() => {
         carregarPedidos();
         carregarHistorico();
+        atualizarModaisAdminAbertosEmTempoReal();
       }, 100);
+      atualizarModaisAdminAbertosEmTempoReal();
     });
 
     // EVENTO: STATUS DO DELIVERY
