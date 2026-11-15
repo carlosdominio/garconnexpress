@@ -2414,6 +2414,48 @@ function exibirMesas() {
   const ocupadasAtivas = mesas.filter(m => m.status === 'ocupada' && !m.solicitou_fechamento && m.status !== 'fechando');
   const livresAtivas = mesas.filter(m => m.status === 'livre' && !m.solicitou_fechamento && m.status !== 'fechando');
 
+  // PRIORIZAÇÃO INTELIGENTE: Mesas ocupadas com entregas pendentes ou prontas sobem para o topo
+  ocupadasAtivas.sort((a, b) => {
+    const getPesoPrioridade = (m) => {
+      // 1. Rascunho enviado pelo cliente (aceitação imediata)
+      if (m.tem_rascunho) return 1;
+      // 2. Pronto para entrega (comida/bebida pronta na cozinha ou churrasco)
+      if (m.pedido_status === 'pronto' || m.tem_itens_prontos) return 2;
+      // 3. Aguardando entrega em atraso (>= 10 min de espera)
+      if (m.pedido_created_at && m.pedido_status !== 'servido') {
+        const mins = calcularMinutos(m.pedido_created_at);
+        if (mins >= 10) return 3;
+        // 4. Aguardando entrega normal (< 10 min)
+        return 4;
+      }
+      // 5. Cliente acessando / mesa aberta aguardando pedido
+      if (!m.pedido_created_at && !m.pedido_status) return 5;
+      // 6. Já servido / consumo tranquilo na mesa
+      return 6;
+    };
+
+    const pesoA = getPesoPrioridade(a);
+    const pesoB = getPesoPrioridade(b);
+    if (pesoA !== pesoB) return pesoA - pesoB;
+
+    // Desempate: ordem numérica normal da mesa
+    const numA = parseInt(a.numero, 10);
+    const numB = parseInt(b.numero, 10);
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+    return String(a.numero || '').localeCompare(String(b.numero || ''));
+  });
+
+  // Fechamentos: prioriza quem está esperando a conta há mais tempo
+  fechamentosAtivos.sort((a, b) => {
+    const tempoA = a.fechamento_solicitado_em ? new Date(a.fechamento_solicitado_em).getTime() : 0;
+    const tempoB = b.fechamento_solicitado_em ? new Date(b.fechamento_solicitado_em).getTime() : 0;
+    if (tempoA !== tempoB) return tempoA - tempoB;
+    const numA = parseInt(a.numero, 10);
+    const numB = parseInt(b.numero, 10);
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+    return String(a.numero || '').localeCompare(String(b.numero || ''));
+  });
+
   // --- ATUALIZAÇÃO: BLINK DE CATEGORIAS EM ATRASO ---
   let temAtrasoOcupadas = false;
   for (const m of ocupadasAtivas) {
