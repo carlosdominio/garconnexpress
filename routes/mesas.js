@@ -335,8 +335,68 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
           m.is_comanda = 0;
           if (!m.tipo || m.tipo === '') m.tipo = 'mesa';
         }
+        m.tem_itens_churrasco = 0;
+        m.tem_itens_cozinha = 0;
         return m;
       });
+
+      // Enriquecimento seguro de setores (churrasco / cozinha) sem alterar a query principal
+      try {
+        const activePedidoIds = [...new Set(
+          mesasRows
+            .filter(m => m.pedido_id && m.tem_itens_pendentes)
+            .map(m => m.pedido_id)
+        )];
+
+        if (activePedidoIds.length > 0) {
+          const placeholders = activePedidoIds.map(() => '?').join(',');
+          const itensRes = await query(`
+            SELECT pi.pedido_id, pi.status, m.categoria, m.enviar_cozinha, m.enviar_churrasco 
+            FROM pedido_itens pi 
+            JOIN menu m ON pi.menu_id = m.id 
+            WHERE pi.pedido_id IN (${placeholders}) AND pi.status = 'pendente'
+          `, activePedidoIds);
+
+          const itensRows = itensRes.rows || [];
+          const pedidosChurrascoSet = new Set();
+          const pedidosCozinhaSet = new Set();
+
+          for (const item of itensRows) {
+            const cat = String(item.categoria || '').trim().toUpperCase();
+            const isChurrasco = (
+              item.enviar_churrasco === 1 || item.enviar_churrasco === true || 
+              item.enviar_churrasco === '1' || item.enviar_churrasco === 'true' ||
+              cat.includes('CHURRASCO') || cat.includes('ESPET') || cat.includes('CARNE') || cat.includes('GRELH')
+            );
+            if (isChurrasco) {
+              pedidosChurrascoSet.add(item.pedido_id);
+            } else {
+              const isBebida = (
+                cat.includes('BEBIDA') || cat.includes('CERVEJA') || cat.includes('REFRIGERANTE') || 
+                cat.includes('SUCO') || cat.includes('DRINK') || cat.includes('AGUA') || cat.includes('ÁGUA') || cat.includes('DOSE')
+              );
+              const isCozinha = (
+                item.enviar_cozinha === 1 || item.enviar_cozinha === true || item.enviar_cozinha === '1' || item.enviar_cozinha === 'true' ||
+                (!isBebida && item.enviar_cozinha !== 0 && item.enviar_cozinha !== false && item.enviar_cozinha !== '0' && item.enviar_cozinha !== 'false')
+              );
+              if (isCozinha) {
+                pedidosCozinhaSet.add(item.pedido_id);
+              }
+            }
+          }
+
+          for (const m of mesasRows) {
+            if (m.pedido_id && pedidosChurrascoSet.has(m.pedido_id)) {
+              m.tem_itens_churrasco = 1;
+            }
+            if (m.pedido_id && pedidosCozinhaSet.has(m.pedido_id)) {
+              m.tem_itens_cozinha = 1;
+            }
+          }
+        }
+      } catch (errEnrich) {
+        console.warn('⚠️ Erro ao enriquecer setores em /api/mesas:', errEnrich.message);
+      }
 
       mesasRows.sort((a, b) => {
         const numA = parseInt(a.numero);

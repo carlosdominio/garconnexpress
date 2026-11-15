@@ -1234,11 +1234,13 @@ function isMesaDeOutroGarcom(mesaIdOuNumero) {
 
 const realtimeEventDeduplicationMap = new Map();
 function isDuplicateRealtimeEvent(event, data) {
-  const dataKey = data ? (data.pedido_id || data.id || data.mesa_id || data.mesa_numero || JSON.stringify(data)) : '';
+  const dataKey = data ? (data.pedido_id || (data.pedido && data.pedido.id) || data.id || data.mesa_id || data.mesa_numero || JSON.stringify(data)) : '';
+  const statusKey = data && data.status ? `:${data.status}` : '';
+  const extraKey = data && (data.tipo_atualizacao || data.detalhes_edicao) ? `:${data.tipo_atualizacao || ''}:${data.detalhes_edicao || ''}` : '';
   const now = Date.now();
-  const key = `${event}:${dataKey}`;
+  const key = `${event}:${dataKey}${statusKey}${extraKey}`;
   const lastTime = realtimeEventDeduplicationMap.get(key) || 0;
-  if (now - lastTime < 3000) {
+  if (now - lastTime < 2500) {
     return true;
   }
   realtimeEventDeduplicationMap.set(key, now);
@@ -1284,6 +1286,7 @@ async function configurarPusher() {
     pusher.connection.bind('connected', () => {
       console.log('✅ Conectado ao Pusher com sucesso!');
       atualizarIconeSom();
+      carregarMesas();
     });
 
     pusher.connection.bind('error', function(err) {
@@ -1465,17 +1468,26 @@ async function configurarPusher() {
         return; // Ignora o alerta para o próprio autor da edição
       }
 
-      const evKey = isAddition ? 'item-adicionado' : 'novo-pedido';
+      const isRemoval = !!data.is_removal || (data.tipo_edicao === 'remocao') ||
+        (data.detalhes_edicao && data.detalhes_edicao.includes('➖') && !data.detalhes_edicao.includes('➕') && !data.detalhes_edicao.includes('🔄'));
+      const isSubstitution = !!data.is_substitution || (data.tipo_edicao === 'substituicao') ||
+        (data.detalhes_edicao && data.detalhes_edicao.includes('🔄') && !data.detalhes_edicao.includes('➕') && !data.detalhes_edicao.includes('➖'));
+      const isRealAddition = !isRemoval && (isAddition || (data.detalhes_edicao && data.detalhes_edicao.includes('➕')));
+      const evKey = isRemoval ? 'item-removido' : (isRealAddition ? 'item-adicionado' : 'novo-pedido');
 
-      // Garçom toca som suave para novos pedidos / adições
-      if (deveTocarSom(evKey)) tocarCampainha(true);
+      // Garçom toca som suave para novos pedidos / adições / remoções
+      if (deveTocarSom(evKey) || (isRemoval && deveTocarSom('item-adicionado')) || deveTocarSom('novo-pedido')) tocarCampainha(true);
 
       // Extrai número da mesa/balcão se disponível
       let mesaRaw = data.mesa_numero || (data.pedido ? data.pedido.mesa_numero : null) || data.mesa_id || (data.pedido ? data.pedido.mesa_id : null) || 'X';
       let mesaStr = formatarNomeMesaGarcom(mesaRaw, false);
 
       // Mostra Toast e Notificação Nativa
-      if (isAddition) {
+      if (isRemoval) {
+        dispararToastSistema('item-removido', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `🗑️ Item removido em ${mesaStr}!`, 'info');
+      } else if (isSubstitution) {
+        dispararToastSistema('item-substituido', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `🔄 Item substituído em ${mesaStr}!`, 'info');
+      } else if (isRealAddition) {
         dispararToastSistema('item-adicionado', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `➕ Novos itens adicionados em ${mesaStr}!`, 'info');
       } else {
         dispararToastSistema('novo-pedido', { mesa: mesaStr, pedido_id: data.pedido ? data.pedido.id : '' }, `Novo pedido recebido de ${mesaStr}`, 'info');
@@ -1486,23 +1498,47 @@ async function configurarPusher() {
     });
 
     channel.bind('status-atualizado', (data) => {
-      // 1. Apenas se o garçom já estiver com o modal daquela mesa ABERTO na tela, atualiza silenciosamente
+      const isMesaAlvo = mesaAtual && data && (
+        mesaAtual.id == data.mesa_id || 
+        mesaAtual.numero == data.mesa_id || 
+        mesaAtual.id == data.mesa_numero || 
+        mesaAtual.numero == data.mesa_numero
+      );
+
+      // 1. Se a mesa foi LIBERADA, fecha os modais daquela mesa imediatamente (seja pelo Admin ou por qualquer garçom)
+      if (data && data.status === 'liberada' && isMesaAlvo) {
+        const modalResumo = document.getElementById('modal-resumo-mesa');
+        const modalOpcoes = document.getElementById('modal-opcoes');
+        if (modalResumo) modalResumo.style.display = 'none';
+        if (modalOpcoes) modalOpcoes.style.display = 'none';
+        voltarParaMesas();
+      }
+
+      // 2. Se o garçom está com o modal de resumo ABERTO para esta mesa, atualiza silenciosamente (sem piscar a tela)
       const modalResumo = document.getElementById('modal-resumo-mesa');
       const isModalAberto = modalResumo && modalResumo.style.display !== 'none' && modalResumo.style.display !== '';
-      if (isModalAberto && mesaAtual && data && data.mesa_id && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_id)) {
+      if (isModalAberto && isMesaAlvo) {
         if (data.tipo_atualizacao === 'renomear_mesa' && data.mesa_numero) {
           mesaAtual.numero = data.mesa_numero;
         }
-        verItensDaMesa(false);
+        verItensDaMesa(true);
       }
 
+      // 3. Se o garçom está com o modal de opções ABERTO para esta mesa, atualiza botões e status em tempo real
       const modalOpcoes = document.getElementById('modal-opcoes');
       const isOpcoesAberto = modalOpcoes && modalOpcoes.style.display !== 'none' && modalOpcoes.style.display !== '';
-      if (isOpcoesAberto && mesaAtual && data && data.mesa_id && (mesaAtual.id == data.mesa_id || mesaAtual.numero == data.mesa_id)) {
+      if (isOpcoesAberto && isMesaAlvo) {
         if (data.tipo_atualizacao === 'renomear_mesa' && data.mesa_numero) {
           mesaAtual.numero = data.mesa_numero;
           const elTitulo = document.getElementById('modal-mesa-titulo');
           if (elTitulo) elTitulo.textContent = formatarNomeMesaGarcom(mesaAtual);
+        }
+        if (data.status) {
+          mesaAtual.pedido_status = data.status;
+          if (data.status === 'servido') {
+            mesaAtual.tem_itens_pendentes = 0;
+            mesaAtual.tem_itens_prontos = 0;
+          }
         }
         if (data.transferencia_origem) {
           mesaAtual.transferencia_origem = data.transferencia_origem;
@@ -1521,6 +1557,7 @@ async function configurarPusher() {
             bannerTransf.style.display = 'block';
           }
         }
+        atualizarVisibilidadeOpcoesMesa(mesaAtual);
       }
 
       // Se foi renomeação de mesa/comanda pelo Admin, sincroniza imediatamente para todos os garçons
@@ -2128,8 +2165,7 @@ async function carregarMesas() {
     mesas = await res.json();
     if (Array.isArray(mesas)) {
       exibirMesas();
-      const modalOpcoes = document.getElementById('modal-opcoes');
-      if (modalOpcoes && modalOpcoes.style.display !== 'none' && mesaAtual) {
+      if (mesaAtual) {
         const mesaAtualizada = mesas.find(m => m.id == mesaAtual.id);
         if (mesaAtualizada) {
           mesaAtual = mesaAtualizada;
@@ -2138,7 +2174,10 @@ async function carregarMesas() {
           } else {
             pedidoAbertoNaMesa = null;
           }
-          atualizarVisibilidadeOpcoesMesa(mesaAtualizada);
+          const modalOpcoes = document.getElementById('modal-opcoes');
+          if (modalOpcoes && modalOpcoes.style.display !== 'none') {
+            atualizarVisibilidadeOpcoesMesa(mesaAtualizada);
+          }
         }
       }
     }
@@ -2188,6 +2227,20 @@ function calcularMinutos(dataIso) {
   } catch (e) {
     return 0;
   }
+}
+
+function obterInfoAtrasoMesa(mesa) {
+  if (!mesa) return { limite: 10, setor: 'balcao', icone: '⚡', label: 'Bar/Bebidas' };
+  if (mesa.solicitou_fechamento || mesa.status === 'fechando') {
+    return { limite: 5, setor: 'fechamento', icone: '🛎️', label: 'Fechamento' };
+  }
+  if (mesa.tem_itens_churrasco) {
+    return { limite: 25, setor: 'churrasco', icone: '🍢', label: 'Churrasco' };
+  }
+  if (mesa.tem_itens_cozinha) {
+    return { limite: 20, setor: 'cozinha', icone: '🍳', label: 'Cozinha' };
+  }
+  return { limite: 10, setor: 'balcao', icone: '⚡', label: 'Bar/Bebidas' };
 }
 
 let filtroMesaAtual = 'todas';
@@ -2405,12 +2458,56 @@ function exibirMesas() {
   const ocupadasAtivas = mesas.filter(m => m.status === 'ocupada' && !m.solicitou_fechamento && m.status !== 'fechando');
   const livresAtivas = mesas.filter(m => m.status === 'livre' && !m.solicitou_fechamento && m.status !== 'fechando');
 
+  // PRIORIZAÇÃO INTELIGENTE: Mesas ocupadas com entregas pendentes ou prontas sobem para o topo
+  ocupadasAtivas.sort((a, b) => {
+    const getPesoPrioridade = (m) => {
+      // 1. Rascunho enviado pelo cliente (aceitação imediata)
+      if (m.tem_rascunho) return 1;
+      // 2. Pronto para entrega (comida/bebida pronta na cozinha ou churrasco)
+      if (m.pedido_status === 'pronto' || m.tem_itens_prontos) return 2;
+      // 3. Aguardando entrega em atraso (conforme limite setorial: 25m churrasco, 20m cozinha, 10m bar)
+      if (m.pedido_created_at && m.pedido_status !== 'servido') {
+        const mins = calcularMinutos(m.pedido_created_at);
+        const info = obterInfoAtrasoMesa(m);
+        if (mins >= info.limite) return 3;
+        // 4. Aguardando entrega normal (< limite)
+        return 4;
+      }
+      // 5. Cliente acessando / mesa aberta aguardando pedido
+      if (!m.pedido_created_at && !m.pedido_status) return 5;
+      // 6. Já servido / consumo tranquilo na mesa
+      return 6;
+    };
+
+    const pesoA = getPesoPrioridade(a);
+    const pesoB = getPesoPrioridade(b);
+    if (pesoA !== pesoB) return pesoA - pesoB;
+
+    // Desempate: ordem numérica normal da mesa
+    const numA = parseInt(a.numero, 10);
+    const numB = parseInt(b.numero, 10);
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+    return String(a.numero || '').localeCompare(String(b.numero || ''));
+  });
+
+  // Fechamentos: prioriza quem está esperando a conta há mais tempo
+  fechamentosAtivos.sort((a, b) => {
+    const tempoA = a.fechamento_solicitado_em ? new Date(a.fechamento_solicitado_em).getTime() : 0;
+    const tempoB = b.fechamento_solicitado_em ? new Date(b.fechamento_solicitado_em).getTime() : 0;
+    if (tempoA !== tempoB) return tempoA - tempoB;
+    const numA = parseInt(a.numero, 10);
+    const numB = parseInt(b.numero, 10);
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+    return String(a.numero || '').localeCompare(String(b.numero || ''));
+  });
+
   // --- ATUALIZAÇÃO: BLINK DE CATEGORIAS EM ATRASO ---
   let temAtrasoOcupadas = false;
   for (const m of ocupadasAtivas) {
     if (m.pedido_created_at && m.pedido_status !== 'servido' && m.pedido_status !== 'pronto') {
       const minutos = calcularMinutos(m.pedido_created_at);
-      if (minutos >= 10) {
+      const infoAtraso = obterInfoAtrasoMesa(m);
+      if (minutos >= infoAtraso.limite) {
         temAtrasoOcupadas = true;
         break;
       }
@@ -2518,6 +2615,8 @@ function exibirMesas() {
       tem_rascunho: m.tem_rascunho,
       tem_itens_prontos: m.tem_itens_prontos,
       tem_itens_pendentes: m.tem_itens_pendentes,
+      tem_itens_churrasco: m.tem_itens_churrasco,
+      tem_itens_cozinha: m.tem_itens_cozinha,
       minutos: minutos
     };
   })) + filtroMesaAtual + String(caixaAberto) + String(mesasCompartilhadasAtivas);
@@ -2618,15 +2717,16 @@ function exibirMesas() {
       if (mesa.solicitou_fechamento || mesa.status === 'fechando') {
         if (mesa.fechamento_solicitado_em) {
           const minutosEspera = calcularMinutos(mesa.fechamento_solicitado_em);
-          cronometroHtml = `<div class="cronometro" style="background:#e74c3c; color:white;">⏱️ ${minutosEspera} min</div>`;
+          cronometroHtml = `<div class="cronometro" style="background:#e74c3c; color:white;">⏱️ ${minutosEspera} min <span style="opacity:0.85; font-size:0.75rem; margin-left:3px;" title="Fechamento">🛎️ 5m</span></div>`;
           if (minutosEspera >= 5) classeAlerta = 'alerta-atraso-liberar';
         }
       } else if (mesa.pedido_created_at && mesa.pedido_status !== 'servido') {
         const minutos = calcularMinutos(mesa.pedido_created_at);
-        cronometroHtml = `<div class="cronometro">⏱️ ${minutos} min</div>`;
+        const infoAtraso = obterInfoAtrasoMesa(mesa);
+        cronometroHtml = `<div class="cronometro">⏱️ ${minutos} min <span style="opacity:0.85; font-size:0.75rem; margin-left:3px;" title="${infoAtraso.label}">${infoAtraso.icone} ${infoAtraso.limite}m</span></div>`;
         if (mesa.pedido_status !== 'pronto' && !mesa.tem_itens_prontos) {
           statusTexto = '⏳ AGUARDANDO ENTREGA';
-          if (minutos >= 10 && mesa.status !== 'fechando' && !mesa.solicitou_fechamento) {
+          if (minutos >= infoAtraso.limite && mesa.status !== 'fechando' && !mesa.solicitou_fechamento) {
             classeAlerta = 'alerta-atraso-ocupada';
           } else {
             classeAlerta = 'pendente-entrega';
@@ -2784,11 +2884,11 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
       if (precisaEntregar) {
         btnConfirmarEntrega.style.display = 'block';
         if (statusPed === 'pronto' || temItensProntos) {
-          btnConfirmarEntrega.innerHTML = '🚚 CONFIRMAR ENTREGA (COZINHA/CHURRASQUEIRO)';
+          btnConfirmarEntrega.innerHTML = 'CONFIRMAR ENTREGA (COZINHA/CHURRASQUEIRO)';
           btnConfirmarEntrega.style.animation = 'pulsar-verde 1.5s infinite';
           btnConfirmarEntrega.style.border = '2px solid #2ecc71';
         } else {
-          btnConfirmarEntrega.innerHTML = '🚚 Confirmar Entrega do Pedido';
+          btnConfirmarEntrega.innerHTML = 'Confirmar Entrega do Pedido';
           btnConfirmarEntrega.style.animation = 'none';
           btnConfirmarEntrega.style.border = 'none';
         }
@@ -3294,24 +3394,45 @@ function renderizarItensMesaGarcom() {
     }
 
     return `
-      <div style="border-bottom: 1px solid #eee; padding: 10px; display: flex; justify-content: space-between; align-items: center; background:${bgColor}; border-radius: 8px; margin-bottom: 8px;">
-        <div style="width: 40px; height: 40px; flex-shrink: 0; margin-right: 10px; border-radius: 4px; overflow: hidden; background: #eee;">
-          <img src="${item.imagem || 'data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\' viewBox=\'0 0 40 40\'><rect fill=\'%23f1f2f6\' width=\'40\' height=\'40\'/><text fill=\'%23a4b0be\' font-size=\'16\' x=\'50%25\' y=\'55%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'>🍽️</text></svg>'}" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\' viewBox=\'0 0 40 40\'><rect fill=\'%23f1f2f6\' width=\'40\' height=\'40\'/><text fill=\'%23a4b0be\' font-size=\'16\' x=\'50%25\' y=\'55%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'>🍽️</text></svg>';" style="width: 100%; height: 100%; object-fit: cover;">
-        </div>
-        <div style="flex-grow: 1; text-align: left;">
-          <p style="margin: 0; font-weight: bold; color: #2c3e50;">${item.nome} ${statusLabel}</p>
-          ${item.observacao ? `<small style="color:#e67e22; display:block; margin-top:2px;">Obs: ${item.observacao}</small>` : ''}
-          <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
-            <button onclick="ajustarQtdItemGarcom(${item.id}, -1)" style="width: 26px !important; height: 26px !important; padding: 0 !important; background: #e74c3c; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin: 0 !important;">-</button>
-            <span style="font-weight: 800; font-size: 0.95rem; width: 22px; text-align: center; color: #2c3e50;">${item.quantidade}</span>
-            <button onclick="ajustarQtdItemGarcom(${item.id}, 1)" style="width: 26px !important; height: 26px !important; padding: 0 !important; background: #2ecc71; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin: 0 !important;">+</button>
+      <div style="border-bottom: 1px solid #e2e8f0; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; background:${bgColor}; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+        <!-- Linha 1: Foto, Nome do Prato e Preço -->
+        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;">
+            <div style="width: 42px; height: 42px; flex-shrink: 0; border-radius: 6px; overflow: hidden; background: #eee;">
+              <img src="${item.imagem || 'data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'42\' height=\'42\' viewBox=\'0 0 42 42\'><rect fill=\'%23f1f2f6\' width=\'42\' height=\'42\'/><text fill=\'%23a4b0be\' font-size=\'16\' x=\'50%25\' y=\'55%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'>🍽️</text></svg>'}" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'42\' height=\'42\' viewBox=\'0 0 42 42\'><rect fill=\'%23f1f2f6\' width=\'42\' height=\'42\'/><text fill=\'%23a4b0be\' font-size=\'16\' x=\'50%25\' y=\'55%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'>🍽️</text></svg>';" style="width: 100%; height: 100%; object-fit: cover;">
+            </div>
+            <div style="flex: 1; min-width: 0; text-align: left;">
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <span style="font-weight: 700; color: #1e293b; font-size: 0.95rem; line-height: 1.2;">${item.nome}</span>
+                ${statusLabel}
+              </div>
+              ${item.observacao ? `<small style="color:#ea580c; display:block; margin-top:2px; font-weight: 600;">Obs: ${item.observacao}</small>` : ''}
+            </div>
+          </div>
+          <div style="text-align: right; flex-shrink: 0;">
+            <span style="white-space: nowrap; font-weight: 800; color: #0f172a; font-size: 1rem;">R$ ${(item.preco * item.quantidade).toFixed(2)}</span>
           </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-          <p style="white-space: nowrap; font-weight: bold; margin: 0; color: #2c3e50; font-size: 0.95rem;">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
-          ${item.status !== 'entregue' ? `<button onclick="entregarItemIndividualGarcom(${item.id})" style="background: #27ae60; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.85rem; font-weight: bold;" title="Confirmar Entrega">🚚 Entregar</button>` : ''}
-          <button onclick="substituirItemGarcom(${item.id})" style="background: #3498db; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;" title="Substituir Item">🔄</button>
-          <button onclick="removerItemLocalGarcom(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;" title="Remover Item">🗑️</button>
+
+        <!-- Linha 2: Ações de Edição (Esquerda) e Atendimento/Entrega (Direita) -->
+        <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px dashed #e2e8f0; padding-top: 8px; margin-top: 2px;">
+          <!-- Lado Esquerdo: Quantidade e Trocar -->
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; align-items: center; background: #f1f5f9; border-radius: 20px; padding: 2px 6px; border: 1px solid #cbd5e1;">
+              <button onclick="ajustarQtdItemGarcom(${item.id}, -1)" style="width: 24px !important; height: 24px !important; padding: 0 !important; background: #ef4444; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; margin: 0 !important;">-</button>
+              <span style="font-weight: 800; font-size: 0.92rem; width: 24px; text-align: center; color: #1e293b;">${item.quantidade}</span>
+              <button onclick="ajustarQtdItemGarcom(${item.id}, 1)" style="width: 24px !important; height: 24px !important; padding: 0 !important; background: #22c55e; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; margin: 0 !important;">+</button>
+            </div>
+            <button onclick="substituirItemGarcom(${item.id})" style="background: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 0.8rem; font-weight: 700; display: flex; align-items: center; gap: 4px; margin: 0 !important;" title="Substituir Item por outro">
+              <span>🔄</span> Trocar
+            </button>
+          </div>
+
+          <!-- Lado Direito: Entregar e Excluir -->
+          <div style="display: flex; align-items: center; gap: 6px;">
+            ${item.status !== 'entregue' ? `<button onclick="entregarItemIndividualGarcom(${item.id})" style="background: #16a34a; color: white; border: none; border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 0.82rem; font-weight: bold; margin: 0 !important;" title="Confirmar Entrega na Mesa">Entregar</button>` : ''}
+            <button onclick="removerItemLocalGarcom(${item.id})" style="background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 0.85rem; margin: 0 !important;" title="Remover Item">🗑️</button>
+          </div>
         </div>
       </div>
     `;
@@ -3321,10 +3442,10 @@ function renderizarItensMesaGarcom() {
     const temProntos = pendentes.some(i => i.status === 'pronto');
     html += `<h4 style="color:#e74c3c; margin-bottom:10px; border-bottom:2px solid #e74c3c; padding-bottom: 4px; font-weight: 800; font-size: 0.9rem;">⏳ PARA ENTREGAR AGORA</h4>`;
     if (temProntos) {
-      html += `<button class="btn-opcoes" onclick="confirmarEntregaProntaGarcom()" style="background-color: #27ae60; color: white; margin: 0 0 10px 0; width: 100%; font-weight: 800; animation: pulsar-verde 1.5s infinite; border: 2px solid #2ecc71;">🚚 CONFIRMAR ENTREGA DOS PRONTOS (COZINHA/CHURRASQUEIRO)</button>`;
+      html += `<button class="btn-opcoes" onclick="confirmarEntregaProntaGarcom()" style="background-color: #27ae60; color: white; margin: 0 0 10px 0; width: 100%; font-weight: 800; animation: pulsar-verde 1.5s infinite; border: 2px solid #2ecc71;">CONFIRMAR ENTREGA DOS PRONTOS (COZINHA/CHURRASQUEIRO)</button>`;
     }
     html += pendentes.map(renderLinhaItem).join('');
-    html += `<button class="btn-opcoes" onclick="marcarComoServido(${pedidoAbertoNaMesa.id})" style="background-color: #27ae60; margin: 1rem 0; width: 100%;">🚚 ENTREGUEI ESTES ITENS</button>`;
+    html += `<button class="btn-opcoes" onclick="marcarComoServido(${pedidoAbertoNaMesa.id})" style="background-color: #27ae60; margin: 1rem 0; width: 100%;">ENTREGUEI ESTES ITENS</button>`;
   }
 
   if (entregues.length > 0) {
@@ -3518,7 +3639,20 @@ function fecharResumoMesa() {
     if (containerPadrao) containerPadrao.style.display = 'flex';
     document.getElementById('modal-resumo-mesa').style.display = 'none';
     if (mesaAtual) {
-      document.getElementById('modal-opcoes').style.display = 'block';
+      // Sincroniza com os dados mais recentes recebidos do servidor
+      const mesaMaisRecente = (mesas && Array.isArray(mesas)) ? (mesas.find(m => m.id == mesaAtual.id) || mesaAtual) : mesaAtual;
+      mesaAtual = mesaMaisRecente;
+      if (mesaMaisRecente.status === 'livre') {
+        voltarParaMesas();
+      } else {
+        if (mesaMaisRecente.pedido_id) {
+          pedidoAbertoNaMesa = { id: mesaMaisRecente.pedido_id, status: mesaMaisRecente.pedido_status };
+        } else {
+          pedidoAbertoNaMesa = null;
+        }
+        atualizarVisibilidadeOpcoesMesa(mesaAtual);
+        document.getElementById('modal-opcoes').style.display = 'block';
+      }
     }
     atualizarBloqueioScroll();
   };

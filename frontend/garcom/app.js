@@ -2229,6 +2229,20 @@ function calcularMinutos(dataIso) {
   }
 }
 
+function obterInfoAtrasoMesa(mesa) {
+  if (!mesa) return { limite: 10, setor: 'balcao', icone: '⚡', label: 'Bar/Bebidas' };
+  if (mesa.solicitou_fechamento || mesa.status === 'fechando') {
+    return { limite: 5, setor: 'fechamento', icone: '🛎️', label: 'Fechamento' };
+  }
+  if (mesa.tem_itens_churrasco) {
+    return { limite: 25, setor: 'churrasco', icone: '🍢', label: 'Churrasco' };
+  }
+  if (mesa.tem_itens_cozinha) {
+    return { limite: 20, setor: 'cozinha', icone: '🍳', label: 'Cozinha' };
+  }
+  return { limite: 10, setor: 'balcao', icone: '⚡', label: 'Bar/Bebidas' };
+}
+
 let filtroMesaAtual = 'todas';
 const ordemFiltrosMesas = ['todas', 'ocupadas', 'fechamentos'];
 
@@ -2451,11 +2465,12 @@ function exibirMesas() {
       if (m.tem_rascunho) return 1;
       // 2. Pronto para entrega (comida/bebida pronta na cozinha ou churrasco)
       if (m.pedido_status === 'pronto' || m.tem_itens_prontos) return 2;
-      // 3. Aguardando entrega em atraso (>= 10 min de espera)
+      // 3. Aguardando entrega em atraso (conforme limite setorial: 25m churrasco, 20m cozinha, 10m bar)
       if (m.pedido_created_at && m.pedido_status !== 'servido') {
         const mins = calcularMinutos(m.pedido_created_at);
-        if (mins >= 10) return 3;
-        // 4. Aguardando entrega normal (< 10 min)
+        const info = obterInfoAtrasoMesa(m);
+        if (mins >= info.limite) return 3;
+        // 4. Aguardando entrega normal (< limite)
         return 4;
       }
       // 5. Cliente acessando / mesa aberta aguardando pedido
@@ -2491,7 +2506,8 @@ function exibirMesas() {
   for (const m of ocupadasAtivas) {
     if (m.pedido_created_at && m.pedido_status !== 'servido' && m.pedido_status !== 'pronto') {
       const minutos = calcularMinutos(m.pedido_created_at);
-      if (minutos >= 10) {
+      const infoAtraso = obterInfoAtrasoMesa(m);
+      if (minutos >= infoAtraso.limite) {
         temAtrasoOcupadas = true;
         break;
       }
@@ -2599,6 +2615,8 @@ function exibirMesas() {
       tem_rascunho: m.tem_rascunho,
       tem_itens_prontos: m.tem_itens_prontos,
       tem_itens_pendentes: m.tem_itens_pendentes,
+      tem_itens_churrasco: m.tem_itens_churrasco,
+      tem_itens_cozinha: m.tem_itens_cozinha,
       minutos: minutos
     };
   })) + filtroMesaAtual + String(caixaAberto) + String(mesasCompartilhadasAtivas);
@@ -2699,15 +2717,16 @@ function exibirMesas() {
       if (mesa.solicitou_fechamento || mesa.status === 'fechando') {
         if (mesa.fechamento_solicitado_em) {
           const minutosEspera = calcularMinutos(mesa.fechamento_solicitado_em);
-          cronometroHtml = `<div class="cronometro" style="background:#e74c3c; color:white;">⏱️ ${minutosEspera} min</div>`;
+          cronometroHtml = `<div class="cronometro" style="background:#e74c3c; color:white;">⏱️ ${minutosEspera} min <span style="opacity:0.85; font-size:0.75rem; margin-left:3px;" title="Fechamento">🛎️ 5m</span></div>`;
           if (minutosEspera >= 5) classeAlerta = 'alerta-atraso-liberar';
         }
       } else if (mesa.pedido_created_at && mesa.pedido_status !== 'servido') {
         const minutos = calcularMinutos(mesa.pedido_created_at);
-        cronometroHtml = `<div class="cronometro">⏱️ ${minutos} min</div>`;
+        const infoAtraso = obterInfoAtrasoMesa(mesa);
+        cronometroHtml = `<div class="cronometro">⏱️ ${minutos} min <span style="opacity:0.85; font-size:0.75rem; margin-left:3px;" title="${infoAtraso.label}">${infoAtraso.icone} ${infoAtraso.limite}m</span></div>`;
         if (mesa.pedido_status !== 'pronto' && !mesa.tem_itens_prontos) {
           statusTexto = '⏳ AGUARDANDO ENTREGA';
-          if (minutos >= 10 && mesa.status !== 'fechando' && !mesa.solicitou_fechamento) {
+          if (minutos >= infoAtraso.limite && mesa.status !== 'fechando' && !mesa.solicitou_fechamento) {
             classeAlerta = 'alerta-atraso-ocupada';
           } else {
             classeAlerta = 'pendente-entrega';
