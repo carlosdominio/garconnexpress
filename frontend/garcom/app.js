@@ -2137,8 +2137,7 @@ async function carregarMesas() {
     mesas = await res.json();
     if (Array.isArray(mesas)) {
       exibirMesas();
-      const modalOpcoes = document.getElementById('modal-opcoes');
-      if (modalOpcoes && modalOpcoes.style.display !== 'none' && mesaAtual) {
+      if (mesaAtual) {
         const mesaAtualizada = mesas.find(m => m.id == mesaAtual.id);
         if (mesaAtualizada) {
           mesaAtual = mesaAtualizada;
@@ -2147,7 +2146,10 @@ async function carregarMesas() {
           } else {
             pedidoAbertoNaMesa = null;
           }
-          atualizarVisibilidadeOpcoesMesa(mesaAtualizada);
+          const modalOpcoes = document.getElementById('modal-opcoes');
+          if (modalOpcoes && modalOpcoes.style.display !== 'none') {
+            atualizarVisibilidadeOpcoesMesa(mesaAtualizada);
+          }
         }
       }
     }
@@ -2835,11 +2837,11 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
       if (precisaEntregar) {
         btnConfirmarEntrega.style.display = 'block';
         if (statusPed === 'pronto' || temItensProntos) {
-          btnConfirmarEntrega.innerHTML = '🚚 CONFIRMAR ENTREGA (COZINHA/CHURRASQUEIRO)';
+          btnConfirmarEntrega.innerHTML = 'CONFIRMAR ENTREGA (COZINHA/CHURRASQUEIRO)';
           btnConfirmarEntrega.style.animation = 'pulsar-verde 1.5s infinite';
           btnConfirmarEntrega.style.border = '2px solid #2ecc71';
         } else {
-          btnConfirmarEntrega.innerHTML = '🚚 Confirmar Entrega do Pedido';
+          btnConfirmarEntrega.innerHTML = 'Confirmar Entrega do Pedido';
           btnConfirmarEntrega.style.animation = 'none';
           btnConfirmarEntrega.style.border = 'none';
         }
@@ -3381,7 +3383,7 @@ function renderizarItensMesaGarcom() {
 
           <!-- Lado Direito: Entregar e Excluir -->
           <div style="display: flex; align-items: center; gap: 6px;">
-            ${item.status !== 'entregue' ? `<button onclick="entregarItemIndividualGarcom(${item.id})" style="background: #16a34a; color: white; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 0.82rem; font-weight: bold; display: flex; align-items: center; gap: 5px; margin: 0 !important;" title="Confirmar Entrega na Mesa">🚚 Entregar</button>` : ''}
+            ${item.status !== 'entregue' ? `<button onclick="entregarItemIndividualGarcom(${item.id})" style="background: #16a34a; color: white; border: none; border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 0.82rem; font-weight: bold; margin: 0 !important;" title="Confirmar Entrega na Mesa">Entregar</button>` : ''}
             <button onclick="removerItemLocalGarcom(${item.id})" style="background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 0.85rem; margin: 0 !important;" title="Remover Item">🗑️</button>
           </div>
         </div>
@@ -3393,10 +3395,10 @@ function renderizarItensMesaGarcom() {
     const temProntos = pendentes.some(i => i.status === 'pronto');
     html += `<h4 style="color:#e74c3c; margin-bottom:10px; border-bottom:2px solid #e74c3c; padding-bottom: 4px; font-weight: 800; font-size: 0.9rem;">⏳ PARA ENTREGAR AGORA</h4>`;
     if (temProntos) {
-      html += `<button class="btn-opcoes" onclick="confirmarEntregaProntaGarcom()" style="background-color: #27ae60; color: white; margin: 0 0 10px 0; width: 100%; font-weight: 800; animation: pulsar-verde 1.5s infinite; border: 2px solid #2ecc71;">🚚 CONFIRMAR ENTREGA DOS PRONTOS (COZINHA/CHURRASQUEIRO)</button>`;
+      html += `<button class="btn-opcoes" onclick="confirmarEntregaProntaGarcom()" style="background-color: #27ae60; color: white; margin: 0 0 10px 0; width: 100%; font-weight: 800; animation: pulsar-verde 1.5s infinite; border: 2px solid #2ecc71;">CONFIRMAR ENTREGA DOS PRONTOS (COZINHA/CHURRASQUEIRO)</button>`;
     }
     html += pendentes.map(renderLinhaItem).join('');
-    html += `<button class="btn-opcoes" onclick="marcarComoServido(${pedidoAbertoNaMesa.id})" style="background-color: #27ae60; margin: 1rem 0; width: 100%;">🚚 ENTREGUEI ESTES ITENS</button>`;
+    html += `<button class="btn-opcoes" onclick="marcarComoServido(${pedidoAbertoNaMesa.id})" style="background-color: #27ae60; margin: 1rem 0; width: 100%;">ENTREGUEI ESTES ITENS</button>`;
   }
 
   if (entregues.length > 0) {
@@ -3592,6 +3594,13 @@ function fecharResumoMesa() {
     if (containerBotaoSalvar) containerBotaoSalvar.remove();
     document.getElementById('modal-resumo-mesa').style.display = 'none';
     if (mesaAtual) {
+      // Sincroniza com os dados mais recentes recebidos do servidor
+      const mesaMaisRecente = (mesas && Array.isArray(mesas)) ? (mesas.find(m => m.id == mesaAtual.id) || mesaAtual) : mesaAtual;
+      mesaAtual = mesaMaisRecente;
+      if (mesaMaisRecente.pedido_id) {
+        pedidoAbertoNaMesa = { id: mesaMaisRecente.pedido_id, status: mesaMaisRecente.pedido_status };
+      }
+      atualizarVisibilidadeOpcoesMesa(mesaAtual);
       document.getElementById('modal-opcoes').style.display = 'block';
     }
     atualizarBloqueioScroll();
