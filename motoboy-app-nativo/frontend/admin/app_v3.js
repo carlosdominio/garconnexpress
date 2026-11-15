@@ -5907,13 +5907,16 @@ function toggleDropdownNotificacoes() {
 }
 
 function adicionarNotificacao(titulo, descricao, icone = '🔔') {
+  const dropdownNotif = document.getElementById('dropdown-notificacoes');
+  const isSinoAberto = dropdownNotif && (dropdownNotif.style.display === 'flex' || dropdownNotif.style.display === 'block');
+
   const nova = {
     id: Date.now() + Math.random(),
     titulo,
     descricao,
     icone,
     data: new Date().toISOString(),
-    lida: false
+    lida: Boolean(isSinoAberto)
   };
 
   notificacoesGerais.unshift(nova);
