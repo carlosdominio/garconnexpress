@@ -3345,24 +3345,45 @@ function renderizarItensMesaGarcom() {
     }
 
     return `
-      <div style="border-bottom: 1px solid #eee; padding: 10px; display: flex; justify-content: space-between; align-items: center; background:${bgColor}; border-radius: 8px; margin-bottom: 8px;">
-        <div style="width: 40px; height: 40px; flex-shrink: 0; margin-right: 10px; border-radius: 4px; overflow: hidden; background: #eee;">
-          <img src="${item.imagem || 'data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\' viewBox=\'0 0 40 40\'><rect fill=\'%23f1f2f6\' width=\'40\' height=\'40\'/><text fill=\'%23a4b0be\' font-size=\'16\' x=\'50%25\' y=\'55%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'>🍽️</text></svg>'}" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\' viewBox=\'0 0 40 40\'><rect fill=\'%23f1f2f6\' width=\'40\' height=\'40\'/><text fill=\'%23a4b0be\' font-size=\'16\' x=\'50%25\' y=\'55%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'>🍽️</text></svg>';" style="width: 100%; height: 100%; object-fit: cover;">
-        </div>
-        <div style="flex-grow: 1; text-align: left;">
-          <p style="margin: 0; font-weight: bold; color: #2c3e50;">${item.nome} ${statusLabel}</p>
-          ${item.observacao ? `<small style="color:#e67e22; display:block; margin-top:2px;">Obs: ${item.observacao}</small>` : ''}
-          <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
-            <button onclick="ajustarQtdItemGarcom(${item.id}, -1)" style="width: 26px !important; height: 26px !important; padding: 0 !important; background: #e74c3c; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin: 0 !important;">-</button>
-            <span style="font-weight: 800; font-size: 0.95rem; width: 22px; text-align: center; color: #2c3e50;">${item.quantidade}</span>
-            <button onclick="ajustarQtdItemGarcom(${item.id}, 1)" style="width: 26px !important; height: 26px !important; padding: 0 !important; background: #2ecc71; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin: 0 !important;">+</button>
+      <div style="border-bottom: 1px solid #e2e8f0; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; background:${bgColor}; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+        <!-- Linha 1: Foto, Nome do Prato e Preço -->
+        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;">
+            <div style="width: 42px; height: 42px; flex-shrink: 0; border-radius: 6px; overflow: hidden; background: #eee;">
+              <img src="${item.imagem || 'data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'42\' height=\'42\' viewBox=\'0 0 42 42\'><rect fill=\'%23f1f2f6\' width=\'42\' height=\'42\'/><text fill=\'%23a4b0be\' font-size=\'16\' x=\'50%25\' y=\'55%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'>🍽️</text></svg>'}" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'42\' height=\'42\' viewBox=\'0 0 42 42\'><rect fill=\'%23f1f2f6\' width=\'42\' height=\'42\'/><text fill=\'%23a4b0be\' font-size=\'16\' x=\'50%25\' y=\'55%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'>🍽️</text></svg>';" style="width: 100%; height: 100%; object-fit: cover;">
+            </div>
+            <div style="flex: 1; min-width: 0; text-align: left;">
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <span style="font-weight: 700; color: #1e293b; font-size: 0.95rem; line-height: 1.2;">${item.nome}</span>
+                ${statusLabel}
+              </div>
+              ${item.observacao ? `<small style="color:#ea580c; display:block; margin-top:2px; font-weight: 600;">Obs: ${item.observacao}</small>` : ''}
+            </div>
+          </div>
+          <div style="text-align: right; flex-shrink: 0;">
+            <span style="white-space: nowrap; font-weight: 800; color: #0f172a; font-size: 1rem;">R$ ${(item.preco * item.quantidade).toFixed(2)}</span>
           </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-          <p style="white-space: nowrap; font-weight: bold; margin: 0; color: #2c3e50; font-size: 0.95rem;">R$ ${(item.preco * item.quantidade).toFixed(2)}</p>
-          ${item.status !== 'entregue' ? `<button onclick="entregarItemIndividualGarcom(${item.id})" style="background: #27ae60; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.85rem; font-weight: bold;" title="Confirmar Entrega">🚚 Entregar</button>` : ''}
-          <button onclick="substituirItemGarcom(${item.id})" style="background: #3498db; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;" title="Substituir Item">🔄</button>
-          <button onclick="removerItemLocalGarcom(${item.id})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; width: auto !important; margin: 0 !important; font-size: 0.9rem;" title="Remover Item">🗑️</button>
+
+        <!-- Linha 2: Ações de Edição (Esquerda) e Atendimento/Entrega (Direita) -->
+        <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px dashed #e2e8f0; padding-top: 8px; margin-top: 2px;">
+          <!-- Lado Esquerdo: Quantidade e Trocar -->
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; align-items: center; background: #f1f5f9; border-radius: 20px; padding: 2px 6px; border: 1px solid #cbd5e1;">
+              <button onclick="ajustarQtdItemGarcom(${item.id}, -1)" style="width: 24px !important; height: 24px !important; padding: 0 !important; background: #ef4444; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; margin: 0 !important;">-</button>
+              <span style="font-weight: 800; font-size: 0.92rem; width: 24px; text-align: center; color: #1e293b;">${item.quantidade}</span>
+              <button onclick="ajustarQtdItemGarcom(${item.id}, 1)" style="width: 24px !important; height: 24px !important; padding: 0 !important; background: #22c55e; color: white; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; margin: 0 !important;">+</button>
+            </div>
+            <button onclick="substituirItemGarcom(${item.id})" style="background: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 0.8rem; font-weight: 700; display: flex; align-items: center; gap: 4px; margin: 0 !important;" title="Substituir Item por outro">
+              <span>🔄</span> Trocar
+            </button>
+          </div>
+
+          <!-- Lado Direito: Entregar e Excluir -->
+          <div style="display: flex; align-items: center; gap: 6px;">
+            ${item.status !== 'entregue' ? `<button onclick="entregarItemIndividualGarcom(${item.id})" style="background: #16a34a; color: white; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 0.82rem; font-weight: bold; display: flex; align-items: center; gap: 5px; margin: 0 !important;" title="Confirmar Entrega na Mesa">🚚 Entregar</button>` : ''}
+            <button onclick="removerItemLocalGarcom(${item.id})" style="background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 0.85rem; margin: 0 !important;" title="Remover Item">🗑️</button>
+          </div>
         </div>
       </div>
     `;
