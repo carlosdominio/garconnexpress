@@ -307,9 +307,20 @@
     </div>
     <div id="lista-itens-mesa" style="text-align: left; margin-bottom: 1.5rem;"></div>
     <div id="total-resumo-mesa" style="font-weight: bold; font-size: 1.2rem; margin-bottom: 1rem;">Total: R$ 0,00</div>
-    <div style="display: flex; gap: 10px; width: 100%;">
-      <button id="btn-fechar-resumo-mesa" class="btn-opcoes btn-cancelar" onclick="fecharResumoMesa()" style="flex: 1; margin: 0;">Voltar</button>
-      <button id="btn-resumo-adicionar-itens" class="btn-opcoes" onclick="adicionarItensDiretoDoResumo()" style="flex: 1.4; background-color: #2980b9; color: white; margin: 0; font-weight: bold;">➕ Adicionar Itens</button>
+    
+    <!-- Rodapé de Ações do Modal Resumo da Mesa -->
+    <div id="container-acoes-resumo-mesa" style="width: 100%; margin-top: 15px;">
+      <!-- Modo Normal: Sem alterações locais pendentes -->
+      <div id="container-acoes-padrao-resumo" style="display: flex; gap: 10px; width: 100%;">
+        <button id="btn-fechar-resumo-mesa" class="btn-opcoes btn-cancelar" onclick="fecharResumoMesa()" style="flex: 1; margin: 0;">Voltar</button>
+        <button id="btn-resumo-adicionar-itens" class="btn-opcoes" onclick="adicionarItensDiretoDoResumo()" style="flex: 1.4; background-color: #2980b9; color: white; margin: 0; font-weight: bold;">➕ Adicionar Itens</button>
+      </div>
+
+      <!-- Modo Edição: Quando o garçom altera quantidades (+ / -) -->
+      <div id="container-salvar-alteracoes-garcom" style="display: none; gap: 10px; width: 100%;">
+        <button id="btn-salvar-alteracoes-garcom" class="btn-opcoes" onclick="salvarAlteracoesGarcom()" style="background-color: #27ae60; color: white; font-weight: bold; flex: 1.5; margin: 0 !important; font-size: 0.95rem; padding: 12px 6px;">💾 Salvar Alterações</button>
+        <button id="btn-descartar-alteracoes-garcom" class="btn-opcoes" onclick="descartarAlteracoesGarcom()" style="background-color: #e74c3c; color: white; font-weight: bold; flex: 1; margin: 0 !important; font-size: 0.95rem; padding: 12px 6px;">Descartar</button>
+      </div>
     </div>
   </div>
 

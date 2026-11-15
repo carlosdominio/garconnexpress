@@ -3469,26 +3469,19 @@ function renderizarItensMesaGarcom() {
     </div>
   `;
 
-  // Exibe ou remove os botões de Salvar Alterações
+  // Alterna entre botões padrão (Voltar / Adicionar Itens) e botões de edição (Salvar / Descartar)
   const temAlteracoes = verificarSeHaAlteracoesGarcom();
-  const containerBotaoSalvar = document.getElementById('container-salvar-alteracoes-garcom');
-  if (temAlteracoes) {
-    if (!containerBotaoSalvar) {
-      const btnHtml = `
-        <div id="container-salvar-alteracoes-garcom" style="margin-top: 15px; margin-bottom: 15px; display: flex; gap: 10px;">
-          <button class="btn-opcoes" onclick="salvarAlteracoesGarcom()" style="background-color: #27ae60; color: white; font-weight: bold; flex: 1.5; margin: 0 !important;">💾 Salvar Alterações</button>
-          <button class="btn-opcoes" onclick="descartarAlteracoesGarcom()" style="background-color: #7f8c8d; color: white; flex: 1; margin: 0 !important;">Descartar</button>
-        </div>
-      `;
-      const btnFechar = document.getElementById('btn-fechar-resumo-mesa');
-      if (btnFechar) {
-        btnFechar.insertAdjacentHTML('beforebegin', btnHtml);
-      } else {
-        document.getElementById('modal-resumo-mesa').insertAdjacentHTML('beforeend', btnHtml);
-      }
+  const containerPadrao = document.getElementById('container-acoes-padrao-resumo');
+  const containerSalvar = document.getElementById('container-salvar-alteracoes-garcom');
+
+  if (containerPadrao && containerSalvar) {
+    if (temAlteracoes) {
+      containerPadrao.style.display = 'none';
+      containerSalvar.style.display = 'flex';
+    } else {
+      containerPadrao.style.display = 'flex';
+      containerSalvar.style.display = 'none';
     }
-  } else {
-    if (containerBotaoSalvar) containerBotaoSalvar.remove();
   }
 }
 
@@ -3554,6 +3547,7 @@ function verificarSeHaAlteracoesGarcom() {
 function descartarAlteracoesGarcom() {
   itensEmEdicaoGarcom = JSON.parse(JSON.stringify(itensOriginaisGarcom));
   renderizarItensMesaGarcom();
+  mostrarToast("Alterações descartadas.", "info", "", 1500);
 }
 
 let isSalvandoAlteracoesGarcom = false;
@@ -3592,8 +3586,10 @@ async function salvarAlteracoesGarcom() {
       const data = await res.json();
       const det = data.detalhes_edicao ? `\n(${data.detalhes_edicao})` : '';
       
-      const containerBotaoSalvar = document.getElementById('container-salvar-alteracoes-garcom');
-      if (containerBotaoSalvar) containerBotaoSalvar.remove();
+      const containerPadrao = document.getElementById('container-acoes-padrao-resumo');
+      const containerSalvar = document.getElementById('container-salvar-alteracoes-garcom');
+      if (containerSalvar) containerSalvar.style.display = 'none';
+      if (containerPadrao) containerPadrao.style.display = 'flex';
 
       mostrarToast(`✅ Pedido atualizado com sucesso!${det}`, "success", "Sucesso", 2500);
       verItensDaMesa(true);
@@ -3618,8 +3614,10 @@ function fecharResumoMesa() {
   const fechar = () => {
     itensEmEdicaoGarcom = [];
     itensOriginaisGarcom = [];
-    const containerBotaoSalvar = document.getElementById('container-salvar-alteracoes-garcom');
-    if (containerBotaoSalvar) containerBotaoSalvar.remove();
+    const containerPadrao = document.getElementById('container-acoes-padrao-resumo');
+    const containerSalvar = document.getElementById('container-salvar-alteracoes-garcom');
+    if (containerSalvar) containerSalvar.style.display = 'none';
+    if (containerPadrao) containerPadrao.style.display = 'flex';
     document.getElementById('modal-resumo-mesa').style.display = 'none';
     if (mesaAtual) {
       // Sincroniza com os dados mais recentes recebidos do servidor
@@ -3653,8 +3651,10 @@ function adicionarItensDiretoDoResumo() {
   const proceed = () => {
     itensEmEdicaoGarcom = [];
     itensOriginaisGarcom = [];
-    const containerBotaoSalvar = document.getElementById('container-salvar-alteracoes-garcom');
-    if (containerBotaoSalvar) containerBotaoSalvar.remove();
+    const containerPadrao = document.getElementById('container-acoes-padrao-resumo');
+    const containerSalvar = document.getElementById('container-salvar-alteracoes-garcom');
+    if (containerSalvar) containerSalvar.style.display = 'none';
+    if (containerPadrao) containerPadrao.style.display = 'flex';
     document.getElementById('modal-resumo-mesa').style.display = 'none';
     fecharOpcoes();
     abrirCardapio();
