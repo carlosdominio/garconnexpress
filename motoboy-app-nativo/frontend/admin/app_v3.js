@@ -2058,27 +2058,40 @@ function abrirModalDetalheHistorico(p) {
     if (ultimoPagamento.data) encerramentoRaw = ultimoPagamento.data;
   }
 
-  const aberturaFormatada = p.created_at ? formatarData(p.created_at).split(' ')[1] : '--:--';
+  const dataInicioReal = p.abertura_mesa || p.created_at;
+  const aberturaFormatada = dataInicioReal ? formatarData(dataInicioReal).split(' ')[1] : '--:--';
   let encerramentoFormatado = '--:--';
   if (encerramentoRaw) encerramentoFormatado = formatarData(encerramentoRaw).split(' ')[1];
   else if (p.status === 'cancelado') encerramentoFormatado = 'Cancelado';
 
   let duracaoFormatada = '';
-  if (p.created_at && encerramentoRaw && p.status !== 'cancelado') {
-    const rawIni = String(p.created_at);
+  if (dataInicioReal && encerramentoRaw && p.status !== 'cancelado') {
+    const rawIni = String(dataInicioReal);
     const rawFim = String(encerramentoRaw);
     const iniIso = (rawIni.includes('Z') || rawIni.includes('+')) ? rawIni : (rawIni.replace(' ', 'T') + 'Z');
     const fimIso = (rawFim.includes('Z') || rawFim.includes('+')) ? rawFim : (rawFim.replace(' ', 'T') + 'Z');
     const iniMs = new Date(iniIso).getTime();
     const fimMs = new Date(fimIso).getTime();
     if (!isNaN(iniMs) && !isNaN(fimMs) && fimMs >= iniMs) {
-      const diffMin = Math.round((fimMs - iniMs) / 60000);
-      if (diffMin <= 1) duracaoFormatada = '1 min';
-      else if (diffMin < 60) duracaoFormatada = `${diffMin} min`;
-      else {
-        const h = Math.floor(diffMin / 60);
-        const m = diffMin % 60;
-        duracaoFormatada = `${h}h ${m}m`;
+      const diffMs = fimMs - iniMs;
+      const diffSegundos = Math.floor(diffMs / 1000);
+      
+      // Diferença em minutos alinhada ao relógio exibido (ex: 22:49 - 22:47 = 2 min)
+      const iniMinutos = Math.floor(iniMs / 60000);
+      const fimMinutos = Math.floor(fimMs / 60000);
+      const diffMinRelogio = fimMinutos - iniMinutos;
+
+      if (diffSegundos < 45 || diffMinRelogio === 0) {
+        duracaoFormatada = '< 1 min';
+      } else {
+        const diffMin = Math.max(diffMinRelogio, Math.round(diffMs / 60000));
+        if (diffMin < 60) {
+          duracaoFormatada = `${diffMin} min`;
+        } else {
+          const h = Math.floor(diffMin / 60);
+          const m = diffMin % 60;
+          duracaoFormatada = m > 0 ? `${h}h ${m}m` : `${h}h`;
+        }
       }
     }
   }
