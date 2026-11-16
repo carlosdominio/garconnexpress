@@ -3019,6 +3019,10 @@ async function initDb() {
       if (isPostgres) {
         await query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS mesa_numero TEXT");
         await query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0");
+        await query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_funcionario BOOLEAN DEFAULT FALSE");
+        await query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS funcionario_nome TEXT");
+        await query("ALTER TABLE mesas ADD COLUMN IF NOT EXISTS is_funcionario BOOLEAN DEFAULT FALSE");
+        await query("ALTER TABLE mesas ADD COLUMN IF NOT EXISTS funcionario_nome TEXT");
       } else {
         const columns = await query("PRAGMA table_info(pedidos)");
         if (!columns.rows.find(c => c.name === 'mesa_numero')) {
@@ -3027,8 +3031,21 @@ async function initDb() {
         if (!columns.rows.find(c => c.name === 'is_comanda')) {
           await query("ALTER TABLE pedidos ADD COLUMN is_comanda INTEGER DEFAULT 0");
         }
+        if (!columns.rows.find(c => c.name === 'is_funcionario')) {
+          await query("ALTER TABLE pedidos ADD COLUMN is_funcionario INTEGER DEFAULT 0");
+        }
+        if (!columns.rows.find(c => c.name === 'funcionario_nome')) {
+          await query("ALTER TABLE pedidos ADD COLUMN funcionario_nome TEXT");
+        }
         if (!columns.rows.find(c => c.name === 'abertura_mesa')) {
           await query("ALTER TABLE pedidos ADD COLUMN abertura_mesa TIMESTAMP");
+        }
+        const colsMesas = await query("PRAGMA table_info(mesas)");
+        if (colsMesas.rows && !colsMesas.rows.find(c => c.name === 'is_funcionario')) {
+          await query("ALTER TABLE mesas ADD COLUMN is_funcionario INTEGER DEFAULT 0");
+        }
+        if (colsMesas.rows && !colsMesas.rows.find(c => c.name === 'funcionario_nome')) {
+          await query("ALTER TABLE mesas ADD COLUMN funcionario_nome TEXT");
         }
       }
       if (isPostgres) {
@@ -3285,9 +3302,13 @@ async function lazyInitDb() {
               ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS fechamento_liberado BOOLEAN DEFAULT FALSE;
               ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS taxa_entrega REAL DEFAULT 0;
               ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS distancia_km REAL DEFAULT 0;
+              ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_funcionario BOOLEAN DEFAULT FALSE;
+              ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS funcionario_nome TEXT;
               ALTER TABLE codigos_acesso ADD COLUMN IF NOT EXISTS notificado_atraso_registro INTEGER DEFAULT 0;
               ALTER TABLE mesas ADD COLUMN IF NOT EXISTS tipo TEXT DEFAULT 'mesa';
               ALTER TABLE mesas ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0;
+              ALTER TABLE mesas ADD COLUMN IF NOT EXISTS is_funcionario BOOLEAN DEFAULT FALSE;
+              ALTER TABLE mesas ADD COLUMN IF NOT EXISTS funcionario_nome TEXT;
               ALTER TABLE mesas ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
               ALTER TABLE menu ADD COLUMN IF NOT EXISTS enviar_churrasco BOOLEAN DEFAULT NULL;
               ALTER TABLE menu ADD COLUMN IF NOT EXISTS visivel_delivery BOOLEAN DEFAULT TRUE;

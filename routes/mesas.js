@@ -7,10 +7,12 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
     try {
       const numOuNome = String(req.body.numero || '').trim();
       let tipo = String(req.body.tipo || 'mesa').trim();
-      const isComanda = (req.body.is_comanda || tipo === 'comanda' || tipo === 'balcao' || numOuNome.toLowerCase().startsWith('comanda')) ? 1 : 0;
+      const isComanda = (req.body.is_comanda || tipo === 'comanda' || tipo === 'balcao' || tipo === 'funcionario' || numOuNome.toLowerCase().startsWith('comanda')) ? 1 : 0;
       if (isComanda && tipo === 'mesa') {
         tipo = 'comanda';
       }
+      const isFuncionario = (req.body.is_funcionario || tipo === 'funcionario' || /^(func|staff|f-)/i.test(numOuNome)) ? 1 : 0;
+      const funcionarioNome = req.body.funcionario_nome ? String(req.body.funcionario_nome).trim() : (isFuncionario ? numOuNome : null);
       if (!numOuNome) return res.status(400).json({ error: 'Informe o número ou nome da mesa/comanda' });
       if (numOuNome.length > 11) {
         return res.status(400).json({ error: 'O número ou nome da comanda/mesa não pode ter mais de 11 caracteres!' });
@@ -28,20 +30,27 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
         const row = existing.rows[0];
         // Se a mesa/comanda já existe e está livre, aproveita ela imediatamente
         if (row.status === 'livre') {
+          if (isFuncionario) {
+            await query('UPDATE mesas SET is_funcionario = ?, funcionario_nome = ? WHERE id = ?', [isFuncionario, funcionarioNome, row.id]).catch(() => {});
+          }
           await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
-          return res.json({ success: true, id: row.id, numero: numOuNome, tipo: row.tipo || tipo, is_comanda: isComanda });
+          return res.json({ success: true, id: row.id, numero: numOuNome, tipo: row.tipo || tipo, is_comanda: isComanda, is_funcionario: isFuncionario, funcionario_nome: funcionarioNome });
         }
         return res.status(400).json({ error: `Já existe uma ${tipo === 'balcao' ? 'comanda de balcão' : 'mesa'} aberta com esse número ou nome!` });
       }
 
       let ins;
       try {
-        ins = await query("INSERT INTO mesas (numero, tipo, is_comanda, status, created_at) VALUES (?, ?, ?, 'livre', CURRENT_TIMESTAMP) RETURNING id", [numOuNome, tipo, isComanda]);
+        ins = await query("INSERT INTO mesas (numero, tipo, is_comanda, is_funcionario, funcionario_nome, status, created_at) VALUES (?, ?, ?, ?, ?, 'livre', CURRENT_TIMESTAMP) RETURNING id", [numOuNome, tipo, isComanda, isFuncionario, funcionarioNome]);
       } catch (e) {
         try {
-          ins = await query("INSERT INTO mesas (numero, tipo, is_comanda, status, created_at) VALUES (?, ?, ?, 'livre', CURRENT_TIMESTAMP)", [numOuNome, tipo, isComanda]);
+          ins = await query("INSERT INTO mesas (numero, tipo, is_comanda, is_funcionario, funcionario_nome, status, created_at) VALUES (?, ?, ?, ?, ?, 'livre', CURRENT_TIMESTAMP)", [numOuNome, tipo, isComanda, isFuncionario, funcionarioNome]);
         } catch (e2) {
-          ins = await query("INSERT INTO mesas (numero, tipo, is_comanda, status) VALUES (?, ?, ?, 'livre')", [numOuNome, tipo, isComanda]);
+          try {
+            ins = await query("INSERT INTO mesas (numero, tipo, is_comanda, is_funcionario, funcionario_nome, status) VALUES (?, ?, ?, ?, ?, 'livre')", [numOuNome, tipo, isComanda, isFuncionario, funcionarioNome]);
+          } catch (e3) {
+            ins = await query("INSERT INTO mesas (numero, tipo, is_comanda, status) VALUES (?, ?, ?, 'livre')", [numOuNome, tipo, isComanda]);
+          }
         }
       }
 
@@ -52,7 +61,7 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       }
 
       await safePusherTrigger('garconnexpress', 'menu-atualizado', {});
-      res.json({ success: true, id: novaId, numero: numOuNome, tipo: tipo, is_comanda: isComanda }); 
+      res.json({ success: true, id: novaId, numero: numOuNome, tipo: tipo, is_comanda: isComanda, is_funcionario: isFuncionario, funcionario_nome: funcionarioNome }); 
     } catch (error) { 
       console.error('❌ ERRO EM POST /api/mesas:', error);
       res.status(500).json({ error: error.message }); 

@@ -2074,3 +2074,23 @@ input:checked + .slider:before {
   z-index: 9999999 !important;
 }
 
+/* --- DESTAQUE PARA PEDIDOS DE FUNCIONÁRIOS (CONSUMO STAFF) --- */
+.pedido-card.pedido-funcionario {
+  border-left: 6px solid #8e44ad !important;
+  background: linear-gradient(to right, rgba(142, 68, 173, 0.04), #ffffff 25%) !important;
+}
+
+.badge-funcionario {
+  background: #8e44ad;
+  color: #ffffff;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  display: inline-block;
+  box-shadow: 0 1px 3px rgba(142, 68, 173, 0.25);
+  text-transform: uppercase;
+}
+
+

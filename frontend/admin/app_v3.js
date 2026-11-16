@@ -2824,13 +2824,17 @@ function renderizarMesasSelectLancar(mesas) {
     mesasValidas.map(m => {
       const isNum = /^\d+$/.test(String(m.numero || '').trim());
       const isBalc = (m.tipo === 'balcao');
-      const isComMesa = !isBalc && (
+      const isFunc = !!m.is_funcionario || (m.tipo === 'funcionario') || /^(func|staff|f-)/i.test(m.numero || '');
+      const isComMesa = !isBalc && !isFunc && (
         Number(m.is_comanda) === 1 || 
         m.tipo === 'comanda' || 
         String(m.numero || '').toLowerCase().startsWith('comanda')
       );
       let label = m.numero;
-      if (isBalc) {
+      if (isFunc) {
+        const nomeLimpo = m.funcionario_nome || String(m.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim();
+        label = `Funcionário: ${nomeLimpo || m.numero}`;
+      } else if (isBalc) {
         const numLimpo = String(m.numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
         label = numLimpo ? `Comanda Balcão ${numLimpo}` : 'Comanda Balcão';
       } else if (isComMesa) {
@@ -2839,9 +2843,9 @@ function renderizarMesasSelectLancar(mesas) {
       } else if (isNum) {
         label = `Mesa ${m.numero}`;
       }
-      const badge = isBalc ? '🏪 ' : (isComMesa ? '🍽️ ' : '');
+      const badge = isFunc ? '👤 ' : (isBalc ? '🏪 ' : (isComMesa ? '🍽️ ' : ''));
       const statusStr = (m.status || 'livre').toUpperCase();
-      return `<option value="${m.id}" data-tipo="${m.tipo || 'mesa'}">${badge}${label} (${statusStr})</option>`;
+      return `<option value="${m.id}" data-tipo="${m.tipo || 'mesa'}" ${isFunc ? 'data-funcionario="true"' : ''}>${badge}${label} (${statusStr})</option>`;
     }).join('');
   
   if (select.innerHTML !== optionsHtml) {
@@ -2857,6 +2861,8 @@ function renderizarMesasSelectLancar(mesas) {
   if (!select.dataset.listenerAdded) {
     select.addEventListener('change', () => {
       const isDeliv = select.value === 'DELIVERY';
+      const opt = select.selectedOptions ? select.selectedOptions[0] : null;
+      const isFuncOpt = opt && opt.dataset.funcionario === 'true';
       const labelTaxa = document.getElementById('lancar-taxa-label');
       const toggleTaxa = document.getElementById('lancar-taxa-toggle');
       
@@ -2865,6 +2871,12 @@ function renderizarMesasSelectLancar(mesas) {
         if (toggleTaxa) {
           toggleTaxa.checked = true;
           toggleTaxa.disabled = true;
+        }
+      } else if (isFuncOpt) {
+        if (labelTaxa) labelTaxa.innerText = '10%';
+        if (toggleTaxa) {
+          toggleTaxa.checked = false;
+          toggleTaxa.disabled = false;
         }
       } else {
         if (labelTaxa) labelTaxa.innerText = '10%';
@@ -2910,6 +2922,7 @@ async function abrirModalCriarComandaLancar() {
           <select id="select-tipo-comanda-novo" style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 2px solid #cbd5e0; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc;">
             <option value="comanda">🍽️ Comanda de Mesa</option>
             <option value="balcao">🏪 Comanda de Balcão</option>
+            <option value="funcionario">👤 Consumo de Funcionário</option>
           </select>
 
           <p style="font-size: 0.78rem; color: #64748b; margin: 12px 0 0 0;">Ela ficará disponível imediatamente para lançar pedidos no Admin e nos Garçons.</p>
@@ -2939,17 +2952,24 @@ async function abrirModalCriarComandaLancar() {
       const tipo = document.getElementById('select-tipo-comanda-novo') ? document.getElementById('select-tipo-comanda-novo').value : 'mesa';
       if (!valor) return mostrarAlerta("Digite o número ou nome da mesa/comanda", "Atenção", "⚠️");
 
+      const isFuncionarioCriar = (tipo === 'funcionario');
       try {
         const res = await fetch('/api/mesas', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ numero: valor, tipo: tipo, is_comanda: 1 })
+          body: JSON.stringify({ 
+            numero: valor, 
+            tipo: isFuncionarioCriar ? 'funcionario' : tipo, 
+            is_comanda: 1,
+            is_funcionario: isFuncionarioCriar ? 1 : 0,
+            funcionario_nome: isFuncionarioCriar ? valor : undefined
+          })
         });
         if (res.ok) {
           const data = await res.json();
           window.comandaRecemCriadaId = data.id;
           fechar();
-          mostrarToast(`✅ ${tipo === 'balcao' ? 'Comanda Balcão' : 'Mesa'} "${valor}" pronta!`);
+          mostrarToast(`✅ ${isFuncionarioCriar ? 'Consumo de Funcionário' : (tipo === 'balcao' ? 'Comanda Balcão' : 'Mesa')} "${valor}" pronta!`);
           await carregarMesasLancar();
           
           // Seleciona a mesa recém criada no dropdown com match exato por ID
@@ -3509,6 +3529,8 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false, skipConfirmation 
     (/balc[aã]o/i.test(textoMesaOriginal))
   );
   const isBalcao = isBalcaoDireto || isComandaBalcao;
+  const isFuncionarioMesa = !!(mesaObj && (mesaObj.is_funcionario || mesaObj.tipo === 'funcionario' || /^(func|staff|f-)/i.test(mesaObj.numero || '')));
+  const funcionarioNomeMesa = (mesaObj && (mesaObj.funcionario_nome || (/^(func|staff|f-)/i.test(mesaObj.numero || '') ? String(mesaObj.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() : null))) || null;
 
   let mesaId = valorMesaOriginal;
   const garcomId = isDelivery ? 'DELIVERY' : 'ADMIN';
@@ -3580,7 +3602,9 @@ async function enviarPedidoLoteAdmin(skipDeliveryForm = false, skipConfirmation 
         cliente_telefone: isDelivery ? wppTelefone : undefined,
         forma_pagamento: isDelivery ? formaPag : undefined,
         valor_recebido: isDelivery ? vRecebido : undefined,
-        troco: isDelivery ? vTroco : undefined
+        troco: isDelivery ? vTroco : undefined,
+        is_funcionario: isFuncionarioMesa ? 1 : undefined,
+        funcionario_nome: isFuncionarioMesa ? (funcionarioNomeMesa || 'Funcionário') : undefined
       };
 
   try {
@@ -6883,7 +6907,8 @@ function aplicarFiltrosVisuais() {
 
   cards.forEach(card => {
     const mesaNome = (card.dataset.mesa || '').trim().toLowerCase();
-    const matchesBusca = !filtroBuscaMesa || mesaNome.includes(filtroBuscaMesa);
+    const funcNome = (card.dataset.funcionario || '').trim().toLowerCase();
+    const matchesBusca = !filtroBuscaMesa || mesaNome.includes(filtroBuscaMesa) || funcNome.includes(filtroBuscaMesa) || (filtroBuscaMesa === 'func' && !!card.dataset.funcionario);
     const matchesSelect = !filtroSelectMesa || mesaNome === filtroSelectMesa.toLowerCase();
 
     const listId = card.parentElement ? card.parentElement.id : '';
@@ -7166,17 +7191,24 @@ async function exibirPedidos() {
       
       const isPronto = pedido.status === 'pronto';
       const isExpanded = expandedPedidoIds.has(String(pedido.id));
+      const isFuncionario = !!pedido.is_funcionario || (pedido.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedido.mesa_numero || '');
+      const funcionarioNome = pedido.funcionario_nome || (/^(func|staff|f-)/i.test(pedido.mesa_numero || '') ? String(pedido.mesa_numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() : '');
       let statusBadgeLabel = statusGeral === 'servido' ? 'EM ANDAMENTO' : 'PENDENTE';
       if (isDelivery) {
         if (isAguardando) statusBadgeLabel = isRetirada ? 'RETIRADO' : 'ENTREGUE';
         else if (statusGeral === 'servido') statusBadgeLabel = isRetirada ? 'PRONTO P/ RETIRADA' : 'A CAMINHO';
       }
 
-      const newClassName = `pedido-card ${isExpanded ? '' : 'minimized'} status-${statusGeral} ${pedido.id === pedidoAtualizadoId ? 'destaque-atualizacao' : ''} ${classeAlertaAtraso} ${isAguardando ? 'alerta-fechamento' : ''} ${isPronto ? 'pedido-pronto-admin' : ''}`;
+      const newClassName = `pedido-card ${isExpanded ? '' : 'minimized'} status-${statusGeral} ${pedido.id === pedidoAtualizadoId ? 'destaque-atualizacao' : ''} ${classeAlertaAtraso} ${isAguardando ? 'alerta-fechamento' : ''} ${isPronto ? 'pedido-pronto-admin' : ''} ${isFuncionario ? 'pedido-funcionario' : ''}`;
       
       const cardInnerHTML = `
         <div class="pedido-header">
           <div>
+            ${isFuncionario ? `
+              <div style="margin-bottom: 5px;">
+                <span class="badge-funcionario">FUNCIONÁRIO: ${(funcionarioNome || 'STAFF').toUpperCase()}</span>
+              </div>
+            ` : ''}
             <h3 style="display:flex; align-items:center; gap:8px;">
               ${mesaNomeExibicao}
               <span class="pedido-cronometro" data-created-at="${dataBaseCronometro || ''}" style="font-size:0.8rem; background:#2c3e50; padding:2px 8px; border-radius:12px; color:#fff; ${minutosCronometro === null ? 'display:none;' : ''}">
@@ -7283,6 +7315,7 @@ async function exibirPedidos() {
         card.className = newClassName;
         card.dataset.pedidoId = pedido.id;
         card.dataset.mesa = mesaNomeExibicao;
+        card.dataset.funcionario = isFuncionario ? (funcionarioNome || 'funcionario') : '';
         card.dataset.limiteAtraso = infoAtraso.limite;
         card.dataset.setorAtraso = infoAtraso.label;
         card.dataset.setorIcone = infoAtraso.icone || '';
@@ -7297,11 +7330,13 @@ async function exibirPedidos() {
       } else {
         if (card.className !== newClassName) card.className = newClassName;
         if (card.dataset.mesa !== mesaNomeExibicao) card.dataset.mesa = mesaNomeExibicao;
+        const funcVal = isFuncionario ? (funcionarioNome || 'funcionario') : '';
+        if (card.dataset.funcionario !== funcVal) card.dataset.funcionario = funcVal;
         if (card.dataset.limiteAtraso !== String(infoAtraso.limite)) card.dataset.limiteAtraso = infoAtraso.limite;
         if (card.dataset.setorAtraso !== infoAtraso.label) card.dataset.setorAtraso = infoAtraso.label;
         if (card.dataset.setorIcone !== (infoAtraso.icone || '')) card.dataset.setorIcone = infoAtraso.icone || '';
         const currentSig = card.getAttribute('data-content-signature');
-        const newSig = `${newClassName}_${mesaNomeExibicao}_${itens.length}_${itensPendentes.length}_${itensProntos.length}_${itensEntregues.length}_${totalExibicao}_${pedido.status}_${pedido.forma_pagamento}_${minutosCronometro}_${infoAtraso.limite}_${acrescimo}_${desconto}`;
+        const newSig = `${newClassName}_${mesaNomeExibicao}_${isFuncionario}_${funcionarioNome}_${itens.length}_${itensPendentes.length}_${itensProntos.length}_${itensEntregues.length}_${totalExibicao}_${pedido.status}_${pedido.forma_pagamento}_${minutosCronometro}_${infoAtraso.limite}_${acrescimo}_${desconto}`;
         if (currentSig !== newSig) {
           card.innerHTML = cardInnerHTML;
           card.setAttribute('data-content-signature', newSig);
@@ -7322,39 +7357,48 @@ async function exibirPedidos() {
       
       let card = document.getElementById(cardId);
       const minutosEspera = m.codigo_criado_at ? calcularMinutos(m.codigo_criado_at) : 0;
-      const newClassName = `pedido-card minimized status-recebido`;
-      const cardStyleText = `border-left: 6px solid #3498db; background: #f0f7fc; cursor: pointer;`;
+      const isMesaFunc = !!m.is_funcionario || (m.tipo === 'funcionario') || /^(func|staff|f-)/i.test(m.numero || '');
+      const funcNome = m.funcionario_nome || (/^(func|staff|f-)/i.test(m.numero || '') ? String(m.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() : '');
+      const newClassName = `pedido-card minimized status-recebido ${isMesaFunc ? 'pedido-funcionario' : ''}`;
+      const cardStyleText = isMesaFunc 
+        ? `border-left: 6px solid #8e44ad !important; background: linear-gradient(135deg, #ffffff 0%, #fbf9fd 100%); cursor: pointer;` 
+        : `border-left: 6px solid #3498db; background: #f0f7fc; cursor: pointer;`;
       
       const cardInnerHTML = `
         <div class="pedido-header">
           <div>
+            ${isMesaFunc ? `
+              <div style="margin-bottom: 5px;">
+                <span class="badge-funcionario">FUNCIONÁRIO: ${(funcNome || 'STAFF').toUpperCase()}</span>
+              </div>
+            ` : ''}
             <h3 style="display:flex; align-items:center; gap:8px;">
-              📱 Mesa ${m.numero}
+              ${isMesaFunc ? `👤 ${m.numero}` : `📱 Mesa ${m.numero}`}
               <span class="pedido-cronometro" data-created-at="${m.codigo_criado_at || ''}" style="font-size:0.8rem; background:#2c3e50; padding:2px 8px; border-radius:12px; color:#fff;">
                 ⏱️ ${minutosEspera} min
               </span>
             </h3>
-            <span class="status-badge" style="background:#3498db; color:white;">📱 AGUARDANDO CLIENTE</span>
+            <span class="status-badge" style="background:${isMesaFunc ? '#8e44ad' : '#3498db'}; color:white;">${isMesaFunc ? '👤 CONSUMO FUNCIONÁRIO' : '📱 AGUARDANDO CLIENTE'}</span>
             <small style="display:block; margin-top:4px; opacity:0.6;">📅 Código ativo — aguardando pedido</small>
             <small style="display:block; font-weight:bold; color: #34495e; margin-top:2px;">👤 Garçom: ${m.garcom_id || 'Autônomo'}</small>
           </div>
           <div style="text-align:right">
             <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
-              <div style="background:#d6eaf8; color:#2980b9; border-radius:8px; padding:6px 12px; font-weight:900; font-size:0.95rem; border:1px dashed #3498db;">
+              <div style="background:${isMesaFunc ? '#f4ecf7' : '#d6eaf8'}; color:${isMesaFunc ? '#8e44ad' : '#2980b9'}; border-radius:8px; padding:6px 12px; font-weight:900; font-size:0.95rem; border:1px dashed ${isMesaFunc ? '#8e44ad' : '#3498db'};">
                 🔑 ${m.codigo_acesso || '----'}
               </div>
             </div>
           </div>
         </div>
         <div class="pedido-itens" style="margin-top:12px;">
-          <div style="border-left:4px solid #3498db; background:#d6eaf8; border-radius:6px; padding:10px 12px; font-size:0.9rem; color:#2980b9; font-style:italic;">
-            O cliente está navegando no cardápio. O pedido aparecerá aqui automaticamente quando enviado.
+          <div style="border-left:4px solid ${isMesaFunc ? '#8e44ad' : '#3498db'}; background:${isMesaFunc ? '#f4ecf7' : '#d6eaf8'}; border-radius:6px; padding:10px 12px; font-size:0.9rem; color:${isMesaFunc ? '#6c3483' : '#2980b9'}; font-style:italic;">
+            ${isMesaFunc ? 'Comanda de consumo interno aberta para colaborador.' : 'O cliente está navegando no cardápio. O pedido aparecerá aqui automaticamente quando enviado.'}
           </div>
         </div>
 
         <div class="pedido-footer">
           <div class="pedido-actions" style="width: 100%; margin-top: 8px;">
-            <button style="background:#3498db; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #2980b9; border:none; color:white; cursor:pointer;" onclick="event.stopPropagation(); abrirModalMesaAguardando(${m.id})">
+            <button style="background:${isMesaFunc ? '#8e44ad' : '#3498db'}; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 ${isMesaFunc ? '#6c3483' : '#2980b9'}; border:none; color:white; cursor:pointer;" onclick="event.stopPropagation(); abrirModalMesaAguardando(${m.id})">
               📱 VER DETALHES DA MESA
             </button>
           </div>
@@ -7372,6 +7416,7 @@ async function exibirPedidos() {
           card.className = newClassName;
           card.setAttribute('style', cardStyleText);
           card.dataset.mesa = `Mesa ${m.numero}`;
+          card.dataset.funcionario = isMesaFunc ? (funcNome || 'funcionario') : '';
           card.addEventListener('click', (e) => {
             if (e.target.closest('button')) return;
             abrirModalMesaAguardando(m.id);
@@ -7382,8 +7427,10 @@ async function exibirPedidos() {
         } else {
           if (card.className !== newClassName) card.className = newClassName;
           if (card.dataset.mesa !== `Mesa ${m.numero}`) card.dataset.mesa = `Mesa ${m.numero}`;
+          const mesaFuncVal = isMesaFunc ? (funcNome || 'funcionario') : '';
+          if (card.dataset.funcionario !== mesaFuncVal) card.dataset.funcionario = mesaFuncVal;
           const currentSig = card.getAttribute('data-content-signature');
-          const newSig = `virtual_${minutosEspera}_${m.codigo_acesso}_${m.garcom_id}`;
+          const newSig = `virtual_${minutosEspera}_${m.codigo_acesso}_${m.garcom_id}_${isMesaFunc}_${funcNome}`;
           if (currentSig !== newSig) {
             card.innerHTML = cardInnerHTML;
             card.setAttribute('data-content-signature', newSig);

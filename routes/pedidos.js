@@ -135,7 +135,7 @@ module.exports = (ctx) => {
       let pedidosRes;
       try {
         pedidosRes = await query(`
-          SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, COALESCE(p.mesa_numero, m.numero) as mesa_numero, m.tipo as mesa_tipo, g.nome as garcom_nome 
+          SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, COALESCE(p.mesa_numero, m.numero) as mesa_numero, m.tipo as mesa_tipo, COALESCE(p.is_funcionario, m.is_funcionario, 0) as is_funcionario, COALESCE(p.funcionario_nome, m.funcionario_nome) as funcionario_nome, g.nome as garcom_nome 
           FROM pedidos p 
           LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
           LEFT JOIN garcons g ON p.garcom_id = g.usuario
@@ -146,13 +146,13 @@ module.exports = (ctx) => {
         console.warn("Query com fallback em ativos-detalhado:", e.message);
         try {
           if (isPostgres) {
-            await query("ALTER TABLE mesas ADD COLUMN IF NOT EXISTS tipo TEXT DEFAULT 'mesa'; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS mesa_numero TEXT; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0;");
+            await query("ALTER TABLE mesas ADD COLUMN IF NOT EXISTS tipo TEXT DEFAULT 'mesa'; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS mesa_numero TEXT; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_comanda INTEGER DEFAULT 0; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_funcionario INTEGER DEFAULT 0; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS funcionario_nome TEXT;");
           }
         } catch (migErr) {}
         
         try {
           pedidosRes = await query(`
-            SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, 'mesa' as mesa_tipo, g.nome as garcom_nome 
+            SELECT p.*, CAST(p.created_at AS TEXT) as created_str, CAST(p.fechamento_solicitado_em AS TEXT) as fechamento_str, m.numero as mesa_numero, 'mesa' as mesa_tipo, COALESCE(p.is_funcionario, m.is_funcionario, 0) as is_funcionario, COALESCE(p.funcionario_nome, m.funcionario_nome) as funcionario_nome, g.nome as garcom_nome 
             FROM pedidos p 
             LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT))
             LEFT JOIN garcons g ON p.garcom_id = g.usuario
@@ -717,7 +717,7 @@ module.exports = (ctx) => {
     }
     return isAuthenticated(req, res, next);
   }, async (req, res) => {
-    let { mesa_id, garcom_id, itens, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, metodo_pagamento, valor_recebido, troco } = req.body;
+    let { mesa_id, garcom_id, itens, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, metodo_pagamento, valor_recebido, troco, is_funcionario, funcionario_nome } = req.body;
     if (req.user && req.user.role === 'cliente') { mesa_id = req.user.mesa_id; garcom_id = null; }
     
     const isDelivery = garcom_id === 'DELIVERY';
@@ -726,19 +726,28 @@ module.exports = (ctx) => {
       return res.status(400).json({ error: `A observação é muito longa. Limite de ${maxObsLength} caracteres.` });
     }
 
-    const deveCobrarTaxa = cobrar_taxa !== false;
+    let deveCobrarTaxa = cobrar_taxa !== false;
+    let isFuncionario = !!is_funcionario;
+    let funcNome = funcionario_nome ? String(funcionario_nome).trim() : null;
     try {
       // ── PRÉ-VALIDAÇÕES (fora da transação — leitura rápida sem lock) ──
       const caixaAberto = (await query("SELECT id FROM fluxo_caixa WHERE status = 'aberto'")).rows[0];
       if (!caixaAberto) return res.status(400).json({ error: 'O CAIXA ESTÁ FECHADO!' });
 
       if (mesa_id) {
-        const mesaObj = (await query("SELECT status, garcom_id FROM mesas WHERE id = ?", [mesa_id])).rows[0];
+        const mesaObj = (await query("SELECT id, numero, status, garcom_id, tipo, is_funcionario, funcionario_nome FROM mesas WHERE id = ?", [mesa_id])).rows[0];
         if (mesaObj && (mesaObj.status === 'fechando' || mesaObj.status === 'aguardando_fechamento')) {
           return res.status(400).json({ 
             error: 'MESA_OCUPADA', 
             message: 'Esta mesa está em processo de fechamento de conta ou aguardando pagamento.' 
           });
+        }
+
+        if (mesaObj) {
+          if (mesaObj.is_funcionario || mesaObj.tipo === 'funcionario' || /^(func|staff|f-)/i.test(mesaObj.numero || '')) {
+            isFuncionario = true;
+            if (!funcNome) funcNome = mesaObj.funcionario_nome || mesaObj.numero;
+          }
         }
 
         if (mesaObj && mesaObj.status === 'ocupada' && mesaObj.garcom_id && !isDelivery) {
@@ -752,6 +761,10 @@ module.exports = (ctx) => {
               });
           }
         }
+      }
+
+      if (isFuncionario && cobrar_taxa === undefined) {
+        deveCobrarTaxa = false;
       }
 
       // ── CÁLCULO DE FRETE (fora da transação — chamada externa Nominatim) ──
@@ -886,29 +899,31 @@ module.exports = (ctx) => {
         const mesaIdNum = mesa_id ? Number(mesa_id) : null;
         if (isPostgres) {
           try {
-            resPedido = await tx('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
+            resPedido = await tx('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km, is_funcionario, funcionario_nome) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm, isFuncionario ? true : false, funcNome]);
           } catch (errCol) {
-            if (errCol.message && (errCol.message.includes('taxa_entrega') || errCol.message.includes('distancia_km'))) {
-              await tx("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS taxa_entrega REAL DEFAULT 0; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS distancia_km REAL DEFAULT 0;");
-              resPedido = await tx('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
-            } else { throw errCol; }
+            await tx("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS taxa_entrega REAL DEFAULT 0; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS distancia_km REAL DEFAULT 0; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS is_funcionario BOOLEAN DEFAULT FALSE; ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS funcionario_nome TEXT;");
+            resPedido = await tx('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km, is_funcionario, funcionario_nome) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm, isFuncionario ? true : false, funcNome]);
           }
         } else {
           try {
-            resPedido = await tx('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
+            resPedido = await tx('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km, is_funcionario, funcionario_nome) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm, isFuncionario ? 1 : 0, funcNome]);
           } catch (errColSq) {
-            if (errColSq.message && (errColSq.message.includes('taxa_entrega') || errColSq.message.includes('distancia_km') || errColSq.message.includes('has no column'))) {
-              try { await tx("ALTER TABLE pedidos ADD COLUMN taxa_entrega REAL DEFAULT 0"); } catch(e){}
-              try { await tx("ALTER TABLE pedidos ADD COLUMN distancia_km REAL DEFAULT 0"); } catch(e){}
-              resPedido = await tx('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm]);
-            } else { throw errColSq; }
+            try { await tx("ALTER TABLE pedidos ADD COLUMN is_funcionario INTEGER DEFAULT 0"); } catch(e){}
+            try { await tx("ALTER TABLE pedidos ADD COLUMN funcionario_nome TEXT"); } catch(e){}
+            try { await tx("ALTER TABLE pedidos ADD COLUMN taxa_entrega REAL DEFAULT 0"); } catch(e){}
+            try { await tx("ALTER TABLE pedidos ADD COLUMN distancia_km REAL DEFAULT 0"); } catch(e){}
+            resPedido = await tx('INSERT INTO pedidos (mesa_id, garcom_id, total, status, created_at, cobrar_taxa, observacao, cliente_telefone, forma_pagamento, valor_recebido, troco, taxa_entrega, distancia_km, is_funcionario, funcionario_nome) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [mesa_id || null, garcom_id, total, 'recebido', new Date().toISOString(), deveCobrarTaxa ? 1 : 0, observacao || '', cliente_telefone || null, fPag, vRec, vTrc, taxaEntrega, distKm, isFuncionario ? 1 : 0, funcNome]);
           }
         }
         const txPedidoId = resPedido.rows && resPedido.rows[0] ? resPedido.rows[0].id : resPedido.lastInsertRowid;
 
         // 5. UPDATE mesa e código de acesso
         if (mesa_id) {
-          await tx("UPDATE mesas SET status = 'ocupada', garcom_id = ? WHERE id = ?", [garcom_id, mesaIdNum]);
+          if (isFuncionario) {
+            await tx("UPDATE mesas SET status = 'ocupada', garcom_id = ?, is_funcionario = 1, funcionario_nome = COALESCE(funcionario_nome, ?) WHERE id = ?", [garcom_id, funcNome, mesaIdNum]).catch(() => {});
+          } else {
+            await tx("UPDATE mesas SET status = 'ocupada', garcom_id = ? WHERE id = ?", [garcom_id, mesaIdNum]);
+          }
           const acessoExistente = (await tx("SELECT id FROM codigos_acesso WHERE mesa_id = ? AND status = 'ativo' LIMIT 1", [mesaIdNum])).rows[0];
           if (!acessoExistente) {
             const caracteres = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

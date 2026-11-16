@@ -2444,6 +2444,11 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
   // Se for primitivo (string ou número)
   if (typeof m === 'string' || typeof m === 'number') {
     const str = String(m).trim();
+    if (/^(func|staff|f-)/i.test(str)) {
+      const numTrim = str.replace(/^(func|staff|f-)\s*/i, '').trim();
+      const txt = numTrim ? numTrim : 'Funcionário';
+      return incluirIcone ? `👤 ${txt}` : txt;
+    }
     if (/^balc[aã]o/i.test(str)) {
       const numTrim = str.replace(/^balc[aã]o\s*/i, '').trim();
       const txt = numTrim ? `Balcão ${numTrim}` : 'Balcão';
@@ -2472,15 +2477,22 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
     ? String(m.numero).trim() 
     : ((m.mesa_numero !== undefined && m.mesa_numero !== null) ? String(m.mesa_numero).trim() : '');
   const tipo = String(m.tipo || m.mesa_tipo || '').toLowerCase();
-  const isBalcao = tipo === 'balcao' || /^balc[aã]o/i.test(numRaw) || /^comanda\s*balc[aã]o/i.test(numRaw) || (m.is_balcao == 1 || m.is_balcao === true);
-  const isComanda = !isBalcao && (tipo === 'comanda' || Number(m.is_comanda) === 1 || /^comanda/i.test(numRaw));
+  const isFuncionario = !!m.is_funcionario || tipo === 'funcionario' || /^(func|staff|f-)/i.test(numRaw);
+  const funcionarioNome = m.funcionario_nome || (/^(func|staff|f-)/i.test(numRaw) ? numRaw.replace(/^(func|staff|f-)\s*/i, '').trim() : '');
+  const isBalcao = !isFuncionario && (tipo === 'balcao' || /^balc[aã]o/i.test(numRaw) || /^comanda\s*balc[aã]o/i.test(numRaw) || (m.is_balcao == 1 || m.is_balcao === true));
+  const isComanda = !isBalcao && !isFuncionario && (tipo === 'comanda' || Number(m.is_comanda) === 1 || /^comanda/i.test(numRaw));
 
   let limpo = numRaw;
   if (/^comanda\s*balc[aã]o\s*/i.test(limpo)) limpo = limpo.replace(/^comanda\s*balc[aã]o\s*/i, '').trim();
   else if (/^balc[aã]o\s*/i.test(limpo)) limpo = limpo.replace(/^balc[aã]o\s*/i, '').trim();
   else if (/^comanda\s*/i.test(limpo)) limpo = limpo.replace(/^comanda\s*/i, '').trim();
   else if (/^mesa\s*/i.test(limpo)) limpo = limpo.replace(/^mesa\s*/i, '').trim();
+  else if (/^(func|staff|f-)\s*/i.test(limpo)) limpo = limpo.replace(/^(func|staff|f-)\s*/i, '').trim();
 
+  if (isFuncionario) {
+    const txt = funcionarioNome || limpo || 'Funcionário';
+    return incluirIcone ? `👤 ${txt}` : txt;
+  }
   if (isBalcao) {
     const txt = limpo ? `Balcão ${limpo}` : 'Balcão';
     return incluirIcone ? `🏪 ${txt}` : txt;
@@ -2660,6 +2672,8 @@ function exibirMesas() {
       tem_itens_pendentes: m.tem_itens_pendentes,
       tem_itens_churrasco: m.tem_itens_churrasco,
       tem_itens_cozinha: m.tem_itens_cozinha,
+      is_funcionario: m.is_funcionario,
+      funcionario_nome: m.funcionario_nome,
       minutos: minutos
     };
   })) + filtroMesaAtual + String(caixaAberto) + String(mesasCompartilhadasAtivas);
@@ -2778,8 +2792,13 @@ function exibirMesas() {
       }
     }
 
+    const isMesaFunc = !!mesa.is_funcionario || (mesa.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesa.numero || '');
+    const funcNome = mesa.funcionario_nome || (/^(func|staff|f-)/i.test(mesa.numero || '') ? String(mesa.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() : '');
+    const tagFuncionarioHtml = isMesaFunc ? `<span class="mesa-tag-funcionario">FUNCIONÁRIO${funcNome ? `: ${funcNome.toUpperCase()}` : ''}</span>` : '';
+
     return `
-      <div class="mesa ${mesa.status} ${classeAlerta} ${classeBloqueada}" data-id="${mesa.id}" style="cursor:pointer">
+      <div class="mesa ${mesa.status} ${classeAlerta} ${classeBloqueada} ${isMesaFunc ? 'mesa-funcionario' : ''}" data-id="${mesa.id}" style="cursor:pointer">
+        ${tagFuncionarioHtml}
         <h3>${formatarNomeMesaGarcom(mesa)}</h3>
         <p style="font-weight:bold">${statusTexto}</p>
         ${cronometroHtml}
@@ -3008,6 +3027,7 @@ async function abrirModalCriarComandaGarcom() {
         <select id="swal-select-comanda-tipo" style="width: 100%; padding: 12px 14px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc; color: #1e293b;">
           <option value="comanda">🍽️ Comanda de Mesa</option>
           <option value="balcao">🏪 Comanda de Balcão</option>
+          <option value="funcionario">👤 Consumo de Funcionário</option>
         </select>
         <p style="font-size: 0.78rem; color: #64748b; margin: 10px 0 0 0;">
           💡 Disponível imediatamente no app do garçom e no painel admin.
@@ -3073,13 +3093,16 @@ async function abrirModalCriarComandaGarcom() {
 
   try {
     showLoading(true, 'Criando comanda...');
+    const isFuncionarioCriar = (dados.tipo === 'funcionario');
     const res = await fetch('/api/mesas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         numero: dados.nome,
-        tipo: dados.tipo,
-        is_comanda: 1
+        tipo: isFuncionarioCriar ? 'funcionario' : dados.tipo,
+        is_comanda: 1,
+        is_funcionario: isFuncionarioCriar ? 1 : 0,
+        funcionario_nome: isFuncionarioCriar ? dados.nome : undefined
       })
     });
 
