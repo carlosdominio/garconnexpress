@@ -4428,8 +4428,8 @@ async function exibirGarconsConfig() {
                 title="${estaAtivo ? 'Acesso Ativo - Clique para Bloquear' : 'Acesso Bloqueado - Clique para Desbloquear'}">
           ${estaAtivo ? '🔓' : '🔒'}
         </button>
-        <button style="background:#3498db; padding:4px 8px; font-size:0.8rem; width:auto;" onclick="prepararEdicaoGarcomByIndex(${index})">✏️</button>
-        <button class="btn-excluir" style="width:auto;" onclick="excluirGarcom(${g.id})">X</button>
+        <button style="background:#3498db; padding:4px 8px; font-size:0.8rem; width:auto; cursor:pointer;" onclick="prepararEdicaoGarcomByIndex(${index})" title="Editar usuário">✏️</button>
+        <button class="btn-excluir" style="width:auto; cursor:pointer;" onclick="excluirGarcom(${g.id})" title="Excluir usuário">X</button>
       </div>
     </div>`;
   }).join('');
@@ -4536,8 +4536,22 @@ function prepararEdicaoGarcom(g) {
   const btn = document.getElementById('btn-acao-garcom');
   if (btn) btn.textContent = '💾 Salvar Alterações';
   const btnCan = document.getElementById('btn-cancelar-garcom');
-  if (btnCan) btnCan.classList.remove('hidden');
+  if (btnCan) {
+    btnCan.textContent = 'Fechar';
+    btnCan.title = 'Fechar formulário de edição';
+    btnCan.classList.remove('hidden');
+  }
   verificarFormGarcom();
+
+  // Rola suavemente a página até o formulário de edição de usuário
+  const formElement = document.getElementById('garcom-nome') || document.querySelector('#config-sub-equipe .config-card');
+  if (formElement) {
+    formElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => {
+      const inputNome = document.getElementById('garcom-nome');
+      if (inputNome) inputNome.focus();
+    }, 350);
+  }
 }
 
 function cancelarEdicaoGarcom() {
@@ -4551,7 +4565,10 @@ function cancelarEdicaoGarcom() {
   const btn = document.getElementById('btn-acao-garcom');
   if (btn) btn.textContent = 'Cadastrar';
   const btnCan = document.getElementById('btn-cancelar-garcom');
-  if (btnCan) btnCan.classList.add('hidden');
+  if (btnCan) {
+    btnCan.title = 'Fechar formulário de edição';
+    btnCan.classList.add('hidden');
+  }
   verificarFormGarcom();
 }
 
