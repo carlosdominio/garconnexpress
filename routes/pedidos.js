@@ -1742,7 +1742,7 @@ module.exports = (ctx) => {
           await safePusherTrigger('garconnexpress', 'status-atualizado', {
             mesa_id: mesaOrigemId,
             mesa_numero: mesaOrigemNumero || mesaOrigemId,
-            status: 'liberada',
+            status: 'transferida',
             origem: 'transferencia'
           });
         }

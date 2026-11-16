@@ -1308,6 +1308,9 @@ async function safePusherTrigger(channel, event, data) {
           } else if (data.status === 'saiu_entrega') {
             msgMotoboy = resolveTemplate('saiu-entrega', '🛵 SAIU PARA ENTREGA', `🛵 SAIU PARA ENTREGA: ${mesaFormatada}`);
           } else if (data.status === 'liberada') {
+            if (data.origem === 'transferencia' || data.status === 'transferida') {
+              return true; // Suprime Web Push em transferências
+            }
             msgGarcom = resolveTemplate('mesa-liberada', '🔓 MESA LIBERADA', `🔓 MESA LIBERADA: ${mesaFormatada}`);
           } else if (data.status === 'itens_atualizados') {
             msgGarcom = resolveTemplate('itens-atualizados', '📝 PEDIDO ATUALIZADO', '{mesa}: {detalhes}');
@@ -6549,18 +6552,18 @@ const transferirMesaServerHandler = async (req, res) => {
       ]);
     }
 
-    if (mesaOrigemId) {
-      const ativosRestantes = (await query("SELECT id FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND CAST(id AS TEXT) != CAST(? AS TEXT)", [mesaOrigemId, pedido.id])).rows;
-      if (ativosRestantes.length === 0) {
-        await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE (id = ? OR CAST(id AS TEXT) = ?)", [mesaOrigemId, String(mesaOrigemId)]);
-        await safePusherTrigger('garconnexpress', 'status-atualizado', {
-          mesa_id: mesaOrigemId,
-          mesa_numero: mesaOrigemNumero || mesaOrigemId,
-          status: 'liberada',
-          origem: 'transferencia'
-        });
+      if (mesaOrigemId) {
+        const ativosRestantes = (await query("SELECT id FROM pedidos WHERE CAST(mesa_id AS TEXT) = CAST(? AS TEXT) AND status NOT IN ('entregue', 'cancelado', 'rascunho') AND CAST(id AS TEXT) != CAST(? AS TEXT)", [mesaOrigemId, pedido.id])).rows;
+        if (ativosRestantes.length === 0) {
+          await query("UPDATE mesas SET status = 'livre', garcom_id = NULL WHERE (id = ? OR CAST(id AS TEXT) = ?)", [mesaOrigemId, String(mesaOrigemId)]);
+          await safePusherTrigger('garconnexpress', 'status-atualizado', {
+            mesa_id: mesaOrigemId,
+            mesa_numero: mesaOrigemNumero || mesaOrigemId,
+            status: 'transferida',
+            origem: 'transferencia'
+          });
+        }
       }
-    }
 
     if (mesaOrigemId || mesaOrigemNumero) {
       await query("UPDATE codigos_acesso SET mesa_id = ? WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_id AS TEXT) = CAST(? AS TEXT)) AND status = 'ativo'", [

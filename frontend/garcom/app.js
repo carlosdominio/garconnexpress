@@ -2450,8 +2450,8 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
     const str = String(m).trim();
     if (/^(func|staff|f-)/i.test(str)) {
       const numTrim = str.replace(/^(func|staff|f-)\s*/i, '').trim();
-      const txt = numTrim ? numTrim : 'Funcionário';
-      return incluirIcone ? `👤 ${txt}` : txt;
+      const txt = numTrim ? numTrim : 'Colaborador';
+      return `PEDIDO INTERNO: ${txt}`;
     }
     if (/^balc[aã]o/i.test(str)) {
       const numTrim = str.replace(/^balc[aã]o\s*/i, '').trim();
@@ -2494,8 +2494,8 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
   else if (/^(func|staff|f-)\s*/i.test(limpo)) limpo = limpo.replace(/^(func|staff|f-)\s*/i, '').trim();
 
   if (isFuncionario) {
-    const txt = funcionarioNome || limpo || 'Funcionário';
-    return incluirIcone ? `👤 ${txt}` : txt;
+    const txt = funcionarioNome || limpo || 'Colaborador';
+    return `PEDIDO INTERNO: ${txt}`;
   }
   if (isBalcao) {
     const txt = limpo ? `Balcão ${limpo}` : 'Balcão';
@@ -2797,12 +2797,9 @@ function exibirMesas() {
     }
 
     const isMesaFunc = !!mesa.is_funcionario || (mesa.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesa.numero || '');
-    const funcNome = mesa.funcionario_nome || (/^(func|staff|f-)/i.test(mesa.numero || '') ? String(mesa.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() : '');
-    const tagFuncionarioHtml = isMesaFunc ? `<span class="mesa-tag-funcionario">FUNCIONÁRIO${funcNome ? `: ${funcNome.toUpperCase()}` : ''}</span>` : '';
 
     return `
       <div class="mesa ${mesa.status} ${classeAlerta} ${classeBloqueada} ${isMesaFunc ? 'mesa-funcionario' : ''}" data-id="${mesa.id}" style="cursor:pointer">
-        ${tagFuncionarioHtml}
         <h3>${formatarNomeMesaGarcom(mesa)}</h3>
         <p style="font-weight:bold">${statusTexto}</p>
         ${cronometroHtml}

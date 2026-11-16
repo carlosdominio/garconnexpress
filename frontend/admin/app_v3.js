@@ -7095,11 +7095,20 @@ async function exibirPedidos() {
       const isRetirada = isDelivery && isPedidoRetiradaLocal(pedido);
       const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '') && (pedido.mesa_tipo !== 'balcao');
       const isBalcao = isPedidoBalcao(pedido);
+      const isFuncionario = !!pedido.is_funcionario || (pedido.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedido.mesa_numero || '');
+      let funcionarioNome = pedido.funcionario_nome || '';
+      if (!funcionarioNome && pedido.mesa_numero) {
+        funcionarioNome = String(pedido.mesa_numero).replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim();
+      }
+
       let mesaNomeExibicao;
       if (isRetirada) {
         mesaNomeExibicao = `🛍️ RETIRADA #${pedido.id}`;
       } else if (isDelivery) {
         mesaNomeExibicao = `🛵 DELIVERY #${pedido.id}`;
+      } else if (isFuncionario) {
+        const nomeFinal = funcionarioNome || String(pedido.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim() || 'Colaborador';
+        mesaNomeExibicao = `PEDIDO INTERNO: ${nomeFinal}`;
       } else if (pedido.mesa_tipo === 'balcao') {
         const numTrim = String(pedido.mesa_numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
         mesaNomeExibicao = numTrim ? `🏪 Balcão ${numTrim}` : `🏪 Balcão`;
@@ -7191,8 +7200,6 @@ async function exibirPedidos() {
       
       const isPronto = pedido.status === 'pronto';
       const isExpanded = expandedPedidoIds.has(String(pedido.id));
-      const isFuncionario = !!pedido.is_funcionario || (pedido.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedido.mesa_numero || '');
-      const funcionarioNome = pedido.funcionario_nome || (/^(func|staff|f-)/i.test(pedido.mesa_numero || '') ? String(pedido.mesa_numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() : '');
       let statusBadgeLabel = statusGeral === 'servido' ? 'EM ANDAMENTO' : 'PENDENTE';
       if (isDelivery) {
         if (isAguardando) statusBadgeLabel = isRetirada ? 'RETIRADO' : 'ENTREGUE';
@@ -7204,11 +7211,6 @@ async function exibirPedidos() {
       const cardInnerHTML = `
         <div class="pedido-header">
           <div>
-            ${isFuncionario ? `
-              <div style="margin-bottom: 5px;">
-                <span class="badge-funcionario">FUNCIONÁRIO: ${(funcionarioNome || 'STAFF').toUpperCase()}</span>
-              </div>
-            ` : ''}
             <h3 style="display:flex; align-items:center; gap:8px;">
               ${mesaNomeExibicao}
               <span class="pedido-cronometro" data-created-at="${dataBaseCronometro || ''}" style="font-size:0.8rem; background:#2c3e50; padding:2px 8px; border-radius:12px; color:#fff; ${minutosCronometro === null ? 'display:none;' : ''}">
@@ -7358,7 +7360,7 @@ async function exibirPedidos() {
       let card = document.getElementById(cardId);
       const minutosEspera = m.codigo_criado_at ? calcularMinutos(m.codigo_criado_at) : 0;
       const isMesaFunc = !!m.is_funcionario || (m.tipo === 'funcionario') || /^(func|staff|f-)/i.test(m.numero || '');
-      const funcNome = m.funcionario_nome || (/^(func|staff|f-)/i.test(m.numero || '') ? String(m.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() : '');
+      const funcNome = m.funcionario_nome || (/^(func|staff|f-)/i.test(m.numero || '') ? String(m.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() : String(m.numero || ''));
       const newClassName = `pedido-card minimized status-recebido ${isMesaFunc ? 'pedido-funcionario' : ''}`;
       const cardStyleText = isMesaFunc 
         ? `border-left: 6px solid #8e44ad !important; background: linear-gradient(135deg, #ffffff 0%, #fbf9fd 100%); cursor: pointer;` 
@@ -7367,18 +7369,13 @@ async function exibirPedidos() {
       const cardInnerHTML = `
         <div class="pedido-header">
           <div>
-            ${isMesaFunc ? `
-              <div style="margin-bottom: 5px;">
-                <span class="badge-funcionario">FUNCIONÁRIO: ${(funcNome || 'STAFF').toUpperCase()}</span>
-              </div>
-            ` : ''}
             <h3 style="display:flex; align-items:center; gap:8px;">
-              ${isMesaFunc ? `👤 ${m.numero}` : `📱 Mesa ${m.numero}`}
+              ${isMesaFunc ? `PEDIDO INTERNO: ${funcNome || 'Colaborador'}` : `📱 Mesa ${m.numero}`}
               <span class="pedido-cronometro" data-created-at="${m.codigo_criado_at || ''}" style="font-size:0.8rem; background:#2c3e50; padding:2px 8px; border-radius:12px; color:#fff;">
                 ⏱️ ${minutosEspera} min
               </span>
             </h3>
-            <span class="status-badge" style="background:${isMesaFunc ? '#8e44ad' : '#3498db'}; color:white;">${isMesaFunc ? '👤 CONSUMO FUNCIONÁRIO' : '📱 AGUARDANDO CLIENTE'}</span>
+            <span class="status-badge" style="background:${isMesaFunc ? '#8e44ad' : '#3498db'}; color:white;">${isMesaFunc ? 'PEDIDO INTERNO' : '📱 AGUARDANDO CLIENTE'}</span>
             <small style="display:block; margin-top:4px; opacity:0.6;">📅 Código ativo — aguardando pedido</small>
             <small style="display:block; font-weight:bold; color: #34495e; margin-top:2px;">👤 Garçom: ${m.garcom_id || 'Autônomo'}</small>
           </div>
@@ -10381,6 +10378,12 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       }
       
       const tagMesa = `mesa-${data.mesa_id}`;
+
+      if (data.status === 'transferida' || data.origem === 'transferencia' || data.tipo_atualizacao === 'transferencia') {
+        clearTimeout(timeoutPusher);
+        timeoutPusher = setTimeout(() => { carregarPedidos(); carregarHistorico(); }, 100);
+        return; // Suprime completamente alertas de "mesa liberada" durante transferência de mesa
+      }
 
       if (data.status === 'liberada') {
         adicionarNotificacao('🔓 MESA LIBERADA', `${nMesa} está livre para o próximo cliente.`, '🔓');
