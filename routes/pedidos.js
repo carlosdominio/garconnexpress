@@ -1035,7 +1035,8 @@ module.exports = (ctx) => {
         .filter(i => i && Number(i.quantidade) > 0)
         .map(i => ({ ...i, quantidade: parseInt(i.quantidade, 10) }));
 
-      const itensAtuais = (await query("SELECT id, menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
+      const itensAtuais = (await query("SELECT id, menu_id, quantidade, status FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
+      const jaTinhaPendenteAntes = (itensAtuais || []).some(i => i.status === 'pendente' || i.status === 'pronto');
       const menuItems = (await query("SELECT id, nome, categoria, enviar_cozinha, enviar_churrasco FROM menu")).rows;
       const menuMap = {};
       menuItems.forEach(m => { menuMap[m.id] = m; });
@@ -1147,15 +1148,26 @@ module.exports = (ctx) => {
       const statusAtualRes = await query("SELECT status FROM pedidos WHERE id = ?", [id]);
       const statusAnterior = statusAtualRes.rows[0] ? statusAtualRes.rows[0].status : '';
 
-      // Reinicia o cronômetro para os novos itens adicionados (created_at = agora) e preserva abertura_mesa original
+      // Se já tinha itens pendentes antes da edição, preserva o tempo já contado (não zera o created_at)
+      // Se não havia pendentes e agora há novos itens, inicia o cronômetro para os novos itens (created_at = agora)
       if (temPendente) {
-        await executarUpdateAberturaMesa(
-          query,
-          "UPDATE pedidos SET total = ?, status = ?, created_at = ?, abertura_mesa = COALESCE(abertura_mesa, created_at), observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
-          "UPDATE pedidos SET total = ?, status = ?, created_at = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
-          [total, novoStatusPedido, agora, observacao || '', id],
-          [total, novoStatusPedido, agora, observacao || '', id]
-        );
+        if (jaTinhaPendenteAntes) {
+          await executarUpdateAberturaMesa(
+            query,
+            "UPDATE pedidos SET total = ?, status = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+            "UPDATE pedidos SET total = ?, status = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+            [total, novoStatusPedido, observacao || '', id],
+            [total, novoStatusPedido, observacao || '', id]
+          );
+        } else {
+          await executarUpdateAberturaMesa(
+            query,
+            "UPDATE pedidos SET total = ?, status = ?, created_at = ?, abertura_mesa = COALESCE(abertura_mesa, created_at), observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+            "UPDATE pedidos SET total = ?, status = ?, created_at = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+            [total, novoStatusPedido, agora, observacao || '', id],
+            [total, novoStatusPedido, agora, observacao || '', id]
+          );
+        }
         
         const resMesa = await query("SELECT m.id, m.numero, m.is_comanda FROM pedidos p JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id]);
         const isCom = resMesa.rows[0] ? (resMesa.rows[0].is_comanda ? 1 : 0) : 0;
@@ -1244,6 +1256,9 @@ module.exports = (ctx) => {
       const pOrig = (await query("SELECT mesa_id, garcom_id, cobrar_taxa FROM pedidos WHERE id = ?", [id])).rows[0];
       const deveTaxa = cobrar_taxa !== undefined ? cobrar_taxa : (pOrig ? pOrig.cobrar_taxa : true);
       
+      const itensAntes = (await query("SELECT id, status FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
+      const jaTinhaPendenteAntes = (itensAntes || []).some(i => i.status === 'pendente' || i.status === 'pronto');
+      
       if (pOrig && pOrig.garcom_id && pOrig.garcom_id !== 'DELIVERY') {
           const isAdminRole = req.user && req.user.role === 'admin';
           const isClient = req.user && req.user.role === 'cliente';
@@ -1294,14 +1309,25 @@ module.exports = (ctx) => {
       const statusAtualRes = await query("SELECT status FROM pedidos WHERE id = ?", [id]);
       const statusAnterior = statusAtualRes.rows[0] ? statusAtualRes.rows[0].status : '';
 
-      // Reinicia o cronômetro para os novos itens adicionados (created_at = agora) e preserva abertura_mesa original
-      await executarUpdateAberturaMesa(
-        query,
-        "UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, abertura_mesa = COALESCE(abertura_mesa, created_at), observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
-        "UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
-        [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id],
-        [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id]
-      );
+      // Se já tinha itens pendentes antes da adição, preserva o tempo já contado (não zera o created_at)
+      // Se não havia pendentes e agora há novos itens, inicia o cronômetro para os novos itens (created_at = agora)
+      if (jaTinhaPendenteAntes) {
+        await executarUpdateAberturaMesa(
+          query,
+          "UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', observacao = ?, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+          "UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', observacao = ?, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+          [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), observacao || '', id],
+          [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), observacao || '', id]
+        );
+      } else {
+        await executarUpdateAberturaMesa(
+          query,
+          "UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, abertura_mesa = COALESCE(abertura_mesa, created_at), observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+          "UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+          [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id],
+          [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id]
+        );
+      }
       const pMesa = (await query("SELECT p.mesa_id, p.garcom_id, m.numero, m.is_comanda FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
       if (pMesa && pMesa.mesa_id) {
         const mesaIdNum = pMesa.mesa_id;

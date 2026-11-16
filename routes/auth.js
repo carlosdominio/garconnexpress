@@ -50,12 +50,16 @@ module.exports = (ctx) => {
 
       let result;
       try {
-        result = await query('SELECT id, nome, usuario, senha, cargo, ativo FROM garcons WHERE usuario = ?', [usuario]);
+        result = await query('SELECT id, nome, usuario, senha, cargo, ativo, is_online, session_id FROM garcons WHERE usuario = ?', [usuario]);
       } catch (errCol) {
         try {
-          result = await query('SELECT id, nome, usuario, senha, cargo FROM garcons WHERE usuario = ?', [usuario]);
+          result = await query('SELECT id, nome, usuario, senha, cargo, ativo, is_online FROM garcons WHERE usuario = ?', [usuario]);
         } catch (e2) {
-          result = await query('SELECT id, nome, usuario, senha FROM garcons WHERE usuario = ?', [usuario]);
+          try {
+            result = await query('SELECT id, nome, usuario, senha, cargo, is_online FROM garcons WHERE usuario = ?', [usuario]);
+          } catch (e3) {
+            result = await query('SELECT id, nome, usuario, senha FROM garcons WHERE usuario = ?', [usuario]);
+          }
         }
       }
 
@@ -68,6 +72,27 @@ module.exports = (ctx) => {
           return res.status(403).json({
             error: 'Acesso Bloqueado: Este usuário foi desativado/bloqueado pela gerência. Entre em contato com a administração.'
           });
+        }
+
+        // Validação de Sessão Única: Bloqueio de login simultâneo no mesmo usuário
+        const isOnlineJa = Boolean(garcom.is_online === true || garcom.is_online === 1 || garcom.is_online === '1' || garcom.is_online === 't' || garcom.is_online === 'true');
+        const forcarLogin = req.body.forcarLogin === true || req.body.forcarLogin === 'true';
+
+        if (isOnlineJa && !forcarLogin) {
+          return res.status(409).json({
+            error: '🔒 Este usuário já está conectado em outro aparelho! Não é permitido o acesso simultâneo com a mesma conta.',
+            ja_conectado: true,
+            usuario: garcom.usuario
+          });
+        }
+
+        if (isOnlineJa && forcarLogin && typeof safePusherTrigger === 'function') {
+          // Encerra imediatamente a sessão ativa no outro aparelho via Pusher
+          await safePusherTrigger('garconnexpress', 'garcom-sessao-encerrada', {
+            garcom_id: garcom.id,
+            usuario: garcom.usuario,
+            motivo: 'Login realizado em outro aparelho'
+          }).catch(() => {});
         }
 
         const cargo = (garcom.cargo || 'garcom').toLowerCase().trim();
@@ -104,7 +129,8 @@ module.exports = (ctx) => {
           }
         }
 
-        const token = jwt.sign({ id: garcom.id, nome: garcom.nome, usuario: garcom.usuario, cargo: cargo, role: 'garcom' }, JWT_SECRET, { expiresIn: '15d' });
+        const novoSessionId = Date.now().toString(36) + Math.random().toString(36).substring(2);
+        const token = jwt.sign({ id: garcom.id, nome: garcom.nome, usuario: garcom.usuario, cargo: cargo, role: 'garcom', session_id: novoSessionId }, JWT_SECRET, { expiresIn: '15d' });
         
         const agora = new Date().toISOString();
         let estadoPausaReal = false;
@@ -115,7 +141,9 @@ module.exports = (ctx) => {
           }
         } catch (e) {}
 
-        await query("UPDATE garcons SET is_online = ?, last_assigned_at = ? WHERE id = ?", [isPostgres ? true : 1, agora, garcom.id]).catch(() => {});
+        await query("UPDATE garcons SET is_online = ?, session_id = ?, last_assigned_at = ? WHERE id = ?", [isPostgres ? true : 1, novoSessionId, agora, garcom.id]).catch(async () => {
+          await query("UPDATE garcons SET is_online = ?, last_assigned_at = ? WHERE id = ?", [isPostgres ? true : 1, agora, garcom.id]).catch(() => {});
+        });
         await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [estadoPausaReal ? 1 : 0, String(garcom.id), String(garcom.usuario)]).catch(() => {});
 
         garcom.pausado = estadoPausaReal;

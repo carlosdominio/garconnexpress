@@ -36,7 +36,9 @@ module.exports = (ctx) => {
             }
           } catch (e) {}
 
-          await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isPostgres ? false : 0, decoded.id]);
+          await query("UPDATE garcons SET is_online = ?, session_id = NULL WHERE id = ?", [isPostgres ? false : 0, decoded.id]).catch(async () => {
+            await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isPostgres ? false : 0, decoded.id]).catch(() => {});
+          });
           console.log(`👋 Colaborador ${garcomInfo.usuario || decoded.usuario} offline (logout, pausado=${estadoPausaReal}).`);
 
           if (typeof safePusherTrigger === 'function') {

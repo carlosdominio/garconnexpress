@@ -3167,6 +3167,7 @@ async function initDb() {
     await addCol('garcons', 'cargo', "TEXT DEFAULT 'garcom'");
     await addCol('garcons', 'ativo', "BOOLEAN DEFAULT TRUE");
     await addCol('garcons', 'last_assigned_at', 'TIMESTAMP');
+    await addCol('garcons', 'session_id', 'TEXT');
     await addCol('pedidos', 'cliente_telefone', 'TEXT');
     await addCol('pedidos', 'taxa_entrega', 'REAL DEFAULT 0');
     await addCol('pedidos', 'distancia_km', 'REAL DEFAULT 0');
@@ -3497,7 +3498,9 @@ app.post('/api/logout', async (req, res) => {
           }
         } catch (e) {}
 
-        await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isPostgres ? false : 0, decoded.id]);
+        await query("UPDATE garcons SET is_online = ?, session_id = NULL WHERE id = ?", [isPostgres ? false : 0, decoded.id]).catch(async () => {
+          await query("UPDATE garcons SET is_online = ? WHERE id = ?", [isPostgres ? false : 0, decoded.id]).catch(() => {});
+        });
         console.log(`👋 Colaborador ${decoded.usuario} offline (deslogado, pausado=${estadoPausaReal}).`);
         await safePusherTrigger('garconnexpress', 'garcom-status-alterado', {
           garcom_id: decoded.id,
@@ -5754,7 +5757,8 @@ app.put('/api/pedidos/:id/atualizar-itens', ensureDbInitialized, isAuthenticated
       .filter(i => i && Number(i.quantidade) > 0)
       .map(i => ({ ...i, quantidade: parseInt(i.quantidade, 10) }));
 
-    const itensAtuais = (await query("SELECT id, menu_id, quantidade FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
+    const itensAtuais = (await query("SELECT id, menu_id, quantidade, status FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
+    const jaTinhaPendenteAntes = (itensAtuais || []).some(i => i.status === 'pendente' || i.status === 'pronto');
     
     // Calcula as alterações detalhadas da edição realizada
     const menuItems = (await query("SELECT id, nome, categoria, enviar_cozinha, enviar_churrasco FROM menu")).rows;
@@ -5872,15 +5876,26 @@ app.put('/api/pedidos/:id/atualizar-itens', ensureDbInitialized, isAuthenticated
     const statusAtualRes = await query("SELECT status FROM pedidos WHERE id = ?", [id]);
     const statusAnterior = statusAtualRes.rows[0] ? statusAtualRes.rows[0].status : '';
 
-    // Reinicia o cronômetro para os novos itens adicionados (created_at = agora) e preserva abertura_mesa original
+    // Se já tinha itens pendentes antes da edição, preserva o tempo já contado (não zera o created_at)
+    // Se não havia pendentes e agora há novos itens, inicia o cronômetro para os novos itens (created_at = agora)
     if (temPendente) {
-      await executarUpdateAberturaMesa(
-        query,
-        "UPDATE pedidos SET total = ?, status = ?, created_at = ?, abertura_mesa = COALESCE(abertura_mesa, created_at), observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
-        "UPDATE pedidos SET total = ?, status = ?, created_at = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
-        [total, novoStatusPedido, agora, observacao || '', id],
-        [total, novoStatusPedido, agora, observacao || '', id]
-      );
+      if (jaTinhaPendenteAntes) {
+        await executarUpdateAberturaMesa(
+          query,
+          "UPDATE pedidos SET total = ?, status = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+          "UPDATE pedidos SET total = ?, status = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+          [total, novoStatusPedido, observacao || '', id],
+          [total, novoStatusPedido, observacao || '', id]
+        );
+      } else {
+        await executarUpdateAberturaMesa(
+          query,
+          "UPDATE pedidos SET total = ?, status = ?, created_at = ?, abertura_mesa = COALESCE(abertura_mesa, created_at), observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+          "UPDATE pedidos SET total = ?, status = ?, created_at = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+          [total, novoStatusPedido, agora, observacao || '', id],
+          [total, novoStatusPedido, agora, observacao || '', id]
+        );
+      }
       
       const resMesa = await query("SELECT m.id, m.numero FROM pedidos p JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id]);
       const mesaNum = resMesa.rows[0] ? resMesa.rows[0].numero : 'BALCÃO';
@@ -5964,6 +5979,9 @@ app.put('/api/pedidos/:id/adicionar', ensureDbInitialized, isAuthenticated, asyn
     const pOrig = (await query("SELECT mesa_id, garcom_id, cobrar_taxa FROM pedidos WHERE id = ?", [id])).rows[0];
     const deveTaxa = cobrar_taxa !== undefined ? cobrar_taxa : (pOrig ? pOrig.cobrar_taxa : true);
     
+    const itensAntes = (await query("SELECT id, status FROM pedido_itens WHERE pedido_id = ?", [id])).rows;
+    const jaTinhaPendenteAntes = (itensAntes || []).some(i => i.status === 'pendente' || i.status === 'pronto');
+    
     // TRAVA DE FILA (RODÍZIO) - BACKEND LOCKOUT
     if (pOrig && pOrig.garcom_id && pOrig.garcom_id !== 'DELIVERY') {
         const isAdmin = req.user && req.user.role === 'admin';
@@ -6023,14 +6041,25 @@ app.put('/api/pedidos/:id/adicionar', ensureDbInitialized, isAuthenticated, asyn
     const statusAtualRes = await query("SELECT status FROM pedidos WHERE id = ?", [id]);
     const statusAnterior = statusAtualRes.rows[0] ? statusAtualRes.rows[0].status : '';
 
-    // Reinicia o cronômetro para os novos itens adicionados (created_at = agora) e preserva abertura_mesa original
-    await executarUpdateAberturaMesa(
-      query,
-      "UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, abertura_mesa = COALESCE(abertura_mesa, created_at), observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
-      "UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
-      [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id],
-      [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id]
-    );
+    // Se já tinha itens pendentes antes da adição, preserva o tempo já contado (não zera o created_at)
+    // Se não havia pendentes e agora há novos itens, inicia o cronômetro para os novos itens (created_at = agora)
+    if (jaTinhaPendenteAntes) {
+      await executarUpdateAberturaMesa(
+        query,
+        "UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', observacao = ?, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+        "UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', observacao = ?, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+        [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), observacao || '', id],
+        [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), observacao || '', id]
+      );
+    } else {
+      await executarUpdateAberturaMesa(
+        query,
+        "UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, abertura_mesa = COALESCE(abertura_mesa, created_at), observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+        "UPDATE pedidos SET total = ?, cobrar_taxa = ?, status = 'recebido', created_at = ?, observacao = ?, fechamento_liberado = FALSE, fechamento_solicitado_em = NULL, solicitou_fechamento = FALSE, notificado_atraso_fechamento = 0, notificado_atraso = 0 WHERE id = ?",
+        [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id],
+        [tot, isPostgres ? deveTaxa : (deveTaxa?1:0), agora, observacao || '', id]
+      );
+    }
     const pMesa = (await query("SELECT p.mesa_id, p.garcom_id, m.numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [id])).rows[0];
     if (pMesa && pMesa.mesa_id) {
       const mesaIdNum = pMesa.mesa_id;
@@ -7236,12 +7265,16 @@ app.post('/api/login', loginLimiter, async (req, res) => {
 
     let result;
     try {
-      result = await query('SELECT id, nome, usuario, senha, cargo, ativo FROM garcons WHERE usuario = ?', [usuario]);
+      result = await query('SELECT id, nome, usuario, senha, cargo, ativo, is_online, session_id FROM garcons WHERE usuario = ?', [usuario]);
     } catch (errCol) {
       try {
-        result = await query('SELECT id, nome, usuario, senha, cargo FROM garcons WHERE usuario = ?', [usuario]);
+        result = await query('SELECT id, nome, usuario, senha, cargo, ativo, is_online FROM garcons WHERE usuario = ?', [usuario]);
       } catch (e2) {
-        result = await query('SELECT id, nome, usuario, senha FROM garcons WHERE usuario = ?', [usuario]);
+        try {
+          result = await query('SELECT id, nome, usuario, senha, cargo, is_online FROM garcons WHERE usuario = ?', [usuario]);
+        } catch (e3) {
+          result = await query('SELECT id, nome, usuario, senha FROM garcons WHERE usuario = ?', [usuario]);
+        }
       }
     }
 
@@ -7254,6 +7287,27 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         return res.status(403).json({
           error: 'Acesso Bloqueado: Este usuário foi desativado/bloqueado pela gerência. Entre em contato com a administração.'
         });
+      }
+
+      // Validação de Sessão Única: Bloqueio de login simultâneo no mesmo usuário
+      const isOnlineJa = Boolean(garcom.is_online === true || garcom.is_online === 1 || garcom.is_online === '1' || garcom.is_online === 't' || garcom.is_online === 'true');
+      const forcarLogin = req.body.forcarLogin === true || req.body.forcarLogin === 'true';
+
+      if (isOnlineJa && !forcarLogin) {
+        return res.status(409).json({
+          error: '🔒 Este usuário já está conectado em outro aparelho! Não é permitido o acesso simultâneo com a mesma conta.',
+          ja_conectado: true,
+          usuario: garcom.usuario
+        });
+      }
+
+      if (isOnlineJa && forcarLogin) {
+        // Encerra imediatamente a sessão ativa no outro aparelho via Pusher
+        await safePusherTrigger('garconnexpress', 'garcom-sessao-encerrada', {
+          garcom_id: garcom.id,
+          usuario: garcom.usuario,
+          motivo: 'Login realizado em outro aparelho'
+        }).catch(() => {});
       }
 
       const cargo = (garcom.cargo || 'garcom').toLowerCase().trim();
@@ -7290,7 +7344,8 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         }
       }
 
-      const token = jwt.sign({ id: garcom.id, nome: garcom.nome, usuario: garcom.usuario, cargo: cargo, role: 'garcom' }, JWT_SECRET, { expiresIn: '15d' });
+      const novoSessionId = Date.now().toString(36) + Math.random().toString(36).substring(2);
+      const token = jwt.sign({ id: garcom.id, nome: garcom.nome, usuario: garcom.usuario, cargo: cargo, role: 'garcom', session_id: novoSessionId }, JWT_SECRET, { expiresIn: '15d' });
       
       const agora = new Date().toISOString();
       let estadoPausaReal = false;
@@ -7301,7 +7356,9 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         }
       } catch (e) {}
 
-      await query("UPDATE garcons SET is_online = ?, last_assigned_at = ? WHERE id = ?", [isPostgres ? true : 1, agora, garcom.id]).catch(() => {});
+      await query("UPDATE garcons SET is_online = ?, session_id = ?, last_assigned_at = ? WHERE id = ?", [isPostgres ? true : 1, novoSessionId, agora, garcom.id]).catch(async () => {
+        await query("UPDATE garcons SET is_online = ?, last_assigned_at = ? WHERE id = ?", [isPostgres ? true : 1, agora, garcom.id]).catch(() => {});
+      });
       await query("UPDATE push_subscriptions SET pausado = ? WHERE garcom_id = ? OR garcom_id = ?", [estadoPausaReal ? 1 : 0, String(garcom.id), String(garcom.usuario)]).catch(() => {});
 
       garcom.pausado = estadoPausaReal;

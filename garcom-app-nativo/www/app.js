@@ -866,7 +866,7 @@ function showLoading(show = true, text = "Processando...") {
   }
 }
 
-async function realizarLogin() {
+async function realizarLogin(forcar = false) {
   const usuario = document.getElementById('login-usuario').value;
   const senha = document.getElementById('login-senha').value;
   const btnLogin = document.getElementById('btn-login');
@@ -877,8 +877,6 @@ async function realizarLogin() {
     return await mostrarAlerta("Por favor, preencha o usuário e a senha antes de entrar.", "Campos Vazios", "⚠️");
   }
 
-  if (!usuario || !senha) return await mostrarAlerta("Preencha todos os campos", "Aviso", "⚠️");
-
   // Ativar Loading
   if (btnLogin) btnLogin.disabled = true;
   if (spinner) spinner.style.display = 'inline-block';
@@ -888,7 +886,7 @@ async function realizarLogin() {
     const res = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ usuario, senha, app: 'garcom' })
+      body: JSON.stringify({ usuario, senha, app: 'garcom', forcarLogin: !!forcar })
     });
 
     if (res.ok) {
@@ -909,6 +907,26 @@ async function realizarLogin() {
       if (nomeExib) nomeExib.textContent = `Garçom: ${garcomLogado.nome}`;
       
       await iniciarApp();
+    } else if (res.status === 409) {
+      // Resetar Loading
+      if (btnLogin) btnLogin.disabled = false;
+      if (spinner) spinner.style.display = 'none';
+      if (btnText) btnText.textContent = 'Entrar';
+
+      const resConfirm = await Swal.fire({
+        title: '🔒 Conta em Uso',
+        html: `O usuário <strong>${usuario}</strong> já está conectado em outro aparelho.<br><br>Deseja <strong>desconectar o outro aparelho</strong> e acessar neste?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '⚡ Desconectar Outro e Entrar',
+        confirmButtonColor: '#e74c3c',
+        cancelButtonText: 'Não, Cancelar',
+        cancelButtonColor: '#95a5a6'
+      });
+
+      if (resConfirm.isConfirmed) {
+        return await realizarLogin(true);
+      }
     } else if (res.status === 429) {
       await mostrarAlerta("Muitas tentativas incorretas. Conta bloqueada por 15 minutos.", "Atenção (Segurança)", "🔒");
       // Resetar Loading em caso de erro
@@ -1351,6 +1369,31 @@ async function configurarPusher() {
           });
         } else {
           alert('Acesso Bloqueado: Seu acesso foi suspenso pela administração.');
+          location.reload();
+        }
+      }
+    });
+
+    channel.bind('garcom-sessao-encerrada', (data) => {
+      console.log('🔒 Evento garcom-sessao-encerrada recebido:', data);
+      const meuUsuario = garcomLogado ? (garcomLogado.usuario || '') : '';
+      const meuId = garcomLogado ? garcomLogado.id : null;
+      if (data && (data.usuario === meuUsuario || (data.garcom_id && data.garcom_id == meuId))) {
+        localStorage.removeItem('garcom_logado');
+        localStorage.removeItem('garcom_token');
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            title: '🔒 Sessão Finalizada',
+            text: 'Sua conta foi conectada em outro aparelho. Esta sessão foi encerrada.',
+            icon: 'warning',
+            confirmButtonColor: '#e74c3c',
+            confirmButtonText: 'OK',
+            allowOutsideClick: false
+          }).then(() => {
+            location.reload();
+          });
+        } else {
+          alert('Sua conta foi conectada em outro aparelho. Esta sessão foi encerrada.');
           location.reload();
         }
       }
