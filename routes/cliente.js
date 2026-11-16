@@ -175,14 +175,50 @@ module.exports = (ctx) => {
     }
   });
 
-  // POST /api/cliente/chamar-garcom
+  // POST /api/cliente/chamar-garcom (com validação estrita de mesa ativa e anti-spam)
+  const cooldownChamadoGarcom = new Map(); // mesa_id -> timestamp
+
   router.post('/chamar-garcom', isAuthenticated, async (req, res) => {
-    const mesa_id = req.user.role === 'cliente' ? req.user.mesa_id : req.body.mesa_id;
-    const mesa_numero = req.user.role === 'cliente' ? req.user.mesa_numero : req.body.mesa_numero;
     try {
+      const isClient = req.user && req.user.role === 'cliente';
+      const mesa_id = isClient ? req.user.mesa_id : (req.body.mesa_id || null);
+
+      if (!mesa_id) {
+        return res.status(400).json({ error: 'MESA_NAO_IDENTIFICADA', mensagem: 'Mesa não identificada.' });
+      }
+
+      // 1. Busca e validação estrita no banco de dados (impede disparos fantasmas)
+      const mesaRes = await query("SELECT id, numero, status FROM mesas WHERE id = ?", [mesa_id]);
+      if (!mesaRes || !mesaRes.rows || mesaRes.rows.length === 0) {
+        return res.status(404).json({ error: 'MESA_INEXISTENTE', mensagem: 'Mesa não encontrada no sistema.' });
+      }
+
+      const mesaObj = mesaRes.rows[0];
+      if (mesaObj.status !== 'ocupada' && mesaObj.status !== 'fechando') {
+        return res.status(400).json({ error: 'MESA_INATIVA', mensagem: 'Esta mesa não possui atendimento ativo no momento.' });
+      }
+
+      const mesa_numero = mesaObj.numero || (isClient ? req.user.mesa_numero : req.body.mesa_numero);
+      if (!mesa_numero || String(mesa_numero) === 'undefined' || String(mesa_numero).trim() === '') {
+        return res.status(400).json({ error: 'MESA_NUMERO_INVALIDO', mensagem: 'Número da mesa inválido.' });
+      }
+
+      // 2. Anti-spam / Cooldown de 30 segundos por mesa
+      const agora = Date.now();
+      const ultimoDisparo = cooldownChamadoGarcom.get(String(mesa_id)) || 0;
+      if (agora - ultimoDisparo < 30000) {
+        const segundosRestantes = Math.ceil((30000 - (agora - ultimoDisparo)) / 1000);
+        return res.status(429).json({ 
+          error: 'COOLDOWN', 
+          mensagem: `O garçom já foi notificado! Por favor, aguarde ${segundosRestantes}s para chamar novamente.` 
+        });
+      }
+      cooldownChamadoGarcom.set(String(mesa_id), agora);
+
+      // 3. Dispara evento via Pusher apenas com dados 100% íntegros
       await safePusherTrigger('garconnexpress', 'chamado-garcom', {
-        mesa_id,
-        mesa_numero,
+        mesa_id: mesaObj.id,
+        mesa_numero: mesa_numero,
         mensagem: `🛎️ MESA ${mesa_numero} solicitou atendimento!`
       });
       
@@ -190,8 +226,9 @@ module.exports = (ctx) => {
         await sendWhatsAppMessage(`🛎️ *CHAMADO DE MESA*\n📍 Mesa: ${mesa_numero}\n🙋‍♂️ O cliente solicitou atendimento imediato.`).catch(e => console.error('Erro Wpp Chamado:', e.message));
       }
       
-      res.json({ success: true });
+      res.json({ success: true, mensagem: `Garçom chamado para a Mesa ${mesa_numero}!` });
     } catch (error) {
+      console.error('❌ Erro em /api/cliente/chamar-garcom:', error);
       res.status(500).json({ error: error.message });
     }
   });

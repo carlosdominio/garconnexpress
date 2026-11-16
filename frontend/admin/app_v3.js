@@ -10130,13 +10130,18 @@ async function configurarPusher() {
 
     // initNativeSSEAdmin(); // Desativado para economizar Fluid CPU na Vercel (Pusher ativo)
 
-    // EVENTO: CHAMADO DE CLIENTE (🛎️) - PRIORIDADE
+    // EVENTO: CHAMADO DE CLIENTE (🛎️) - PRIORIDADE (com trava anti-undefined)
     channel.bind('chamado-garcom', (data) => {
+      if (!data || !data.mesa_id || !data.mesa_numero || String(data.mesa_numero) === 'undefined' || String(data.mesa_numero).trim() === '') {
+        console.warn('⚠️ [Admin] Chamado de cliente ignorado: mesa_id ou mesa_numero inválidos (possível chamado fantasma):', data);
+        return;
+      }
+
       console.log('📢 Admin: Chamado de cliente recebido!', data);
       tocarNotificacao('campainha');
       iniciarPiscarTitulo();
 
-      const mesaNum = data.mesa_numero || 'X';
+      const mesaNum = data.mesa_numero;
       const msg = data.mensagem || `A Mesa ${mesaNum} está solicitando atendimento agora!`;
       
       exibirNotificacaoNativa('🛎️ CHAMADO DE CLIENTE', msg, `chamado-${data.mesa_id}`);

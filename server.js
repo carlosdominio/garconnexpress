@@ -7680,25 +7680,6 @@ app.get('/api/acesso/check', async (req, res) => {
     res.status(401).json({ error: 'Sessão expirada' });
   }
 });
-// Cliente solicita atendimento do garçom
-app.post('/api/cliente/chamar-garcom', isAuthenticated, async (req, res) => {
-  const mesa_id = req.user.role === 'cliente' ? req.user.mesa_id : req.body.mesa_id;
-  const mesa_numero = req.user.role === 'cliente' ? req.user.mesa_numero : req.body.mesa_numero;
-  try {
-    await safePusherTrigger('garconnexpress', 'chamado-garcom', {
-      mesa_id,
-      mesa_numero,
-      mensagem: `🛎️ MESA ${mesa_numero} solicitou atendimento!`
-    });
-    
-    // Notifica via WhatsApp também se configurado
-    await sendWhatsAppMessage(`🛎️ *CHAMADO DE MESA*\n📍 Mesa: ${mesa_numero}\n🙋‍♂️ O cliente solicitou atendimento imediato.`).catch(e => console.error('Erro Wpp Chamado:', e.message));
-    
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
 
 // Cliente envia rascunho do pedido (pré-seleção)
 app.post('/api/cliente/enviar-rascunho', isAuthenticated, async (req, res) => {

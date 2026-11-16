@@ -1651,9 +1651,38 @@
             }
         }
         async function chamarGarcom() {
-            if (await Swal.fire({ title: 'Chamar Garçom?', icon: 'question', showCancelButton: true, confirmButtonColor: '#ff4757',
-                cancelButtonColor: '#95a5a6' }).then(r => r.isConfirmed)) {
-                showLoading(true); try { await fetch('/api/cliente/chamar-garcom', { method:'POST', headers:{'Content-Type':'application/json', 'Authorization': `Bearer ${sessionMesa.token}`}, body:JSON.stringify({ mesa_id:sessionMesa.mesa_id, mesa_numero:sessionMesa.mesa_numero }) }); Swal.fire('Enviado','Garçom notificado!','success'); } finally { showLoading(false); }
+            if (!sessionMesa || !sessionMesa.mesa_id || !sessionMesa.token) {
+                Swal.fire('Atenção', 'Sessão de mesa não encontrada. Escaneie o QR Code da sua mesa novamente.', 'warning');
+                return;
+            }
+            if (await Swal.fire({ 
+                title: 'Chamar Garçom?', 
+                text: `Deseja chamar o garçom para a Mesa ${sessionMesa.mesa_numero || ''}?`, 
+                icon: 'question', 
+                showCancelButton: true, 
+                confirmButtonColor: '#ff4757',
+                cancelButtonColor: '#95a5a6',
+                confirmButtonText: 'Sim, chamar',
+                cancelButtonText: 'Cancelar'
+            }).then(r => r.isConfirmed)) {
+                showLoading(true); 
+                try { 
+                    const res = await fetch('/api/cliente/chamar-garcom', { 
+                        method:'POST', 
+                        headers:{'Content-Type':'application/json', 'Authorization': `Bearer ${sessionMesa.token}`}, 
+                        body:JSON.stringify({ mesa_id:sessionMesa.mesa_id, mesa_numero:sessionMesa.mesa_numero }) 
+                    }); 
+                    const data = await res.json();
+                    if (!res.ok) {
+                        Swal.fire('Aviso', data.mensagem || data.error || 'Não foi possível chamar o garçom.', 'warning');
+                    } else {
+                        Swal.fire('Enviado', data.mensagem || 'Garçom notificado! Já está a caminho.', 'success'); 
+                    }
+                } catch(e) {
+                    Swal.fire('Erro', 'Falha ao conectar com o garçom.', 'error');
+                } finally { 
+                    showLoading(false); 
+                }
             }
         }
         async function cancelarRascunhoPendente() {

@@ -1760,6 +1760,10 @@ async function configurarPusher() {
     });
 
     channel.bind('chamado-garcom', (data) => {
+      if (!data || !data.mesa_id || !data.mesa_numero || String(data.mesa_numero) === 'undefined' || String(data.mesa_numero).trim() === '') {
+        console.warn('⚠️ [Garçom] Evento chamado-garcom ignorado por dados inválidos ou mesa undefined:', data);
+        return;
+      }
       console.log('📢 Evento recebido: chamado-garcom', data);
       
       const mesaId = data.mesa_id || (data.pedido && data.pedido.mesa_id) || data.mesa_numero;
