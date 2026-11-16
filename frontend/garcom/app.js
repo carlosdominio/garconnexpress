@@ -2451,7 +2451,7 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
     if (/^(func|staff|f-)/i.test(str)) {
       const numTrim = str.replace(/^(func|staff|f-)\s*/i, '').trim();
       const txt = numTrim ? numTrim : 'Colaborador';
-      return `PEDIDO INTERNO: ${txt}`;
+      return `FUNC: ${txt}`;
     }
     if (/^balc[aã]o/i.test(str)) {
       const numTrim = str.replace(/^balc[aã]o\s*/i, '').trim();
@@ -2495,7 +2495,7 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
 
   if (isFuncionario) {
     const txt = funcionarioNome || limpo || 'Colaborador';
-    return `PEDIDO INTERNO: ${txt}`;
+    return `FUNC: ${txt}`;
   }
   if (isBalcao) {
     const txt = limpo ? `Balcão ${limpo}` : 'Balcão';
@@ -3970,7 +3970,7 @@ function abrirCardapio() {
     if (!mesaAtual) {
       const modalTitulo = document.getElementById('modal-mesa-titulo');
       if (modalTitulo && modalTitulo.innerText) {
-          const num = modalTitulo.innerText.replace(/^(🍽️|🪑|🏪|🧾)?\s*(mesa|balc[aã]o|comanda)\s*/i, '').split('[')[0].trim();
+          const num = modalTitulo.innerText.replace(/^(🍽️|🪑|🏪|🧾)?\s*(mesa|balc[aã]o|comanda|func:?)\s*/i, '').split('[')[0].trim();
           mesaAtual = mesas.find(m => String(m.numero).trim() === num || String(m.id).trim() === num);
       }
     }

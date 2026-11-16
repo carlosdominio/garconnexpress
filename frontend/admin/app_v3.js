@@ -2833,7 +2833,7 @@ function renderizarMesasSelectLancar(mesas) {
       let label = m.numero;
       if (isFunc) {
         const nomeLimpo = m.funcionario_nome || String(m.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim();
-        label = `Funcionário: ${nomeLimpo || m.numero}`;
+        label = `FUNC: ${nomeLimpo || m.numero}`;
       } else if (isBalc) {
         const numLimpo = String(m.numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
         label = numLimpo ? `Comanda Balcão ${numLimpo}` : 'Comanda Balcão';
@@ -7108,7 +7108,7 @@ async function exibirPedidos() {
         mesaNomeExibicao = `🛵 DELIVERY #${pedido.id}`;
       } else if (isFuncionario) {
         const nomeFinal = funcionarioNome || String(pedido.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim() || 'Colaborador';
-        mesaNomeExibicao = `PEDIDO INTERNO: ${nomeFinal}`;
+        mesaNomeExibicao = `FUNC: ${nomeFinal}`;
       } else if (pedido.mesa_tipo === 'balcao') {
         const numTrim = String(pedido.mesa_numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
         mesaNomeExibicao = numTrim ? `🏪 Balcão ${numTrim}` : `🏪 Balcão`;
@@ -7370,12 +7370,12 @@ async function exibirPedidos() {
         <div class="pedido-header">
           <div>
             <h3 style="display:flex; align-items:center; gap:8px;">
-              ${isMesaFunc ? `PEDIDO INTERNO: ${funcNome || 'Colaborador'}` : `📱 Mesa ${m.numero}`}
+              ${isMesaFunc ? `FUNC: ${funcNome || 'Colaborador'}` : `📱 Mesa ${m.numero}`}
               <span class="pedido-cronometro" data-created-at="${m.codigo_criado_at || ''}" style="font-size:0.8rem; background:#2c3e50; padding:2px 8px; border-radius:12px; color:#fff;">
                 ⏱️ ${minutosEspera} min
               </span>
             </h3>
-            <span class="status-badge" style="background:${isMesaFunc ? '#8e44ad' : '#3498db'}; color:white;">${isMesaFunc ? 'PEDIDO INTERNO' : '📱 AGUARDANDO CLIENTE'}</span>
+            <span class="status-badge" style="background:${isMesaFunc ? '#8e44ad' : '#3498db'}; color:white;">${isMesaFunc ? 'FUNC' : '📱 AGUARDANDO CLIENTE'}</span>
             <small style="display:block; margin-top:4px; opacity:0.6;">📅 Código ativo — aguardando pedido</small>
             <small style="display:block; font-weight:bold; color: #34495e; margin-top:2px;">👤 Garçom: ${m.garcom_id || 'Autônomo'}</small>
           </div>
@@ -8082,7 +8082,10 @@ function abrirModalEdicao(pedido, itens) {
   temEdicoesLocaisNaoSalvas = false;
   const inputBusca = document.getElementById('input-busca-menu-edicao');
   if (inputBusca) inputBusca.value = '';
-  document.getElementById('modal-titulo').innerText = `Editar Pedido: ${pedido.mesa_tipo === 'balcao' ? 'Balcão ' + pedido.mesa_numero : (pedido.mesa_numero ? 'Mesa ' + pedido.mesa_numero : 'Balcão')}`;
+  const isFuncionarioEdicao = !!pedido.is_funcionario || (pedido.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedido.mesa_numero || '');
+  const funcNomeEdicao = pedido.funcionario_nome || String(pedido.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim();
+  const nomeExibEdicao = isFuncionarioEdicao ? `FUNC: ${funcNomeEdicao || 'Colaborador'}` : (pedido.mesa_tipo === 'balcao' ? 'Balcão ' + pedido.mesa_numero : (pedido.mesa_numero ? 'Mesa ' + pedido.mesa_numero : 'Balcão'));
+  document.getElementById('modal-titulo').innerText = `Editar Pedido: ${nomeExibEdicao}`;
   renderizarItensEdicao();
   renderizarMenuEdicao(categoriaEdicaoAtual);
   document.getElementById('modal-edicao').style.display = 'flex';
@@ -11684,7 +11687,23 @@ async function abrirModalOpcoes(pedidoId) {
   const isRetirada = isDelivery && isPedidoRetiradaLocal(pedido);
   const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '') && (pedido.mesa_tipo !== 'balcao');
   const isBalcao = isPedidoBalcao(pedido);
-  const mesaNome = isDelivery ? (isRetirada ? '🛍️ RETIRADA #' + pedido.id : '🛵 DELIVERY #' + pedido.id) : (typeof obterNomeExibicaoCard === 'function' ? obterNomeExibicaoCard(pedido) : (pedido.mesa_tipo === 'balcao' ? '🏪 Balcão ' + pedido.mesa_numero : (pedido.mesa_numero ? 'Mesa ' + pedido.mesa_numero : 'Balcão')));
+  const isFuncionario = !!pedido.is_funcionario || (pedido.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedido.mesa_numero || '');
+  const funcNome = pedido.funcionario_nome || String(pedido.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim();
+
+  let mesaNome;
+  if (isDelivery) {
+    mesaNome = isRetirada ? '🛍️ RETIRADA #' + pedido.id : '🛵 DELIVERY #' + pedido.id;
+  } else if (isFuncionario) {
+    mesaNome = `FUNC: ${funcNome || 'Colaborador'}`;
+  } else if (typeof obterNomeExibicaoCard === 'function') {
+    mesaNome = obterNomeExibicaoCard(pedido);
+  } else if (pedido.mesa_tipo === 'balcao') {
+    mesaNome = '🏪 Balcão ' + pedido.mesa_numero;
+  } else if (pedido.mesa_numero) {
+    mesaNome = 'Mesa ' + pedido.mesa_numero;
+  } else {
+    mesaNome = 'Balcão';
+  }
   const mesaId = pedido.mesa_id;
   
   // 1. DADOS BÁSICOS E CORES
@@ -11706,7 +11725,9 @@ async function abrirModalOpcoes(pedidoId) {
   if (btnEditNome) {
     btnEditNome.style.display = isComanda ? 'inline-flex' : 'none';
   }
-  document.getElementById('modal-opcoes-info').innerText = `Pedido #${pedido.id} | Garçom: ${pedido.garcom_id || 'Admin'}`;
+  document.getElementById('modal-opcoes-info').innerText = isFuncionario
+    ? `Pedido #${pedido.id} | Consumo de Funcionário | Garçom: ${pedido.garcom_id || 'Admin'}`
+    : `Pedido #${pedido.id} | Garçom: ${pedido.garcom_id || 'Admin'}`;
   
   const taxaDeliveryModalVal = (pedido.taxa_entrega !== undefined && pedido.taxa_entrega !== null) ? parseFloat(pedido.taxa_entrega) : 3.00;
   const lblTaxa = document.getElementById('modal-taxa-label-text');
@@ -11738,7 +11759,8 @@ async function abrirModalOpcoes(pedidoId) {
   }
   
   // Cores dinâmicas conforme status
-  if (isAguardando) headerBg.style.background = '#f1c40f'; // Amarelo Atenção
+  if (isFuncionario) headerBg.style.background = '#8e44ad'; // Roxo Funcionário
+  else if (isAguardando) headerBg.style.background = '#f1c40f'; // Amarelo Atenção
   else if (hasPend) headerBg.style.background = '#e74c3c'; // Vermelho Pendente
   else headerBg.style.background = '#e67e22'; // Laranja Em Consumo
 
@@ -13264,10 +13286,17 @@ function abrirModalMesaAguardando(mesaId) {
 
   const minutosEspera = m.codigo_criado_at ? calcularMinutos(m.codigo_criado_at) : 0;
   const isComandaMesa = isPedidoOuMesaComanda(m);
+  const isMesaFunc = !!m.is_funcionario || (m.tipo === 'funcionario') || /^(func|staff|f-)/i.test(m.numero || '');
+  const funcNome = m.funcionario_nome || (/^(func|staff|f-)/i.test(m.numero || '') ? String(m.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() : String(m.numero || ''));
 
-  const prefixo = isComandaMesa ? (String(m.numero).toLowerCase().startsWith('comanda') ? '' : 'Comanda ') : 'Mesa ';
-  document.getElementById('mma-titulo').innerText = `📱 ${prefixo}${m.numero}`;
-  document.getElementById('mma-subtitulo').innerText = `${prefixo}${m.numero} — QR Code ativo`;
+  if (isMesaFunc) {
+    document.getElementById('mma-titulo').innerText = `FUNC: ${funcNome || 'Colaborador'}`;
+    document.getElementById('mma-subtitulo').innerText = `FUNC: ${funcNome || 'Colaborador'} — Consumo Interno`;
+  } else {
+    const prefixo = isComandaMesa ? (String(m.numero).toLowerCase().startsWith('comanda') ? '' : 'Comanda ') : 'Mesa ';
+    document.getElementById('mma-titulo').innerText = `📱 ${prefixo}${m.numero}`;
+    document.getElementById('mma-subtitulo').innerText = `${prefixo}${m.numero} — QR Code ativo`;
+  }
   document.getElementById('mma-codigo').innerText = m.codigo_acesso || '----';
   document.getElementById('mma-tempo').innerText = `${minutosEspera} min`;
   document.getElementById('mma-garcom').innerText = m.garcom_id || 'Autônomo';
