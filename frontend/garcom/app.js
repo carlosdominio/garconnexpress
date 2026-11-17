@@ -1577,8 +1577,8 @@ async function configurarPusher() {
           if (elTitulo) {
             const isF = !!mesaAtual.is_funcionario || (mesaAtual.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesaAtual.numero || '');
             if (isF) {
-              const nLimpo = mesaAtual.funcionario_nome || String(mesaAtual.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim();
-              elTitulo.textContent = `Funcionário: ${nLimpo || 'Colaborador'}`;
+              const nLimpo = extrairNomeLimpoFuncionario(mesaAtual);
+              elTitulo.textContent = `Funcionário: ${nLimpo}`;
             } else {
               elTitulo.textContent = formatarNomeMesaGarcom(mesaAtual);
             }
@@ -2450,6 +2450,22 @@ function filtrarMesas(filtro, element) {
   exibirMesas();
 }
 
+function extrairNomeLimpoFuncionario(p) {
+  if (!p) return 'Colaborador';
+  let raw = '';
+  if (typeof p === 'string') {
+    raw = p;
+  } else {
+    raw = p.funcionario_nome || p.mesa_numero || p.numero || '';
+  }
+  let limpo = String(raw).trim();
+  while (/^((funcion[aá]rio|func|staff|f-|comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o)\s*:?\s*)/i.test(limpo)) {
+    limpo = limpo.replace(/^((funcion[aá]rio|func|staff|f-|comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o)\s*:?\s*)/i, '').trim();
+  }
+  return limpo || 'Colaborador';
+}
+window.extrairNomeLimpoFuncionario = extrairNomeLimpoFuncionario;
+
 function formatarNomeMesaGarcom(m, incluirIcone = true) {
   if (!m) return 'Mesa';
 
@@ -2457,9 +2473,8 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
   if (typeof m === 'string' || typeof m === 'number') {
     const str = String(m).trim();
     if (/^(func|staff|f-)/i.test(str)) {
-      const numTrim = str.replace(/^(func|staff|f-)\s*/i, '').trim();
-      const txt = numTrim ? numTrim : 'Colaborador';
-      return `FUNC: ${txt}`;
+      const txt = extrairNomeLimpoFuncionario(str);
+      return incluirIcone ? `💼 Funcionário: ${txt}` : `Funcionário: ${txt}`;
     }
     if (/^balc[aã]o/i.test(str)) {
       const numTrim = str.replace(/^balc[aã]o\s*/i, '').trim();
@@ -2490,7 +2505,6 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
     : ((m.mesa_numero !== undefined && m.mesa_numero !== null) ? String(m.mesa_numero).trim() : '');
   const tipo = String(m.tipo || m.mesa_tipo || '').toLowerCase();
   const isFuncionario = !!m.is_funcionario || tipo === 'funcionario' || /^(func|staff|f-)/i.test(numRaw);
-  const funcionarioNome = m.funcionario_nome || (/^(func|staff|f-)/i.test(numRaw) ? numRaw.replace(/^(func|staff|f-)\s*/i, '').trim() : '');
   const isBalcao = !isFuncionario && (tipo === 'balcao' || /^balc[aã]o/i.test(numRaw) || /^comanda\s*balc[aã]o/i.test(numRaw) || (m.is_balcao == 1 || m.is_balcao === true));
   const isComanda = !isBalcao && !isFuncionario && (tipo === 'comanda' || Number(m.is_comanda) === 1 || /^comanda/i.test(numRaw));
 
@@ -2502,8 +2516,8 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
   else if (/^(func|staff|f-)\s*/i.test(limpo)) limpo = limpo.replace(/^(func|staff|f-)\s*/i, '').trim();
 
   if (isFuncionario) {
-    const txt = funcionarioNome || limpo || 'Colaborador';
-    return `FUNC: ${txt}`;
+    const txt = extrairNomeLimpoFuncionario(m);
+    return incluirIcone ? `💼 Funcionário: ${txt}` : `Funcionário: ${txt}`;
   }
   if (isBalcao) {
     const txt = limpo ? `Balcão ${limpo}` : 'Balcão';
@@ -2869,8 +2883,8 @@ async function mostrarOpcoesMesa(mesa) {
   let tituloModal = nomeFormatado;
   const isFuncionarioModal = !!mesa.is_funcionario || (mesa.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesa.numero || '');
   if (isFuncionarioModal) {
-    const nomeLimpo = mesa.funcionario_nome || String(mesa.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim();
-    tituloModal = `Funcionário: ${nomeLimpo || 'Colaborador'}`;
+    const nomeLimpo = extrairNomeLimpoFuncionario(mesa);
+    tituloModal = `Funcionário: ${nomeLimpo}`;
   } else if (mesa.codigo_acesso && mesa.status !== 'livre') {
     tituloModal = `${nomeFormatado} [Código: ${mesa.codigo_acesso}]`;
   }
@@ -3127,15 +3141,16 @@ async function abrirModalCriarComandaGarcom() {
   try {
     showLoading(true, 'Criando comanda...');
     const isFuncionarioCriar = (dados.tipo === 'funcionario');
+    const nomeLimpoCriar = isFuncionarioCriar ? extrairNomeLimpoFuncionario(dados.nome) : dados.nome;
     const res = await fetch('/api/mesas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        numero: dados.nome,
+        numero: isFuncionarioCriar ? `FUNC: ${nomeLimpoCriar}` : dados.nome,
         tipo: isFuncionarioCriar ? 'funcionario' : dados.tipo,
         is_comanda: 1,
         is_funcionario: isFuncionarioCriar ? 1 : 0,
-        funcionario_nome: isFuncionarioCriar ? dados.nome : undefined
+        funcionario_nome: isFuncionarioCriar ? nomeLimpoCriar : undefined
       })
     });
 
@@ -3462,7 +3477,7 @@ async function verItensDaMesa(isSilencioso = false) {
     renderizarItensMesaGarcom();
     
     const isFResumo = !!mesaAtual.is_funcionario || (mesaAtual.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesaAtual.numero || '');
-    const nomeFResumo = isFResumo ? `Funcionário: ${mesaAtual.funcionario_nome || String(mesaAtual.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() || 'Colaborador'}` : formatarNomeMesaGarcom(mesaAtual);
+    const nomeFResumo = isFResumo ? `Funcionário: ${extrairNomeLimpoFuncionario(mesaAtual)}` : formatarNomeMesaGarcom(mesaAtual);
     document.getElementById('resumo-mesa-titulo').textContent = `Resumo - ${nomeFResumo}`;
     fecharOpcoes();
     document.getElementById('modal-resumo-mesa').style.display = 'block';
@@ -4175,7 +4190,7 @@ async function finalizarEDesocupar() {
       const tituloFechar = document.getElementById('titulo-fechamento-garcom');
       if (tituloFechar && mesaAtual) {
         const isFFechar = !!mesaAtual.is_funcionario || (mesaAtual.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesaAtual.numero || '');
-        const nomeFFechar = isFFechar ? `Funcionário: ${mesaAtual.funcionario_nome || String(mesaAtual.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() || 'Colaborador'}` : formatarNomeMesaGarcom(mesaAtual, false);
+        const nomeFFechar = isFFechar ? `Funcionário: ${extrairNomeLimpoFuncionario(mesaAtual)}` : formatarNomeMesaGarcom(mesaAtual, false);
         tituloFechar.textContent = `Fechar ${nomeFFechar}`;
       }
       modalFechamento.style.display = 'flex';

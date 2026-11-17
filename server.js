@@ -6260,7 +6260,8 @@ app.put('/api/pedidos/:id/solicitar-fechamento', isAuthenticated, async (req, re
     
     if (is_funcionario || (formaPagamentoFinal && formaPagamentoFinal.includes('Diária'))) {
       try {
-        await query(`UPDATE pedidos SET is_funcionario = ${isPostgres ? 'TRUE' : '1'}, funcionario_nome = COALESCE(?, funcionario_nome), mesa_numero = COALESCE(?, mesa_numero) WHERE id = ?`, [funcionario_nome || null, mesa_numero || null, id]);
+        const funcNomeLimpo = funcionario_nome ? String(funcionario_nome).replace(/^((funcion[aá]rio|func|staff|f-|comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o)\s*:?\s*)+/gi, '').trim() : null;
+        await query(`UPDATE pedidos SET is_funcionario = ${isPostgres ? 'TRUE' : '1'}, funcionario_nome = COALESCE(?, funcionario_nome), mesa_numero = COALESCE(?, mesa_numero) WHERE id = ?`, [funcNomeLimpo || null, mesa_numero || null, id]);
       } catch(e) {}
     }
     
@@ -6377,9 +6378,11 @@ app.post('/api/pedidos/:id/pagamento-parcial', isAuthenticated, async (req, res)
         const mInfo = (await tx("SELECT numero, is_comanda, tipo, is_funcionario, funcionario_nome FROM mesas WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [mesa_id, mesa_id])).rows[0];
         if (mInfo) {
           const isFuncM = (Number(mInfo.is_funcionario) === 1) || (mInfo.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mInfo.numero || '');
-          const finalMesaNumero = isFuncM && !/^(func|staff|f-)/i.test(mInfo.numero || '') ? `FUNC: ${mInfo.numero}` : mInfo.numero;
+          const rawMNum = mInfo.funcionario_nome || mInfo.numero || '';
+          const funcNomeLimpoM = String(rawMNum).replace(/^((funcion[aá]rio|func|staff|f-|comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o)\s*:?\s*)+/gi, '').trim();
+          const finalMesaNumero = isFuncM ? `FUNC: ${funcNomeLimpoM || 'Colaborador'}` : mInfo.numero;
           const valFuncParam = isPostgres ? (isFuncM ? true : false) : (isFuncM ? 1 : 0);
-          await tx("UPDATE pedidos SET mesa_numero = ?, is_comanda = ?, is_funcionario = COALESCE(is_funcionario, ?), funcionario_nome = COALESCE(funcionario_nome, ?) WHERE id = ?", [finalMesaNumero, mInfo.is_comanda ? 1 : 0, valFuncParam, mInfo.funcionario_nome || mInfo.numero, id]).catch(() => {});
+          await tx("UPDATE pedidos SET mesa_numero = ?, is_comanda = ?, is_funcionario = COALESCE(is_funcionario, ?), funcionario_nome = COALESCE(funcionario_nome, ?) WHERE id = ?", [finalMesaNumero, mInfo.is_comanda ? 1 : 0, valFuncParam, isFuncM ? (funcNomeLimpoM || null) : null, id]).catch(() => {});
           if (Number(mInfo.is_comanda) === 1) {
             await tx("DELETE FROM mesas WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [mesa_id, mesa_id]).catch(() => {});
           } else {
