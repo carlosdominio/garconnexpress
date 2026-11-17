@@ -2521,9 +2521,15 @@ function exibirMesas() {
   const grid = document.getElementById('mesas-grid');
   if (!grid) return;
 
-  const fechamentosAtivos = mesas.filter(m => m.solicitou_fechamento || m.status === 'fechando');
-  const ocupadasAtivas = mesas.filter(m => m.status === 'ocupada' && !m.solicitou_fechamento && m.status !== 'fechando');
-  const livresAtivas = mesas.filter(m => m.status === 'livre' && !m.solicitou_fechamento && m.status !== 'fechando');
+  // Filtra as mesas removendo comandas de consumo interno de funcionários (visíveis exclusivamente no Admin)
+  const mesasClientes = (mesas || []).filter(m => {
+    const isFunc = !!m.is_funcionario || (m.tipo === 'funcionario') || /^(func|staff|f-)/i.test(m.numero || '');
+    return !isFunc;
+  });
+
+  const fechamentosAtivos = mesasClientes.filter(m => m.solicitou_fechamento || m.status === 'fechando');
+  const ocupadasAtivas = mesasClientes.filter(m => m.status === 'ocupada' && !m.solicitou_fechamento && m.status !== 'fechando');
+  const livresAtivas = mesasClientes.filter(m => m.status === 'livre' && !m.solicitou_fechamento && m.status !== 'fechando');
 
   // PRIORIZAÇÃO INTELIGENTE: Mesas ocupadas com entregas pendentes ou prontas sobem para o topo
   ocupadasAtivas.sort((a, b) => {
@@ -3055,7 +3061,6 @@ async function abrirModalCriarComandaGarcom() {
         <select id="swal-select-comanda-tipo" style="width: 100%; padding: 12px 14px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc; color: #1e293b;">
           <option value="comanda">🍽️ Comanda de Mesa</option>
           <option value="balcao">🏪 Comanda de Balcão</option>
-          <option value="funcionario">👤 Consumo de Funcionário</option>
         </select>
         <p style="font-size: 0.78rem; color: #64748b; margin: 10px 0 0 0;">
           💡 Disponível imediatamente no app do garçom e no painel admin.
@@ -3191,6 +3196,8 @@ async function abrirModalTransferirMesaGarcom() {
     showLoading(false);
 
     const outrasMesas = (mesas || []).filter(m => {
+      const isFunc = !!m.is_funcionario || (m.tipo === 'funcionario') || /^(func|staff|f-)/i.test(m.numero || '');
+      if (isFunc) return false;
       if (String(m.id) === String(mesaOrigemSnapshot.id)) return false;
       if (mesaOrigemSnapshot.numero && String(m.numero).trim().toLowerCase() === String(mesaOrigemSnapshot.numero).trim().toLowerCase()) return false;
       return true;
