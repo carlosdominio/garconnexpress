@@ -2514,6 +2514,18 @@ html.android-legacy header {
   box-shadow: 0 4px 12px rgba(142, 68, 173, 0.25) !important;
 }
 
+.mesa.ocupada.mesa-funcionario {
+  background-color: #8e44ad !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+.mesa.ocupada.mesa-funcionario.pendente-entrega {
+  background-color: #e74c3c !important;
+  color: #ffffff !important;
+  border-left: 6px solid #8e44ad !important;
+}
+
 .mesa-tag-funcionario {
   background: #8e44ad;
   color: #ffffff;

@@ -7291,10 +7291,16 @@ async function exibirPedidos() {
                 )
               ) :
               (isAguardando ? 
-                `<button style="background:#f1c40f; color:white; font-weight: 900; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #d68910; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">${isBalcao ? '💰 CONFIRMAR PAGAMENTO E FINALIZAR' : '💰 CONFIRMAR PAGAMENTO E LIBERAR'}</button>` : 
+                (isFuncionario ?
+                  `<button style="background:#8e44ad; color:white; font-weight: 900; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #6c3483; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 CONFIRMAR E LIBERAR FUNCIONÁRIO</button>` :
+                  `<button style="background:#f1c40f; color:white; font-weight: 900; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #d68910; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">${isBalcao ? '💰 CONFIRMAR PAGAMENTO E FINALIZAR' : '💰 CONFIRMAR PAGAMENTO E LIBERAR'}</button>`
+                ) : 
                 (hasPend ? 
                   `<button style="background:${pedido.garcom_id === 'ADMIN' ? '#e74c3c' : '#e67e22'}; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 ${pedido.garcom_id === 'ADMIN' ? '#c0392b' : '#d35400'}; border:none; color:white; cursor:pointer;" onclick="marcarPedidoEntregue(${pedido.id})">🚚 ENTREGAR TUDO AGORA</button>` :
-                  `<button style="background:#27ae60; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #219150; border:none; color:white; cursor:pointer;" onclick="liberarMesa(${pedido.id}, ${pedido.mesa_id}, false)">${isBalcao ? '🔓 LIBERAR BALCÃO' : '🔓 LIBERAR MESA'}</button>`
+                  (isFuncionario ?
+                    `<button style="background:#8e44ad; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #6c3483; border:none; color:white; cursor:pointer;" onclick="liberarMesa(${pedido.id}, ${pedido.mesa_id}, false)">🔓 LIBERAR FUNCIONÁRIO</button>` :
+                    `<button style="background:#27ae60; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #219150; border:none; color:white; cursor:pointer;" onclick="liberarMesa(${pedido.id}, ${pedido.mesa_id}, false)">${isBalcao ? '🔓 LIBERAR BALCÃO' : '🔓 LIBERAR MESA'}</button>`
+                  )
                 )
               )
             }
@@ -8084,7 +8090,7 @@ function abrirModalEdicao(pedido, itens) {
   if (inputBusca) inputBusca.value = '';
   const isFuncionarioEdicao = !!pedido.is_funcionario || (pedido.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedido.mesa_numero || '');
   const funcNomeEdicao = pedido.funcionario_nome || String(pedido.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim();
-  const nomeExibEdicao = isFuncionarioEdicao ? `FUNC: ${funcNomeEdicao || 'Colaborador'}` : (pedido.mesa_tipo === 'balcao' ? 'Balcão ' + pedido.mesa_numero : (pedido.mesa_numero ? 'Mesa ' + pedido.mesa_numero : 'Balcão'));
+  const nomeExibEdicao = isFuncionarioEdicao ? `Funcionário: ${funcNomeEdicao || 'Colaborador'}` : (pedido.mesa_tipo === 'balcao' ? 'Balcão ' + pedido.mesa_numero : (pedido.mesa_numero ? 'Mesa ' + pedido.mesa_numero : 'Balcão'));
   document.getElementById('modal-titulo').innerText = `Editar Pedido: ${nomeExibEdicao}`;
   renderizarItensEdicao();
   renderizarMenuEdicao(categoriaEdicaoAtual);
@@ -11694,7 +11700,7 @@ async function abrirModalOpcoes(pedidoId) {
   if (isDelivery) {
     mesaNome = isRetirada ? '🛍️ RETIRADA #' + pedido.id : '🛵 DELIVERY #' + pedido.id;
   } else if (isFuncionario) {
-    mesaNome = `FUNC: ${funcNome || 'Colaborador'}`;
+    mesaNome = `Funcionário: ${funcNome || 'Colaborador'}`;
   } else if (typeof obterNomeExibicaoCard === 'function') {
     mesaNome = obterNomeExibicaoCard(pedido);
   } else if (pedido.mesa_tipo === 'balcao') {
@@ -11914,6 +11920,12 @@ async function abrirModalOpcoes(pedidoId) {
           ${isRetirada ? '💰 FINALIZAR RETIRADA' : '💰 FINALIZAR DELIVERY'}
         </button>
       `;
+    } else if (isFuncionario) {
+      htmlFooter = `
+        <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#8e44ad; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #6c3483; cursor:pointer;">
+          💰 CONFIRMAR E LIBERAR FUNCIONÁRIO
+        </button>
+      `;
     } else {
       htmlFooter = `
         <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#f1c40f; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #d68910; cursor:pointer;">
@@ -11941,6 +11953,12 @@ async function abrirModalOpcoes(pedidoId) {
         htmlFooter = `
           <button onclick="fecharModalOpcoes(); confirmarEntregaDelivery(${pedidoId})" style="background:#e67e22; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #d35400; cursor:pointer;">
             ${isRetirada ? '✅ CONFIRMAR RETIRADA' : '✅ CONFIRMAR ENTREGA'}
+          </button>
+        `;
+      } else if (isFuncionario) {
+        htmlFooter = `
+          <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#8e44ad; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #6c3483; cursor:pointer;">
+            🔓 LIBERAR FUNCIONÁRIO
           </button>
         `;
       } else {
@@ -12428,7 +12446,12 @@ window.editarNomeMesaComandaDesdeModal = async function() {
         // Atualiza o título do modal aberto imediatamente
         const elTitulo = document.getElementById('modal-opcoes-titulo');
         if (elTitulo) {
-          elTitulo.innerText = typeof obterNomeExibicaoCard === 'function' ? obterNomeExibicaoCard(pedido) : nomeLimpo;
+          const isFuncRenom = !!pedido.is_funcionario || (pedido.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(nomeLimpo);
+          if (isFuncRenom) {
+            elTitulo.innerText = `Funcionário: ${nomeLimpo.replace(/^(func|staff|f-)\s*/i, '').trim() || 'Colaborador'}`;
+          } else {
+            elTitulo.innerText = typeof obterNomeExibicaoCard === 'function' ? obterNomeExibicaoCard(pedido) : nomeLimpo;
+          }
         }
 
         // Atualiza os dados em background sem fechar o modal
@@ -13290,8 +13313,8 @@ function abrirModalMesaAguardando(mesaId) {
   const funcNome = m.funcionario_nome || (/^(func|staff|f-)/i.test(m.numero || '') ? String(m.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() : String(m.numero || ''));
 
   if (isMesaFunc) {
-    document.getElementById('mma-titulo').innerText = `FUNC: ${funcNome || 'Colaborador'}`;
-    document.getElementById('mma-subtitulo').innerText = `FUNC: ${funcNome || 'Colaborador'} — Consumo Interno`;
+    document.getElementById('mma-titulo').innerText = `Funcionário: ${funcNome || 'Colaborador'}`;
+    document.getElementById('mma-subtitulo').innerText = `Funcionário: ${funcNome || 'Colaborador'} — Consumo Interno`;
   } else {
     const prefixo = isComandaMesa ? (String(m.numero).toLowerCase().startsWith('comanda') ? '' : 'Comanda ') : 'Mesa ';
     document.getElementById('mma-titulo').innerText = `📱 ${prefixo}${m.numero}`;

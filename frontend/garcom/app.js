@@ -1574,7 +1574,15 @@ async function configurarPusher() {
         if (data.tipo_atualizacao === 'renomear_mesa' && data.mesa_numero) {
           mesaAtual.numero = data.mesa_numero;
           const elTitulo = document.getElementById('modal-mesa-titulo');
-          if (elTitulo) elTitulo.textContent = formatarNomeMesaGarcom(mesaAtual);
+          if (elTitulo) {
+            const isF = !!mesaAtual.is_funcionario || (mesaAtual.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesaAtual.numero || '');
+            if (isF) {
+              const nLimpo = mesaAtual.funcionario_nome || String(mesaAtual.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim();
+              elTitulo.textContent = `Funcionário: ${nLimpo || 'Colaborador'}`;
+            } else {
+              elTitulo.textContent = formatarNomeMesaGarcom(mesaAtual);
+            }
+          }
         }
         if (data.status) {
           mesaAtual.pedido_status = data.status;
@@ -2850,7 +2858,11 @@ async function mostrarOpcoesMesa(mesa) {
   // Lógica de exibição do código ativo no título
   const nomeFormatado = formatarNomeMesaGarcom(mesa);
   let tituloModal = nomeFormatado;
-  if (mesa.codigo_acesso && mesa.status !== 'livre') {
+  const isFuncionarioModal = !!mesa.is_funcionario || (mesa.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesa.numero || '');
+  if (isFuncionarioModal) {
+    const nomeLimpo = mesa.funcionario_nome || String(mesa.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim();
+    tituloModal = `Funcionário: ${nomeLimpo || 'Colaborador'}`;
+  } else if (mesa.codigo_acesso && mesa.status !== 'livre') {
     tituloModal = `${nomeFormatado} [Código: ${mesa.codigo_acesso}]`;
   }
 
@@ -2914,8 +2926,14 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
         btnFecharConta.style.background = '#e67e22'; // Laranja
         btnFecharConta.style.animation = 'pulsar-amarelo 1.5s infinite';
       } else {
-        btnFecharConta.innerText = isBalcao ? '💰 Fechar Balcão (Liberar)' : (isComanda ? '💰 Fechar Comanda (Liberar)' : '💰 Fechar Conta (Liberar)');
-        btnFecharConta.style.background = '#9b59b6'; // Roxo padrão
+        const isMesaFunc = !!mesa.is_funcionario || (mesa.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesa.numero || '');
+        if (isMesaFunc) {
+          btnFecharConta.innerText = '💰 Fechar Funcionário (Liberar)';
+          btnFecharConta.style.background = '#8e44ad';
+        } else {
+          btnFecharConta.innerText = isBalcao ? '💰 Fechar Balcão (Liberar)' : (isComanda ? '💰 Fechar Comanda (Liberar)' : '💰 Fechar Conta (Liberar)');
+          btnFecharConta.style.background = '#9b59b6'; // Roxo padrão
+        }
         btnFecharConta.style.animation = 'none';
       }
     }
@@ -2971,8 +2989,14 @@ function atualizarVisibilidadeOpcoesMesa(mesa) {
       // Bloqueia e oculta 'Fechar Conta (Liberar)' enquanto o pedido ainda estiver aguardando entrega / em preparo
       const podeFecharConta = pedidoAbertoNaMesa && mesa.status !== 'fechando' && !precisaEntregar && jaEntregue;
       btnFecharConta.style.display = podeFecharConta ? 'block' : 'none';
-      btnFecharConta.innerText = isBalcao ? '💰 Fechar Balcão (Liberar)' : (isComanda ? '💰 Fechar Comanda (Liberar)' : '💰 Fechar Conta (Liberar)');
-      btnFecharConta.style.background = '#9b59b6';
+      const isMesaFunc = !!mesa.is_funcionario || (mesa.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesa.numero || '');
+      if (isMesaFunc) {
+        btnFecharConta.innerText = '💰 Fechar Funcionário (Liberar)';
+        btnFecharConta.style.background = '#8e44ad';
+      } else {
+        btnFecharConta.innerText = isBalcao ? '💰 Fechar Balcão (Liberar)' : (isComanda ? '💰 Fechar Comanda (Liberar)' : '💰 Fechar Conta (Liberar)');
+        btnFecharConta.style.background = '#9b59b6';
+      }
       btnFecharConta.style.animation = 'none';
     }
 
@@ -3427,7 +3451,9 @@ async function verItensDaMesa(isSilencioso = false) {
 
     renderizarItensMesaGarcom();
     
-    document.getElementById('resumo-mesa-titulo').textContent = `Resumo - ${formatarNomeMesaGarcom(mesaAtual)}`;
+    const isFResumo = !!mesaAtual.is_funcionario || (mesaAtual.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesaAtual.numero || '');
+    const nomeFResumo = isFResumo ? `Funcionário: ${mesaAtual.funcionario_nome || String(mesaAtual.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() || 'Colaborador'}` : formatarNomeMesaGarcom(mesaAtual);
+    document.getElementById('resumo-mesa-titulo').textContent = `Resumo - ${nomeFResumo}`;
     fecharOpcoes();
     document.getElementById('modal-resumo-mesa').style.display = 'block';
     atualizarBloqueioScroll();
@@ -4138,7 +4164,9 @@ async function finalizarEDesocupar() {
     if (modalFechamento) {
       const tituloFechar = document.getElementById('titulo-fechamento-garcom');
       if (tituloFechar && mesaAtual) {
-        tituloFechar.textContent = `Fechar ${formatarNomeMesaGarcom(mesaAtual, false)}`;
+        const isFFechar = !!mesaAtual.is_funcionario || (mesaAtual.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesaAtual.numero || '');
+        const nomeFFechar = isFFechar ? `Funcionário: ${mesaAtual.funcionario_nome || String(mesaAtual.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() || 'Colaborador'}` : formatarNomeMesaGarcom(mesaAtual, false);
+        tituloFechar.textContent = `Fechar ${nomeFFechar}`;
       }
       modalFechamento.style.display = 'flex';
       atualizarBloqueioScroll();

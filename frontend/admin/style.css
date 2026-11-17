@@ -2080,6 +2080,17 @@ input:checked + .slider:before {
   background: linear-gradient(to right, rgba(142, 68, 173, 0.04), #ffffff 25%) !important;
 }
 
+.pedido-card.pedido-funcionario.status-servido {
+  border-left-color: #8e44ad !important;
+  background-color: #fbf7fd !important;
+  background: #fbf7fd !important;
+}
+
+.pedido-card.pedido-funcionario.status-servido .status-badge {
+  background-color: #8e44ad !important;
+  color: #ffffff !important;
+}
+
 .badge-funcionario {
   background: #8e44ad;
   color: #ffffff;
