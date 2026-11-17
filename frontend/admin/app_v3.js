@@ -2939,7 +2939,7 @@ function renderizarMesasSelectLancar(mesas) {
       let label = m.numero;
       if (isFunc) {
         const nomeLimpo = m.funcionario_nome || String(m.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim();
-        label = `FUNC: ${nomeLimpo || m.numero}`;
+        label = `Funcionário: ${nomeLimpo || m.numero}`;
       } else if (isBalc) {
         const numLimpo = String(m.numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
         label = numLimpo ? `Comanda Balcão ${numLimpo}` : 'Comanda Balcão';
@@ -2949,9 +2949,9 @@ function renderizarMesasSelectLancar(mesas) {
       } else if (isNum) {
         label = `Mesa ${m.numero}`;
       }
-      const badge = isFunc ? '👤 ' : (isBalc ? '🏪 ' : (isComMesa ? '🍽️ ' : ''));
+      const badge = isFunc ? '💼 ' : (isBalc ? '🏪 ' : (isComMesa ? '🍽️ ' : '🪑 '));
       const statusStr = (m.status || 'livre').toUpperCase();
-      return `<option value="${m.id}" data-tipo="${m.tipo || 'mesa'}" ${isFunc ? 'data-funcionario="true"' : ''}>${badge}${label} (${statusStr})</option>`;
+      return `<option value="${m.id}" data-tipo="${m.tipo || 'mesa'}" ${isFunc ? 'data-funcionario="true"' : ''} style="${isFunc ? 'color:#8e44ad; font-weight:bold;' : ''}">${badge}${label} (${statusStr})</option>`;
     }).join('');
   
   if (select.innerHTML !== optionsHtml) {
@@ -2968,7 +2968,7 @@ function renderizarMesasSelectLancar(mesas) {
     select.addEventListener('change', () => {
       const isDeliv = select.value === 'DELIVERY';
       const opt = select.selectedOptions ? select.selectedOptions[0] : null;
-      const isFuncOpt = opt && opt.dataset.funcionario === 'true';
+      const isFuncOpt = opt && (opt.dataset.funcionario === 'true' || opt.innerText.includes('Funcionário'));
       const labelTaxa = document.getElementById('lancar-taxa-label');
       const toggleTaxa = document.getElementById('lancar-taxa-toggle');
       
@@ -2979,10 +2979,10 @@ function renderizarMesasSelectLancar(mesas) {
           toggleTaxa.disabled = true;
         }
       } else if (isFuncOpt) {
-        if (labelTaxa) labelTaxa.innerText = '10%';
+        if (labelTaxa) labelTaxa.innerText = 'ISENTA';
         if (toggleTaxa) {
           toggleTaxa.checked = false;
-          toggleTaxa.disabled = false;
+          toggleTaxa.disabled = true;
         }
       } else {
         if (labelTaxa) labelTaxa.innerText = '10%';
@@ -5418,14 +5418,23 @@ function sincronizarFiltroCustomizadoLancar() {
   const nativeSelect = document.getElementById('lancar-mesa-select');
   const customOptionsDiv = document.getElementById('custom-select-options-lancar');
   const customLabel = document.getElementById('custom-select-label-lancar');
+  const triggerBtn = document.getElementById('custom-select-trigger-lancar');
   if (!nativeSelect || !customOptionsDiv || !customLabel) return;
 
   const selectedOpt = nativeSelect.options[nativeSelect.selectedIndex];
-  if (selectedOpt) customLabel.innerText = selectedOpt.innerText;
+  if (selectedOpt) {
+    customLabel.innerText = selectedOpt.innerText;
+    const isFunc = selectedOpt.dataset.funcionario === 'true' || selectedOpt.innerText.includes('Funcionário');
+    if (triggerBtn) triggerBtn.style.borderColor = isFunc ? '#8e44ad' : '#3498db';
+    if (customLabel) customLabel.style.color = isFunc ? '#8e44ad' : '#2c3e50';
+  }
 
-  customOptionsDiv.innerHTML = Array.from(nativeSelect.options).map(opt => `
-    <div class="lancar-custom-opt" data-value="${opt.value}" style="padding:10px 20px 10px 12px; cursor:pointer; font-weight:bold; color:#2c3e50; font-size:0.95rem; white-space:nowrap; transition:background 0.15s;" onmouseenter="this.style.background='#edf2f7'" onmouseleave="this.style.background='transparent'">${opt.innerText}</div>
-  `).join('');
+  customOptionsDiv.innerHTML = Array.from(nativeSelect.options).map(opt => {
+    const isFunc = opt.dataset.funcionario === 'true' || opt.innerText.includes('Funcionário');
+    const cor = isFunc ? '#8e44ad' : '#2c3e50';
+    const bgHover = isFunc ? '#f5f3ff' : '#edf2f7';
+    return `<div class="lancar-custom-opt" data-value="${opt.value}" style="padding:10px 20px 10px 12px; cursor:pointer; font-weight:bold; color:${cor}; font-size:0.95rem; white-space:nowrap; transition:background 0.15s;" onmouseenter="this.style.background='${bgHover}'" onmouseleave="this.style.background='transparent'">${opt.innerText}</div>`;
+  }).join('');
 
   if (!customOptionsDiv.dataset.clickBound) {
     customOptionsDiv.addEventListener('click', (e) => {
@@ -5434,7 +5443,12 @@ function sincronizarFiltroCustomizadoLancar() {
       const val = target.getAttribute('data-value');
       nativeSelect.value = val;
       const optMatch = Array.from(nativeSelect.options).find(o => o.value === val);
-      if (optMatch) customLabel.innerText = optMatch.innerText;
+      if (optMatch) {
+        customLabel.innerText = optMatch.innerText;
+        const isFuncOpt = optMatch.dataset.funcionario === 'true' || optMatch.innerText.includes('Funcionário');
+        if (triggerBtn) triggerBtn.style.borderColor = isFuncOpt ? '#8e44ad' : '#3498db';
+        if (customLabel) customLabel.style.color = isFuncOpt ? '#8e44ad' : '#2c3e50';
+      }
       customOptionsDiv.style.display = 'none';
       const arrow = document.getElementById('custom-select-arrow-lancar');
       if (arrow) arrow.innerText = '▼';
@@ -5844,7 +5858,7 @@ function formatarNomeMesaHistorico(p) {
   const isFunc = !!p.is_funcionario || (p.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(p.mesa_numero || '');
   if (isFunc) {
     const fNome = p.funcionario_nome || String(p.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim() || 'Colaborador';
-    return `FUNC: ${fNome}`;
+    return `Funcionário: ${fNome}`;
   }
   const numRaw = p.mesa_numero || (p.mesa_id && String(p.mesa_id).toLowerCase() !== 'null' ? String(p.mesa_id) : '');
   if (!numRaw) return `BALCÃO #${p.id}`;
@@ -6020,14 +6034,16 @@ function renderizarColunaHistorico(tipo, lista, pagina, container) {
   }
 
   itensPagina.forEach(p => {
+    const isFunc = !!p.is_funcionario || (p.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(p.mesa_numero || '');
+    const isCanc = p.status === 'cancelado';
     const card = document.createElement('div');
     card.className = `pedido-card status-${p.status}`;
     card.style.cursor = 'pointer';
     card.style.margin = '0 0 6px 0';
     card.style.padding = '8px 12px';
     card.style.borderRadius = '8px';
-    card.style.borderLeft = `4px solid ${p.status === 'cancelado' ? '#e74c3c' : '#27ae60'}`;
-    card.style.background = '#fff';
+    card.style.borderLeft = `4px solid ${isCanc ? '#e74c3c' : (isFunc ? '#8e44ad' : '#27ae60')}`;
+    card.style.background = isFunc && !isCanc ? '#fdfaff' : '#fff';
     card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
     card.style.display = 'flex';
     card.style.flexDirection = 'column';
@@ -6035,10 +6051,45 @@ function renderizarColunaHistorico(tipo, lista, pagina, container) {
     card.style.minHeight = '65px';
     
     const rawMesa = formatarNomeMesaHistorico(p);
-    const mesaIcon = p.garcom_id === 'DELIVERY' ? (isPedidoRetiradaLocal(p) ? '🛍️' : '🚚') : (rawMesa.includes('BALCÃO') ? '🏪' : '🍽️');
+    const mesaIcon = p.garcom_id === 'DELIVERY' 
+      ? (isPedidoRetiradaLocal(p) ? '🛍️' : '🚚') 
+      : (isFunc ? '💼' : (rawMesa.includes('BALCÃO') ? '🏪' : '🍽️'));
     const mesaNome = `${mesaIcon} ${rawMesa}`;
     const valor = (p.total || 0) + (p.pago_parcial || 0);
     const horaAberturaCard = formatarData(p.abertura_mesa || p.created_at).split(' ')[1] || '--:--';
+
+    let valorCardHtml = '';
+    let footerCardHtml = '';
+    if (isFunc && !isCanc) {
+      const diariaVal = parseFloat(p.valor_diaria || p.valor_recebido || 0);
+      const consumoVal = valor;
+      const liquidoVal = diariaVal > 0 ? (diariaVal - consumoVal) : 0;
+      valorCardHtml = `
+        <div style="text-align: right; line-height: 1.1;">
+          <div style="font-weight: 900; color: #8e44ad; font-size: 1.05rem;">${diariaVal > 0 ? `LÍQ: R$ ${liquidoVal.toFixed(2)}` : `R$ ${consumoVal.toFixed(2)}`}</div>
+          <small style="color: #6b21a8; font-size: 0.65rem; font-weight: bold;">${diariaVal > 0 ? `DIÁRIA R$ ${diariaVal.toFixed(2)}` : 'CONSUMO'}</small>
+        </div>
+      `;
+      footerCardHtml = `
+        <div style="margin-top: 4px; border-top: 1px solid #f3e8ff; padding-top: 3px; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <span style="font-size: 0.7rem; font-weight: 800; color: #8e44ad;">💼 ACERTO DE DIÁRIA</span>
+          <span style="font-size: 0.65rem; color: #8e44ad; font-weight: 900; text-transform: uppercase;">RECIBO 📄</span>
+        </div>
+      `;
+    } else {
+      valorCardHtml = `
+        <div style="text-align: right; line-height: 1.1;">
+          <div style="font-weight: 900; color: #2c3e50; font-size: 1.05rem;">R$ ${valor.toFixed(2)}</div>
+          <small style="color: #94a3b8; font-size: 0.65rem;">${horaAberturaCard}</small>
+        </div>
+      `;
+      footerCardHtml = `
+        <div style="margin-top: 4px; border-top: 1px solid #f1f5f9; padding-top: 3px; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <span style="font-size: 0.7rem; font-weight: 800; color: #94a3b8;">👤 ${p.garcom_nome || 'Admin'}</span>
+          <span style="font-size: 0.65rem; color: #3498db; font-weight: 900; text-transform: uppercase;">DETALHES</span>
+        </div>
+      `;
+    }
 
     card.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
@@ -6046,15 +6097,9 @@ function renderizarColunaHistorico(tipo, lista, pagina, container) {
           <h4 style="margin: 0; font-size: 0.95rem; color: #2c3e50; font-weight: 800;">${mesaNome}</h4>
           <small style="color: #94a3b8; font-size: 0.7rem;">ID #${p.id}</small>
         </div>
-        <div style="text-align: right; line-height: 1.1;">
-          <div style="font-weight: 900; color: #2c3e50; font-size: 1.05rem;">R$ ${valor.toFixed(2)}</div>
-          <small style="color: #94a3b8; font-size: 0.65rem;">${horaAberturaCard}</small>
-        </div>
+        ${valorCardHtml}
       </div>
-      <div style="margin-top: 4px; border-top: 1px solid #f1f5f9; padding-top: 3px; display: flex; justify-content: space-between; align-items: center; width: 100%;">
-        <span style="font-size: 0.7rem; font-weight: 800; color: #94a3b8;">👤 ${p.garcom_nome || 'Admin'}</span>
-        <span style="font-size: 0.65rem; color: #3498db; font-weight: 900; text-transform: uppercase;">DETALHES</span>
-      </div>
+      ${footerCardHtml}
     `;
 
     card.addEventListener('click', () => abrirModalDetalheHistorico(p));
@@ -6173,9 +6218,10 @@ function abrirModalDetalheHistorico(p) {
   const btnReimprimir = document.getElementById('btn-reimprimir-historico');
   const btnExcluirHeader = document.getElementById('btn-excluir-historico-header');
 
+  const isFunc = !!p.is_funcionario || (p.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(p.mesa_numero || '');
   const mesaLabel = formatarNomeMesaHistorico(p);
-  if (header) header.style.background = p.status === 'cancelado' ? '#e74c3c' : '#27ae60';
-  if (titulo) titulo.innerText = `${mesaLabel} (#${p.id || '---'})`;
+  if (header) header.style.background = p.status === 'cancelado' ? '#e74c3c' : (isFunc ? '#8e44ad' : '#27ae60');
+  if (titulo) titulo.innerText = `${isFunc ? '💼 ' : ''}${mesaLabel} (#${p.id || '---'})`;
   const dataFormatada = p.created_at ? formatarData(p.created_at).split(' ')[0].replace(',', '').trim() : '--/--/----';
   if (info) {
     info.innerHTML = `
@@ -6409,7 +6455,11 @@ function abrirModalDetalheHistorico(p) {
     financeiro.innerHTML = htmlFin;
   }
 
-  if (btnReimprimir) btnReimprimir.onclick = () => reimprimirCupomById(p.id);
+  if (btnReimprimir) {
+    btnReimprimir.innerHTML = isFunc ? '🖨️ Re-imprimir Acerto de Diária' : '🖨️ Re-imprimir Nota';
+    btnReimprimir.style.background = isFunc ? '#8e44ad' : '';
+    btnReimprimir.onclick = () => reimprimirCupomById(p.id);
+  }
   if (btnExcluirHeader) btnExcluirHeader.onclick = () => excluirPedidoHistoricoIndividual(p.id);
 
   modal.classList.remove('hidden');
@@ -7161,7 +7211,7 @@ function atualizarSelectMesasAtivas() {
     const isFunc = !!p.is_funcionario || (p.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(p.mesa_numero || '');
     if (isFunc) {
       const fNome = p.funcionario_nome || String(p.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim() || 'Colaborador';
-      return `FUNC: ${fNome}`;
+      return `💼 Funcionário: ${fNome}`;
     }
     if (p.mesa_tipo === 'balcao') {
       const numTrim = String(p.mesa_numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
@@ -7185,7 +7235,7 @@ function atualizarSelectMesasAtivas() {
     const isFunc = !!m.is_funcionario || (m.tipo === 'funcionario') || /^(func|staff|f-)/i.test(m.numero || '');
     if (isFunc) {
       const fNome = m.funcionario_nome || String(m.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() || 'Colaborador';
-      return `FUNC: ${fNome}`;
+      return `💼 Funcionário: ${fNome}`;
     }
     return `📱 Mesa ${m.numero}`;
   });
@@ -11318,7 +11368,8 @@ async function reimprimirCupomById(id) {
         fecharPreviaCupom();
     };
     
-    document.getElementById('titulo-modal-previa').innerText = '📄 Prévia do Cupom (Reimpressão)';
+    const isFuncImp = !!pedido.is_funcionario || (pedido.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedido.mesa_numero || '');
+    document.getElementById('titulo-modal-previa').innerText = isFuncImp ? '💼 Comprovante de Acerto de Diária' : '📄 Prévia do Cupom (Reimpressão)';
     document.getElementById('modal-previa-cupom').style.display = 'flex';
   } catch (e) {
     console.error("Erro ao re-imprimir cupom:", e);
