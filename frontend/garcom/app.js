@@ -3063,10 +3063,10 @@ async function abrirModalCriarComandaGarcom() {
     html: `
       <div style="text-align: left; margin-top: 5px;">
         <label style="display: block; font-weight: bold; color: #334155; font-size: 0.88rem; margin-bottom: 6px;">
-          Número ou Nome da Comanda (máx 20 letras):
+          Número ou Nome da Comanda (máx 12 letras):
         </label>
-        <input type="text" id="swal-input-comanda-nome" placeholder="ex: 15, VIP, Lucas, Comanda 02..." maxlength="20"
-               oninput="if(this.value.length > 20) this.value = this.value.slice(0, 20);"
+        <input type="text" id="swal-input-comanda-nome" placeholder="ex: 15, VIP, Lucas, Comanda 02..." maxlength="12"
+               oninput="if(this.value.length > 12) this.value = this.value.slice(0, 12);"
                style="width: 100%; padding: 12px 14px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc; color: #1e293b; margin-bottom: 14px;">
 
         <label style="display: block; font-weight: bold; color: #334155; font-size: 0.88rem; margin-bottom: 6px;">
@@ -3097,8 +3097,8 @@ async function abrirModalCriarComandaGarcom() {
         setTimeout(() => inp.focus(), 150);
         ['input', 'paste', 'keyup', 'change'].forEach(evt => {
           inp.addEventListener(evt, function() {
-            if (this.value && this.value.length > 20) {
-              this.value = this.value.slice(0, 20);
+            if (this.value && this.value.length > 12) {
+              this.value = this.value.slice(0, 12);
             }
           });
         });
@@ -3111,11 +3111,11 @@ async function abrirModalCriarComandaGarcom() {
         Swal.showValidationMessage('Informe o número ou nome da comanda!');
         return false;
       }
-      if (nome.length > 20) {
-        Swal.showValidationMessage('O nome da comanda não pode ter mais de 20 caracteres!');
+      if (nome.length > 12) {
+        Swal.showValidationMessage('O nome da comanda não pode ter mais de 12 caracteres!');
         return false;
       }
-      return { nome: nome.slice(0, 20), tipo, abrirDireto: true };
+      return { nome: nome.slice(0, 12), tipo, abrirDireto: true };
     },
     preDeny: () => {
       let nome = document.getElementById('swal-input-comanda-nome')?.value.trim();
@@ -3124,11 +3124,11 @@ async function abrirModalCriarComandaGarcom() {
         Swal.showValidationMessage('Informe o número ou nome da comanda!');
         return false;
       }
-      if (nome.length > 20) {
-        Swal.showValidationMessage('O nome da comanda não pode ter mais de 20 caracteres!');
+      if (nome.length > 12) {
+        Swal.showValidationMessage('O nome da comanda não pode ter mais de 12 caracteres!');
         return false;
       }
-      return { nome: nome.slice(0, 20), tipo, abrirDireto: false };
+      return { nome: nome.slice(0, 12), tipo, abrirDireto: false };
     }
   });
 
@@ -3272,10 +3272,10 @@ async function abrirModalTransferirMesaGarcom() {
               Transferindo itens de <b>${nomeOrigem}</b> para uma nova comanda:
             </p>
             <label style="display: block; font-weight: bold; color: #334155; font-size: 0.85rem; margin-bottom: 5px;">
-              Número ou Nome da Nova Comanda (máx 20 letras):
+              Número ou Nome da Nova Comanda (máx 12 letras):
             </label>
-            <input type="text" id="swal-input-transf-comanda-nome" placeholder="ex: 15, Lucas, Comanda 08..." maxlength="20"
-                   oninput="if(this.value.length > 20) this.value = this.value.slice(0, 20);"
+            <input type="text" id="swal-input-transf-comanda-nome" placeholder="ex: 15, Lucas, Comanda 08..." maxlength="12"
+                   oninput="if(this.value.length > 12) this.value = this.value.slice(0, 12);"
                    style="width: 100%; padding: 12px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: bold; background: #f8fafc; color: #1e293b; box-sizing: border-box; margin-bottom: 14px;">
             <label style="display: block; font-weight: bold; color: #334155; font-size: 0.85rem; margin-bottom: 5px;">
               Tipo:
@@ -3298,8 +3298,8 @@ async function abrirModalTransferirMesaGarcom() {
             setTimeout(() => inp.focus(), 150);
             ['input', 'paste', 'keyup', 'change'].forEach(evt => {
               inp.addEventListener(evt, function() {
-                if (this.value && this.value.length > 20) {
-                  this.value = this.value.slice(0, 20);
+                if (this.value && this.value.length > 12) {
+                  this.value = this.value.slice(0, 12);
                 }
               });
             });
@@ -3312,11 +3312,11 @@ async function abrirModalTransferirMesaGarcom() {
             Swal.showValidationMessage('Informe o nome ou número da comanda!');
             return false;
           }
-          if (nome.length > 20) {
-            Swal.showValidationMessage('O nome da comanda não pode ter mais de 20 caracteres!');
+          if (nome.length > 12) {
+            Swal.showValidationMessage('O nome da comanda não pode ter mais de 12 caracteres!');
             return false;
           }
-          return { nome: nome.slice(0, 20), tipo };
+          return { nome: nome.slice(0, 12), tipo };
         }
       });
 

@@ -20,8 +20,8 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       const numParaValidar = isFuncionario 
         ? numOuNome.replace(/^((funcion[aá]rio|func|staff|f-|comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o)\s*:?\s*)+/gi, '').trim() 
         : numOuNome;
-      if (numParaValidar.length > 25) {
-        return res.status(400).json({ error: `O número ou nome da ${isFuncionario ? 'comanda de funcionário' : 'comanda/mesa'} não pode ter mais de 25 caracteres!` });
+      if (numParaValidar.length > 12) {
+        return res.status(400).json({ error: `O número ou nome da ${isFuncionario ? 'comanda de funcionário' : 'comanda/mesa'} não pode ter mais de 12 caracteres!` });
       }
 
       // TRAVA DE DUPLICIDADE (Case-insensitive) - Separado por tipo para não colidir mesa física com balcão
@@ -145,8 +145,8 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       const nomeParaValidar = isFuncRenom
         ? novoNome.replace(/^((funcion[aá]rio|func|staff|f-|comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o)\s*:?\s*)+/gi, '').trim()
         : novoNome;
-      if (nomeParaValidar.length > 25) {
-        return res.status(400).json({ error: `O número ou nome da ${isFuncRenom ? 'comanda de funcionário' : 'mesa/comanda'} não pode exceder 25 caracteres!` });
+      if (nomeParaValidar.length > 12) {
+        return res.status(400).json({ error: `O número ou nome da ${isFuncRenom ? 'comanda de funcionário' : 'mesa/comanda'} não pode exceder 12 caracteres!` });
       }
 
       const fnSalvar = req.body.funcionario_nome || (isFuncRenom ? nomeParaValidar : null);

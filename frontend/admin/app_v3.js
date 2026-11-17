@@ -3052,8 +3052,8 @@ async function abrirModalCriarComandaLancar() {
 
         <!-- CORPO DO MODAL -->
         <div style="padding: 20px; text-align: left;">
-          <label style="display: block; font-weight: bold; color: #334155; font-size: 0.9rem; margin-bottom: 6px;">Número ou Nome da Comanda/Mesa (máx 20 letras):</label>
-          <input type="text" id="input-nome-comanda-novo" placeholder="ex: 15, VIP, Comanda 05, Lucas..." maxlength="20"
+          <label style="display: block; font-weight: bold; color: #334155; font-size: 0.9rem; margin-bottom: 6px;">Número ou Nome da Comanda/Mesa (máx 12 letras):</label>
+          <input type="text" id="input-nome-comanda-novo" placeholder="ex: 15, VIP, Comanda 05, Lucas..." maxlength="12"
                  style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 2px solid #cbd5e0; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc; margin-bottom: 12px;">
           
           <label style="display: block; font-weight: bold; color: #334155; font-size: 0.9rem; margin-bottom: 6px;">Direcionar para:</label>
@@ -4443,14 +4443,14 @@ window.editarNomeMesa = async function(id, nomeAtual) {
     inputValue: nomeLimpoAtual,
     inputPlaceholder: isFunc ? 'Ex: Rike, Lucas, Carlos...' : 'Ex: 15, VIP, Comanda 05...',
     inputAttributes: {
-      maxlength: isFunc ? '25' : '15'
+      maxlength: '12'
     },
     showCancelButton: true,
     confirmButtonText: 'Salvar',
     cancelButtonText: 'Cancelar',
     inputValidator: (value) => {
       if (!value || !value.trim()) return 'O nome não pode ficar vazio!';
-      if (value.trim().length > (isFunc ? 25 : 15)) return `Máximo de ${isFunc ? 25 : 15} caracteres!`;
+      if (value.trim().length > 12) return 'Máximo de 12 caracteres!';
     }
   });
 
@@ -12992,7 +12992,7 @@ window.editarNomeMesaComandaDesdeModal = async function() {
     inputValue: nomeAtual,
     inputPlaceholder: isFunc ? 'Ex: Rike, Lucas, Carlos...' : 'Ex: Comanda 10, Comanda João...',
     inputAttributes: {
-      maxlength: isFunc ? '25' : '15',
+      maxlength: '12',
       autocapitalize: 'words',
       autocorrect: 'off'
     },
@@ -13007,7 +13007,7 @@ window.editarNomeMesaComandaDesdeModal = async function() {
     },
     inputValidator: (value) => {
       if (!value || !value.trim()) return 'O nome não pode ficar vazio!';
-      if (value.trim().length > (isFunc ? 25 : 15)) return `Máximo de ${isFunc ? 25 : 15} caracteres!`;
+      if (value.trim().length > 12) return 'Máximo de 12 caracteres!';
     }
   });
 
@@ -13084,7 +13084,7 @@ window.editarNomeMesaAguardandoDesdeModal = async function() {
     inputValue: nomeAtual,
     inputPlaceholder: isFunc ? 'Ex: Rike, Lucas...' : 'Ex: Comanda 10, Comanda João...',
     inputAttributes: {
-      maxlength: isFunc ? '25' : '15',
+      maxlength: '12',
       autocapitalize: 'words',
       autocorrect: 'off'
     },
@@ -13099,7 +13099,7 @@ window.editarNomeMesaAguardandoDesdeModal = async function() {
     },
     inputValidator: (value) => {
       if (!value || !value.trim()) return 'O nome não pode ficar vazio!';
-      if (value.trim().length > (isFunc ? 25 : 15)) return `Máximo de ${isFunc ? 25 : 15} caracteres!`;
+      if (value.trim().length > 12) return 'Máximo de 12 caracteres!';
     }
   });
 
