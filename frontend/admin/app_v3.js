@@ -1327,7 +1327,10 @@ function gerarBytesEscPosPedido(pedido, itens) {
   if (isFuncionario) {
     const acrescimo = pedido.acrescimo || 0;
     const desconto = pedido.desconto || 0;
-    const diariaVal = (pedido.valor_diaria !== undefined && pedido.valor_diaria !== null) ? parseFloat(pedido.valor_diaria) : 0;
+    let diariaVal = (pedido.valor_diaria !== undefined && pedido.valor_diaria !== null && pedido.valor_diaria !== '') ? parseFloat(pedido.valor_diaria) : 0;
+    if (!diariaVal && pedido.valor_recebido) {
+      diariaVal = parseFloat(pedido.valor_recebido) || 0;
+    }
     const totalConsumo = subtotal + acrescimo - desconto;
     const liquidoVal = diariaVal > 0 ? (diariaVal - totalConsumo) : 0;
     const isSaldoPositivo = liquidoVal >= 0;
@@ -6275,6 +6278,32 @@ function abrirModalDetalheHistorico(p) {
         </div>`;
     }
 
+    // Acerto de Diária de Funcionário (se for comanda de staff)
+    const isFuncHistorico = !!p.is_funcionario || (p.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(p.mesa_numero || '');
+    if (isFuncHistorico) {
+      const diariaH = parseFloat(p.valor_diaria || p.valor_recebido || 0);
+      const totalConsumoH = (p.total || 0) + (p.pago_parcial || 0);
+      const liquidoH = diariaH > 0 ? (diariaH - totalConsumoH) : 0;
+      htmlContent += `
+        <div style="margin-bottom: 12px; padding: 12px; background: #faf5ff; border-radius: 8px; border: 1.5px solid #8e44ad; font-size: 0.88rem; color: #6b21a8; line-height: 1.4;">
+          <b style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 0.95rem;">
+            <span>💼</span> ACERTO DE DIÁRIA DO COLABORADOR
+          </b>
+          <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 3px;">
+            <span>(+) Diária Bruta Combinada:</span>
+            <strong>R$ ${diariaH.toFixed(2)}</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 3px; color: #c0392b;">
+            <span>(-) Total Consumo no Turno:</span>
+            <strong>- R$ ${totalConsumoH.toFixed(2)}</strong>
+          </div>
+          <div style="border-top: 1px dashed #d8b4fe; margin-top: 4px; padding-top: 4px; display: flex; justify-content: space-between; font-weight: 900; font-size: 0.95rem; color: #15803d;">
+            <span>💰 Líquido Pago ao Colaborador:</span>
+            <span>R$ ${liquidoH.toFixed(2)}</span>
+          </div>
+        </div>`;
+    }
+
     // Observação (se houver)
     if (p.observacao) {
       htmlContent += `
@@ -9701,7 +9730,10 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
           body: JSON.stringify({ 
             mesa_id: idMesa, 
             forma_pagamento: finalFormaPagamento, 
-            desconto, acrescimo, valor_recebido, troco, total,
+            desconto, acrescimo, 
+            valor_recebido: isFuncFechamento ? valorDiaria : valor_recebido, 
+            troco: isFuncFechamento ? valorLiquidoFuncionario : troco, 
+            total,
             num_pessoas, valor_por_pessoa, cobrar_taxa: cobrarTaxa,
             balcao_imediato: window.isFechamentoImediatoBalcao ? 1 : 0
           }),
@@ -11326,7 +11358,10 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false, forcarNavegador 
   if (isFuncionario) {
     const acrescimo = pedido.acrescimo || 0;
     const desconto = pedido.desconto || 0;
-    const diariaVal = (pedido.valor_diaria !== undefined && pedido.valor_diaria !== null) ? parseFloat(pedido.valor_diaria) : 0;
+    let diariaVal = (pedido.valor_diaria !== undefined && pedido.valor_diaria !== null && pedido.valor_diaria !== '') ? parseFloat(pedido.valor_diaria) : 0;
+    if (!diariaVal && pedido.valor_recebido) {
+      diariaVal = parseFloat(pedido.valor_recebido) || 0;
+    }
     const totalConsumo = subtotal + acrescimo - desconto;
     const liquidoVal = diariaVal > 0 ? (diariaVal - totalConsumo) : 0;
     const isSaldoPositivo = liquidoVal >= 0;
