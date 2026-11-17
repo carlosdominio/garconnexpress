@@ -1348,7 +1348,10 @@ function gerarBytesEscPosPedido(pedido, itens) {
   const isDelivery = (pedido.garcom_id === 'DELIVERY');
   const nomeMesa = removerAcentosTexto(formatarNomeMesaHistorico(pedido)).toUpperCase();
 
-  const itensFiltrados = (itens || []).filter(i => i.status !== 'cancelado');
+  const isCancelado = (pedido.status === 'cancelado');
+  const itensFiltrados = (isCancelado || (itens || []).every(i => i.status === 'cancelado'))
+    ? (itens || [])
+    : (itens || []).filter(i => i.status !== 'cancelado');
   const subtotal = itensFiltrados.reduce((sum, i) => sum + ((i.preco || 0) * (i.quantidade || 1)), 0);
 
   const isFuncionario = isPedidoFuncionario(pedido);
@@ -1374,13 +1377,13 @@ function gerarBytesEscPosPedido(pedido, itens) {
     str += '\x1D\x21\x01'; // Dobro de altura
     str += 'GUGA BEBIDAS\n';
     str += '\x1D\x21\x00'; // Normal
-    str += '*** ACERTO DE DIARIA (STAFF) ***\n';
+    str += (isCancelado ? '*** PEDIDO FUNCIONARIO CANCELADO ***\n' : '*** ACERTO DE DIARIA (STAFF) ***\n');
     str += '\x1B\x45\x00'; // Negrito OFF
     str += divisor + '\n';
 
     str += '\x1B\x61\x00'; // Alinhado à esquerda
     str += '\x1B\x45\x01';
-    str += padLinhaElgin('COLABORADOR:', funcNome, colunas) + '\n';
+    str += padLinhaElgin('FUNCIONARIO:', funcNome, colunas) + '\n';
     str += '\x1B\x45\x00';
     str += padLinhaElgin('DATA/HORA:', new Date().toLocaleString('pt-BR'), colunas) + '\n';
     str += padLinhaElgin('COMANDA:', `#${pedido.id}`, colunas) + '\n';
@@ -1388,9 +1391,9 @@ function gerarBytesEscPosPedido(pedido, itens) {
 
     str += '\x1B\x45\x01';
     if (colunas === 32) {
-      str += padLinhaElgin('QTD ITEM', 'TOTAL', colunas) + '\n';
+      str += padLinhaElgin(isCancelado ? 'QTD ITEM (CANCELADO)' : 'QTD ITEM', 'TOTAL', colunas) + '\n';
     } else {
-      str += padLinhaElgin('QTD  DESCRICAO', 'TOTAL (R$)', colunas) + '\n';
+      str += padLinhaElgin(isCancelado ? 'QTD  DESCRICAO (CANCELADO)' : 'QTD  DESCRICAO', 'TOTAL (R$)', colunas) + '\n';
     }
     str += '\x1B\x45\x00';
     str += divisorFino + '\n';
@@ -1415,7 +1418,14 @@ function gerarBytesEscPosPedido(pedido, itens) {
     if (desconto > 0) str += padLinhaElgin('DESCONTO:', `- R$ ${desconto.toFixed(2)}`, colunas) + '\n';
     str += divisor + '\n';
 
-    if (diariaVal > 0) {
+    if (isCancelado) {
+      str += '\x1B\x45\x01';
+      str += '\x1D\x21\x01';
+      str += padLinhaElgin('STATUS:', 'CANCELADO', colunas) + '\n';
+      str += '\x1D\x21\x00';
+      str += '\x1B\x45\x00';
+      str += padLinhaElgin('SITUACAO:', 'SEM DESCONTO NA DIARIA', colunas) + '\n';
+    } else if (diariaVal > 0) {
       str += padLinhaElgin('(+) DIARIA BRUTA:', `R$ ${diariaVal.toFixed(2)}`, colunas) + '\n';
       str += padLinhaElgin('(-) DESC. CONSUMO:', `- R$ ${totalConsumo.toFixed(2)}`, colunas) + '\n';
       str += divisorFino + '\n';
@@ -1433,18 +1443,21 @@ function gerarBytesEscPosPedido(pedido, itens) {
       str += '\x1B\x45\x00';
     }
 
-    str += divisor + '\n';
-    str += padLinhaElgin('PAGAMENTO:', 'DESCONTO NA DIARIA', colunas) + '\n';
-    str += divisorFino + '\n';
+    if (!isCancelado) {
+      str += divisor + '\n';
+      str += padLinhaElgin('PAGAMENTO:', 'DESCONTO NA DIARIA', colunas) + '\n';
+      str += divisorFino + '\n';
 
-    // Assinatura do colaborador
+      // Assinatura do colaborador
+      str += '\x1B\x61\x01'; // Centralizado
+      str += '\n\n';
+      str += '_'.repeat(Math.min(30, colunas - 4)) + '\n';
+      str += funcNome + '\n';
+      str += 'Assinatura do Colaborador\n\n';
+    }
+
     str += '\x1B\x61\x01'; // Centralizado
-    str += '\n\n';
-    str += '_'.repeat(Math.min(30, colunas - 4)) + '\n';
-    str += funcNome + '\n';
-    str += 'Assinatura do Colaborador\n\n';
-
-    str += 'COMPROVANTE DE ACERTO DE TURNO\n';
+    str += (isCancelado ? '*** PEDIDO FUNCIONARIO CANCELADO ***\n' : 'COMPROVANTE DE ACERTO DE TURNO\n');
     str += 'GuGA Bebidas - Gestao Interna\n';
     str += '\n\n\n\n';
 
@@ -6097,14 +6110,27 @@ function renderizarColunaHistorico(tipo, lista, pagina, container) {
     const rawMesa = formatarNomeMesaHistorico(p);
     const mesaIcon = p.garcom_id === 'DELIVERY' 
       ? (isPedidoRetiradaLocal(p) ? '🛍️' : '🚚') 
-      : (isFunc ? '💼' : (rawMesa.includes('BALCÃO') ? '🏪' : '🍽️'));
+      : (isFunc ? '👤' : (rawMesa.includes('BALCÃO') ? '🏪' : '🍽️'));
     const mesaNome = `${mesaIcon} ${rawMesa}`;
     const valor = (p.total || 0) + (p.pago_parcial || 0);
     const horaAberturaCard = formatarData(p.abertura_mesa || p.created_at).split(' ')[1] || '--:--';
 
     let valorCardHtml = '';
     let footerCardHtml = '';
-    if (isFunc && !isCanc) {
+    if (isFunc && isCanc) {
+      valorCardHtml = `
+        <div style="text-align: right; line-height: 1.1;">
+          <div style="font-weight: 900; color: #e74c3c; font-size: 0.95rem;">CANCELADO</div>
+          <small style="color: #94a3b8; font-size: 0.65rem;">${horaAberturaCard}</small>
+        </div>
+      `;
+      footerCardHtml = `
+        <div style="margin-top: 4px; border-top: 1px solid #fee2e2; padding-top: 3px; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <span style="font-size: 0.7rem; font-weight: 800; color: #e74c3c;">❌ CONSUMO CANCELADO</span>
+          <span style="font-size: 0.65rem; color: #e74c3c; font-weight: 900; text-transform: uppercase;">DETALHES</span>
+        </div>
+      `;
+    } else if (isFunc && !isCanc) {
       const diariaVal = parseFloat(p.valor_diaria || p.valor_recebido || 0);
       const consumoVal = valor;
       const liquidoVal = diariaVal > 0 ? (diariaVal - consumoVal) : 0;
@@ -6116,7 +6142,7 @@ function renderizarColunaHistorico(tipo, lista, pagina, container) {
       `;
       footerCardHtml = `
         <div style="margin-top: 4px; border-top: 1px solid #f3e8ff; padding-top: 3px; display: flex; justify-content: space-between; align-items: center; width: 100%;">
-          <span style="font-size: 0.7rem; font-weight: 800; color: #8e44ad;">💼 ACERTO DE DIÁRIA</span>
+          <span style="font-size: 0.7rem; font-weight: 800; color: #8e44ad;">👤 ACERTO DE DIÁRIA</span>
           <span style="font-size: 0.65rem; color: #8e44ad; font-weight: 900; text-transform: uppercase;">RECIBO 📄</span>
         </div>
       `;
@@ -6263,9 +6289,10 @@ function abrirModalDetalheHistorico(p) {
   const btnExcluirHeader = document.getElementById('btn-excluir-historico-header');
 
   const isFunc = isPedidoFuncionario(p);
+  const isCanc = p.status === 'cancelado';
   const mesaLabel = formatarNomeMesaHistorico(p);
-  if (header) header.style.background = p.status === 'cancelado' ? '#e74c3c' : (isFunc ? '#8e44ad' : '#27ae60');
-  if (titulo) titulo.innerText = `${isFunc ? '💼 ' : ''}${mesaLabel} (#${p.id || '---'})`;
+  if (header) header.style.background = isCanc ? '#e74c3c' : (isFunc ? '#8e44ad' : '#27ae60');
+  if (titulo) titulo.innerText = `${isFunc ? '👤 ' : ''}${mesaLabel} (#${p.id || '---'})`;
   const dataFormatada = p.created_at ? formatarData(p.created_at).split(' ')[0].replace(',', '').trim() : '--/--/----';
   if (info) {
     info.innerHTML = `
@@ -6371,27 +6398,40 @@ function abrirModalDetalheHistorico(p) {
     // Acerto de Diária de Funcionário (se for comanda de staff)
     const isFuncHistorico = isPedidoFuncionario(p);
     if (isFuncHistorico) {
-      const diariaH = parseFloat(p.valor_diaria || p.valor_recebido || 0);
-      const totalConsumoH = (p.total || 0) + (p.pago_parcial || 0);
-      const liquidoH = diariaH > 0 ? (diariaH - totalConsumoH) : 0;
-      htmlContent += `
-        <div style="margin-bottom: 12px; padding: 12px; background: #faf5ff; border-radius: 8px; border: 1.5px solid #8e44ad; font-size: 0.88rem; color: #6b21a8; line-height: 1.4;">
-          <b style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 0.95rem;">
-            <span>💼</span> ACERTO DE DIÁRIA DO COLABORADOR
-          </b>
-          <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 3px;">
-            <span>(+) Diária Bruta Combinada:</span>
-            <strong>R$ ${diariaH.toFixed(2)}</strong>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 3px; color: #c0392b;">
-            <span>(-) Total Consumo no Turno:</span>
-            <strong>- R$ ${totalConsumoH.toFixed(2)}</strong>
-          </div>
-          <div style="border-top: 1px dashed #d8b4fe; margin-top: 4px; padding-top: 4px; display: flex; justify-content: space-between; font-weight: 900; font-size: 0.95rem; color: #15803d;">
-            <span>💰 Líquido Pago ao Colaborador:</span>
-            <span>R$ ${liquidoH.toFixed(2)}</span>
-          </div>
-        </div>`;
+      const isCancH = (p.status === 'cancelado');
+      if (isCancH) {
+        htmlContent += `
+          <div style="margin-bottom: 12px; padding: 12px; background: #fff5f5; border-radius: 8px; border: 1.5px solid #e74c3c; font-size: 0.88rem; color: #c0392b; line-height: 1.4;">
+            <b style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 0.95rem;">
+              <span>❌</span> CONSUMO DE FUNCIONÁRIO CANCELADO
+            </b>
+            <div style="font-size: 0.82rem; color: #7f1d1d;">
+              Este pedido foi cancelado no sistema. Nenhum valor foi debitado ou descontado da diária do funcionário.
+            </div>
+          </div>`;
+      } else {
+        const diariaH = parseFloat(p.valor_diaria || p.valor_recebido || 0);
+        const totalConsumoH = (p.total || 0) + (p.pago_parcial || 0);
+        const liquidoH = diariaH > 0 ? (diariaH - totalConsumoH) : 0;
+        htmlContent += `
+          <div style="margin-bottom: 12px; padding: 12px; background: #faf5ff; border-radius: 8px; border: 1.5px solid #8e44ad; font-size: 0.88rem; color: #6b21a8; line-height: 1.4;">
+            <b style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 0.95rem;">
+              <span>👤</span> ACERTO DE DIÁRIA DO COLABORADOR
+            </b>
+            <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 3px;">
+              <span>(+) Diária Bruta Combinada:</span>
+              <strong>R$ ${diariaH.toFixed(2)}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 3px; color: #c0392b;">
+              <span>(-) Total Consumo no Turno:</span>
+              <strong>- R$ ${totalConsumoH.toFixed(2)}</strong>
+            </div>
+            <div style="border-top: 1px dashed #d8b4fe; margin-top: 4px; padding-top: 4px; display: flex; justify-content: space-between; font-weight: 900; font-size: 0.95rem; color: #15803d;">
+              <span>💰 Líquido Pago ao Colaborador:</span>
+              <span>R$ ${liquidoH.toFixed(2)}</span>
+            </div>
+          </div>`;
+      }
     }
 
     // Observação (se houver)
@@ -11476,8 +11516,11 @@ async function reimprimirCupomById(id) {
         fecharPreviaCupom();
     };
     
-    const isFuncImp = !!pedido.is_funcionario || (pedido.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedido.mesa_numero || '');
-    document.getElementById('titulo-modal-previa').innerText = isFuncImp ? '💼 Comprovante de Acerto de Diária' : '📄 Prévia do Cupom (Reimpressão)';
+    const isFuncImp = isPedidoFuncionario(pedido);
+    const isCancImp = (pedido.status === 'cancelado');
+    document.getElementById('titulo-modal-previa').innerText = isFuncImp 
+      ? (isCancImp ? '❌ Cupom do Consumo Cancelado' : '👤 Comprovante de Acerto de Diária') 
+      : (isCancImp ? '❌ Prévia do Cupom (Pedido Cancelado)' : '📄 Prévia do Cupom (Reimpressão)');
     document.getElementById('modal-previa-cupom').style.display = 'flex';
   } catch (e) {
     console.error("Erro ao re-imprimir cupom:", e);
@@ -11490,12 +11533,15 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false, forcarNavegador 
   if (!container) return;
   aplicarConfiguracaoImpressao();
 
+  const isCancelado = (pedido.status === 'cancelado');
   const isConferencia = !!(pedido.isImpressaoParcialItens || pedido.isImpressaoParcialMesa);
   
   const isBalcaoOuDelivery = pedido.garcom_id === 'DELIVERY' || !pedido.mesa_numero || String(pedido.mesa_numero).toUpperCase().includes('BALC') || pedido.mesa_tipo === 'balcao' || (!pedido.mesa_id && !pedido.mesa_numero);
   
-  // Mostra todos os itens da mesa que não estão cancelados (pendentes, prontos e entregues)
-  const itensFiltrados = itens.filter(i => i.status !== 'cancelado');
+  // Mostra todos os itens da mesa (se o pedido estiver cancelado ou todos cancelados, exibe os itens que foram cancelados)
+  const itensFiltrados = (isCancelado || itens.every(i => i.status === 'cancelado'))
+    ? itens
+    : itens.filter(i => i.status !== 'cancelado');
 
   // Busca histórico de pagamentos deste pedido no servidor
   let historicoPagos = [];
@@ -11526,17 +11572,17 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false, forcarNavegador 
     const htmlStaff = `
       <div class="cupom-header" style="text-align: center; border-bottom: 2px dashed #000; padding-bottom: 8px; margin-bottom: 10px;">
         <h2 style="margin:0; font-size: 14pt; font-weight: 900;">GuGA Bebidas</h2>
-        <div style="margin: 4px auto; font-size: 9pt; font-weight: 800; background: #000; color: #fff; padding: 2px 6px; display: inline-block; border-radius: 2px;">
-          *** ACERTO DE DIARIA (STAFF) ***
+        <div style="margin: 4px auto; font-size: 9pt; font-weight: 800; background: ${isCancelado ? '#c0392b' : '#000'}; color: #fff; padding: 3px 8px; display: inline-block; border-radius: 3px; letter-spacing: 0.5px;">
+          ${isCancelado ? '*** PEDIDO FUNCIONARIO CANCELADO ***' : '*** ACERTO DE DIARIA (STAFF) ***'}
         </div>
-        <p style="margin: 4px 0 2px 0; font-weight: 900; font-size: 12pt;">COLABORADOR: ${funcNome}</p>
+        <p style="margin: 4px 0 2px 0; font-weight: 900; font-size: 12pt;">FUNCIONÁRIO: ${funcNome}</p>
         <p style="margin: 2px 0; font-size: 8.5pt;"><strong>DATA:</strong> ${new Date().toLocaleString('pt-BR')}</p>
         <p style="margin: 2px 0; font-size: 8.5pt;"><strong>COMANDA:</strong> #${pedido.id}</p>
       </div>
 
-      <div style="font-size: 9.5pt; margin-bottom: 10px;">
+      <div style="font-size: 9.5pt; margin-bottom: 10px; ${isCancelado ? 'text-decoration: line-through; opacity: 0.85;' : ''}">
         <div style="font-weight: 900; border-bottom: 1px solid #000; padding-bottom: 2px; margin-bottom: 5px; font-size: 9pt;">
-          ITENS CONSUMIDOS NO TURNO:
+          ${isCancelado ? 'ITENS DO CONSUMO (CANCELADOS):' : 'ITENS CONSUMIDOS NO TURNO:'}
         </div>
         ${itensFiltrados.map(i => `
           <div style="display:flex; justify-content:space-between; margin-bottom: 3px; align-items: flex-start;">
@@ -11554,7 +11600,7 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false, forcarNavegador 
           <span>TOTAL DO CONSUMO:</span>
           <span style="font-weight:bold;">R$ ${totalConsumo.toFixed(2)}</span>
         </div>
-        <div style="display:flex; justify-content:space-between; margin-bottom: 3px; color: #27ae60; font-weight:bold;">
+        <div style="display:flex; justify-content:space-between; margin-bottom: 3px; color: ${isCancelado ? '#c0392b' : '#27ae60'}; font-weight:bold;">
           <span>TAXA DE SERVIÇO:</span>
           <span>ISENTA (0%)</span>
         </div>
@@ -11563,7 +11609,16 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false, forcarNavegador 
 
         <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
 
-        ${diariaVal > 0 ? `
+        ${isCancelado ? `
+          <div style="display:flex; justify-content:space-between; font-weight: 900; margin-top: 6px; font-size: 11pt; border: 2px solid #c0392b; padding: 5px 6px; background: #fff5f5; color: #c0392b; text-transform: uppercase;">
+            <span>STATUS:</span>
+            <span>CONSUMO CANCELADO</span>
+          </div>
+          <div style="margin-top: 6px; font-size: 8.5pt; color: #475569;">
+            <span>SITUAÇÃO:</span>
+            <strong>NENHUM VALOR DESCONTADO DA DIÁRIA</strong>
+          </div>
+        ` : (diariaVal > 0 ? `
           <div style="display:flex; justify-content:space-between; font-weight:bold; margin-bottom: 3px;">
             <span>(+) DIÁRIA BRUTA:</span>
             <span>R$ ${diariaVal.toFixed(2)}</span>
@@ -11581,8 +11636,9 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false, forcarNavegador 
             <span>TOTAL DESCONTADO:</span>
             <span>R$ ${totalConsumo.toFixed(2)}</span>
           </div>
-        `}
+        `)}
 
+        ${!isCancelado ? `
         <div style="margin-top: 6px; font-size: 8.5pt;">
           <span>FORMA DE LIQUIDAÇÃO:</span>
           <strong>DESCONTO NA DIÁRIA</strong>
@@ -11598,10 +11654,11 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false, forcarNavegador 
             Assinatura do Colaborador
           </div>
         </div>
+        ` : ''}
       </div>
 
       <div class="cupom-central" style="text-align: center; margin-top: 18px;">
-        <p style="margin: 3px 0; font-weight: bold; font-size: 8.5pt;">COMPROVANTE DE ACERTO DE TURNO</p>
+        <p style="margin: 3px 0; font-weight: bold; font-size: 8.5pt;">${isCancelado ? '*** PEDIDO FUNCIONARIO CANCELADO ***' : 'COMPROVANTE DE ACERTO DE TURNO'}</p>
         <p style="margin: 2px 0; font-size: 7.5pt;">GuGA Bebidas - Gestão Interna</p>
       </div>
     `;
@@ -11851,7 +11908,7 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false, forcarNavegador 
     <div class="cupom-header" style="text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px;">
       <h2 style="margin:0; font-size: 14pt; font-weight: 900;">GuGA Bebidas</h2>
       <p style="margin:2px 0; font-size: 10pt; font-weight: 700;">
-        ${pedido.status === 'cancelado' ? '*** PEDIDO CANCELADO ***' : (isConferencia ? '*** CONTA PARCIAL ***' : 'Comprovante de Pedido')}
+        ${pedido.status === 'cancelado' ? (isFuncionario ? '*** PEDIDO FUNCIONARIO CANCELADO ***' : '*** PEDIDO CANCELADO ***') : (isConferencia ? '*** CONTA PARCIAL ***' : 'Comprovante de Pedido')}
       </p>
       <p style="margin:2px 0; font-weight: 900; font-size: 12pt;">${nomeExibicaoCupom}</p>
       <p style="margin:2px 0; font-size: 9pt;"><strong>ABERTURA:</strong> ${formatarData(pedido.created_at)}</p>
