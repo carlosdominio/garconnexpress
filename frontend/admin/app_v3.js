@@ -5735,6 +5735,11 @@ function isPedidoRetiradaLocal(p) {
 function formatarNomeMesaHistorico(p) {
   if (!p) return 'BALCÃO';
   if (p.garcom_id === 'DELIVERY') return isPedidoRetiradaLocal(p) ? 'RETIRADA' : 'DELIVERY';
+  const isFunc = !!p.is_funcionario || (p.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(p.mesa_numero || '');
+  if (isFunc) {
+    const fNome = p.funcionario_nome || String(p.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim() || 'Colaborador';
+    return `FUNC: ${fNome}`;
+  }
   const numRaw = p.mesa_numero || (p.mesa_id && String(p.mesa_id).toLowerCase() !== 'null' ? String(p.mesa_id) : '');
   if (!numRaw) return `BALCÃO #${p.id}`;
   let str = String(numRaw).trim();
@@ -7018,8 +7023,13 @@ function atualizarSelectMesasAtivas() {
     return !isMesa && !isDelivery;
   });
 
-  const nomesMesas = [...new Set(pedidosFiltrados.map(p => {
+  const nomesMesasPedidos = pedidosFiltrados.map(p => {
     if (p.garcom_id === 'DELIVERY') return isPedidoRetiradaLocal(p) ? `🛍️ RETIRADA #${p.id}` : `🛵 DELIVERY #${p.id}`;
+    const isFunc = !!p.is_funcionario || (p.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(p.mesa_numero || '');
+    if (isFunc) {
+      const fNome = p.funcionario_nome || String(p.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim() || 'Colaborador';
+      return `FUNC: ${fNome}`;
+    }
     if (p.mesa_tipo === 'balcao') {
       const numTrim = String(p.mesa_numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
       return numTrim ? `🏪 Balcão ${numTrim}` : `🏪 Balcão`;
@@ -7027,7 +7037,27 @@ function atualizarSelectMesasAtivas() {
     const numTrim = String(p.mesa_numero || '').replace(/^comanda\s*mesa\s*/i, '').replace(/^comanda\s*/i, '').replace(/^mesa\s*/i, '').trim();
     if (numTrim) return `Mesa ${numTrim}`;
     return p.mesa_numero ? `Mesa ${p.mesa_numero}` : `BALCÃO #${p.id}`;
-  }))].sort((a, b) => {
+  });
+
+  // Também inclui comandas/mesas aguardando cliente da aba ativa
+  const mesasAguardandoFiltradas = (mesasPainel || []).filter(m => {
+    if (m.status !== 'ocupada' || m.pedido_id) return false;
+    const isBalcao = (m.tipo === 'balcao');
+    if (subAbaAtiva === 'delivery') return false;
+    if (subAbaAtiva === 'garcom') return !isBalcao;
+    return isBalcao;
+  });
+
+  const nomesMesasAguardando = mesasAguardandoFiltradas.map(m => {
+    const isFunc = !!m.is_funcionario || (m.tipo === 'funcionario') || /^(func|staff|f-)/i.test(m.numero || '');
+    if (isFunc) {
+      const fNome = m.funcionario_nome || String(m.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() || 'Colaborador';
+      return `FUNC: ${fNome}`;
+    }
+    return `📱 Mesa ${m.numero}`;
+  });
+
+  const nomesMesas = [...new Set([...nomesMesasPedidos, ...nomesMesasAguardando])].sort((a, b) => {
     if (a.startsWith('BALCÃO') || a.startsWith('Pedido')) return -1;
     if (b.startsWith('BALCÃO') || b.startsWith('Pedido')) return 1;
     return a.localeCompare(b, undefined, {numeric: true});
