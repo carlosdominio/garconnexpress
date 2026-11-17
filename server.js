@@ -5128,6 +5128,9 @@ app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, isAuthenticated
         SELECT p.*, 
           COALESCE(p.mesa_numero, m.numero) as mesa_numero, 
           COALESCE(p.is_comanda, m.is_comanda) as is_comanda, 
+          COALESCE(p.is_funcionario, m.is_funcionario, CASE WHEN p.forma_pagamento LIKE '%Diária%' OR p.forma_pagamento LIKE '%Diaria%' THEN 1 ELSE 0 END) as is_funcionario,
+          COALESCE(p.funcionario_nome, m.funcionario_nome) as funcionario_nome,
+          COALESCE(m.tipo, CASE WHEN p.is_funcionario = 1 OR p.forma_pagamento LIKE '%Diária%' OR p.forma_pagamento LIKE '%Diaria%' THEN 'funcionario' ELSE NULL END) as mesa_tipo,
           g.nome as garcom_nome 
         FROM pedidos p 
         LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
@@ -5146,6 +5149,9 @@ app.get('/api/pedidos/historico-detalhado', ensureDbInitialized, isAuthenticated
         SELECT p.*, 
           m.numero as mesa_numero, 
           m.is_comanda as is_comanda, 
+          COALESCE(p.is_funcionario, m.is_funcionario, CASE WHEN p.forma_pagamento LIKE '%Diária%' OR p.forma_pagamento LIKE '%Diaria%' THEN 1 ELSE 0 END) as is_funcionario,
+          COALESCE(p.funcionario_nome, m.funcionario_nome) as funcionario_nome,
+          COALESCE(m.tipo, CASE WHEN p.is_funcionario = 1 OR p.forma_pagamento LIKE '%Diária%' OR p.forma_pagamento LIKE '%Diaria%' THEN 'funcionario' ELSE NULL END) as mesa_tipo,
           g.nome as garcom_nome 
         FROM pedidos p 
         LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
@@ -5251,9 +5257,31 @@ app.get('/api/pedidos/:id', ensureDbInitialized, async (req, res) => {
   try {
     let result;
     try {
-      result = await query(`SELECT p.*, COALESCE(p.mesa_numero, m.numero) as mesa_numero, COALESCE(p.is_comanda, m.is_comanda) as is_comanda, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
+      result = await query(`
+        SELECT p.*, 
+          COALESCE(p.mesa_numero, m.numero) as mesa_numero, 
+          COALESCE(p.is_comanda, m.is_comanda) as is_comanda, 
+          COALESCE(p.is_funcionario, m.is_funcionario, CASE WHEN p.forma_pagamento LIKE '%Diária%' OR p.forma_pagamento LIKE '%Diaria%' THEN 1 ELSE 0 END) as is_funcionario,
+          COALESCE(p.funcionario_nome, m.funcionario_nome) as funcionario_nome,
+          COALESCE(m.tipo, CASE WHEN p.is_funcionario = 1 OR p.forma_pagamento LIKE '%Diária%' OR p.forma_pagamento LIKE '%Diaria%' THEN 'funcionario' ELSE NULL END) as mesa_tipo,
+          g.nome as garcom_nome 
+        FROM pedidos p 
+        LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
+        LEFT JOIN garcons g ON p.garcom_id = g.usuario 
+        WHERE p.id = ?`, [req.params.id]);
     } catch(e) {
-      result = await query(`SELECT p.*, m.numero as mesa_numero, m.is_comanda as is_comanda, g.nome as garcom_nome FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) LEFT JOIN garcons g ON p.garcom_id = g.usuario WHERE p.id = ?`, [req.params.id]);
+      result = await query(`
+        SELECT p.*, 
+          m.numero as mesa_numero, 
+          m.is_comanda as is_comanda, 
+          COALESCE(p.is_funcionario, m.is_funcionario, CASE WHEN p.forma_pagamento LIKE '%Diária%' OR p.forma_pagamento LIKE '%Diaria%' THEN 1 ELSE 0 END) as is_funcionario,
+          COALESCE(p.funcionario_nome, m.funcionario_nome) as funcionario_nome,
+          COALESCE(m.tipo, CASE WHEN p.is_funcionario = 1 OR p.forma_pagamento LIKE '%Diária%' OR p.forma_pagamento LIKE '%Diaria%' THEN 'funcionario' ELSE NULL END) as mesa_tipo,
+          g.nome as garcom_nome 
+        FROM pedidos p 
+        LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) 
+        LEFT JOIN garcons g ON p.garcom_id = g.usuario 
+        WHERE p.id = ?`, [req.params.id]);
     }
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Pedido não encontrado' });
@@ -6206,7 +6234,7 @@ app.post('/api/cliente/solicitar-conta', async (req, res) => {
 
 app.put('/api/pedidos/:id/solicitar-fechamento', isAuthenticated, async (req, res) => {
   const { id } = req.params;
-  const { mesa_id, forma_pagamento, desconto, acrescimo, valor_recebido, troco, total, num_pessoas, valor_por_pessoa, pagamentos_detalhados, cliente_telefone, balcao_imediato } = req.body;
+  const { mesa_id, forma_pagamento, desconto, acrescimo, valor_recebido, troco, total, num_pessoas, valor_por_pessoa, pagamentos_detalhados, cliente_telefone, balcao_imediato, is_funcionario, funcionario_nome, mesa_numero } = req.body;
   try {
     let totalFinal = total;
     
@@ -6229,6 +6257,12 @@ app.put('/api/pedidos/:id/solicitar-fechamento', isAuthenticated, async (req, re
     // Ativa fechamento_liberado quando o garçom processa a solicitação
     await query(`UPDATE pedidos SET status = 'aguardando_fechamento', forma_pagamento = ?, desconto = ?, acrescimo = ?, valor_recebido = ?, troco = ?, total = ?, num_pessoas = ?, valor_por_pessoa = ?, cobrar_taxa = ?, fechamento_liberado = TRUE, fechamento_solicitado_em = COALESCE(fechamento_solicitado_em, CURRENT_TIMESTAMP), pagamentos_detalhados = ?, cliente_telefone = COALESCE(?, cliente_telefone), balcao_imediato = COALESCE(?, balcao_imediato) WHERE id = ?`, 
       [formaPagamentoFinal, desconto || 0, acrescimo || 0, valor_recebido || 0, troco || 0, totalFinal, num_pessoas || 1, valor_por_pessoa || totalFinal, (req.body.cobrar_taxa !== undefined ? (req.body.cobrar_taxa ? 1 : 0) : 1), pagamentosStr, cliente_telefone || null, balcao_imediato ? 1 : 0, id]);
+    
+    if (is_funcionario || (formaPagamentoFinal && formaPagamentoFinal.includes('Diária'))) {
+      try {
+        await query(`UPDATE pedidos SET is_funcionario = 1, funcionario_nome = COALESCE(?, funcionario_nome), mesa_numero = COALESCE(?, mesa_numero) WHERE id = ?`, [funcionario_nome || null, mesa_numero || null, id]);
+      } catch(e) {}
+    }
     
     if (mesa_id) await query("UPDATE mesas SET status = 'fechando' WHERE id = ?", [mesa_id]);
     
@@ -6340,9 +6374,11 @@ app.post('/api/pedidos/:id/pagamento-parcial', isAuthenticated, async (req, res)
       const restRes = await tx("SELECT id FROM pedido_itens WHERE pedido_id = ?", [id]);
       const rest = restRes.rows;
       if (rest.length === 0) { 
-        const mInfo = (await tx("SELECT numero, is_comanda FROM mesas WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [mesa_id, mesa_id])).rows[0];
+        const mInfo = (await tx("SELECT numero, is_comanda, tipo, is_funcionario, funcionario_nome FROM mesas WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [mesa_id, mesa_id])).rows[0];
         if (mInfo) {
-          await tx("UPDATE pedidos SET mesa_numero = ?, is_comanda = ? WHERE id = ?", [mInfo.numero, mInfo.is_comanda ? 1 : 0, id]).catch(() => {});
+          const isFuncM = (Number(mInfo.is_funcionario) === 1) || (mInfo.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mInfo.numero || '');
+          const finalMesaNumero = isFuncM && !/^(func|staff|f-)/i.test(mInfo.numero || '') ? `FUNC: ${mInfo.numero}` : mInfo.numero;
+          await tx("UPDATE pedidos SET mesa_numero = ?, is_comanda = ?, is_funcionario = COALESCE(is_funcionario, ?), funcionario_nome = COALESCE(funcionario_nome, ?) WHERE id = ?", [finalMesaNumero, mInfo.is_comanda ? 1 : 0, isFuncM ? 1 : 0, mInfo.funcionario_nome || mInfo.numero, id]).catch(() => {});
           if (Number(mInfo.is_comanda) === 1) {
             await tx("DELETE FROM mesas WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [mesa_id, mesa_id]).catch(() => {});
           } else {

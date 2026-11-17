@@ -403,6 +403,20 @@ function isPedidoBalcao(pedido) {
 }
 window.isPedidoBalcao = isPedidoBalcao;
 
+// --- Identificação Precisa e Blindada de Comanda de Funcionário / Staff ---
+function isPedidoFuncionario(pedido) {
+  if (!pedido) return false;
+  if (pedido.is_funcionario === 1 || pedido.is_funcionario === true || pedido.is_funcionario === '1') return true;
+  if (pedido.mesa_tipo === 'funcionario' || pedido.tipo === 'funcionario') return true;
+  if (pedido.funcionario_nome && String(pedido.funcionario_nome).trim() !== '') return true;
+  const mNum = String(pedido.mesa_numero || '').trim();
+  if (/^(func|staff|f-)/i.test(mNum)) return true;
+  const fPag = String(pedido.forma_pagamento || '');
+  if (/di[aá]ria/i.test(fPag)) return true;
+  return false;
+}
+window.isPedidoFuncionario = isPedidoFuncionario;
+
 // --- Utilitários de Máscara de Moeda (Ponto e Vírgula Automáticos) ---
 function converterMoedaParaFloat(val) {
   if (val === undefined || val === null || val === '') return 0;
@@ -1321,8 +1335,10 @@ function gerarBytesEscPosPedido(pedido, itens) {
   const itensFiltrados = (itens || []).filter(i => i.status !== 'cancelado');
   const subtotal = itensFiltrados.reduce((sum, i) => sum + ((i.preco || 0) * (i.quantidade || 1)), 0);
 
-  const isFuncionario = !!pedido.is_funcionario || (pedido.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedido.mesa_numero || '');
-  const funcNome = removerAcentosTexto(pedido.funcionario_nome || String(pedido.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim() || 'COLABORADOR').toUpperCase();
+  const isFuncionario = isPedidoFuncionario(pedido);
+  let funcNomeRaw = pedido.funcionario_nome || String(pedido.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*:?\s*/i, '').trim();
+  if (!funcNomeRaw || funcNomeRaw === 'BALCÃO' || funcNomeRaw === 'null') funcNomeRaw = 'COLABORADOR';
+  const funcNome = removerAcentosTexto(funcNomeRaw).toUpperCase();
 
   if (isFuncionario) {
     const acrescimo = pedido.acrescimo || 0;
@@ -3059,12 +3075,13 @@ async function abrirModalCriarComandaLancar() {
       if (!valor) return mostrarAlerta("Digite o número ou nome da mesa/comanda", "Atenção", "⚠️");
 
       const isFuncionarioCriar = (tipo === 'funcionario');
+      const nomeFinal = isFuncionarioCriar && !/^(func|staff|f-)/i.test(valor) ? `FUNC: ${valor}` : valor;
       try {
         const res = await fetch('/api/mesas', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            numero: valor, 
+            numero: nomeFinal, 
             tipo: isFuncionarioCriar ? 'funcionario' : tipo, 
             is_comanda: 1,
             is_funcionario: isFuncionarioCriar ? 1 : 0,
@@ -5855,9 +5872,10 @@ function isPedidoRetiradaLocal(p) {
 function formatarNomeMesaHistorico(p) {
   if (!p) return 'BALCÃO';
   if (p.garcom_id === 'DELIVERY') return isPedidoRetiradaLocal(p) ? 'RETIRADA' : 'DELIVERY';
-  const isFunc = !!p.is_funcionario || (p.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(p.mesa_numero || '');
+  const isFunc = isPedidoFuncionario(p);
   if (isFunc) {
-    const fNome = p.funcionario_nome || String(p.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim() || 'Colaborador';
+    let fNome = p.funcionario_nome || String(p.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*:?\s*/i, '').trim();
+    if (!fNome || fNome === 'BALCÃO' || fNome === 'null') fNome = 'Colaborador';
     return `Funcionário: ${fNome}`;
   }
   const numRaw = p.mesa_numero || (p.mesa_id && String(p.mesa_id).toLowerCase() !== 'null' ? String(p.mesa_id) : '');
@@ -6034,7 +6052,7 @@ function renderizarColunaHistorico(tipo, lista, pagina, container) {
   }
 
   itensPagina.forEach(p => {
-    const isFunc = !!p.is_funcionario || (p.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(p.mesa_numero || '');
+    const isFunc = isPedidoFuncionario(p);
     const isCanc = p.status === 'cancelado';
     const card = document.createElement('div');
     card.className = `pedido-card status-${p.status}`;
@@ -6218,7 +6236,7 @@ function abrirModalDetalheHistorico(p) {
   const btnReimprimir = document.getElementById('btn-reimprimir-historico');
   const btnExcluirHeader = document.getElementById('btn-excluir-historico-header');
 
-  const isFunc = !!p.is_funcionario || (p.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(p.mesa_numero || '');
+  const isFunc = isPedidoFuncionario(p);
   const mesaLabel = formatarNomeMesaHistorico(p);
   if (header) header.style.background = p.status === 'cancelado' ? '#e74c3c' : (isFunc ? '#8e44ad' : '#27ae60');
   if (titulo) titulo.innerText = `${isFunc ? '💼 ' : ''}${mesaLabel} (#${p.id || '---'})`;
@@ -6325,7 +6343,7 @@ function abrirModalDetalheHistorico(p) {
     }
 
     // Acerto de Diária de Funcionário (se for comanda de staff)
-    const isFuncHistorico = !!p.is_funcionario || (p.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(p.mesa_numero || '');
+    const isFuncHistorico = isPedidoFuncionario(p);
     if (isFuncHistorico) {
       const diariaH = parseFloat(p.valor_diaria || p.valor_recebido || 0);
       const totalConsumoH = (p.total || 0) + (p.pago_parcial || 0);
@@ -9764,7 +9782,7 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
         window.isFechamentoImediatoBalcao ||
         isPedidoBalcao(pedidoParaFecharAdmin)
       );
-      const isFuncFechamento = !!pedidoParaFecharAdmin && (!!pedidoParaFecharAdmin.is_funcionario || (pedidoParaFecharAdmin.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedidoParaFecharAdmin.mesa_numero || ''));
+      const isFuncFechamento = isPedidoFuncionario(pedidoParaFecharAdmin);
       const loadingTitle = isDelivery ? "Finalizando Delivery..." : (isBalcao ? "Finalizando Balcão..." : (isFuncFechamento ? "Finalizando Acerto de Diária..." : "Finalizando Conta..."));
       const loadingMsg = isDelivery 
         ? "Processando fechamento do delivery e registrando o pagamento, aguarde..." 
@@ -9776,13 +9794,16 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             mesa_id: idMesa, 
-            forma_pagamento: finalFormaPagamento, 
+            forma_pagamento: isFuncFechamento ? 'Acerto de Diária' : finalFormaPagamento, 
             desconto, acrescimo, 
             valor_recebido: isFuncFechamento ? valorDiaria : valor_recebido, 
             troco: isFuncFechamento ? valorLiquidoFuncionario : troco, 
             total,
             num_pessoas, valor_por_pessoa, cobrar_taxa: cobrarTaxa,
-            balcao_imediato: window.isFechamentoImediatoBalcao ? 1 : 0
+            balcao_imediato: window.isFechamentoImediatoBalcao ? 1 : 0,
+            is_funcionario: isFuncFechamento ? 1 : 0,
+            funcionario_nome: isFuncFechamento ? (pedidoParaFecharAdmin.funcionario_nome || funcNome) : null,
+            mesa_numero: isFuncFechamento ? (String(pedidoParaFecharAdmin.mesa_numero || '').startsWith('FUNC:') ? pedidoParaFecharAdmin.mesa_numero : `FUNC: ${funcNome}`) : undefined
           }),
           showLoading: false
         });
@@ -11400,8 +11421,9 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false, forcarNavegador 
 
   const subtotal = itensFiltrados.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
 
-  const isFuncionario = !!pedido.is_funcionario || (pedido.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedido.mesa_numero || '');
-  const funcNome = pedido.funcionario_nome || String(pedido.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim() || 'Colaborador';
+  const isFuncionario = isPedidoFuncionario(pedido);
+  let funcNome = pedido.funcionario_nome || String(pedido.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*:?\s*/i, '').trim();
+  if (!funcNome || funcNome === 'BALCÃO' || funcNome === 'null') funcNome = 'Colaborador';
 
   if (isFuncionario) {
     const acrescimo = pedido.acrescimo || 0;
@@ -12153,8 +12175,9 @@ async function abrirModalOpcoes(pedidoId) {
   const isRetirada = isDelivery && isPedidoRetiradaLocal(pedido);
   const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '') && (pedido.mesa_tipo !== 'balcao');
   const isBalcao = isPedidoBalcao(pedido);
-  const isFuncionario = !!pedido.is_funcionario || (pedido.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedido.mesa_numero || '');
-  const funcNome = pedido.funcionario_nome || String(pedido.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim();
+  const isFuncionario = isPedidoFuncionario(pedido);
+  let funcNome = pedido.funcionario_nome || String(pedido.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*:?\s*/i, '').trim();
+  if (!funcNome || funcNome === 'BALCÃO' || funcNome === 'null') funcNome = 'Colaborador';
 
   let mesaNome;
   if (isDelivery) {
@@ -12389,24 +12412,11 @@ async function abrirModalOpcoes(pedidoId) {
   // 5. FOOTER DE AÇÕES (ENTREGAR / LIBERAR / FECHAR)
   let htmlFooter = '';
   if (isFuncionario) {
-    if (hasPend) {
-      htmlFooter = `
-        <div style="display:flex; flex-direction:column; gap:8px; width:100%;">
-          <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#8e44ad; color:white; border:none; padding: 1.1rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #6c3483; cursor:pointer;">
-            💼 FECHAR / ACERTAR DIÁRIA
-          </button>
-          <button onclick="fecharModalOpcoes(); marcarPedidoEntregue(${pedidoId})" style="background:#4a5568; color:white; border:none; padding: 0.75rem; width: 100%; font-weight: bold; border-radius:10px; font-size: 0.95rem; cursor:pointer;">
-            🚚 ENTREGAR TUDO AGORA
-          </button>
-        </div>
-      `;
-    } else {
-      htmlFooter = `
-        <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#8e44ad; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #6c3483; cursor:pointer;">
-          💼 FECHAR / ACERTAR DIÁRIA
-        </button>
-      `;
-    }
+    htmlFooter = `
+      <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#8e44ad; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.15rem; box-shadow:0 5px 0 #6c3483; cursor:pointer;">
+        💼 FECHAR / ACERTAR DIÁRIA
+      </button>
+    `;
   } else if (isAguardando) {
     if (isDelivery) {
       htmlFooter = `
