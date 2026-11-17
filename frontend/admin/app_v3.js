@@ -9496,6 +9496,19 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
     valorDiaria = converterMoedaParaFloat(rawDiaria) || 0;
     valorLiquidoFuncionario = valorDiaria - total;
   }
+
+  // VALIDAÇÃO OBRIGATÓRIA DA DIÁRIA PARA FUNCIONÁRIO
+  if (modo !== 'imprimir' && isFuncionario) {
+    if (!valorDiaria || valorDiaria <= 0) {
+      await mostrarAlerta("⚠️ Por favor, informe o valor da diária combinada do colaborador para realizar o acerto!", "Aviso", "⚠️");
+      const inputDiaria = document.getElementById('fechamento-diaria-funcionario');
+      if (inputDiaria) { 
+        inputDiaria.focus(); 
+        inputDiaria.select(); 
+      }
+      return;
+    }
+  }
   
   // CORREÇÃO DO TROCO: Se for apenas 1 cota, calcula troco sobre a cota. Se for tudo, sobre o total.
   const valorParaTroco = (modo === 'cota') ? valor_por_pessoa : total;
