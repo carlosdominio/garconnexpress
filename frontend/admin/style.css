@@ -2076,11 +2076,12 @@ input:checked + .slider:before {
 
 /* --- DESTAQUE PARA PEDIDOS DE FUNCIONÁRIOS (CONSUMO STAFF) --- */
 .pedido-card.pedido-funcionario {
-  border-left: 6px solid #8e44ad !important;
+  border-left: 8px solid #8e44ad !important;
   background: linear-gradient(to right, rgba(142, 68, 173, 0.04), #ffffff 25%) !important;
 }
 
 .pedido-card.pedido-funcionario.status-servido {
+  border-left: 8px solid #8e44ad !important;
   border-left-color: #8e44ad !important;
   background-color: #fbf7fd !important;
   background: #fbf7fd !important;

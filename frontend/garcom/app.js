@@ -2792,10 +2792,13 @@ function exibirMesas() {
       } else if (mesa.pedido_created_at && mesa.pedido_status !== 'servido') {
         const minutos = calcularMinutos(mesa.pedido_created_at);
         const infoAtraso = obterInfoAtrasoMesa(mesa);
-        cronometroHtml = `<div class="cronometro">⏱️ ${minutos} min <span style="opacity:0.85; font-size:0.75rem; margin-left:3px;" title="${infoAtraso.label}">${infoAtraso.icone} ${infoAtraso.limite}m</span></div>`;
+        const isMesaFuncCheck = !!mesa.is_funcionario || (mesa.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesa.numero || '');
+        if (!isMesaFuncCheck) {
+          cronometroHtml = `<div class="cronometro">⏱️ ${minutos} min <span style="opacity:0.85; font-size:0.75rem; margin-left:3px;" title="${infoAtraso.label}">${infoAtraso.icone} ${infoAtraso.limite}m</span></div>`;
+        }
         if (mesa.pedido_status !== 'pronto' && !mesa.tem_itens_prontos) {
           statusTexto = '⏳ AGUARDANDO ENTREGA';
-          if (minutos >= infoAtraso.limite && mesa.status !== 'fechando' && !mesa.solicitou_fechamento) {
+          if (!isMesaFuncCheck && minutos >= infoAtraso.limite && mesa.status !== 'fechando' && !mesa.solicitou_fechamento) {
             classeAlerta = 'alerta-atraso-ocupada';
           } else {
             classeAlerta = 'pendente-entrega';
@@ -2810,7 +2813,7 @@ function exibirMesas() {
       <div class="mesa ${mesa.status} ${classeAlerta} ${classeBloqueada} ${isMesaFunc ? 'mesa-funcionario' : ''}" data-id="${mesa.id}" style="cursor:pointer">
         <h3>${formatarNomeMesaGarcom(mesa)}</h3>
         <p style="font-weight:bold">${statusTexto}</p>
-        ${cronometroHtml}
+        ${isMesaFunc ? '' : cronometroHtml}
       </div>
     `;
   }).join('');
