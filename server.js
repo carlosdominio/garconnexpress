@@ -2767,6 +2767,10 @@ function formatarNomeMesaOuComanda(numero, isComanda = 0) {
   if (!numero) return 'BALCÃO';
   const str = String(numero).trim();
   if (!str) return 'BALCÃO';
+  if (/^((funcion[aá]rio|func|staff|f-)\s*:?\s*)/i.test(str)) {
+    const limpo = str.replace(/^((funcion[aá]rio|func|staff|f-|comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o)\s*:?\s*)+/gi, '').trim();
+    return `Funcionário: ${limpo || 'Colaborador'}`;
+  }
   if (/^(mesa|comanda|delivery|balcão|balcao)\b/i.test(str)) {
     return str;
   }
@@ -2784,15 +2788,22 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
     let mesaNum = mesaNumPredefined;
     let finalMesaId = mesaDbId;
     let garcomId = null;
+    let isFuncionarioFlag = false;
+    let funcionarioNomeFlag = null;
 
     // Prioridade: Se temos o ID do pedido, buscamos os dados reais para evitar rotular Delivery como Balcão
     if (pedidoId) {
-      const res = await query("SELECT m.id as mesa_id, m.numero as mesa_numero, m.is_comanda, p.garcom_id FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [pedidoId]);
+      const res = await query("SELECT m.id as mesa_id, m.numero as mesa_numero, m.is_comanda, m.is_funcionario as m_is_funcionario, m.funcionario_nome as m_funcionario_nome, p.garcom_id, p.is_funcionario as p_is_funcionario, p.funcionario_nome as p_funcionario_nome, p.mesa_numero as p_mesa_numero FROM pedidos p LEFT JOIN mesas m ON (CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) OR CAST(p.mesa_id AS TEXT) = CAST(m.numero AS TEXT)) WHERE p.id = ?", [pedidoId]);
       if (res.rows[0]) {
         garcomId = res.rows[0].garcom_id;
         finalMesaId = finalMesaId || res.rows[0].mesa_id;
         
-        if (garcomId === 'DELIVERY') {
+        isFuncionarioFlag = !!(res.rows[0].p_is_funcionario || res.rows[0].m_is_funcionario || /^(func|staff|f-)/i.test(res.rows[0].mesa_numero || '') || /^(func|staff|f-)/i.test(res.rows[0].p_mesa_numero || ''));
+        if (isFuncionarioFlag) {
+          const rawFn = res.rows[0].p_funcionario_nome || res.rows[0].m_funcionario_nome || res.rows[0].p_mesa_numero || res.rows[0].mesa_numero || '';
+          funcionarioNomeFlag = String(rawFn).replace(/^((funcion[aá]rio|func|staff|f-|comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o)\s*:?\s*)+/gi, '').trim() || 'Colaborador';
+          mesaNum = `Funcionário: ${funcionarioNomeFlag}`;
+        } else if (garcomId === 'DELIVERY') {
           mesaNum = `DELIVERY #${pedidoId}`;
         } else if (!mesaNum || mesaNum === 'BALCÃO' || mesaNum.startsWith('Mesa ')) {
           mesaNum = formatarNomeMesaOuComanda(res.rows[0].mesa_numero, res.rows[0].is_comanda);
@@ -2801,11 +2812,19 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
     }
 
     // Caso não tenha pedidoId ou a busca falhou, tenta buscar pela mesaDbId
-    if ((!mesaNum || mesaNum === 'BALCÃO') && finalMesaId) {
-      const res = await query("SELECT numero, is_comanda, garcom_id FROM mesas WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [finalMesaId, finalMesaId]);
+    if ((!mesaNum || mesaNum === 'BALCÃO' || !isFuncionarioFlag) && finalMesaId) {
+      const res = await query("SELECT numero, is_comanda, garcom_id, is_funcionario, funcionario_nome FROM mesas WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [finalMesaId, finalMesaId]);
       if (res.rows[0]) {
-        garcomId = res.rows[0].garcom_id;
-        mesaNum = formatarNomeMesaOuComanda(res.rows[0].numero, res.rows[0].is_comanda);
+        garcomId = garcomId || res.rows[0].garcom_id;
+        const isFunc = !!(res.rows[0].is_funcionario || /^(func|staff|f-)/i.test(res.rows[0].numero || ''));
+        if (isFunc) {
+          isFuncionarioFlag = true;
+          const fn = String(res.rows[0].funcionario_nome || res.rows[0].numero || '').replace(/^((funcion[aá]rio|func|staff|f-|comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o)\s*:?\s*)+/gi, '').trim() || 'Colaborador';
+          funcionarioNomeFlag = fn;
+          mesaNum = `Funcionário: ${fn}`;
+        } else if (!mesaNum || mesaNum === 'BALCÃO') {
+          mesaNum = formatarNomeMesaOuComanda(res.rows[0].numero, res.rows[0].is_comanda);
+        }
       }
     }
 
@@ -2826,6 +2845,8 @@ async function notifyStatus(pedidoId, mesaDbId, status, mesaNumPredefined = null
       mesa_id: finalMesaId, 
       mesa_numero: mesaNum, 
       is_comanda: isComandaFlag,
+      is_funcionario: isFuncionarioFlag,
+      funcionario_nome: funcionarioNomeFlag,
       status: status, 
       garcom_id: garcomId,
       detalhes_edicao: detalhesEdicao 

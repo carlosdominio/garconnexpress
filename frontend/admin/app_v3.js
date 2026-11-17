@@ -9840,7 +9840,8 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
       } else if (isBalcao || window.isFechamentoImediatoBalcao) {
         mostrarToast(`✅ Pedido de Balcão #${idPedido} Concluído e Pago!`);
       } else if (isFuncFechamento) {
-        mostrarToast(`✅ Acerto de Diária do Colaborador (${funcNome}) Concluído!`);
+        mostrarToast(`💼 Acerto de Diária: Funcionário: ${funcNome} Concluído!`);
+        adicionarNotificacao('💼 ACERTO CONCLUÍDO', `Funcionário: ${funcNome} teve o acerto de diária concluído.`, '💼');
       } else {
         const localNome = typeof formatarNomeMesaHistorico === 'function' ? formatarNomeMesaHistorico(pedidoParaFecharAdmin) : (pedidoParaFecharAdmin && pedidoParaFecharAdmin.mesa_numero ? `Mesa ${pedidoParaFecharAdmin.mesa_numero}` : `Mesa`);
         mostrarToast(`✅ ${localNome} Finalizada e Liberada!`);
@@ -10571,10 +10572,18 @@ async function configurarPusher() {
       });
     });
 
-function formatarNomeMesaNotificacao(numero, isComanda) {
-  if (!numero) return 'Balcão';
-  let str = String(numero).trim();
+function formatarNomeMesaNotificacao(numero, isComanda, pObj) {
+  if (!numero && !pObj) return 'Balcão';
+  if (pObj && typeof isPedidoFuncionario === 'function' && isPedidoFuncionario(pObj)) {
+    const fn = extrairNomeLimpoFuncionario(pObj);
+    return `Funcionário: ${fn}`;
+  }
+  let str = String(numero || '').trim();
   if (!str || str === 'X') return 'Balcão';
+  if (/^((funcion[aá]rio|func|staff|f-)\s*:?\s*)/i.test(str)) {
+    const fn = extrairNomeLimpoFuncionario(str);
+    return `Funcionário: ${fn}`;
+  }
   const isCom = (isComanda == 1 || isComanda === true);
   if (/^mesa\b/i.test(str)) {
     if (isCom) str = str.replace(/^mesa\b/i, 'Comanda');
@@ -10611,12 +10620,16 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       );
 
       const isDelivery = (p && p.garcom_id === 'DELIVERY');
+      const isFuncPedido = (p && typeof isPedidoFuncionario === 'function' && isPedidoFuncionario(p)) || (data && (data.is_funcionario || (data.tipo === 'funcionario')));
       let nomeExibicao = 'X';
       
       if (p) {
         if (isDelivery) nomeExibicao = `DELIVERY #${p.id}`;
-        else if (p.mesa_numero) nomeExibicao = `${formatarNomeMesaNotificacao(p.mesa_numero, p.is_comanda)} (#${p.id})`;
+        else if (isFuncPedido) nomeExibicao = `Funcionário: ${extrairNomeLimpoFuncionario(p)} (#${p.id})`;
+        else if (p.mesa_numero) nomeExibicao = `${formatarNomeMesaNotificacao(p.mesa_numero, p.is_comanda, p)} (#${p.id})`;
         else nomeExibicao = `Balcão (#${p.id})`;
+      } else if (isFuncPedido) {
+        nomeExibicao = `Funcionário: ${extrairNomeLimpoFuncionario(data.funcionario_nome || data.mesa_numero || 'Colaborador')}${data.pedido_id ? ` (#${data.pedido_id})` : ''}`;
       }
 
       const mesaId = p ? p.mesa_id : 'geral';
@@ -10635,23 +10648,23 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
         let tituloNotif = '➕ ITEM ADICIONADO';
         let iconeNotif = '➕';
         let textoAcao = 'Item Adicionado';
-        let textoPadrao = `Novos itens adicionados na ${nomeExibicao}.`;
+        let textoPadrao = `Novos itens adicionados em ${nomeExibicao}.`;
 
         if (isRemoval) {
           tituloNotif = '🗑️ ITEM REMOVIDO';
           iconeNotif = '🗑️';
           textoAcao = 'Item Removido';
-          textoPadrao = `Item removido na ${nomeExibicao}.`;
+          textoPadrao = `Item removido em ${nomeExibicao}.`;
         } else if (isSubstitution) {
           tituloNotif = '🔄 ITEM SUBSTITUÍDO';
           iconeNotif = '🔄';
           textoAcao = 'Item Substituído';
-          textoPadrao = `Item substituído na ${nomeExibicao}.`;
+          textoPadrao = `Item substituído em ${nomeExibicao}.`;
         } else if (isMixed) {
           tituloNotif = '✏️ PEDIDO ATUALIZADO';
           iconeNotif = '✏️';
           textoAcao = 'Pedido Atualizado';
-          textoPadrao = `Itens atualizados na ${nomeExibicao}.`;
+          textoPadrao = `Itens atualizados em ${nomeExibicao}.`;
         }
 
         const descTexto = data.detalhes_edicao ? `${nomeExibicao} — ${data.detalhes_edicao}` : textoPadrao;
@@ -10664,7 +10677,15 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
           mostrarToast(`${iconeNotif} ${textoAcao}: ${data.detalhes_edicao ? `${nomeExibicao} (${data.detalhes_edicao})` : nomeExibicao}`);
         }
       } else {
-        if (!isProprioNovoPedidoAdmin) {
+        if (isFuncPedido) {
+          if (!isProprioNovoPedidoAdmin) {
+            tocarNotificacao(); 
+            iniciarPiscarTitulo();
+            exibirNotificacaoNativa('💼 CONSUMO DE FUNCIONÁRIO', `${nomeExibicao} acabou de lançar um consumo.`, `mesa-${mesaId}`);
+            mostrarToast(`💼 Consumo: ${nomeExibicao}`);
+          }
+          adicionarNotificacao('💼 CONSUMO DE FUNCIONÁRIO', `${nomeExibicao} acabou de lançar um consumo.`, '💼');
+        } else if (!isProprioNovoPedidoAdmin) {
           tocarNotificacao(); 
           iniciarPiscarTitulo();
           exibirNotificacaoNativa('🚀 NOVO PEDIDO', `${nomeExibicao} acabou de fazer um pedido.`, `mesa-${mesaId}`);
@@ -10690,15 +10711,19 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       iniciarPiscarTitulo();
 
       const mesa = data.mesa_numero || 'X';
+      const isFuncPronto = !!data.is_funcionario || (data.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesa) || (data.pedido && isPedidoFuncionario(data.pedido));
       let labelMesa = '';
-      if (mesa.includes('DELIVERY')) {
+      if (isFuncPronto) {
+        const fn = extrairNomeLimpoFuncionario(data.funcionario_nome || (data.pedido ? extrairNomeLimpoFuncionario(data.pedido) : mesa));
+        labelMesa = `Funcionário: ${fn} (#${data.pedido_id})`;
+      } else if (mesa.includes('DELIVERY')) {
         labelMesa = mesa;
       } else if (mesa === 'BALCÃO' || mesa === 'Balcão') {
         labelMesa = `Balcão (#${data.pedido_id})`;
       } else {
         labelMesa = `${formatarNomeMesaNotificacao(mesa, data.is_comanda)} (#${data.pedido_id})`;
       }
-      const msgSimples = `${labelMesa} está pronto!`;
+      const msgSimples = isFuncPronto ? `${labelMesa} está pronto para consumo!` : `${labelMesa} está pronto!`;
       
       // Diferencia se veio do Churrasqueiro ou Cozinha
       const msgCompleta = data.mensagem || '';
@@ -10706,6 +10731,7 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       const emoji = isChurrasco ? '🍢' : '🍳';
       const local = isChurrasco ? 'Churrasqueiro' : 'Cozinha';
 
+      adicionarNotificacao(`${emoji} PEDIDO PRONTO`, msgSimples, emoji);
       exibirNotificacaoNativa(`${emoji} PEDIDO PRONTO`, msgSimples, `mesa-${data.mesa_id}`);
       mostrarToast(`${emoji} PRONTO: ${labelMesa}`);
       mostrarAlerta(msgSimples, `${emoji} ${local}`, emoji);
@@ -10753,8 +10779,12 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       console.log('📢 Admin: Status status-atualizado recebido!', data);
       if (!data) return;
 
+      const isFunc = !!data.is_funcionario || (data.tipo === 'funcionario') || /^(func|staff|f-)/i.test(data.mesa_numero || '');
       let nMesa = '';
-      if (data.garcom_id === 'DELIVERY') {
+      if (isFunc) {
+        const fn = extrairNomeLimpoFuncionario(data.funcionario_nome || data.mesa_numero);
+        nMesa = `Funcionário: ${fn}${data.pedido_id ? ` (#${data.pedido_id})` : ''}`;
+      } else if (data.garcom_id === 'DELIVERY') {
         nMesa = `DELIVERY #${data.pedido_id || data.mesa_id}`;
       } else {
         const mesaData = data.mesa_numero || data.mesa_id;
@@ -10775,7 +10805,11 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
       }
 
       if (data.status === 'liberada') {
-        adicionarNotificacao('🔓 MESA LIBERADA', `${nMesa} está livre para o próximo cliente.`, '🔓');
+        if (isFunc) {
+          adicionarNotificacao('💼 CONSUMO ENCERRADO', `${nMesa} teve o consumo de turno finalizado.`, '💼');
+        } else {
+          adicionarNotificacao('🔓 MESA LIBERADA', `${nMesa} está livre para o próximo cliente.`, '🔓');
+        }
 
         const isPropriaLiberacao = (window.ultimaMesaLiberadaPeloAdmin !== null && window.ultimaMesaLiberadaPeloAdmin !== undefined) && (
           String(data.mesa_id) === String(window.ultimaMesaLiberadaPeloAdmin) ||
@@ -10788,8 +10822,13 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
         }
 
         tocarNotificacao();
-        exibirNotificacaoNativa('✅ Mesa Liberada', `${nMesa} está livre para o próximo cliente.`, tagMesa);
-        mostrarToast(`✅ ${nMesa} liberada`);
+        if (isFunc) {
+          exibirNotificacaoNativa('💼 Consumo Finalizado', `${nMesa} finalizado com sucesso.`, tagMesa);
+          mostrarToast(`💼 ${nMesa} finalizado com sucesso!`);
+        } else {
+          exibirNotificacaoNativa('✅ Mesa Liberada', `${nMesa} está livre para o próximo cliente.`, tagMesa);
+          mostrarToast(`✅ ${nMesa} liberada`);
+        }
       } 
       else if (data.status === 'itens_adicionados') {
         // Ignorado aqui para evitar alertas visuais, sonoros e envio de WhatsApp duplicados.
@@ -10820,10 +10859,17 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
           return;
         }
 
-        adicionarNotificacao('🛎️ Fechamento', `${nMesa} está aguardando fechamento.`, '💰');
-        tocarNotificacao();
-        exibirNotificacaoNativa('🛎️ Fechamento', `${nMesa} está aguardando fechamento.`, tagMesa);
-        mostrarToast(`🛎️ Fechamento: ${nMesa}`);
+        if (isFunc) {
+          adicionarNotificacao('💼 ACERTO DE DIÁRIA', `${nMesa} está aguardando acerto de turno.`, '💼');
+          tocarNotificacao();
+          exibirNotificacaoNativa('💼 Acerto de Diária', `${nMesa} está aguardando acerto.`, tagMesa);
+          mostrarToast(`💼 Acerto de Diária: ${nMesa}`);
+        } else {
+          adicionarNotificacao('🛎️ Fechamento', `${nMesa} está aguardando fechamento.`, '💰');
+          tocarNotificacao();
+          exibirNotificacaoNativa('🛎️ Fechamento', `${nMesa} está aguardando fechamento.`, tagMesa);
+          mostrarToast(`🛎️ Fechamento: ${nMesa}`);
+        }
       }
       else if (data.status === 'cancelado') {
         if (data.pedido_id) {
@@ -10839,17 +10885,26 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
         if (pedidoEmEdicao && String(pedidoEmEdicao.id) === String(data.pedido_id)) {
           fecharModal();
         }
-        adicionarNotificacao('❌ PEDIDO CANCELADO', `${nMesa}: Pedido cancelado.`, '❌');
-        tocarNotificacao();
-        exibirNotificacaoNativa('❌ Cancelado', `${nMesa}: Pedido cancelado.`, tagMesa);
-        mostrarToast(`❌ ${nMesa} cancelado`);
+        if (isFunc) {
+          adicionarNotificacao('❌ CONSUMO CANCELADO', `${nMesa}: Consumo cancelado.`, '❌');
+          tocarNotificacao();
+          exibirNotificacaoNativa('❌ Cancelado', `${nMesa}: Consumo cancelado.`, tagMesa);
+          mostrarToast(`❌ ${nMesa}: Consumo cancelado`);
+        } else {
+          adicionarNotificacao('❌ PEDIDO CANCELADO', `${nMesa}: Pedido cancelado.`, '❌');
+          tocarNotificacao();
+          exibirNotificacaoNativa('❌ Cancelado', `${nMesa}: Pedido cancelado.`, tagMesa);
+          mostrarToast(`❌ ${nMesa} cancelado`);
+        }
       }
       else if (data.status === 'servido') {
         const isProprioServido = (window.ultimoPedidoServidoPeloAdmin !== null && window.ultimoPedidoServidoPeloAdmin !== undefined) && (
           String(data.pedido_id) === String(window.ultimoPedidoServidoPeloAdmin)
         );
         if (isProprioServido) {
-          if (data.garcom_id !== 'DELIVERY') {
+          if (isFunc) {
+            adicionarNotificacao('🍽️ Consumo Entregue', `${nMesa} foi entregue ao colaborador!`, '🍽️');
+          } else if (data.garcom_id !== 'DELIVERY') {
             adicionarNotificacao('🍽️ Pedido Servido', `${nMesa} foi entregue na mesa!`, '🍽️');
           } else {
             adicionarNotificacao('🛵 Saiu para Entrega', `${nMesa} está a caminho do cliente!`, '🛵');
@@ -10859,7 +10914,11 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
           return; // Suprime toast redundante pois o admin já viu a confirmação da sua ação
         }
 
-        if (data.garcom_id !== 'DELIVERY') {
+        if (isFunc) {
+          tocarNotificacao();
+          exibirNotificacaoNativa('🍽️ Consumo Entregue', `${nMesa} foi entregue ao colaborador!`, tagMesa);
+          mostrarToast(`🍽️ Entregue: ${nMesa}`);
+        } else if (data.garcom_id !== 'DELIVERY') {
           tocarNotificacao();
           exibirNotificacaoNativa('🍽️ Pedido Servido', `${nMesa} foi entregue na mesa!`, tagMesa);
           mostrarToast(`🍽️ Servido: ${nMesa}`);
@@ -10874,7 +10933,9 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
           String(data.pedido_id) === String(window.ultimoPedidoFinalizadoPeloAdmin)
         );
         if (isPropriaFinalizacao) {
-          if (data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY'))) {
+          if (isFunc) {
+            adicionarNotificacao('💼 ACERTO CONCLUÍDO', `${nMesa}: Acerto de diária realizado com sucesso.`, '💼');
+          } else if (data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY'))) {
             adicionarNotificacao('✅ Concluído', `${nMesa}: Pagamento registrado e delivery concluído.`, '🛵');
           } else {
             adicionarNotificacao('✅ Concluído', `${nMesa} foi finalizado e concluído com sucesso.`, '✅');
@@ -10884,7 +10945,11 @@ function formatarNomeMesaNotificacao(numero, isComanda) {
           return; // Suprime toast redundante pois o admin já viu a confirmação da sua ação
         }
 
-        if (data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY'))) {
+        if (isFunc) {
+          tocarNotificacao();
+          exibirNotificacaoNativa('💼 Acerto Concluído', `${nMesa} finalizado com sucesso!`, tagMesa);
+          mostrarToast(`💼 Acerto Concluído: ${nMesa}`);
+        } else if (data.garcom_id === 'DELIVERY' || (nMesa && nMesa.toUpperCase().includes('DELIVERY'))) {
           exibirNotificacaoNativa('✅ Concluído', `${nMesa}: Pagamento registrado e delivery concluído.`, tagMesa);
           mostrarToast(`✅ ${nMesa} Concluído e Pago!`);
         } else {
@@ -12086,14 +12151,18 @@ async function confirmarCancelamentoDesdeOpcoes() {
 
     const isDelivery = pedidoEmOpcoes && pedidoEmOpcoes.garcom_id === 'DELIVERY';
     const isMesa = pedidoEmOpcoes && (pedidoEmOpcoes.mesa_id !== null && pedidoEmOpcoes.mesa_id !== undefined && pedidoEmOpcoes.mesa_id !== '') && (pedidoEmOpcoes.mesa_tipo !== 'balcao');
-    const isBalcao = pedidoEmOpcoes && !isDelivery && ((pedidoEmOpcoes.mesa_tipo === 'balcao') || (pedidoEmOpcoes.garcom_id === 'ADMIN' && !isMesa) || !pedidoEmOpcoes.mesa_numero || String(pedidoEmOpcoes.mesa_numero).toUpperCase().includes('BALC'));
-    const confirmPrompt = isDelivery 
-      ? "⚠️ DESEJA REALMENTE CANCELAR ESTE PEDIDO DELIVERY?\n\nO pedido irá para o histórico como CANCELADO."
-      : (isBalcao 
-          ? "⚠️ DESEJA REALMENTE CANCELAR ESTE PEDIDO DE BALCÃO?\n\nO balcão será liberado e o pedido irá para o histórico como CANCELADO."
-          : "⚠️ DESEJA REALMENTE CANCELAR TODO O PEDIDO?\n\nA mesa será liberada e o pedido irá para o histórico como CANCELADO.");
+    const isFunc = isPedidoFuncionario(pedidoEmOpcoes);
+    const funcNome = extrairNomeLimpoFuncionario(pedidoEmOpcoes);
+    const isBalcao = !isFunc && pedidoEmOpcoes && !isDelivery && ((pedidoEmOpcoes.mesa_tipo === 'balcao') || (pedidoEmOpcoes.garcom_id === 'ADMIN' && !isMesa) || !pedidoEmOpcoes.mesa_numero || String(pedidoEmOpcoes.mesa_numero).toUpperCase().includes('BALC'));
+    const confirmPrompt = isFunc
+      ? `⚠️ DESEJA REALMENTE CANCELAR O CONSUMO DE FUNCIONÁRIO (${funcNome})?\n\nA comanda será encerrada e o pedido irá para o histórico como CANCELADO.`
+      : (isDelivery 
+          ? "⚠️ DESEJA REALMENTE CANCELAR ESTE PEDIDO DELIVERY?\n\nO pedido irá para o histórico como CANCELADO."
+          : (isBalcao 
+              ? "⚠️ DESEJA REALMENTE CANCELAR ESTE PEDIDO DE BALCÃO?\n\nO balcão será liberado e o pedido irá para o histórico como CANCELADO."
+              : "⚠️ DESEJA REALMENTE CANCELAR TODO O PEDIDO?\n\nA mesa será liberada e o pedido irá para o histórico como CANCELADO."));
 
-    if (await mostrarConfirmacao(confirmPrompt, isBalcao ? "Cancelar Balcão" : "Atenção", "SIM, CANCELAR", "NÃO")) {
+    if (await mostrarConfirmacao(confirmPrompt, isFunc ? "Cancelar Funcionário" : (isBalcao ? "Cancelar Balcão" : "Atenção"), "SIM, CANCELAR", "NÃO")) {
         const idParaCancelar = pedidoEmOpcoes.id;
         pedidosCanceladosRecentemente.add(Number(idParaCancelar));
         setTimeout(() => pedidosCanceladosRecentemente.delete(Number(idParaCancelar)), 20000);
@@ -12106,10 +12175,12 @@ async function confirmarCancelamentoDesdeOpcoes() {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: 'cancelado' }),
-                showLoadingTitle: isDelivery ? "Cancelando Delivery..." : (isBalcao ? "Cancelando Balcão..." : "Cancelando Pedido..."),
-                showLoadingMsg: isDelivery 
-                    ? "Processando o cancelamento do delivery, aguarde por favor..." 
-                    : (isBalcao ? "Cancelando o pedido e liberando o balcão, aguarde por favor..." : "Cancelando o pedido e liberando a mesa, aguarde por favor...")
+                showLoadingTitle: isFunc ? `Cancelando Funcionário: ${funcNome}...` : (isDelivery ? "Cancelando Delivery..." : (isBalcao ? "Cancelando Balcão..." : "Cancelando Pedido...")),
+                showLoadingMsg: isFunc 
+                    ? `Cancelando o consumo e liberando a comanda do funcionário ${funcNome}, aguarde...` 
+                    : (isDelivery 
+                        ? "Processando o cancelamento do delivery, aguarde por favor..." 
+                        : (isBalcao ? "Cancelando o pedido e liberando o balcão, aguarde por favor..." : "Cancelando o pedido e liberando a mesa, aguarde por favor..."))
             });
             if (res.ok) {
                 fecharModalOpcoes();

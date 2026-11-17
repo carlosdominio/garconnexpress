@@ -71,11 +71,12 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
   router.put('/:id/liberar', ensureDbInitialized, isAuthenticated, async (req, res) => { 
     try { 
       const paramId = req.params.id;
-      const mRes = await query("SELECT id, numero, tipo, is_comanda FROM mesas WHERE CAST(id AS TEXT) = CAST(? AS TEXT) OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [paramId, paramId]);
+      const mRes = await query("SELECT id, numero, tipo, is_comanda, is_funcionario, funcionario_nome FROM mesas WHERE CAST(id AS TEXT) = CAST(? AS TEXT) OR CAST(numero AS TEXT) = CAST(? AS TEXT)", [paramId, paramId]);
       const m = mRes.rows[0];
 
       if (m) {
-        const isCom = (Number(m.is_comanda) === 1) || 
+        const isFunc = (Number(m.is_funcionario) === 1) || (m.tipo === 'funcionario') || /^(func|staff|f-)/i.test(m.numero || '');
+        const isCom = isFunc || (Number(m.is_comanda) === 1) || 
                       (m.tipo && String(m.tipo).toLowerCase().includes('comanda')) || 
                       (m.tipo === 'balcao') ||
                       String(m.numero || '').toLowerCase().startsWith('comanda');
