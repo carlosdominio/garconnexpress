@@ -7151,9 +7151,13 @@ async function exibirPedidos() {
       
       // Sincroniza o estado da taxa (preserva atualizações locais otimistas)
       if (pedidosStatusTaxa[pedido.id] === undefined) {
-        pedidosStatusTaxa[pedido.id] = (pedido.cobrar_taxa === undefined || pedido.cobrar_taxa === null) 
-          ? true 
-          : (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true);
+        if (isFuncionario) {
+          pedidosStatusTaxa[pedido.id] = (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true) ? true : false;
+        } else {
+          pedidosStatusTaxa[pedido.id] = (pedido.cobrar_taxa === undefined || pedido.cobrar_taxa === null) 
+            ? true 
+            : (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true);
+        }
       } else {
         pedido.cobrar_taxa = pedidosStatusTaxa[pedido.id];
       }
@@ -7272,7 +7276,7 @@ async function exibirPedidos() {
               </button>
 
               <div class="toggle-container">
-                <span style="font-size:0.7rem;">${isDelivery ? (isRetirada ? 'TAXA GRÁTIS' : `R$ ${taxaDeliveryVal.toFixed(2)} ENTREGA`) : '10% TAXA'}</span>
+                <span style="font-size:0.7rem;">${isFuncionario ? 'TAXA ISENTA' : (isDelivery ? (isRetirada ? 'TAXA GRÁTIS' : `R$ ${taxaDeliveryVal.toFixed(2)} ENTREGA`) : '10% TAXA')}</span>
                 <label class="switch" style="${pagoParcial > 0 ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
                   <input type="checkbox" ${cobrarTaxaNoPedido ? 'checked' : ''} ${pagoParcial > 0 ? 'disabled' : ''} onchange="alternarTaxaPedido(${pedido.id}, this)">
                   <span class="slider"></span>
@@ -11772,7 +11776,11 @@ async function abrirModalOpcoes(pedidoId) {
   
   const taxaDeliveryModalVal = (pedido.taxa_entrega !== undefined && pedido.taxa_entrega !== null) ? parseFloat(pedido.taxa_entrega) : 3.00;
   const lblTaxa = document.getElementById('modal-taxa-label-text');
-  if (lblTaxa) lblTaxa.innerText = isDelivery ? (isRetirada ? 'TAXA GRÁTIS' : `R$ ${taxaDeliveryModalVal.toFixed(2)} ENTREGA`) : '10% TAXA';
+  if (lblTaxa) {
+    if (isFuncionario) lblTaxa.innerText = 'TAXA ISENTA';
+    else if (isDelivery) lblTaxa.innerText = isRetirada ? 'TAXA GRÁTIS' : `R$ ${taxaDeliveryModalVal.toFixed(2)} ENTREGA`;
+    else lblTaxa.innerText = '10% TAXA';
+  }
 
   // Exibir aviso de transferência/unificação e observação do pedido se existirem
   const infoExtra = document.getElementById('modal-opcoes-info-extra');
@@ -11806,7 +11814,11 @@ async function abrirModalOpcoes(pedidoId) {
   else headerBg.style.background = '#e67e22'; // Laranja Em Consumo
 
   // 2. TOTAIS E TAXA
-  const cobrarTaxaNoPedido = (pedidosStatusTaxa[pedidoId] !== undefined) ? pedidosStatusTaxa[pedidoId] : (pedido.cobrar_taxa === undefined || pedido.cobrar_taxa === null ? true : (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true));
+  const cobrarTaxaNoPedido = (pedidosStatusTaxa[pedidoId] !== undefined) 
+    ? pedidosStatusTaxa[pedidoId] 
+    : (isFuncionario 
+        ? (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true)
+        : (pedido.cobrar_taxa === undefined || pedido.cobrar_taxa === null ? true : (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true)));
   const itensParaSomaModal = itens.filter(i => (i.status || '').toLowerCase() !== 'cancelado');
   const subtotal = itensParaSomaModal.reduce((sum, i) => sum + ((i.preco || 0) * (i.quantidade || 1)), 0);
   window.subtotalModalOpcoes = subtotal;
@@ -12011,7 +12023,7 @@ async function abrirModalOpcoes(pedidoId) {
   // Configuração do bloco de transferência de garçom
   const divTransferir = document.getElementById('modal-opcoes-transferir');
   if (divTransferir) {
-    if (!isDelivery && pedido.mesa_id) {
+    if (!isDelivery && !isFuncionario && pedido.mesa_id) {
       divTransferir.style.display = 'flex';
       // Buscar garçons online
       try {
@@ -12120,7 +12132,7 @@ async function abrirModalOpcoes(pedidoId) {
   // Configuração do bloco de transferência de mesa
   const divTransferirMesa = document.getElementById('modal-opcoes-transferir-mesa');
   if (divTransferirMesa) {
-    if (!isDelivery) {
+    if (!isDelivery && !isFuncionario) {
       divTransferirMesa.style.display = 'flex';
       try {
         const resM = await fetch('/api/mesas?t=' + Date.now());
