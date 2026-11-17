@@ -6120,8 +6120,8 @@ function renderizarColunaHistorico(tipo, lista, pagina, container) {
     if (isFunc && isCanc) {
       valorCardHtml = `
         <div style="text-align: right; line-height: 1.1;">
-          <div style="font-weight: 900; color: #e74c3c; font-size: 0.95rem;">CANCELADO</div>
-          <small style="color: #94a3b8; font-size: 0.65rem;">${horaAberturaCard}</small>
+          <div style="font-weight: 900; color: #e74c3c; font-size: 0.95rem; text-decoration: line-through;">R$ ${valor.toFixed(2)}</div>
+          <small style="color: #e74c3c; font-size: 0.65rem; font-weight: bold;">CANCELADO</small>
         </div>
       `;
       footerCardHtml = `
@@ -6144,6 +6144,19 @@ function renderizarColunaHistorico(tipo, lista, pagina, container) {
         <div style="margin-top: 4px; border-top: 1px solid #f3e8ff; padding-top: 3px; display: flex; justify-content: space-between; align-items: center; width: 100%;">
           <span style="font-size: 0.7rem; font-weight: 800; color: #8e44ad;">👤 ACERTO DE DIÁRIA</span>
           <span style="font-size: 0.65rem; color: #8e44ad; font-weight: 900; text-transform: uppercase;">RECIBO 📄</span>
+        </div>
+      `;
+    } else if (isCanc) {
+      valorCardHtml = `
+        <div style="text-align: right; line-height: 1.1;">
+          <div style="font-weight: 900; color: #e74c3c; font-size: 1.05rem; text-decoration: line-through;">R$ ${valor.toFixed(2)}</div>
+          <small style="color: #e74c3c; font-size: 0.65rem; font-weight: bold;">CANCELADO</small>
+        </div>
+      `;
+      footerCardHtml = `
+        <div style="margin-top: 4px; border-top: 1px solid #fee2e2; padding-top: 3px; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <span style="font-size: 0.7rem; font-weight: 800; color: #e74c3c;">❌ PEDIDO CANCELADO</span>
+          <span style="font-size: 0.65rem; color: #e74c3c; font-weight: 900; text-transform: uppercase;">DETALHES</span>
         </div>
       `;
     } else {
@@ -6468,13 +6481,13 @@ function abrirModalDetalheHistorico(p) {
     }
 
     // Título da Lista de Itens
-    htmlContent += `<div style="font-size: 0.75rem; color: #64748b; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">Itens do Pedido</div>`;
+    htmlContent += `<div style="font-size: 0.75rem; color: ${isCanc ? '#e74c3c' : '#64748b'}; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">${isCanc ? '❌ Itens do Pedido (Cancelados)' : 'Itens do Pedido'}</div>`;
 
     // Itens
     const itensHTML = (p.itens && p.itens.length > 0) ? p.itens.map(item => `
-      <div style="display: flex; justify-content: space-between; align-items: flex-start; font-size: 0.9rem; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
-        <span style="color: #334155;"><b style="color: #0f172a;">${item.quantidade}x</b> ${item.nome}</span>
-        <span style="font-weight: 600; color: #475569; white-space: nowrap; margin-left: 10px;">R$ ${(item.preco * item.quantidade).toFixed(2)}</span>
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; font-size: 0.9rem; padding: 6px 0; border-bottom: 1px solid #f1f5f9; ${isCanc ? 'text-decoration: line-through; opacity: 0.65; color: #64748b;' : ''}">
+        <span style="color: ${isCanc ? '#64748b' : '#334155'};"><b style="color: ${isCanc ? '#64748b' : '#0f172a'};">${item.quantidade}x</b> ${item.nome}</span>
+        <span style="font-weight: 600; color: ${isCanc ? '#94a3b8' : '#475569'}; white-space: nowrap; margin-left: 10px;">R$ ${(item.preco * item.quantidade).toFixed(2)}</span>
       </div>`).join('') : '<p style="text-align: center; opacity: 0.5; font-size: 0.85rem; padding: 10px 0;">Nenhum item registrado.</p>';
     
     itensLista.innerHTML = htmlContent + itensHTML;
@@ -6492,10 +6505,10 @@ function abrirModalDetalheHistorico(p) {
     // Subtotal e Taxa
     if (taxa > 0 || subtotal !== totalPedido) {
       htmlFin += `
-        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; opacity: 0.8;">
+        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; opacity: 0.8; ${isCancelado ? 'text-decoration: line-through;' : ''}">
           <span>Subtotal:</span><span>R$ ${subtotal.toFixed(2)}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; opacity: 0.8;">
+        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; opacity: 0.8; ${isCancelado ? 'text-decoration: line-through;' : ''}">
           <span>Taxa de Serviço:</span><span>R$ ${taxa.toFixed(2)}</span>
         </div>`;
     }
@@ -6516,10 +6529,10 @@ function abrirModalDetalheHistorico(p) {
     }
 
     // Total Final - Muda rótulo se for cancelado
-    const labelTotal = isCancelado ? 'TOTAL DO PEDIDO:' : 'TOTAL PAGO:';
+    const labelTotal = isCancelado ? 'TOTAL DO PEDIDO (CANCELADO):' : 'TOTAL PAGO:';
     
     htmlFin += `
-      <div style="display: flex; justify-content: space-between; font-weight: 900; font-size: 1.4rem; margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 8px;">
+      <div style="display: flex; justify-content: space-between; font-weight: 900; font-size: 1.4rem; margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 8px; ${isCancelado ? 'text-decoration: line-through; opacity: 0.85;' : ''}">
         <span>${labelTotal}</span><span>R$ ${totalPedido.toFixed(2)}</span>
       </div>`;
 
