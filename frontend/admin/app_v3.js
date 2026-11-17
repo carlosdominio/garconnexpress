@@ -2981,7 +2981,7 @@ function renderizarMesasSelectLancar(mesas) {
       } else if (isNum) {
         label = `Mesa ${m.numero}`;
       }
-      const badge = isFunc ? '💼 ' : (isBalc ? '🏪 ' : (isComMesa ? '🍽️ ' : '🪑 '));
+      const badge = isFunc ? '' : (isBalc ? '🏪 ' : (isComMesa ? '🍽️ ' : '🪑 '));
       const statusStr = (m.status || 'livre').toUpperCase();
       return `<option value="${m.id}" data-tipo="${m.tipo || 'mesa'}" ${isFunc ? 'data-funcionario="true"' : ''} style="${isFunc ? 'color:#8e44ad; font-weight:bold;' : ''}">${badge}${label} (${statusStr})</option>`;
     }).join('');
@@ -7246,7 +7246,7 @@ function atualizarSelectMesasAtivas() {
     const isFunc = !!p.is_funcionario || (p.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(p.mesa_numero || '');
     if (isFunc) {
       const fNome = extrairNomeLimpoFuncionario(p);
-      return `💼 Funcionário: ${fNome}`;
+      return `Funcionário: ${fNome}`;
     }
     if (p.mesa_tipo === 'balcao') {
       const numTrim = String(p.mesa_numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
@@ -7270,7 +7270,7 @@ function atualizarSelectMesasAtivas() {
     const isFunc = !!m.is_funcionario || (m.tipo === 'funcionario') || /^(func|staff|f-)/i.test(m.numero || '');
     if (isFunc) {
       const fNome = extrairNomeLimpoFuncionario(m);
-      return `💼 Funcionário: ${fNome}`;
+      return `Funcionário: ${fNome}`;
     }
     return `📱 Mesa ${m.numero}`;
   });
@@ -7352,7 +7352,7 @@ async function exibirPedidos() {
       } else if (isDelivery) {
         mesaNomeExibicao = `🛵 DELIVERY #${pedido.id}`;
       } else if (isFuncionario) {
-        mesaNomeExibicao = `💼 Funcionário: ${funcionarioNome}`;
+        mesaNomeExibicao = `Funcionário: ${funcionarioNome}`;
       } else if (pedido.mesa_tipo === 'balcao') {
         const numTrim = String(pedido.mesa_numero || '').replace(/^comanda\s*balc[aã]o\s*/i, '').replace(/^balc[aã]o\s*/i, '').trim();
         mesaNomeExibicao = numTrim ? `🏪 Balcão ${numTrim}` : `🏪 Balcão`;
@@ -7623,14 +7623,14 @@ async function exibirPedidos() {
         <div class="pedido-header">
           <div>
             <h3 style="display:flex; align-items:center; gap:8px;">
-              ${isMesaFunc ? `💼 Funcionário: ${funcNome}` : `📱 Mesa ${m.numero}`}
+              ${isMesaFunc ? `Funcionário: ${funcNome}` : `📱 Mesa ${m.numero}`}
               ${!isMesaFunc ? `
               <span class="pedido-cronometro" data-created-at="${m.codigo_criado_at || ''}" style="font-size:0.8rem; background:#2c3e50; padding:2px 8px; border-radius:12px; color:#fff;">
                 ⏱️ ${minutosEspera} min
               </span>
               ` : ''}
             </h3>
-            <span class="status-badge" style="background:${isMesaFunc ? '#8e44ad' : '#3498db'}; color:white;">${isMesaFunc ? '💼 FUNCIONÁRIO' : '📱 AGUARDANDO CLIENTE'}</span>
+            <span class="status-badge" style="background:${isMesaFunc ? '#8e44ad' : '#3498db'}; color:white;">${isMesaFunc ? 'FUNCIONÁRIO' : '📱 AGUARDANDO CLIENTE'}</span>
             <small style="display:block; margin-top:4px; opacity:0.6;">📅 Código ativo — aguardando pedido</small>
             <small style="display:block; font-weight:bold; color: #34495e; margin-top:2px;">👤 Garçom: ${m.garcom_id || 'Autônomo'}</small>
           </div>

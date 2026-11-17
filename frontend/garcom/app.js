@@ -2474,7 +2474,7 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
     const str = String(m).trim();
     if (/^(func|staff|f-)/i.test(str)) {
       const txt = extrairNomeLimpoFuncionario(str);
-      return incluirIcone ? `💼 Funcionário: ${txt}` : `Funcionário: ${txt}`;
+      return `Funcionário: ${txt}`;
     }
     if (/^balc[aã]o/i.test(str)) {
       const numTrim = str.replace(/^balc[aã]o\s*/i, '').trim();
@@ -2517,7 +2517,7 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
 
   if (isFuncionario) {
     const txt = extrairNomeLimpoFuncionario(m);
-    return incluirIcone ? `💼 Funcionário: ${txt}` : `Funcionário: ${txt}`;
+    return `Funcionário: ${txt}`;
   }
   if (isBalcao) {
     const txt = limpo ? `Balcão ${limpo}` : 'Balcão';
