@@ -6917,9 +6917,10 @@ async function atualizarIndicadoresTopo() {
       const subtotalPedido = itensValidos.reduce((sum, i) => sum + ((i.preco || 0) * (i.quantidade || 1)), 0);
       
       const isDelivery = (p.garcom_id === 'DELIVERY' || (p.mesa_numero && String(p.mesa_numero).toUpperCase().includes('DELIVERY')));
-      const taxaCobrada = (pedidosStatusTaxa[p.id] !== undefined) 
+      const isFuncionarioCard = !!p.is_funcionario || (p.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(p.mesa_numero || '');
+      const taxaCobrada = isFuncionarioCard ? false : ((pedidosStatusTaxa[p.id] !== undefined) 
         ? pedidosStatusTaxa[p.id] 
-        : (p.cobrar_taxa === undefined || p.cobrar_taxa === null ? true : (p.cobrar_taxa == 1 || p.cobrar_taxa === true));
+        : (p.cobrar_taxa === undefined || p.cobrar_taxa === null ? true : (p.cobrar_taxa == 1 || p.cobrar_taxa === true)));
       
       let taxaValor = 0;
       if (taxaCobrada && subtotalPedido > 0) {
@@ -7253,18 +7254,17 @@ async function exibirPedidos() {
       }
       
       // Sincroniza o estado da taxa (preserva atualizações locais otimistas)
-      if (pedidosStatusTaxa[pedido.id] === undefined) {
-        if (isFuncionario) {
-          pedidosStatusTaxa[pedido.id] = (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true) ? true : false;
-        } else {
-          pedidosStatusTaxa[pedido.id] = (pedido.cobrar_taxa === undefined || pedido.cobrar_taxa === null) 
-            ? true 
-            : (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true);
-        }
+      if (isFuncionario) {
+        pedidosStatusTaxa[pedido.id] = false;
+        pedido.cobrar_taxa = false;
+      } else if (pedidosStatusTaxa[pedido.id] === undefined) {
+        pedidosStatusTaxa[pedido.id] = (pedido.cobrar_taxa === undefined || pedido.cobrar_taxa === null) 
+          ? true 
+          : (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true);
       } else {
         pedido.cobrar_taxa = pedidosStatusTaxa[pedido.id];
       }
-      const cobrarTaxaNoPedido = pedidosStatusTaxa[pedido.id];
+      const cobrarTaxaNoPedido = isFuncionario ? false : pedidosStatusTaxa[pedido.id];
 
       // USAR ITENS QUE JÁ VEM NO OBJETO PEDIDO (ECONOMIZA N FETCHS)
       const itens = pedido.itens || [];
@@ -8948,13 +8948,17 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null, dados
   let cobrarTaxaNoPedido = true;
   if (isFuncionario) {
     cobrarTaxaNoPedido = false;
+    pedidosStatusTaxa[idPedido] = false;
+    if (pedidoParaFecharAdmin) pedidoParaFecharAdmin.cobrar_taxa = false;
   } else if (pedidoParaFecharAdmin.cobrar_taxa !== undefined) {
     cobrarTaxaNoPedido = pedidoParaFecharAdmin.cobrar_taxa;
   } else if (pedidosStatusTaxa[idPedido] !== undefined) {
     cobrarTaxaNoPedido = pedidosStatusTaxa[idPedido];
   }
   
-  document.getElementById('fechamento-taxa-admin').checked = cobrarTaxaNoPedido;
+  const checkTaxaAdmin = document.getElementById('fechamento-taxa-admin');
+  checkTaxaAdmin.checked = cobrarTaxaNoPedido;
+  checkTaxaAdmin.disabled = isFuncionario;
   const acrescimoInicial = parseFloat(pedidoParaFecharAdmin.acrescimo) || 0;
   const descontoInicial = parseFloat(pedidoParaFecharAdmin.desconto) || 0;
   document.getElementById('fechamento-acrescimo-admin').value = acrescimoInicial > 0 ? formatarMoedaInput(acrescimoInicial) : '';
@@ -9212,7 +9216,8 @@ function recalcularTotalFechamentoAdmin() {
   const selecionados = itensFechamentoAdmin.filter(i => i.selecionadoFechamento);
   subtotalConsumoAdmin = selecionados.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
 
-  const cobrarTaxa = document.getElementById('fechamento-taxa-admin').checked;
+  const isFuncionarioFechamento = !!pedidoParaFecharAdmin && (!!pedidoParaFecharAdmin.is_funcionario || (pedidoParaFecharAdmin.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedidoParaFecharAdmin.mesa_numero || ''));
+  const cobrarTaxa = isFuncionarioFechamento ? false : document.getElementById('fechamento-taxa-admin').checked;
   const isDelivery = (pedidoParaFecharAdmin && pedidoParaFecharAdmin.garcom_id === 'DELIVERY');
   const taxaEntregaVal = (pedidoParaFecharAdmin && pedidoParaFecharAdmin.taxa_entrega !== undefined && pedidoParaFecharAdmin.taxa_entrega !== null)
     ? parseFloat(pedidoParaFecharAdmin.taxa_entrega)
@@ -9467,7 +9472,8 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
   const descontoInput = tipoDescontoAdmin === 'porcentagem'
     ? (parseFloat(rawDesconto) || 0)
     : converterMoedaParaFloat(rawDesconto);
-  const cobrarTaxa = document.getElementById('fechamento-taxa-admin').checked;
+  const isFuncionario = !!pedidoParaFecharAdmin && (!!pedidoParaFecharAdmin.is_funcionario || (pedidoParaFecharAdmin.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedidoParaFecharAdmin.mesa_numero || ''));
+  const cobrarTaxa = isFuncionario ? false : document.getElementById('fechamento-taxa-admin').checked;
   const taxaServico = cobrarTaxa ? subtotalLocal * 0.10 : 0;
 
   let desconto = descontoInput;
@@ -9482,7 +9488,6 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
   const total = (subtotalLocal + taxaServico + acrescimo - desconto) - pagoParcial;
   const valor_por_pessoa = total / num_pessoas;
 
-  const isFuncionario = !!pedidoParaFecharAdmin && (!!pedidoParaFecharAdmin.is_funcionario || (pedidoParaFecharAdmin.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedidoParaFecharAdmin.mesa_numero || ''));
   const funcNome = pedidoParaFecharAdmin ? (pedidoParaFecharAdmin.funcionario_nome || String(pedidoParaFecharAdmin.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim() || 'Colaborador') : 'Colaborador';
   let valorDiaria = 0;
   let valorLiquidoFuncionario = 0;
@@ -12134,10 +12139,10 @@ async function abrirModalOpcoes(pedidoId) {
   else headerBg.style.background = '#e67e22'; // Laranja Em Consumo
 
   // 2. TOTAIS E TAXA
-  const cobrarTaxaNoPedido = (pedidosStatusTaxa[pedidoId] !== undefined) 
-    ? pedidosStatusTaxa[pedidoId] 
-    : (isFuncionario 
-        ? (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true)
+  const cobrarTaxaNoPedido = isFuncionario 
+    ? false 
+    : ((pedidosStatusTaxa[pedidoId] !== undefined) 
+        ? pedidosStatusTaxa[pedidoId] 
         : (pedido.cobrar_taxa === undefined || pedido.cobrar_taxa === null ? true : (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true)));
   const itensParaSomaModal = itens.filter(i => (i.status || '').toLowerCase() !== 'cancelado');
   const subtotal = itensParaSomaModal.reduce((sum, i) => sum + ((i.preco || 0) * (i.quantidade || 1)), 0);
@@ -12217,8 +12222,15 @@ async function abrirModalOpcoes(pedidoId) {
   document.getElementById('btn-modal-editar').onclick = () => { fecharModalOpcoes(); abrirModalEdicao(pedido, itens); };
   
   const checkboxTaxa = document.getElementById('modal-taxa-checkbox');
-  checkboxTaxa.checked = cobrarTaxaNoPedido;
+  if (isFuncionario) {
+    checkboxTaxa.checked = false;
+    checkboxTaxa.disabled = true;
+  } else {
+    checkboxTaxa.checked = cobrarTaxaNoPedido;
+    checkboxTaxa.disabled = false;
+  }
   checkboxTaxa.onchange = (e) => {
+     if (isFuncionario) return;
      alternarTaxaPedido(pedidoId, e.target);
      // Recarrega o modal para atualizar valores
      setTimeout(() => abrirModalOpcoes(pedidoId), 300);
