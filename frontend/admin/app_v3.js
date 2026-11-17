@@ -9276,6 +9276,7 @@ function recalcularTotalFechamentoAdmin() {
   const btnTudo = document.getElementById('btn-pagar-tudo-admin');
   const lblCota = document.getElementById('lbl-valor-cota-btn');
   const lblTudo = document.getElementById('lbl-valor-tudo-btn');
+  const lblTextoTudo = document.getElementById('lbl-pagar-tudo-texto');
   const containerBotoes = document.getElementById('container-botoes-fechamento-dinamico');
 
   if (btnCota && btnTudo) {
@@ -9332,7 +9333,6 @@ function recalcularTotalFechamentoAdmin() {
       const txtTrocoTudo = trocoTotal > 0 ? ` | TROCO: R$ ${trocoTotal.toFixed(2)}` : '';
       if (lblTudo) lblTudo.textContent = `R$ ${saldoRestante.toFixed(2)}${txtTrocoTudo}`;
       
-      const lblTextoTudo = document.getElementById('lbl-pagar-tudo-texto');
       if (lblTextoTudo) lblTextoTudo.textContent = isDelivery ? 'FINALIZAR E LIBERAR DELIVERY' : 'FINALIZAR TUDO';
     }
   }
