@@ -12,10 +12,16 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
         tipo = 'comanda';
       }
       const isFuncionario = (req.body.is_funcionario || tipo === 'funcionario' || /^(func|staff|f-)/i.test(numOuNome)) ? 1 : 0;
-      const funcionarioNome = req.body.funcionario_nome ? String(req.body.funcionario_nome).trim() : (isFuncionario ? numOuNome : null);
+      const funcionarioNome = req.body.funcionario_nome 
+        ? String(req.body.funcionario_nome).trim() 
+        : (isFuncionario ? numOuNome.replace(/^((funcion[aá]rio|func|staff|f-|comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o)\s*:?\s*)+/gi, '').trim() : null);
       if (!numOuNome) return res.status(400).json({ error: 'Informe o número ou nome da mesa/comanda' });
-      if (numOuNome.length > 11) {
-        return res.status(400).json({ error: 'O número ou nome da comanda/mesa não pode ter mais de 11 caracteres!' });
+      
+      const numParaValidar = isFuncionario 
+        ? numOuNome.replace(/^((funcion[aá]rio|func|staff|f-|comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o)\s*:?\s*)+/gi, '').trim() 
+        : numOuNome;
+      if (numParaValidar.length > 25) {
+        return res.status(400).json({ error: `O número ou nome da ${isFuncionario ? 'comanda de funcionário' : 'comanda/mesa'} não pode ter mais de 25 caracteres!` });
       }
 
       // TRAVA DE DUPLICIDADE (Case-insensitive) - Separado por tipo para não colidir mesa física com balcão
@@ -135,23 +141,41 @@ module.exports = (query, ensureDbInitialized, safePusherTrigger, notifyStatus, c
       const novoNome = String(req.body.numero || '').trim();
       const pedidoId = req.body.pedido_id;
       if (!novoNome) return res.status(400).json({ error: 'Nome inválido' });
-      if (novoNome.length > 11) {
-        return res.status(400).json({ error: 'O número ou nome da mesa/comanda não pode exceder 11 caracteres!' });
+      const isFuncRenom = (req.body.is_funcionario || /^(func|staff|f-)/i.test(novoNome));
+      const nomeParaValidar = isFuncRenom
+        ? novoNome.replace(/^((funcion[aá]rio|func|staff|f-|comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o)\s*:?\s*)+/gi, '').trim()
+        : novoNome;
+      if (nomeParaValidar.length > 25) {
+        return res.status(400).json({ error: `O número ou nome da ${isFuncRenom ? 'comanda de funcionário' : 'mesa/comanda'} não pode exceder 25 caracteres!` });
       }
 
+      const fnSalvar = req.body.funcionario_nome || (isFuncRenom ? nomeParaValidar : null);
+
       // 1. Atualiza na tabela mesas por ID ou por número
-      await query('UPDATE mesas SET numero = ? WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)', [novoNome, mesaId, mesaId]);
+      if (isFuncRenom) {
+        await query('UPDATE mesas SET numero = ?, funcionario_nome = ?, is_funcionario = 1 WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)', [novoNome, fnSalvar, mesaId, mesaId]);
+      } else {
+        await query('UPDATE mesas SET numero = ? WHERE id = ? OR CAST(numero AS TEXT) = CAST(? AS TEXT)', [novoNome, mesaId, mesaId]);
+      }
 
       // 2. Atualiza no pedido específico se fornecido
       if (pedidoId) {
         try {
-          await query('UPDATE pedidos SET mesa_numero = ? WHERE id = ?', [novoNome, pedidoId]);
+          if (isFuncRenom) {
+            await query('UPDATE pedidos SET mesa_numero = ?, funcionario_nome = ?, is_funcionario = 1 WHERE id = ?', [novoNome, fnSalvar, pedidoId]);
+          } else {
+            await query('UPDATE pedidos SET mesa_numero = ? WHERE id = ?', [novoNome, pedidoId]);
+          }
         } catch(e) {}
       }
 
       // 3. Atualiza nos pedidos ativos desta mesa
       try {
-        await query("UPDATE pedidos SET mesa_numero = ? WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado')", [novoNome, mesaId, mesaId]);
+        if (isFuncRenom) {
+          await query("UPDATE pedidos SET mesa_numero = ?, funcionario_nome = ?, is_funcionario = 1 WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado')", [novoNome, fnSalvar, mesaId, mesaId]);
+        } else {
+          await query("UPDATE pedidos SET mesa_numero = ? WHERE (CAST(mesa_id AS TEXT) = CAST(? AS TEXT) OR CAST(mesa_numero AS TEXT) = CAST(? AS TEXT)) AND status NOT IN ('entregue', 'cancelado')", [novoNome, mesaId, mesaId]);
+        }
       } catch(e) {}
 
       // Notifica em tempo real Admin e Garçons sobre o novo nome da mesa/comanda

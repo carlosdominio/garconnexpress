@@ -3052,8 +3052,8 @@ async function abrirModalCriarComandaLancar() {
 
         <!-- CORPO DO MODAL -->
         <div style="padding: 20px; text-align: left;">
-          <label style="display: block; font-weight: bold; color: #334155; font-size: 0.9rem; margin-bottom: 6px;">Número ou Nome da Comanda/Mesa (máx 11 letras):</label>
-          <input type="text" id="input-nome-comanda-novo" placeholder="ex: 15, VIP, Comanda 05..." maxlength="11"
+          <label style="display: block; font-weight: bold; color: #334155; font-size: 0.9rem; margin-bottom: 6px;">Número ou Nome da Comanda/Mesa (máx 20 letras):</label>
+          <input type="text" id="input-nome-comanda-novo" placeholder="ex: 15, VIP, Comanda 05, Lucas..." maxlength="20"
                  style="width: 100%; padding: 10px 14px; border-radius: 10px; border: 2px solid #cbd5e0; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc; margin-bottom: 12px;">
           
           <label style="display: block; font-weight: bold; color: #334155; font-size: 0.9rem; margin-bottom: 6px;">Direcionar para:</label>
@@ -4435,31 +4435,40 @@ async function excluirMesa(id) {
 }
 
 window.editarNomeMesa = async function(id, nomeAtual) {
+  const isFunc = /^(func|staff|f-)/i.test(nomeAtual);
+  const nomeLimpoAtual = isFunc ? extrairNomeLimpoFuncionario(nomeAtual) : nomeAtual;
   const { value: novoNome } = await Swal.fire({
-    title: 'Editar Nome da Mesa/Comanda',
+    title: isFunc ? 'Editar Nome do Funcionário' : 'Editar Nome da Mesa/Comanda',
     input: 'text',
-    inputValue: nomeAtual,
+    inputValue: nomeLimpoAtual,
+    inputPlaceholder: isFunc ? 'Ex: Rike, Lucas, Carlos...' : 'Ex: 15, VIP, Comanda 05...',
     inputAttributes: {
-      maxlength: '11'
+      maxlength: isFunc ? '25' : '15'
     },
     showCancelButton: true,
     confirmButtonText: 'Salvar',
     cancelButtonText: 'Cancelar',
     inputValidator: (value) => {
-      if (!value) return 'O nome não pode ficar vazio!';
-      if (value.length > 11) return 'Máximo de 11 caracteres!';
+      if (!value || !value.trim()) return 'O nome não pode ficar vazio!';
+      if (value.trim().length > (isFunc ? 25 : 15)) return `Máximo de ${isFunc ? 25 : 15} caracteres!`;
     }
   });
 
-  if (novoNome && novoNome.trim() !== nomeAtual) {
+  if (novoNome && novoNome.trim() !== nomeLimpoAtual) {
+    const nomeLimpo = isFunc ? extrairNomeLimpoFuncionario(novoNome.trim()) : novoNome.trim();
+    const nomeFinal = isFunc ? `FUNC: ${nomeLimpo}` : nomeLimpo;
     try {
       const res = await fetch(`/api/mesas/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ numero: novoNome.trim() })
+        body: JSON.stringify({ 
+          numero: nomeFinal,
+          funcionario_nome: isFunc ? nomeLimpo : undefined,
+          is_funcionario: isFunc ? 1 : 0
+        })
       });
       if (res.ok) {
-        mostrarToast('Nome da mesa atualizado!');
+        mostrarToast(`${isFunc ? 'Funcionário' : 'Mesa/Comanda'} atualizado(a)!`);
         await exibirMesasConfig();
         if (typeof carregarMesasLancar === 'function') await carregarMesasLancar();
         if (typeof carregarPedidos === 'function') carregarPedidos();
@@ -12958,25 +12967,32 @@ window.editarNomeMesaComandaDesdeModal = async function() {
     return;
   }
 
-  // Identifica o nome atual da comanda
-  let nomeAtual = pedido.mesa_numero || '';
-  if (!nomeAtual && pedido.mesa_id) {
-    const mesaObj = (typeof mesasPainel !== 'undefined' && Array.isArray(mesasPainel)) ? mesasPainel.find(m => m.id == pedido.mesa_id) : null;
-    if (mesaObj) nomeAtual = mesaObj.numero;
+  const isFunc = isPedidoFuncionario(pedido);
+
+  // Identifica o nome atual da comanda (sempre limpo se for funcionário)
+  let nomeAtual = '';
+  if (isFunc) {
+    nomeAtual = extrairNomeLimpoFuncionario(pedido);
+  } else {
+    nomeAtual = pedido.mesa_numero || '';
+    if (!nomeAtual && pedido.mesa_id) {
+      const mesaObj = (typeof mesasPainel !== 'undefined' && Array.isArray(mesasPainel)) ? mesasPainel.find(m => m.id == pedido.mesa_id) : null;
+      if (mesaObj) nomeAtual = mesaObj.numero;
+    }
+    if (!nomeAtual) nomeAtual = String(pedido.mesa_id || '');
   }
-  if (!nomeAtual) nomeAtual = String(pedido.mesa_id || '');
 
   // Alvo para atualizar na API (ID da mesa ou ID do pedido)
   const targetId = pedido.mesa_id || pedido.id;
 
   const { value: novoNome } = await Swal.fire({
-    title: 'Editar Nome da Comanda',
-    text: 'Altere a identificação desta comanda:',
+    title: isFunc ? 'Editar Nome do Funcionário' : 'Editar Nome da Comanda',
+    text: isFunc ? 'Altere o nome do colaborador:' : 'Altere a identificação desta comanda:',
     input: 'text',
     inputValue: nomeAtual,
-    inputPlaceholder: 'Ex: Comanda 10, Comanda João...',
+    inputPlaceholder: isFunc ? 'Ex: Rike, Lucas, Carlos...' : 'Ex: Comanda 10, Comanda João...',
     inputAttributes: {
-      maxlength: '11',
+      maxlength: isFunc ? '25' : '15',
       autocapitalize: 'words',
       autocorrect: 'off'
     },
@@ -12991,12 +13007,13 @@ window.editarNomeMesaComandaDesdeModal = async function() {
     },
     inputValidator: (value) => {
       if (!value || !value.trim()) return 'O nome não pode ficar vazio!';
-      if (value.trim().length > 11) return 'Máximo de 11 caracteres!';
+      if (value.trim().length > (isFunc ? 25 : 15)) return `Máximo de ${isFunc ? 25 : 15} caracteres!`;
     }
   });
 
   if (novoNome && novoNome.trim() && novoNome.trim() !== nomeAtual) {
-    const nomeLimpo = novoNome.trim();
+    const nomeLimpo = isFunc ? extrairNomeLimpoFuncionario(novoNome.trim()) : novoNome.trim();
+    const nomeFinal = isFunc ? `FUNC: ${nomeLimpo}` : nomeLimpo;
     try {
       const res = await fetch(`/api/mesas/${encodeURIComponent(targetId)}`, {
         method: 'PUT',
@@ -13005,26 +13022,29 @@ window.editarNomeMesaComandaDesdeModal = async function() {
           'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '')
         },
         body: JSON.stringify({ 
-          numero: nomeLimpo,
+          numero: nomeFinal,
+          funcionario_nome: isFunc ? nomeLimpo : undefined,
+          is_funcionario: isFunc ? 1 : 0,
           pedido_id: pedido.id
         })
       });
 
       if (res.ok) {
-        mostrarToast(`✅ Comanda renomeada para "${nomeLimpo}"!`);
+        mostrarToast(`✅ ${isFunc ? 'Funcionário' : 'Comanda'} renomeado para "${nomeLimpo}"!`);
         
         // Atualiza localmente no objeto do pedido
-        pedido.mesa_numero = nomeLimpo;
+        pedido.mesa_numero = nomeFinal;
+        if (isFunc) pedido.funcionario_nome = nomeLimpo;
         if (pedidoEmOpcoes && pedidoEmOpcoes.id === pedido.id) {
-          pedidoEmOpcoes.mesa_numero = nomeLimpo;
+          pedidoEmOpcoes.mesa_numero = nomeFinal;
+          if (isFunc) pedidoEmOpcoes.funcionario_nome = nomeLimpo;
         }
 
         // Atualiza o título do modal aberto imediatamente
         const elTitulo = document.getElementById('modal-opcoes-titulo');
         if (elTitulo) {
-          const isFuncRenom = !!pedido.is_funcionario || (pedido.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(nomeLimpo);
-          if (isFuncRenom) {
-            elTitulo.innerText = `Funcionário: ${nomeLimpo.replace(/^(func|staff|f-)\s*/i, '').trim() || 'Colaborador'}`;
+          if (isFunc) {
+            elTitulo.innerText = `Funcionário: ${nomeLimpo}`;
           } else {
             elTitulo.innerText = typeof obterNomeExibicaoCard === 'function' ? obterNomeExibicaoCard(pedido) : nomeLimpo;
           }
@@ -13054,16 +13074,17 @@ window.editarNomeMesaAguardandoDesdeModal = async function() {
     return;
   }
 
-  const nomeAtual = m.numero || '';
+  const isFunc = !!m.is_funcionario || (m.tipo === 'funcionario') || /^(func|staff|f-)/i.test(m.numero || '');
+  const nomeAtual = isFunc ? extrairNomeLimpoFuncionario(m) : (m.numero || '');
 
   const { value: novoNome } = await Swal.fire({
-    title: 'Editar Nome da Comanda',
-    text: 'Altere a identificação desta comanda:',
+    title: isFunc ? 'Editar Nome do Funcionário' : 'Editar Nome da Comanda',
+    text: isFunc ? 'Altere o nome do colaborador:' : 'Altere a identificação desta comanda:',
     input: 'text',
     inputValue: nomeAtual,
-    inputPlaceholder: 'Ex: Comanda 10, Comanda João...',
+    inputPlaceholder: isFunc ? 'Ex: Rike, Lucas...' : 'Ex: Comanda 10, Comanda João...',
     inputAttributes: {
-      maxlength: '11',
+      maxlength: isFunc ? '25' : '15',
       autocapitalize: 'words',
       autocorrect: 'off'
     },
@@ -13078,12 +13099,13 @@ window.editarNomeMesaAguardandoDesdeModal = async function() {
     },
     inputValidator: (value) => {
       if (!value || !value.trim()) return 'O nome não pode ficar vazio!';
-      if (value.trim().length > 11) return 'Máximo de 11 caracteres!';
+      if (value.trim().length > (isFunc ? 25 : 15)) return `Máximo de ${isFunc ? 25 : 15} caracteres!`;
     }
   });
 
   if (novoNome && novoNome.trim() && novoNome.trim() !== nomeAtual) {
-    const nomeLimpo = novoNome.trim();
+    const nomeLimpo = isFunc ? extrairNomeLimpoFuncionario(novoNome.trim()) : novoNome.trim();
+    const nomeFinal = isFunc ? `FUNC: ${nomeLimpo}` : nomeLimpo;
     try {
       const res = await fetch(`/api/mesas/${encodeURIComponent(m.id)}`, {
         method: 'PUT',
@@ -13091,17 +13113,22 @@ window.editarNomeMesaAguardandoDesdeModal = async function() {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ' + (localStorage.getItem('admin_token') || '')
         },
-        body: JSON.stringify({ numero: nomeLimpo })
+        body: JSON.stringify({ 
+          numero: nomeFinal,
+          funcionario_nome: isFunc ? nomeLimpo : undefined,
+          is_funcionario: isFunc ? 1 : 0
+        })
       });
 
       if (res.ok) {
-        mostrarToast(`✅ Comanda renomeada para "${nomeLimpo}"!`);
-        m.numero = nomeLimpo;
+        mostrarToast(`✅ ${isFunc ? 'Funcionário' : 'Comanda'} renomeado para "${nomeLimpo}"!`);
+        m.numero = nomeFinal;
+        if (isFunc) m.funcionario_nome = nomeLimpo;
 
         const elTitulo = document.getElementById('mma-titulo');
-        if (elTitulo) elTitulo.innerText = `📱 ${nomeLimpo.toLowerCase().startsWith('comanda') ? '' : 'Comanda '}${nomeLimpo}`;
+        if (elTitulo) elTitulo.innerText = isFunc ? `Funcionário: ${nomeLimpo}` : `📱 ${nomeLimpo.toLowerCase().startsWith('comanda') ? '' : 'Comanda '}${nomeLimpo}`;
         const elSub = document.getElementById('mma-subtitulo');
-        if (elSub) elSub.innerText = `${nomeLimpo} — QR Code ativo`;
+        if (elSub) elSub.innerText = isFunc ? `Funcionário: ${nomeLimpo} — Consumo Interno` : `${nomeLimpo} — QR Code ativo`;
 
         if (typeof carregarPedidos === 'function') await carregarPedidos();
         if (typeof carregarMesasLancar === 'function') await carregarMesasLancar();
