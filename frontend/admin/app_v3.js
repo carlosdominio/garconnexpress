@@ -1321,6 +1321,109 @@ function gerarBytesEscPosPedido(pedido, itens) {
   const itensFiltrados = (itens || []).filter(i => i.status !== 'cancelado');
   const subtotal = itensFiltrados.reduce((sum, i) => sum + ((i.preco || 0) * (i.quantidade || 1)), 0);
 
+  const isFuncionario = !!pedido.is_funcionario || (pedido.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedido.mesa_numero || '');
+  const funcNome = removerAcentosTexto(pedido.funcionario_nome || String(pedido.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim() || 'COLABORADOR').toUpperCase();
+
+  if (isFuncionario) {
+    const acrescimo = pedido.acrescimo || 0;
+    const desconto = pedido.desconto || 0;
+    const diariaVal = (pedido.valor_diaria !== undefined && pedido.valor_diaria !== null) ? parseFloat(pedido.valor_diaria) : 0;
+    const totalConsumo = subtotal + acrescimo - desconto;
+    const liquidoVal = diariaVal > 0 ? (diariaVal - totalConsumo) : 0;
+    const isSaldoPositivo = liquidoVal >= 0;
+
+    let str = '';
+    str += '\x1B\x40'; // Reset ESC/POS
+    str += '\x1B\x61\x01'; // Centralizado
+    str += '\x1B\x45\x01'; // Negrito ON
+    str += '\x1D\x21\x01'; // Dobro de altura
+    str += 'GUGA BEBIDAS\n';
+    str += '\x1D\x21\x00'; // Normal
+    str += '*** ACERTO DE DIARIA (STAFF) ***\n';
+    str += '\x1B\x45\x00'; // Negrito OFF
+    str += divisor + '\n';
+
+    str += '\x1B\x61\x00'; // Alinhado à esquerda
+    str += '\x1B\x45\x01';
+    str += padLinhaElgin('COLABORADOR:', funcNome, colunas) + '\n';
+    str += '\x1B\x45\x00';
+    str += padLinhaElgin('DATA/HORA:', new Date().toLocaleString('pt-BR'), colunas) + '\n';
+    str += padLinhaElgin('COMANDA:', `#${pedido.id}`, colunas) + '\n';
+    str += divisorFino + '\n';
+
+    str += '\x1B\x45\x01';
+    if (colunas === 32) {
+      str += padLinhaElgin('QTD ITEM', 'TOTAL', colunas) + '\n';
+    } else {
+      str += padLinhaElgin('QTD  DESCRICAO', 'TOTAL (R$)', colunas) + '\n';
+    }
+    str += '\x1B\x45\x00';
+    str += divisorFino + '\n';
+
+    itensFiltrados.forEach(item => {
+      const qtdStr = `${item.quantidade || 1}x `;
+      const totalItem = ((item.preco || 0) * (item.quantidade || 1)).toFixed(2);
+      let nomeItem = removerAcentosTexto(item.nome || item.produto_nome || 'Item');
+      if (colunas === 32) {
+        if (nomeItem.length > 18) nomeItem = nomeItem.substring(0, 18);
+        str += padLinhaElgin(`${qtdStr}${nomeItem}`, totalItem, colunas) + '\n';
+      } else {
+        if (nomeItem.length > 30) nomeItem = nomeItem.substring(0, 30);
+        str += padLinhaElgin(`${qtdStr}${nomeItem}`, totalItem, colunas) + '\n';
+      }
+    });
+
+    str += divisorFino + '\n';
+    str += padLinhaElgin('TOTAL CONSUMO:', `R$ ${totalConsumo.toFixed(2)}`, colunas) + '\n';
+    str += padLinhaElgin('TAXA SERVICO:', 'ISENTA (0%)', colunas) + '\n';
+    if (acrescimo > 0) str += padLinhaElgin('ACRESCIMO:', `R$ ${acrescimo.toFixed(2)}`, colunas) + '\n';
+    if (desconto > 0) str += padLinhaElgin('DESCONTO:', `- R$ ${desconto.toFixed(2)}`, colunas) + '\n';
+    str += divisor + '\n';
+
+    if (diariaVal > 0) {
+      str += padLinhaElgin('(+) DIARIA BRUTA:', `R$ ${diariaVal.toFixed(2)}`, colunas) + '\n';
+      str += padLinhaElgin('(-) DESC. CONSUMO:', `- R$ ${totalConsumo.toFixed(2)}`, colunas) + '\n';
+      str += divisorFino + '\n';
+      str += '\x1B\x45\x01';
+      str += '\x1D\x21\x01';
+      const rotuloFin = isSaldoPositivo ? 'LIQUIDO A PAGAR:' : 'SALDO DEVEDOR:';
+      str += padLinhaElgin(rotuloFin, `R$ ${Math.abs(liquidoVal).toFixed(2)}`, colunas) + '\n';
+      str += '\x1D\x21\x00';
+      str += '\x1B\x45\x00';
+    } else {
+      str += '\x1B\x45\x01';
+      str += '\x1D\x21\x01';
+      str += padLinhaElgin('TOTAL DESCONTADO:', `R$ ${totalConsumo.toFixed(2)}`, colunas) + '\n';
+      str += '\x1D\x21\x00';
+      str += '\x1B\x45\x00';
+    }
+
+    str += divisor + '\n';
+    str += padLinhaElgin('PAGAMENTO:', 'DESCONTO NA DIARIA', colunas) + '\n';
+    str += divisorFino + '\n';
+
+    // Assinatura do colaborador
+    str += '\x1B\x61\x01'; // Centralizado
+    str += '\n\n';
+    str += '_'.repeat(Math.min(30, colunas - 4)) + '\n';
+    str += funcNome + '\n';
+    str += 'Assinatura do Colaborador\n\n';
+
+    str += 'COMPROVANTE DE ACERTO DE TURNO\n';
+    str += 'GuGA Bebidas - Gestao Interna\n';
+    str += '\n\n\n\n';
+
+    if (elginConfig.autoCorte !== false) {
+      str += '\x1D\x56\x00';
+    }
+
+    const bytes = [];
+    for (let i = 0; i < str.length; i++) {
+      bytes.push(str.charCodeAt(i) & 0xFF);
+    }
+    return bytes;
+  }
+
   let cobrarTaxaNoCupom = true;
   if (pedido.cobrar_taxa !== undefined && pedido.cobrar_taxa !== null) {
     cobrarTaxaNoCupom = (pedido.cobrar_taxa == 1 || pedido.cobrar_taxa === true);
@@ -8782,9 +8885,14 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null, dados
   
   renderizarListaItensFechamento();
   
+  const isFuncionario = !!pedidoParaFecharAdmin.is_funcionario || (pedidoParaFecharAdmin.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedidoParaFecharAdmin.mesa_numero || '');
+  const funcNome = pedidoParaFecharAdmin.funcionario_nome || String(pedidoParaFecharAdmin.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim() || 'Colaborador';
+
   let titleHTML = '';
   if (isDelivery) {
       titleHTML = `Finalizar Delivery <span id="fechamento-mesa-admin">#${pedidoParaFecharAdmin.id}</span>`;
+  } else if (isFuncionario) {
+      titleHTML = `💼 Acerto de Diária: <span id="fechamento-mesa-admin">${funcNome}</span>`;
   } else if (isBalcao) {
       const numB = pedidoParaFecharAdmin.mesa_numero ? 'Balcão ' + String(pedidoParaFecharAdmin.mesa_numero).replace(/balc[aã]o/i, '').replace(/🏪/g, '').trim() : 'BALCÃO';
       titleHTML = `Finalizar Pedido <span id="fechamento-mesa-admin">${numB}</span>`;
@@ -8798,21 +8906,49 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null, dados
   if (tituloHeaderAdmin) {
       tituloHeaderAdmin.innerHTML = titleHTML;
   }
+
+  // CONTROLE VISUAL: Acerto de Diária (Staff) vs Divisão de Clientes
+  const containerDiariaFunc = document.getElementById('container-acerto-diaria-funcionario');
+  const blocoDivisaoClientes = document.getElementById('fechamento-bloco-divisao-clientes');
+  const inputDiariaFunc = document.getElementById('fechamento-diaria-funcionario');
+
+  if (isFuncionario) {
+    if (containerDiariaFunc) containerDiariaFunc.style.display = 'block';
+    if (blocoDivisaoClientes) blocoDivisaoClientes.style.display = 'none';
+    if (inputDiariaFunc) {
+      inputDiariaFunc.value = (pedidoParaFecharAdmin.valor_diaria && pedidoParaFecharAdmin.valor_diaria > 0)
+        ? formatarMoedaInput(pedidoParaFecharAdmin.valor_diaria)
+        : '';
+    }
+  } else {
+    if (containerDiariaFunc) containerDiariaFunc.style.display = 'none';
+    if (blocoDivisaoClientes) blocoDivisaoClientes.style.display = 'block';
+    if (inputDiariaFunc) inputDiariaFunc.value = '';
+  }
+
   const lblPagoParcial = document.getElementById('lbl-fechamento-pago-parcial');
   if (lblPagoParcial) {
-      lblPagoParcial.textContent = isBalcao ? '(-) JÁ PAGO NESTE BALCÃO:' : (isDelivery ? '(-) JÁ PAGO NESTE DELIVERY:' : '(-) JÁ PAGO NESTA MESA:');
+      lblPagoParcial.textContent = isBalcao ? '(-) JÁ PAGO NESTE BALCÃO:' : (isDelivery ? '(-) JÁ PAGO NESTE DELIVERY:' : (isFuncionario ? '(-) JÁ PAGO PELO FUNCIONÁRIO:' : '(-) JÁ PAGO NESTA MESA:'));
   }
 
   const lblTaxaFechamento = document.getElementById('lbl-fechamento-taxa');
   if (lblTaxaFechamento) {
-    const taxaEntregaVal = (pedidoParaFecharAdmin && pedidoParaFecharAdmin.taxa_entrega !== undefined && pedidoParaFecharAdmin.taxa_entrega !== null)
-      ? parseFloat(pedidoParaFecharAdmin.taxa_entrega)
-      : 3.00;
-    lblTaxaFechamento.textContent = isDelivery ? `Taxa de Entrega (R$ ${taxaEntregaVal.toFixed(2)}):` : "Taxa de Serviço (10%):";
+    if (isFuncionario) {
+      lblTaxaFechamento.textContent = "Taxa de Serviço (Isenta):";
+    } else if (isDelivery) {
+      const taxaEntregaVal = (pedidoParaFecharAdmin && pedidoParaFecharAdmin.taxa_entrega !== undefined && pedidoParaFecharAdmin.taxa_entrega !== null)
+        ? parseFloat(pedidoParaFecharAdmin.taxa_entrega)
+        : 3.00;
+      lblTaxaFechamento.textContent = `Taxa de Entrega (R$ ${taxaEntregaVal.toFixed(2)}):`;
+    } else {
+      lblTaxaFechamento.textContent = "Taxa de Serviço (10%):";
+    }
   }
   
   let cobrarTaxaNoPedido = true;
-  if (pedidoParaFecharAdmin.cobrar_taxa !== undefined) {
+  if (isFuncionario) {
+    cobrarTaxaNoPedido = false;
+  } else if (pedidoParaFecharAdmin.cobrar_taxa !== undefined) {
     cobrarTaxaNoPedido = pedidoParaFecharAdmin.cobrar_taxa;
   } else if (pedidosStatusTaxa[idPedido] !== undefined) {
     cobrarTaxaNoPedido = pedidosStatusTaxa[idPedido];
@@ -8827,7 +8963,9 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null, dados
   // MAPEA A FORMA DE PAGAMENTO PARA O SELECT DO ADMIN (Garante que Cartão/Cartao/Pix/Dinheiro fiquem pré-selecionados)
   const fpRaw = (pedidoParaFecharAdmin.forma_pagamento || pedidoParaFecharAdmin.metodo_pagamento || 'Dinheiro').trim();
   let fpFinal = 'Dinheiro';
-  if (fpRaw.toLowerCase() === 'pix' || fpRaw.toLowerCase().includes('pix')) {
+  if (fpRaw.toLowerCase().includes('diária') || fpRaw.toLowerCase().includes('diaria')) {
+    fpFinal = 'Desconto na Diária';
+  } else if (fpRaw.toLowerCase() === 'pix' || fpRaw.toLowerCase().includes('pix')) {
     fpFinal = 'Pix';
   } else if (fpRaw === 'Cartão de Débito' || fpRaw.toLowerCase().includes('deb') || fpRaw.toLowerCase().includes('déb')) {
     fpFinal = 'Cartão de Débito';
@@ -8843,15 +8981,25 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null, dados
   const selectForma = document.getElementById('fechamento-forma-admin');
   
   if (selectForma) {
-    // SE VEIO DIVIDIDO DO GARÇOM
-    if (fpFinal === 'Múltiplas' || (pedidoParaFecharAdmin.pagamentos_detalhados && num_pessoas_ini > 1)) {
-        selectForma.value = 'Múltiplas';
-        selectForma.disabled = true; // Trava pois é obrigatório usar o modal
-    } 
-    // SE É APENAS 1 PESSOA NO MOMENTO DE ABRIR
-    else if (num_pessoas_ini === 1) {
-        selectForma.value = (fpFinal === 'Múltiplas') ? 'Dinheiro' : fpFinal; // Previne erro lógico
-        selectForma.disabled = false;
+    const optDiaria = selectForma.querySelector('option[value="Desconto na Diária"]');
+    if (optDiaria) {
+      optDiaria.hidden = !isFuncionario;
+      optDiaria.disabled = !isFuncionario;
+    }
+
+    if (isFuncionario) {
+      selectForma.value = 'Desconto na Diária';
+      selectForma.disabled = false;
+    } else {
+      // SE VEIO DIVIDIDO DO GARÇOM
+      if (fpFinal === 'Múltiplas' || (pedidoParaFecharAdmin.pagamentos_detalhados && num_pessoas_ini > 1)) {
+          selectForma.value = 'Múltiplas';
+          selectForma.disabled = true; // Trava pois é obrigatório usar o modal
+      } 
+      // SE É APENAS 1 PESSOA NO MOMENTO DE ABRIR
+      else if (num_pessoas_ini === 1) {
+          selectForma.value = (fpFinal === 'Múltiplas') ? 'Dinheiro' : fpFinal; // Previne erro lógico
+          selectForma.disabled = false;
         
         // Remove 'Múltiplas' da tela temporariamente se num_pessoas = 1
         const optMulti = selectForma.querySelector('option[value="Múltiplas"]');
@@ -8863,6 +9011,7 @@ async function aprovarFechamento(idPedido, idMesa, mesaNomeForcado = null, dados
         selectForma.disabled = false;
         const optMulti = selectForma.querySelector('option[value="Múltiplas"]');
         if (optMulti) optMulti.disabled = false;
+    }
     }
   }
   const inputRecebido = document.getElementById('fechamento-recebido-admin');
@@ -9138,11 +9287,54 @@ function recalcularTotalFechamentoAdmin() {
       btnCota.style.display = 'none';
       containerBotoes.style.gridTemplateColumns = '1fr';
     }
-    const txtTrocoTudo = trocoTotal > 0 ? ` | TROCO: R$ ${trocoTotal.toFixed(2)}` : '';
-    if (lblTudo) lblTudo.textContent = `R$ ${saldoRestante.toFixed(2)}${txtTrocoTudo}`;
-    
-    const lblTextoTudo = document.getElementById('lbl-pagar-tudo-texto');
-    if (lblTextoTudo) lblTextoTudo.textContent = isDelivery ? 'FINALIZAR E LIBERAR DELIVERY' : 'FINALIZAR TUDO';
+    const isFuncionario = !!pedidoParaFecharAdmin && (!!pedidoParaFecharAdmin.is_funcionario || (pedidoParaFecharAdmin.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedidoParaFecharAdmin.mesa_numero || ''));
+
+    if (isFuncionario) {
+      const rawDiaria = document.getElementById('fechamento-diaria-funcionario')?.value;
+      const diariaVal = converterMoedaParaFloat(rawDiaria) || 0;
+      const lblDiariaBruta = document.getElementById('lbl-diaria-bruta-valor');
+      if (lblDiariaBruta) lblDiariaBruta.textContent = diariaVal > 0 ? formatarMoedaInput(diariaVal) : '0,00';
+
+      const lblDiariaConsumo = document.getElementById('lbl-diaria-consumo-valor');
+      if (lblDiariaConsumo) lblDiariaConsumo.textContent = `- R$ ${saldoRestante.toFixed(2)}`;
+
+      const saldoLiquidoColaborador = diariaVal - saldoRestante;
+      const lblResultadoTitulo = document.getElementById('lbl-diaria-resultado-titulo');
+      const lblResultadoValor = document.getElementById('lbl-diaria-resultado-valor');
+
+      if (lblResultadoTitulo && lblResultadoValor) {
+        if (saldoLiquidoColaborador >= 0) {
+          lblResultadoTitulo.textContent = '💰 LÍQUIDO A PAGAR AO COLABORADOR:';
+          lblResultadoTitulo.style.color = '#15803d';
+          lblResultadoValor.textContent = `R$ ${saldoLiquidoColaborador.toFixed(2)}`;
+          lblResultadoValor.style.color = '#15803d';
+        } else {
+          lblResultadoTitulo.textContent = '⚠️ SALDO DEVEDOR DO COLABORADOR:';
+          lblResultadoTitulo.style.color = '#dc2626';
+          lblResultadoValor.textContent = `R$ ${Math.abs(saldoLiquidoColaborador).toFixed(2)}`;
+          lblResultadoValor.style.color = '#dc2626';
+        }
+      }
+
+      btnCota.style.display = 'none';
+      containerBotoes.style.gridTemplateColumns = '1fr';
+      if (lblTextoTudo) lblTextoTudo.textContent = 'CONFIRMAR ACERTO & LIBERAR';
+      if (lblTudo) {
+        if (diariaVal > 0) {
+          lblTudo.textContent = saldoLiquidoColaborador >= 0
+            ? `PAGAR R$ ${saldoLiquidoColaborador.toFixed(2)}`
+            : `RECEBER R$ ${Math.abs(saldoLiquidoColaborador).toFixed(2)}`;
+        } else {
+          lblTudo.textContent = `CONSUMO R$ ${saldoRestante.toFixed(2)}`;
+        }
+      }
+    } else {
+      const txtTrocoTudo = trocoTotal > 0 ? ` | TROCO: R$ ${trocoTotal.toFixed(2)}` : '';
+      if (lblTudo) lblTudo.textContent = `R$ ${saldoRestante.toFixed(2)}${txtTrocoTudo}`;
+      
+      const lblTextoTudo = document.getElementById('lbl-pagar-tudo-texto');
+      if (lblTextoTudo) lblTextoTudo.textContent = isDelivery ? 'FINALIZAR E LIBERAR DELIVERY' : 'FINALIZAR TUDO';
+    }
   }
 
   // CONTROLE DINÂMICO DE VISIBILIDADE DO TROCO
@@ -9151,7 +9343,8 @@ function recalcularTotalFechamentoAdmin() {
 
   if (secaoTroco) {
       const estavaEscondido = secaoTroco.style.display === 'none';
-      secaoTroco.style.display = (formaPagamento === 'Dinheiro') ? 'block' : 'none';
+      const isFuncionario = !!pedidoParaFecharAdmin && (!!pedidoParaFecharAdmin.is_funcionario || (pedidoParaFecharAdmin.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedidoParaFecharAdmin.mesa_numero || ''));
+      secaoTroco.style.display = (formaPagamento === 'Dinheiro' && !isFuncionario) ? 'block' : 'none';
       
       // SÓ FOCA se a seção acabou de aparecer (evita perder o foco enquanto digita)
       if (formaPagamento === 'Dinheiro' && estavaEscondido && inputRecebido) {
@@ -9288,6 +9481,16 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
 
   const total = (subtotalLocal + taxaServico + acrescimo - desconto) - pagoParcial;
   const valor_por_pessoa = total / num_pessoas;
+
+  const isFuncionario = !!pedidoParaFecharAdmin && (!!pedidoParaFecharAdmin.is_funcionario || (pedidoParaFecharAdmin.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedidoParaFecharAdmin.mesa_numero || ''));
+  const funcNome = pedidoParaFecharAdmin ? (pedidoParaFecharAdmin.funcionario_nome || String(pedidoParaFecharAdmin.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim() || 'Colaborador') : 'Colaborador';
+  let valorDiaria = 0;
+  let valorLiquidoFuncionario = 0;
+  if (isFuncionario) {
+    const rawDiaria = document.getElementById('fechamento-diaria-funcionario')?.value;
+    valorDiaria = converterMoedaParaFloat(rawDiaria) || 0;
+    valorLiquidoFuncionario = valorDiaria - total;
+  }
   
   // CORREÇÃO DO TROCO: Se for apenas 1 cota, calcula troco sobre a cota. Se for tudo, sobre o total.
   const valorParaTroco = (modo === 'cota') ? valor_por_pessoa : total;
@@ -9325,7 +9528,9 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
       cobrar_taxa: cobrarTaxa,
       pago_parcial: pagoParcial,
       isImpressaoParcialMesa: true,
-      total: (subtotalLocal + taxaServico + acrescimo - desconto)
+      total: (subtotalLocal + taxaServico + acrescimo - desconto),
+      valor_diaria: valorDiaria,
+      valor_liquido_funcionario: valorLiquidoFuncionario
     };
     
     (async () => {
@@ -9465,10 +9670,11 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
         window.isFechamentoImediatoBalcao ||
         isPedidoBalcao(pedidoParaFecharAdmin)
       );
-      const loadingTitle = isDelivery ? "Finalizando Delivery..." : (isBalcao ? "Finalizando Balcão..." : "Finalizando Conta...");
+      const isFuncFechamento = !!pedidoParaFecharAdmin && (!!pedidoParaFecharAdmin.is_funcionario || (pedidoParaFecharAdmin.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedidoParaFecharAdmin.mesa_numero || ''));
+      const loadingTitle = isDelivery ? "Finalizando Delivery..." : (isBalcao ? "Finalizando Balcão..." : (isFuncFechamento ? "Finalizando Acerto de Diária..." : "Finalizando Conta..."));
       const loadingMsg = isDelivery 
         ? "Processando fechamento do delivery e registrando o pagamento, aguarde..." 
-        : (isBalcao ? "Fechando pedido e liberando o balcão, aguarde por favor..." : "Fechando conta e liberando mesa, aguarde por favor...");
+        : (isBalcao ? "Fechando pedido e liberando o balcão, aguarde por favor..." : (isFuncFechamento ? "Registrando acerto de diária do colaborador, aguarde..." : "Fechando conta e liberando mesa, aguarde por favor..."));
       mostrarLoading(loadingTitle, loadingMsg);
       try {
         const resFechamento = await fetch(`/api/pedidos/${idPedido}/solicitar-fechamento`, {
@@ -9502,6 +9708,8 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
         mostrarToast(`✅ DELIVERY #${idPedido} Concluído e Pago!`);
       } else if (isBalcao || window.isFechamentoImediatoBalcao) {
         mostrarToast(`✅ Pedido de Balcão #${idPedido} Concluído e Pago!`);
+      } else if (isFuncFechamento) {
+        mostrarToast(`✅ Acerto de Diária do Colaborador (${funcNome}) Concluído!`);
       } else {
         const localNome = typeof formatarNomeMesaHistorico === 'function' ? formatarNomeMesaHistorico(pedidoParaFecharAdmin) : (pedidoParaFecharAdmin && pedidoParaFecharAdmin.mesa_numero ? `Mesa ${pedidoParaFecharAdmin.mesa_numero}` : `Mesa`);
         mostrarToast(`✅ ${localNome} Finalizada e Liberada!`);
@@ -9522,7 +9730,9 @@ async function confirmarPagamentoAdmin(modo = 'tudo') {
         troco: troco,
         isFechamentoFinal: true,
         novosPagamentosCount: novosPagamentosCount,
-        pagamentos_detalhados_lista: formasPagamentoPessoas
+        pagamentos_detalhados_lista: formasPagamentoPessoas,
+        valor_diaria: valorDiaria,
+        valor_liquido_funcionario: valorLiquidoFuncionario
       };
       
       // NOVA PREVIA DE IMPRESSÃO DO CUPOM FINAL
@@ -11091,6 +11301,116 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false, forcarNavegador 
   } catch (e) { console.error("Erro ao buscar pagamentos:", e); }
 
   const subtotal = itensFiltrados.reduce((sum, i) => sum + (i.preco * i.quantidade), 0);
+
+  const isFuncionario = !!pedido.is_funcionario || (pedido.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedido.mesa_numero || '');
+  const funcNome = pedido.funcionario_nome || String(pedido.mesa_numero || '').replace(/^(comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o|func|staff|f-)\s*/i, '').trim() || 'Colaborador';
+
+  if (isFuncionario) {
+    const acrescimo = pedido.acrescimo || 0;
+    const desconto = pedido.desconto || 0;
+    const diariaVal = (pedido.valor_diaria !== undefined && pedido.valor_diaria !== null) ? parseFloat(pedido.valor_diaria) : 0;
+    const totalConsumo = subtotal + acrescimo - desconto;
+    const liquidoVal = diariaVal > 0 ? (diariaVal - totalConsumo) : 0;
+    const isSaldoPositivo = liquidoVal >= 0;
+
+    const htmlStaff = `
+      <div class="cupom-header" style="text-align: center; border-bottom: 2px dashed #000; padding-bottom: 8px; margin-bottom: 10px;">
+        <h2 style="margin:0; font-size: 14pt; font-weight: 900;">GuGA Bebidas</h2>
+        <div style="margin: 4px auto; font-size: 9pt; font-weight: 800; background: #000; color: #fff; padding: 2px 6px; display: inline-block; border-radius: 2px;">
+          *** ACERTO DE DIARIA (STAFF) ***
+        </div>
+        <p style="margin: 4px 0 2px 0; font-weight: 900; font-size: 12pt;">COLABORADOR: ${funcNome}</p>
+        <p style="margin: 2px 0; font-size: 8.5pt;"><strong>DATA:</strong> ${new Date().toLocaleString('pt-BR')}</p>
+        <p style="margin: 2px 0; font-size: 8.5pt;"><strong>COMANDA:</strong> #${pedido.id}</p>
+      </div>
+
+      <div style="font-size: 9.5pt; margin-bottom: 10px;">
+        <div style="font-weight: 900; border-bottom: 1px solid #000; padding-bottom: 2px; margin-bottom: 5px; font-size: 9pt;">
+          ITENS CONSUMIDOS NO TURNO:
+        </div>
+        ${itensFiltrados.map(i => `
+          <div style="display:flex; justify-content:space-between; margin-bottom: 3px; align-items: flex-start;">
+            <span style="flex:1; text-align: left; padding-right: 5px;">
+              <strong style="margin-right: 5px;">${i.quantidade}x</strong>${i.nome}
+            </span>
+            <span style="font-weight:bold; flex-shrink: 0;">R$ ${(i.preco * i.quantidade).toFixed(2)}</span>
+          </div>
+          ${i.observacao ? `<div style="font-size:8pt; margin-bottom:4px; margin-left: 12px; font-style: italic;">* ${i.observacao}</div>` : ''}
+        `).join('')}
+      </div>
+
+      <div class="cupom-footer" style="font-size: 9.5pt; border-top: 2px dashed #000; padding-top: 6px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom: 3px;">
+          <span>TOTAL DO CONSUMO:</span>
+          <span style="font-weight:bold;">R$ ${totalConsumo.toFixed(2)}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom: 3px; color: #27ae60; font-weight:bold;">
+          <span>TAXA DE SERVIÇO:</span>
+          <span>ISENTA (0%)</span>
+        </div>
+        ${acrescimo > 0 ? `<div style="display:flex; justify-content:space-between;"><span>ACRÉSCIMO:</span><span>R$ ${acrescimo.toFixed(2)}</span></div>` : ''}
+        ${desconto > 0 ? `<div style="display:flex; justify-content:space-between;"><span>DESCONTO:</span><span>- R$ ${desconto.toFixed(2)}</span></div>` : ''}
+
+        <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
+
+        ${diariaVal > 0 ? `
+          <div style="display:flex; justify-content:space-between; font-weight:bold; margin-bottom: 3px;">
+            <span>(+) DIÁRIA BRUTA:</span>
+            <span>R$ ${diariaVal.toFixed(2)}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-weight:bold; margin-bottom: 4px; color: #c0392b;">
+            <span>(-) DESCONTO CONSUMO:</span>
+            <span>- R$ ${totalConsumo.toFixed(2)}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-weight: 900; margin-top: 6px; font-size: 12pt; border: 2px solid #000; padding: 5px 6px; background: #fff;">
+            <span>${isSaldoPositivo ? 'LÍQUIDO A PAGAR:' : 'SALDO DEVEDOR:'}</span>
+            <span>R$ ${Math.abs(liquidoVal).toFixed(2)}</span>
+          </div>
+        ` : `
+          <div style="display:flex; justify-content:space-between; font-weight: 900; margin-top: 6px; font-size: 12pt; border: 2px solid #000; padding: 5px 6px; background: #fff;">
+            <span>TOTAL DESCONTADO:</span>
+            <span>R$ ${totalConsumo.toFixed(2)}</span>
+          </div>
+        `}
+
+        <div style="margin-top: 6px; font-size: 8.5pt;">
+          <span>FORMA DE LIQUIDAÇÃO:</span>
+          <strong>DESCONTO NA DIÁRIA</strong>
+        </div>
+
+        <!-- Campo de Assinatura do Colaborador -->
+        <div style="margin-top: 30px; text-align: center;">
+          <div style="border-top: 1px solid #000; width: 85%; margin: 0 auto 5px auto;"></div>
+          <div style="font-size: 8.5pt; font-weight: bold; text-transform: uppercase;">
+            ${funcNome}
+          </div>
+          <div style="font-size: 7.5pt; color: #444;">
+            Assinatura do Colaborador
+          </div>
+        </div>
+      </div>
+
+      <div class="cupom-central" style="text-align: center; margin-top: 18px;">
+        <p style="margin: 3px 0; font-weight: bold; font-size: 8.5pt;">COMPROVANTE DE ACERTO DE TURNO</p>
+        <p style="margin: 2px 0; font-size: 7.5pt;">GuGA Bebidas - Gestão Interna</p>
+      </div>
+    `;
+
+    if (isOnlyHtml) {
+      window.dadosPreviaCupomAtual = { pedido, itens, html: htmlStaff, isRelatorio: false };
+      atualizarStatusElginUI();
+      return htmlStaff;
+    }
+
+    if (!forcarNavegador && elginSerialPort && (elginSerialPort.writable || elginSerialPort.readable)) {
+      await imprimirDiretoElgin(pedido, itens);
+      return;
+    }
+
+    container.innerHTML = htmlStaff;
+    setTimeout(() => { window.print(); }, 250);
+    return;
+  }
   
   // Verifica se a taxa está ativa para este pedido (Prioridade para o que está no Banco)
   let cobrarTaxaNoCupom = true;

@@ -2146,32 +2146,67 @@
 
             <!-- Divisão e Pagamento -->
             <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                  <div style="font-size: 0.8rem; font-weight: bold; color: #475569;">DIVIDIR POR:</div>
-                  <div style="display: flex; align-items: center; background: white; border: 1px solid #cbd5e0; border-radius: 8px; overflow: hidden;">
-                    <button onclick="mudarPessoasFechamento(-1)" style="padding: 5px 10px; border: none; background: #f1f5f9; cursor: pointer; font-weight: bold; color: black;">-</button>
-                    <input type="number" id="fechamento-divisao-pessoas" value="1" readonly style="width: 35px; text-align: center; border: none; font-weight: 800; background: white; pointer-events: none;">
-                    <button onclick="mudarPessoasFechamento(1)" style="padding: 5px 10px; border: none; background: #f1f5f9; cursor: pointer; font-weight: bold; color: black;">+</button>
+
+              <!-- Seção Exclusiva: Acerto de Diária de Funcionário -->
+              <div id="container-acerto-diaria-funcionario" style="display: none; background: #faf5ff; border: 2px solid #8e44ad; border-radius: 12px; padding: 15px; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1.5px dashed #d8b4fe; padding-bottom: 8px;">
+                  <span style="font-size: 0.85rem; font-weight: 800; color: #6b21a8; text-transform: uppercase;">💼 ACERTO DE DIÁRIA (STAFF)</span>
+                  <span style="font-size: 0.75rem; background: #8e44ad; color: white; padding: 2px 8px; border-radius: 12px; font-weight: bold;">COLABORADOR</span>
+                </div>
+                
+                <div style="margin-bottom: 12px;">
+                  <label style="display: block; font-size: 0.8rem; font-weight: bold; color: #4b5563; margin-bottom: 4px;">VALOR DA DIÁRIA COMBINADA (R$):</label>
+                  <div style="position: relative;">
+                    <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-weight: 800; color: #8e44ad; font-size: 1rem;">R$</span>
+                    <input type="text" inputmode="numeric" id="fechamento-diaria-funcionario" placeholder="0,00" oninput="formatarMoedaInputEvent(this, recalcularTotalFechamentoAdmin)" style="width: 100%; box-sizing: border-box; padding: 10px 10px 10px 38px; border: 2px solid #8e44ad; border-radius: 8px; font-weight: 900; font-size: 1.2rem; color: #6b21a8; background: #ffffff;">
                   </div>
                 </div>
-                <div style="text-align: right;">
-                  <small style="display:block; font-size: 0.65rem; color: #64748b; font-weight: bold;">VALOR POR PESSOA:</small>
-                  <strong style="font-size: 1.1rem; color: #2c3e50;">R$ <span id="fechamento-valor-pessoa-admin">0.00</span></strong>
+
+                <div style="background: #ffffff; border: 1px solid #e9d5ff; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem;">
+                  <div style="display: flex; justify-content: space-between; color: #4b5563;">
+                    <span>(+) Diária Bruta:</span>
+                    <strong style="color: #6b21a8;">R$ <span id="lbl-diaria-bruta-valor">0,00</span></strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; color: #e11d48;">
+                    <span>(-) Consumo Total do Turno:</span>
+                    <strong id="lbl-diaria-consumo-valor">- R$ 0,00</strong>
+                  </div>
+                  <div style="border-top: 1.5px dashed #d8b4fe; margin-top: 4px; padding-top: 6px; display: flex; justify-content: space-between; align-items: center;">
+                    <span id="lbl-diaria-resultado-titulo" style="font-weight: 800; color: #15803d; font-size: 0.85rem;">💰 LÍQUIDO A PAGAR AO COLABORADOR:</span>
+                    <span id="lbl-diaria-resultado-valor" style="font-weight: 900; font-size: 1.25rem; color: #15803d;">R$ 0,00</span>
+                  </div>
                 </div>
               </div>
 
-              <!-- Novo Visual de Divisão de Assentos -->
-              <div id="fechamento-container-divisao" style="margin-bottom: 15px; background: #fff; padding: 12px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                  <span id="txt-progresso-divisao" style="font-size: 0.75rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Pagamento: 0 de 1 pessoas</span>
-                  <span id="perc-progresso-divisao" style="font-size: 0.75rem; font-weight: 900; color: #27ae60;">0%</span>
+              <!-- Container Divisão Convencional Clientes (Mesa/Balcão) -->
+              <div id="fechamento-bloco-divisao-clientes">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="font-size: 0.8rem; font-weight: bold; color: #475569;">DIVIDIR POR:</div>
+                    <div style="display: flex; align-items: center; background: white; border: 1px solid #cbd5e0; border-radius: 8px; overflow: hidden;">
+                      <button onclick="mudarPessoasFechamento(-1)" style="padding: 5px 10px; border: none; background: #f1f5f9; cursor: pointer; font-weight: bold; color: black;">-</button>
+                      <input type="number" id="fechamento-divisao-pessoas" value="1" readonly style="width: 35px; text-align: center; border: none; font-weight: 800; background: white; pointer-events: none;">
+                      <button onclick="mudarPessoasFechamento(1)" style="padding: 5px 10px; border: none; background: #f1f5f9; cursor: pointer; font-weight: bold; color: black;">+</button>
+                    </div>
+                  </div>
+                  <div style="text-align: right;">
+                    <small style="display:block; font-size: 0.65rem; color: #64748b; font-weight: bold;">VALOR POR PESSOA:</small>
+                    <strong style="font-size: 1.1rem; color: #2c3e50;">R$ <span id="fechamento-valor-pessoa-admin">0.00</span></strong>
+                  </div>
                 </div>
-                <div style="width: 100%; height: 6px; background: #e2e8f0; border-radius: 3px; margin-bottom: 15px; overflow: hidden;">
-                  <div id="barra-progresso-divisao" style="width: 0%; height: 100%; background: #27ae60; transition: 0.5s width ease-in-out;"></div>
-                </div>
-                <div id="fechamento-grid-assentos" style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; min-height: 60px;">
-                  <!-- Assentos gerados via JS -->
+
+                <!-- Novo Visual de Divisão de Assentos -->
+                <div id="fechamento-container-divisao" style="margin-bottom: 15px; background: #fff; padding: 12px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <span id="txt-progresso-divisao" style="font-size: 0.75rem; font-weight: 800; color: #64748b; text-transform: uppercase;">Pagamento: 0 de 1 pessoas</span>
+                    <span id="perc-progresso-divisao" style="font-size: 0.75rem; font-weight: 900; color: #27ae60;">0%</span>
+                  </div>
+                  <div style="width: 100%; height: 6px; background: #e2e8f0; border-radius: 3px; margin-bottom: 15px; overflow: hidden;">
+                    <div id="barra-progresso-divisao" style="width: 0%; height: 100%; background: #27ae60; transition: 0.5s width ease-in-out;"></div>
+                  </div>
+                  <div id="fechamento-grid-assentos" style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; min-height: 60px;">
+                    <!-- Assentos gerados via JS -->
+                  </div>
                 </div>
               </div>
 
@@ -2183,6 +2218,7 @@
                     <option value="Pix">📱 Pix</option>
                     <option value="Cartão de Crédito">💳 Cartão de Crédito</option>
                     <option value="Cartão de Débito">💳 Cartão de Débito</option>
+                    <option value="Desconto na Diária">💼 Desconto na Diária</option>
                     <option value="Múltiplas">👥 Múltiplas / Dividido</option>
                   </select>
                 </div>
