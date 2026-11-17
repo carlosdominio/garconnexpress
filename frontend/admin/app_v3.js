@@ -7459,15 +7459,12 @@ async function exibirPedidos() {
                   `<button style="background:#e67e22; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #d35400; border:none; color:white; cursor:pointer;" onclick="confirmarEntregaDelivery(${pedido.id})">${isRetirada ? '✅ CONFIRMAR RETIRADA' : '✅ CONFIRMAR ENTREGA'}</button>`
                 )
               ) :
-              (isAguardando ? 
-                (isFuncionario ?
-                  `<button style="background:#8e44ad; color:white; font-weight: 900; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #6c3483; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💰 CONFIRMAR E LIBERAR FUNCIONÁRIO</button>` :
-                  `<button style="background:#f1c40f; color:white; font-weight: 900; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #d68910; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">${isBalcao ? '💰 CONFIRMAR PAGAMENTO E FINALIZAR' : '💰 CONFIRMAR PAGAMENTO E LIBERAR'}</button>`
-                ) : 
-                (hasPend ? 
-                  `<button style="background:${pedido.garcom_id === 'ADMIN' ? '#e74c3c' : '#e67e22'}; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 ${pedido.garcom_id === 'ADMIN' ? '#c0392b' : '#d35400'}; border:none; color:white; cursor:pointer;" onclick="marcarPedidoEntregue(${pedido.id})">🚚 ENTREGAR TUDO AGORA</button>` :
-                  (isFuncionario ?
-                    `<button style="background:#8e44ad; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #6c3483; border:none; color:white; cursor:pointer;" onclick="liberarMesa(${pedido.id}, ${pedido.mesa_id}, false)">🔓 LIBERAR FUNCIONÁRIO</button>` :
+              (isFuncionario ?
+                `<button style="background:#8e44ad; color:white; font-weight: 900; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #6c3483; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">💼 FECHAR / ACERTAR DIÁRIA</button>` :
+                (isAguardando ? 
+                  `<button style="background:#f1c40f; color:white; font-weight: 900; font-size:1.1rem; border:none; padding: 1.2rem; width: 100%; border-radius:12px; box-shadow:0 5px 0 #d68910; cursor:pointer;" onclick="aprovarFechamento(${pedido.id}, ${pedido.mesa_id})">${isBalcao ? '💰 CONFIRMAR PAGAMENTO E FINALIZAR' : '💰 CONFIRMAR PAGAMENTO E LIBERAR'}</button>` : 
+                  (hasPend ? 
+                    `<button style="background:${pedido.garcom_id === 'ADMIN' ? '#e74c3c' : '#e67e22'}; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 ${pedido.garcom_id === 'ADMIN' ? '#c0392b' : '#d35400'}; border:none; color:white; cursor:pointer;" onclick="marcarPedidoEntregue(${pedido.id})">🚚 ENTREGAR TUDO AGORA</button>` :
                     `<button style="background:#27ae60; width: 100%; padding:12px; font-weight:bold; border-radius:10px; box-shadow:0 4px 0 #219150; border:none; color:white; cursor:pointer;" onclick="liberarMesa(${pedido.id}, ${pedido.mesa_id}, false)">${isBalcao ? '🔓 LIBERAR BALCÃO' : '🔓 LIBERAR MESA'}</button>`
                   )
                 )
@@ -12340,17 +12337,30 @@ async function abrirModalOpcoes(pedidoId) {
 
   // 5. FOOTER DE AÇÕES (ENTREGAR / LIBERAR / FECHAR)
   let htmlFooter = '';
-  if (isAguardando) {
+  if (isFuncionario) {
+    if (hasPend) {
+      htmlFooter = `
+        <div style="display:flex; flex-direction:column; gap:8px; width:100%;">
+          <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#8e44ad; color:white; border:none; padding: 1.1rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #6c3483; cursor:pointer;">
+            💼 FECHAR / ACERTAR DIÁRIA
+          </button>
+          <button onclick="fecharModalOpcoes(); marcarPedidoEntregue(${pedidoId})" style="background:#4a5568; color:white; border:none; padding: 0.75rem; width: 100%; font-weight: bold; border-radius:10px; font-size: 0.95rem; cursor:pointer;">
+            🚚 ENTREGAR TUDO AGORA
+          </button>
+        </div>
+      `;
+    } else {
+      htmlFooter = `
+        <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#8e44ad; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #6c3483; cursor:pointer;">
+          💼 FECHAR / ACERTAR DIÁRIA
+        </button>
+      `;
+    }
+  } else if (isAguardando) {
     if (isDelivery) {
       htmlFooter = `
         <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#f1c40f; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #d68910; cursor:pointer;">
           ${isRetirada ? '💰 FINALIZAR RETIRADA' : '💰 FINALIZAR DELIVERY'}
-        </button>
-      `;
-    } else if (isFuncionario) {
-      htmlFooter = `
-        <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#8e44ad; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #6c3483; cursor:pointer;">
-          💰 CONFIRMAR E LIBERAR FUNCIONÁRIO
         </button>
       `;
     } else {
@@ -12380,12 +12390,6 @@ async function abrirModalOpcoes(pedidoId) {
         htmlFooter = `
           <button onclick="fecharModalOpcoes(); confirmarEntregaDelivery(${pedidoId})" style="background:#e67e22; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #d35400; cursor:pointer;">
             ${isRetirada ? '✅ CONFIRMAR RETIRADA' : '✅ CONFIRMAR ENTREGA'}
-          </button>
-        `;
-      } else if (isFuncionario) {
-        htmlFooter = `
-          <button onclick="fecharModalOpcoes(); aprovarFechamento(${pedidoId}, ${mesaId})" style="background:#8e44ad; color:white; border:none; padding: 1.2rem; width: 100%; border-radius:12px; font-weight: 900; font-size: 1.1rem; box-shadow:0 5px 0 #6c3483; cursor:pointer;">
-            🔓 LIBERAR FUNCIONÁRIO
           </button>
         `;
       } else {
