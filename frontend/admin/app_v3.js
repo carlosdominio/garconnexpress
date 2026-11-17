@@ -1377,7 +1377,7 @@ function gerarBytesEscPosPedido(pedido, itens) {
     str += '\x1D\x21\x01'; // Dobro de altura
     str += 'GUGA BEBIDAS\n';
     str += '\x1D\x21\x00'; // Normal
-    str += (isCancelado ? '*** PEDIDO FUNCIONARIO CANCELADO ***\n' : '*** ACERTO DE DIARIA (STAFF) ***\n');
+    str += (isCancelado ? 'PEDIDO FUNCIONARIO CANCELADO\n' : '*** ACERTO DE DIARIA (STAFF) ***\n');
     str += '\x1B\x45\x00'; // Negrito OFF
     str += divisor + '\n';
 
@@ -1457,7 +1457,7 @@ function gerarBytesEscPosPedido(pedido, itens) {
     }
 
     str += '\x1B\x61\x01'; // Centralizado
-    str += (isCancelado ? '*** PEDIDO FUNCIONARIO CANCELADO ***\n' : 'COMPROVANTE DE ACERTO DE TURNO\n');
+    str += (isCancelado ? 'PEDIDO FUNCIONARIO CANCELADO\n' : 'COMPROVANTE DE ACERTO DE TURNO\n');
     str += 'GuGA Bebidas - Gestao Interna\n';
     str += '\n\n\n\n';
 
@@ -11586,7 +11586,7 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false, forcarNavegador 
       <div class="cupom-header" style="text-align: center; border-bottom: 2px dashed #000; padding-bottom: 8px; margin-bottom: 10px;">
         <h2 style="margin:0; font-size: 14pt; font-weight: 900;">GuGA Bebidas</h2>
         <div style="margin: 4px auto; font-size: 9pt; font-weight: 800; background: ${isCancelado ? '#c0392b' : '#000'}; color: #fff; padding: 3px 8px; display: inline-block; border-radius: 3px; letter-spacing: 0.5px;">
-          ${isCancelado ? '*** PEDIDO FUNCIONARIO CANCELADO ***' : '*** ACERTO DE DIARIA (STAFF) ***'}
+          ${isCancelado ? 'PEDIDO FUNCIONÁRIO CANCELADO' : '*** ACERTO DE DIARIA (STAFF) ***'}
         </div>
         <p style="margin: 4px 0 2px 0; font-weight: 900; font-size: 12pt;">FUNCIONÁRIO: ${funcNome}</p>
         <p style="margin: 2px 0; font-size: 8.5pt;"><strong>DATA:</strong> ${new Date().toLocaleString('pt-BR')}</p>
@@ -11671,7 +11671,7 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false, forcarNavegador 
       </div>
 
       <div class="cupom-central" style="text-align: center; margin-top: 18px;">
-        <p style="margin: 3px 0; font-weight: bold; font-size: 8.5pt;">${isCancelado ? '*** PEDIDO FUNCIONARIO CANCELADO ***' : 'COMPROVANTE DE ACERTO DE TURNO'}</p>
+        <p style="margin: 3px 0; font-weight: bold; font-size: 8.5pt;">${isCancelado ? 'PEDIDO FUNCIONÁRIO CANCELADO' : 'COMPROVANTE DE ACERTO DE TURNO'}</p>
         <p style="margin: 2px 0; font-size: 7.5pt;">GuGA Bebidas - Gestão Interna</p>
       </div>
     `;
@@ -11921,7 +11921,7 @@ async function imprimirCupom(pedido, itens, isOnlyHtml = false, forcarNavegador 
     <div class="cupom-header" style="text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px;">
       <h2 style="margin:0; font-size: 14pt; font-weight: 900;">GuGA Bebidas</h2>
       <p style="margin:2px 0; font-size: 10pt; font-weight: 700;">
-        ${pedido.status === 'cancelado' ? (isFuncionario ? '*** PEDIDO FUNCIONARIO CANCELADO ***' : '*** PEDIDO CANCELADO ***') : (isConferencia ? '*** CONTA PARCIAL ***' : 'Comprovante de Pedido')}
+        ${pedido.status === 'cancelado' ? (isFuncionario ? 'PEDIDO FUNCIONÁRIO CANCELADO' : '*** PEDIDO CANCELADO ***') : (isConferencia ? '*** CONTA PARCIAL ***' : 'Comprovante de Pedido')}
       </p>
       <p style="margin:2px 0; font-weight: 900; font-size: 12pt;">${nomeExibicaoCupom}</p>
       <p style="margin:2px 0; font-size: 9pt;"><strong>ABERTURA:</strong> ${formatarData(pedido.created_at)}</p>
