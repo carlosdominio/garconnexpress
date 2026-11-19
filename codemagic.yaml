@@ -115,12 +115,22 @@ workflows:
             -scheme App \
             -configuration Release \
             -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build \
+            -derivedDataPath build-sim \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY=""
           
-          cd build/Build/Products/Release-iphonesimulator
-          zip -r -X "$CM_BUILD_DIR/garcom-app-nativo/GarcomExpress-Simulator.zip" App.app
+          SIM_APP=$(find build-sim/Build/Products -name "*.app" -type d | head -n 1)
+          echo "Simulator App encontrado em: $SIM_APP"
+          if [ -n "$SIM_APP" ]; then
+            cd "$(dirname "$SIM_APP")"
+            zip -r -X "$CM_BUILD_DIR/GarcomExpress-Simulator.zip" "$(basename "$SIM_APP")"
+            mkdir -p "$CM_BUILD_DIR/garcom-app-nativo"
+            cp "$CM_BUILD_DIR/GarcomExpress-Simulator.zip" "$CM_BUILD_DIR/garcom-app-nativo/GarcomExpress-Simulator.zip"
+            echo "Artifact GarcomExpress-Simulator.zip gerado com sucesso!"
+          else
+            echo "ERRO: Simulator App não encontrado!"
+            exit 1
+          fi
       - name: Build iOS IPA (Unsigned)
         script: |
           cd ios/App
@@ -128,18 +138,26 @@ workflows:
             -scheme App \
             -configuration Release \
             -destination 'generic/platform=iOS' \
-            -derivedDataPath build \
+            -derivedDataPath build-dev \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" || true
           
-          if [ -d "build/Build/Products/Release-iphoneos/App.app" ]; then
-            cd build/Build/Products/Release-iphoneos
+          DEV_APP=$(find build-dev/Build/Products -name "*.app" -type d | head -n 1)
+          echo "Device App encontrado em: $DEV_APP"
+          if [ -n "$DEV_APP" ]; then
+            cd "$CM_BUILD_DIR/garcom-app-nativo/ios/App"
+            rm -rf Payload
             mkdir -p Payload
-            cp -r App.app Payload/
-            zip -r "$CM_BUILD_DIR/garcom-app-nativo/GarcomExpress-Unsigned.ipa" Payload
+            cp -r "$DEV_APP" Payload/
+            zip -r "$CM_BUILD_DIR/GarcomExpress-Unsigned.ipa" Payload
+            cp "$CM_BUILD_DIR/GarcomExpress-Unsigned.ipa" "$CM_BUILD_DIR/garcom-app-nativo/GarcomExpress-Unsigned.ipa"
+            echo "Artifact GarcomExpress-Unsigned.ipa gerado com sucesso!"
           fi
     artifacts:
-      - garcom-app-nativo/GarcomExpress-Simulator.zip
-      - garcom-app-nativo/GarcomExpress-Unsigned.ipa
-      - garcom-app-nativo/ios/App/build/Build/Products/Release-iphonesimulator/*.app
+      - "**/GarcomExpress*.zip"
+      - "**/GarcomExpress*.ipa"
+      - "GarcomExpress*.zip"
+      - "GarcomExpress*.ipa"
+      - "garcom-app-nativo/GarcomExpress*.zip"
+      - "garcom-app-nativo/GarcomExpress*.ipa"
