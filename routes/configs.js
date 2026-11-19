@@ -53,8 +53,17 @@ module.exports = (ctx) => {
   }
 
   // GET /api/versao (Público - Verificação de versão do frontend/app)
-  router.get('/versao', (req, res) => {
-    res.json({ versao: '1.3.1' });
+  router.get('/versao', ensureDbInitialized, async (req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    try {
+      const row = (await query("SELECT valor FROM sistema_config WHERE chave = 'config_web_version'")).rows[0];
+      const versao = (row && row.valor && row.valor !== '1.0.0' && row.valor !== '1.3.1') ? row.valor : '4.0.0';
+      res.json({ versao });
+    } catch (e) {
+      res.json({ versao: '4.0.0' });
+    }
   });
 
   // GET /api/time (Público)

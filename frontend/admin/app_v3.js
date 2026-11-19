@@ -744,16 +744,16 @@ document.addEventListener('keydown', (e) => {
   realizarLoginAdmin();
 });
 let intervalPiscaTitulo = null;
-let versaoWebAtualAdmin = (localStorage.getItem('versao_web_admin') && localStorage.getItem('versao_web_admin') !== '1.3.1' && localStorage.getItem('versao_web_admin') !== '1.0.0') ? localStorage.getItem('versao_web_admin') : '4.0.0';
+let versaoWebAtualAdmin = (localStorage.getItem('versao_web_admin') && localStorage.getItem('versao_web_admin') !== '1.3.1' && localStorage.getItem('versao_web_admin') !== '1.0.0' && localStorage.getItem('versao_web_admin') !== '5.0.5') ? localStorage.getItem('versao_web_admin') : '4.0.0';
 const NOME_APP_ADMIN = "Guga-Bebidas — Painel Administrativo";
 const tituloOriginal = NOME_APP_ADMIN;
 
 function obterVersaoWebAtual() {
   const inWeb = document.getElementById('config-web-version');
-  const vInput = (inWeb && inWeb.value && inWeb.value.trim() && inWeb.value.trim() !== '1.0.0' && inWeb.value.trim() !== '1.3.1') ? inWeb.value.trim() : '';
+  const vInput = (inWeb && inWeb.value && inWeb.value.trim() && inWeb.value.trim() !== '1.0.0' && inWeb.value.trim() !== '1.3.1' && inWeb.value.trim() !== '5.0.5') ? inWeb.value.trim() : '';
   const vStorage = localStorage.getItem('versao_web_admin');
-  const vStorageValida = (vStorage && vStorage !== '1.0.0' && vStorage !== '1.3.1') ? vStorage : '';
-  const vAdminValida = (versaoWebAtualAdmin && versaoWebAtualAdmin !== '1.0.0' && versaoWebAtualAdmin !== '1.3.1') ? versaoWebAtualAdmin : '';
+  const vStorageValida = (vStorage && vStorage !== '1.0.0' && vStorage !== '1.3.1' && vStorage !== '5.0.5') ? vStorage : '';
+  const vAdminValida = (versaoWebAtualAdmin && versaoWebAtualAdmin !== '1.0.0' && versaoWebAtualAdmin !== '1.3.1' && versaoWebAtualAdmin !== '5.0.5') ? versaoWebAtualAdmin : '';
   return vInput || vAdminValida || vStorageValida || '4.0.0';
 }
 

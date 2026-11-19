@@ -3084,6 +3084,8 @@ async function initDb() {
 
     await query("INSERT INTO sistema_config (chave, valor) SELECT 'whatsapp_enabled', 'true' WHERE NOT EXISTS (SELECT 1 FROM sistema_config WHERE chave = 'whatsapp_enabled')");
     await query("INSERT INTO sistema_config (chave, valor) SELECT 'delivery_aberto', 'true' WHERE NOT EXISTS (SELECT 1 FROM sistema_config WHERE chave = 'delivery_aberto')");
+    await query("INSERT INTO sistema_config (chave, valor) SELECT 'config_web_version', '4.0.0' WHERE NOT EXISTS (SELECT 1 FROM sistema_config WHERE chave = 'config_web_version')");
+    await query("UPDATE sistema_config SET valor = '4.0.0' WHERE chave = 'config_web_version' AND (valor = '5.0.5' OR valor = '1.0.0' OR valor = '1.3.1')");
     
     // Migração da coluna notificado_atraso de forma segura
     try {
