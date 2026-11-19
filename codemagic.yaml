@@ -114,9 +114,10 @@ workflows:
           xcodebuild -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
-            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY=""
           
           cd build/Build/Products/Release-iphonesimulator
           zip -r -X "$CM_BUILD_DIR/garcom-app-nativo/GarcomExpress-Simulator.zip" App.app
@@ -126,7 +127,7 @@ workflows:
           xcodebuild -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
-            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
