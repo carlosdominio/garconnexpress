@@ -234,17 +234,19 @@ module.exports = (ctx) => {
       }
       const rawWeb = configMap['config_web_version'];
       const web_version = (rawWeb && rawWeb !== '1.0.0' && rawWeb !== '1.3.1' && rawWeb !== '5.0.5') ? rawWeb : '4.0.0';
+      const ua = req.headers['user-agent'] || '';
+      const isIos = /iPhone|iPad|iPod|iOS/i.test(ua);
       res.json({
         success: true,
         web_version,
-        garcom_apk_version: configMap['config_garcom_apk_version'] || '2.0.0',
-        garcom_apk_url: configMap['config_garcom_apk_url'] || '/garcom-v1.1.0-portrait.apk',
-        cozinha_apk_version: configMap['config_cozinha_apk_version'] || '2.0.0',
-        cozinha_apk_url: configMap['config_cozinha_apk_url'] || '/cozinha-v1.1.0-portrait.apk',
-        motoboy_apk_version: configMap['config_motoboy_apk_version'] || '2.0.0',
-        motoboy_apk_url: configMap['config_motoboy_apk_url'] || '/motoboy-v2.0.0-portrait.apk',
-        churrasqueiro_apk_version: configMap['config_churrasqueiro_apk_version'] || '1.0.0',
-        churrasqueiro_apk_url: configMap['config_churrasqueiro_apk_url'] || '/churrasqueiro-v1.0.0-portrait.apk'
+        garcom_apk_version: isIos ? null : (configMap['config_garcom_apk_version'] || '2.0.0'),
+        garcom_apk_url: isIos ? null : (configMap['config_garcom_apk_url'] || '/garcom-v1.1.0-portrait.apk'),
+        cozinha_apk_version: isIos ? null : (configMap['config_cozinha_apk_version'] || '2.0.0'),
+        cozinha_apk_url: isIos ? null : (configMap['config_cozinha_apk_url'] || '/cozinha-v1.1.0-portrait.apk'),
+        motoboy_apk_version: isIos ? null : (configMap['config_motoboy_apk_version'] || '2.0.0'),
+        motoboy_apk_url: isIos ? null : (configMap['config_motoboy_apk_url'] || '/motoboy-v2.0.0-portrait.apk'),
+        churrasqueiro_apk_version: isIos ? null : (configMap['config_churrasqueiro_apk_version'] || '1.0.0'),
+        churrasqueiro_apk_url: isIos ? null : (configMap['config_churrasqueiro_apk_url'] || '/churrasqueiro-v1.0.0-portrait.apk')
       });
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
