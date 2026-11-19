@@ -80,8 +80,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   verificarVersaoSistema();
   setInterval(verificarVersaoSistema, 5 * 60 * 1000);
 
-  // Verifica atualização do APK nativo
-  if (isNativeApp) {
+  // Verifica atualização do APK nativo (Apenas no Android)
+  const isAndroidDevice = (window.Capacitor && typeof window.Capacitor.getPlatform === 'function' && window.Capacitor.getPlatform() === 'android') ||
+                          /Android/i.test(navigator.userAgent);
+  if (isNativeApp && isAndroidDevice) {
     verificarAtualizacaoApk('garcom');
   }
 });
@@ -123,6 +125,14 @@ function ocultarTelaCarregamentoSistema() {
 }
 
 async function verificarAtualizacaoApk(appTipo, isFromPusher = false) {
+  // APK é exclusivo para Android! No iOS ou navegadores web comuns, nunca verifica nem baixa APK.
+  const isAndroid = (window.Capacitor && typeof window.Capacitor.getPlatform === 'function' && window.Capacitor.getPlatform() === 'android') ||
+                    /Android/i.test(navigator.userAgent);
+  if (!isAndroid) {
+    console.log('[APK Update] Dispositivo não é Android. Ignorando atualização de APK.');
+    return;
+  }
+
   const ua = navigator.userAgent;
   let currentVersion = null;
   let userAgentKey = '';
@@ -1873,7 +1883,9 @@ async function configurarPusher() {
       if (data && data.web_version) {
         localStorage.setItem('versao_web_garcom', String(data.web_version));
       }
-      if (isNativeApp) {
+      const isAndroid = (window.Capacitor && typeof window.Capacitor.getPlatform === 'function' && window.Capacitor.getPlatform() === 'android') ||
+                        /Android/i.test(navigator.userAgent);
+      if (isNativeApp && isAndroid) {
         verificarAtualizacaoApk('garcom', true);
       } else {
         exibirTelaCarregamentoSistema('⚡ Atualizando GarçomExpress', 'O administrador aplicou novas configurações. Atualizando sistema...');
