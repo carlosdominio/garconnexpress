@@ -3381,6 +3381,10 @@ async function lazyInitDb() {
           } catch(e) {
             console.error("Erro ao rodar migracao churrasco no Postgres lazy loading:", e.message);
           }
+
+          try {
+            await db.query("UPDATE sistema_config SET valor = '4.0.0' WHERE chave = 'config_web_version' AND (valor = '5.0.5' OR valor = '1.0.0' OR valor = '1.3.1')");
+          } catch(e) {}
         }
       }
 
@@ -8143,9 +8147,11 @@ app.get('/api/config/versao-app', ensureDbInitialized, async (req, res) => {
     for (const r of configRows) {
       configMap[r.chave] = r.valor;
     }
+    const rawWeb = configMap['config_web_version'];
+    const web_version = (rawWeb && rawWeb !== '1.0.0' && rawWeb !== '1.3.1' && rawWeb !== '5.0.5') ? rawWeb : '4.0.0';
     res.json({
       success: true,
-      web_version: configMap['config_web_version'] || '4.0.0',
+      web_version,
       garcom_apk_version: configMap['config_garcom_apk_version'] || '2.0.0',
       garcom_apk_url: configMap['config_garcom_apk_url'] || '/garcom-v1.1.0-portrait.apk',
       cozinha_apk_version: configMap['config_cozinha_apk_version'] || '2.0.0',
@@ -9083,7 +9089,7 @@ app.get('/api/versao', ensureDbInitialized, async (req, res) => {
   res.set('Expires', '0');
   try {
     const row = (await query("SELECT valor FROM sistema_config WHERE chave = 'config_web_version'")).rows[0];
-    const versao = (row && row.valor) ? row.valor : SYSTEM_VERSION;
+    const versao = (row && row.valor && row.valor !== '1.0.0' && row.valor !== '1.3.1' && row.valor !== '5.0.5') ? row.valor : SYSTEM_VERSION;
     res.json({ versao });
   } catch (e) {
     res.json({ versao: SYSTEM_VERSION });
