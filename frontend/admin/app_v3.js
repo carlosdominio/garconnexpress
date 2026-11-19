@@ -6339,24 +6339,18 @@ function abrirModalDetalheHistorico(p) {
     const fimMs = new Date(fimIso).getTime();
     if (!isNaN(iniMs) && !isNaN(fimMs) && fimMs >= iniMs) {
       const diffMs = fimMs - iniMs;
-      const diffSegundos = Math.floor(diffMs / 1000);
-      
-      // Diferença em minutos alinhada ao relógio exibido (ex: 22:49 - 22:47 = 2 min)
-      const iniMinutos = Math.floor(iniMs / 60000);
-      const fimMinutos = Math.floor(fimMs / 60000);
-      const diffMinRelogio = fimMinutos - iniMinutos;
+      const diffSegundos = Math.max(0, Math.floor(diffMs / 1000));
 
-      if (diffSegundos < 45 || diffMinRelogio === 0) {
-        duracaoFormatada = '< 1 min';
+      if (diffSegundos < 60) {
+        duracaoFormatada = `${diffSegundos} seg`;
+      } else if (diffSegundos < 3600) {
+        const m = Math.floor(diffSegundos / 60);
+        const s = diffSegundos % 60;
+        duracaoFormatada = s > 0 ? `${m}m ${s}s` : `${m} min`;
       } else {
-        const diffMin = Math.max(diffMinRelogio, Math.round(diffMs / 60000));
-        if (diffMin < 60) {
-          duracaoFormatada = `${diffMin} min`;
-        } else {
-          const h = Math.floor(diffMin / 60);
-          const m = diffMin % 60;
-          duracaoFormatada = m > 0 ? `${h}h ${m}m` : `${h}h`;
-        }
+        const h = Math.floor(diffSegundos / 3600);
+        const m = Math.floor((diffSegundos % 3600) / 60);
+        duracaoFormatada = m > 0 ? `${h}h ${m}m` : `${h}h`;
       }
     }
   }
