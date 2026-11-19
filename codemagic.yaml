@@ -82,3 +82,63 @@ workflows:
           ./gradlew assembleDebug
     artifacts:
       - android/app/build/outputs/apk/debug/app-debug.apk
+
+  ios-garcom-build:
+    name: Garçom iOS Simulator & IPA
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    working_directory: garcom-app-nativo
+    environment:
+      node: 20
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm install
+      - name: Add iOS platform (if missing)
+        script: |
+          if [ ! -d "ios" ]; then
+            npx cap add ios
+          fi
+      - name: Capacitor Sync iOS
+        script: |
+          npx cap sync ios
+      - name: Install CocoaPods
+        script: |
+          cd ios/App
+          pod install
+      - name: Build iOS Simulator App (.app.zip para Appetize.io / Testes Online)
+        script: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO
+          
+          cd build/Build/Products/Release-iphonesimulator
+          zip -r -X "$CM_BUILD_DIR/garcom-app-nativo/GarcomExpress-Simulator.zip" App.app
+      - name: Build iOS IPA (Unsigned)
+        script: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" || true
+          
+          if [ -d "build/Build/Products/Release-iphoneos/App.app" ]; then
+            cd build/Build/Products/Release-iphoneos
+            mkdir -p Payload
+            cp -r App.app Payload/
+            zip -r "$CM_BUILD_DIR/garcom-app-nativo/GarcomExpress-Unsigned.ipa" Payload
+          fi
+    artifacts:
+      - garcom-app-nativo/GarcomExpress-Simulator.zip
+      - garcom-app-nativo/GarcomExpress-Unsigned.ipa
+      - garcom-app-nativo/ios/App/build/Build/Products/Release-iphonesimulator/*.app

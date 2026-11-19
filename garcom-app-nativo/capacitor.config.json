@@ -5,11 +5,12 @@
   "server": {
     "url": "https://garconnexpress.vercel.app/app-garcom",
     "cleartext": true,
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "iosScheme": "https"
   },
   "plugins": {
     "PushNotifications": {
-      "presentationOptions": []
+      "presentationOptions": ["badge", "sound", "alert"]
     },
     "LocalNotifications": {
       "smallIcon": "ic_stat_notification",
@@ -17,14 +18,14 @@
       "sound": "notificacao.mp3"
     },
     "SplashScreen": {
-      "launchShowDuration": 4000,
+      "launchShowDuration": 3000,
       "launchAutoHide": true,
-      "backgroundColor": "#f1f2f6",
+      "backgroundColor": "#2c3e50",
       "androidSplashResourceName": "splash",
       "androidScaleType": "FIT_CENTER",
       "showSpinner": true,
       "androidSpinnerStyle": "large",
-      "spinnerColor": "#e74c3c"
+      "spinnerColor": "#27ae60"
     }
   }
 }
