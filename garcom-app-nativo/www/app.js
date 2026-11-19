@@ -429,6 +429,13 @@ async function subscribeToPush() {
     return;
   }
 
+  if ('Notification' in window && Notification.permission === 'default') {
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') return;
+    } catch(e) {}
+  }
+
   try {
     const reg = await navigator.serviceWorker.ready;
     let subscription = await reg.pushManager.getSubscription();
@@ -2077,7 +2084,13 @@ async function aceitarRascunho(data) {
 }
 
 function solicitarPermissaoNotificacao() {
-  if ("Notification" in window) Notification.requestPermission();
+  if ("Notification" in window) {
+    Notification.requestPermission().then(permission => {
+      if (permission === 'granted' && typeof subscribeToPush === 'function') {
+        subscribeToPush();
+      }
+    });
+  }
 }
 
 function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
