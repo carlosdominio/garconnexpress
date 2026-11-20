@@ -80,8 +80,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   verificarVersaoSistema();
   setInterval(verificarVersaoSistema, 5 * 60 * 1000);
 
-  // Verifica atualização do APK nativo
-  if (isNativeApp) {
+  // Verifica atualização do APK nativo (Apenas no Android)
+  const isAndroidDevice = (window.Capacitor && typeof window.Capacitor.getPlatform === 'function' && window.Capacitor.getPlatform() === 'android') ||
+                          /Android/i.test(navigator.userAgent);
+  if (isNativeApp && isAndroidDevice) {
     verificarAtualizacaoApk('garcom');
   }
 });
@@ -123,6 +125,14 @@ function ocultarTelaCarregamentoSistema() {
 }
 
 async function verificarAtualizacaoApk(appTipo, isFromPusher = false) {
+  // APK é exclusivo para Android! No iOS ou navegadores web comuns, nunca verifica nem baixa APK.
+  const isAndroid = (window.Capacitor && typeof window.Capacitor.getPlatform === 'function' && window.Capacitor.getPlatform() === 'android') ||
+                    /Android/i.test(navigator.userAgent);
+  if (!isAndroid) {
+    console.log('[APK Update] Dispositivo não é Android. Ignorando atualização de APK.');
+    return;
+  }
+
   const ua = navigator.userAgent;
   let currentVersion = null;
   let userAgentKey = '';
@@ -419,6 +429,13 @@ async function subscribeToPush() {
     return;
   }
 
+  if ('Notification' in window && Notification.permission === 'default') {
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') return;
+    } catch(e) {}
+  }
+
   try {
     const reg = await navigator.serviceWorker.ready;
     let subscription = await reg.pushManager.getSubscription();
@@ -577,9 +594,11 @@ console.error = function(...args) {
         args[0] = url;
     }
     
+    const method = (args[1] && args[1].method) ? args[1].method.toUpperCase() : 'GET';
+    const isMutatingCall = (method === 'POST' || method === 'PUT' || method === 'DELETE') && typeof url === 'string' && url.includes('/api/');
+
     // Tratamento OFFLINE-FIRST
     if (!navigator.onLine && typeof window.salvarPedidoOffline === 'function') {
-        const method = (args[1] && args[1].method) ? args[1].method.toUpperCase() : 'GET';
         if (method === 'POST' || method === 'PUT') {
             console.log("🌐 Sem internet. Salvando requisição no IndexedDB para sincronizar depois:", url);
             return await window.salvarPedidoOffline(url, args[1]);
@@ -592,8 +611,6 @@ console.error = function(...args) {
       args[1].headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const method = (args[1] && args[1].method) ? args[1].method.toUpperCase() : 'GET';
-    const isMutatingCall = (method === 'POST' || method === 'PUT' || method === 'DELETE') && typeof url === 'string' && url.includes('/api/');
     if (isMutatingCall && typeof showLoading === 'function') {
       showLoading(true, 'Processando...');
     }
@@ -606,10 +623,6 @@ console.error = function(...args) {
         console.error(`❌ ERRO DE FETCH [${response.status}] URL:`, args[0]);
         const text = await response.clone().text().catch(() => 'Erro ao ler corpo da resposta');
         console.error('📄 CORPO DO ERRO:', text.substring(0, 200));
-        
-        // Remove eternal loaders
-        document.querySelectorAll('button:disabled').forEach(b => b.disabled = false);
-        document.querySelectorAll('.loading, .loader, .spinner').forEach(l => l.style.display = 'none');
         
         if (response.status >= 500) {
             if (typeof mostrarToast === 'function') mostrarToast("Erro no servidor. Tente novamente.", 'error');
@@ -626,15 +639,14 @@ console.error = function(...args) {
       return response;
     } catch (error) {
       console.error("❌ ERRO DE REDE/FETCH:", error, "URL:", args[0]);
-      // Mostra um alerta visual no app para o usuário saber que a conexão falhou
-      if (typeof mostrarAlerta === 'function') {
-        mostrarAlerta(`Erro de conexão com o servidor remoto.\n\nDetalhe: ${error.message}\nURL: ${args[0]}`, "Falha de Conexão", "🌐");
-      }
-      
-      // Remove eternal loaders
-      document.querySelectorAll('button:disabled').forEach(b => b.disabled = false);
-      document.querySelectorAll('.loading, .loader, .spinner').forEach(l => l.style.display = 'none');
 
+      // Fallback Offline: se a conexão falhar durante envio de pedidos, salva no IndexedDB
+      if ((method === 'POST' || method === 'PUT') && typeof window.salvarPedidoOffline === 'function' && typeof url === 'string' && url.includes('/api/pedidos')) {
+        console.warn("⚠️ Falha de rede ao enviar pedido. Salvando automaticamente no rascunho offline...");
+        return await window.salvarPedidoOffline(url, args[1]);
+      }
+
+      // Não bloqueia com modal genérico. O chamador (ex: enviarPedido, login) trata com mensagem amigável.
       throw error;
     } finally {
       if (isMutatingCall && typeof showLoading === 'function') {
@@ -661,6 +673,7 @@ async function requestWakeLock() {
       console.log('🔒 Wake Lock ativado! A tela não vai apagar.');
       wakeLock.addEventListener('release', () => {
         console.log('🔓 Wake Lock liberado.');
+        wakeLock = null;
       });
     }
   } catch (err) {
@@ -668,29 +681,41 @@ async function requestWakeLock() {
   }
 }
 
-// --- VISIBILITY SYNC (Reconexão Agressiva ao voltar ao app) ---
+// --- VISIBILITY & RESUME SYNC (Reconexão Agressiva ao voltar ao app) ---
 let lastSyncTime = 0;
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    requestWakeLock(); // Refaz o lock caso tenha se perdido
-    
-    const now = Date.now();
-    // Evita múltiplas chamadas em menos de 5 segundos
-    if (now - lastSyncTime > 5000) {
-        lastSyncTime = now;
-        console.log('👀 App voltou ao foco! Sincronizando dados...');
-        
-        // Força atualização das mesas imediatamente
-        carregarMesas();
-        
-        // Força a reconexão do Web Socket se estiver desconectado
-        if (pusherInstancia && pusherInstancia.connection.state !== 'connected') {
-          console.log('🔌 Reconectando Pusher...');
-          pusherInstancia.connect();
-        }
+function sincronizarAoRetomarFoco() {
+  requestWakeLock();
+  const now = Date.now();
+  if (now - lastSyncTime > 4000) {
+    lastSyncTime = now;
+    console.log('👀 App voltou ao foco! Sincronizando dados...');
+    carregarMesas(true);
+    if (pusherInstancia && pusherInstancia.connection.state !== 'connected') {
+      console.log('🔌 Reconectando Pusher...');
+      pusherInstancia.connect();
     }
   }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    sincronizarAoRetomarFoco();
+  }
 });
+
+// Listener nativo do Capacitor para ciclo de vida de app móvel
+if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+  try {
+    window.Capacitor.Plugins.App.addListener('appStateChange', (state) => {
+      if (state && state.isActive) {
+        console.log('📱 Capacitor: App voltou ao primeiro plano (isActive: true)');
+        sincronizarAoRetomarFoco();
+      }
+    });
+  } catch (e) {
+    console.warn('Erro ao configurar listener App.appStateChange:', e);
+  }
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
   verificarSessao();
@@ -1292,6 +1317,12 @@ function initNativeSSEGarcom() {
 }
 
 async function configurarPusher() {
+  if (pusherInstancia) {
+    if (pusherInstancia.connection.state !== 'connected') {
+      pusherInstancia.connect();
+    }
+    return;
+  }
   try {
     const configRes = await fetch('/api/pusher-config');
     const pusherConfig = await configRes.json();
@@ -1301,6 +1332,7 @@ async function configurarPusher() {
       cluster: pusherConfig.cluster,
       forceTLS: true
     });
+    pusherInstancia = pusher;
     pusher.connection.bind('connected', () => {
       console.log('✅ Conectado ao Pusher com sucesso!');
       atualizarIconeSom();
@@ -1485,7 +1517,7 @@ async function configurarPusher() {
       const respGarcom = data.garcom_id || (data.pedido && data.pedido.garcom_id);
       
       if (respGarcom && respGarcom !== 'ADMIN' && respGarcom !== 'DELIVERY' && 
-          String(respGarcom).trim().toLowerCase() !== String(garcomLogado.usuario).trim().toLowerCase()) {
+          String(respGarcom).trim().toLowerCase() !== String(garcomLogado?.usuario || '').trim().toLowerCase()) {
         console.log("Ignorando novo-pedido porque pertence a outro garçom:", respGarcom);
         clearTimeout(timeoutPusher);
         timeoutPusher = setTimeout(() => carregarMesas(), 50);
@@ -1577,8 +1609,8 @@ async function configurarPusher() {
           if (elTitulo) {
             const isF = !!mesaAtual.is_funcionario || (mesaAtual.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesaAtual.numero || '');
             if (isF) {
-              const nLimpo = extrairNomeLimpoFuncionario(mesaAtual);
-              elTitulo.textContent = `Funcionário: ${nLimpo}`;
+              const nLimpo = mesaAtual.funcionario_nome || String(mesaAtual.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim();
+              elTitulo.textContent = `Funcionário: ${nLimpo || 'Colaborador'}`;
             } else {
               elTitulo.textContent = formatarNomeMesaGarcom(mesaAtual);
             }
@@ -1873,7 +1905,9 @@ async function configurarPusher() {
       if (data && data.web_version) {
         localStorage.setItem('versao_web_garcom', String(data.web_version));
       }
-      if (isNativeApp) {
+      const isAndroid = (window.Capacitor && typeof window.Capacitor.getPlatform === 'function' && window.Capacitor.getPlatform() === 'android') ||
+                        /Android/i.test(navigator.userAgent);
+      if (isNativeApp && isAndroid) {
         verificarAtualizacaoApk('garcom', true);
       } else {
         exibirTelaCarregamentoSistema('⚡ Atualizando GarçomExpress', 'O administrador aplicou novas configurações. Atualizando sistema...');
@@ -2065,7 +2099,13 @@ async function aceitarRascunho(data) {
 }
 
 function solicitarPermissaoNotificacao() {
-  if ("Notification" in window) Notification.requestPermission();
+  if ("Notification" in window) {
+    Notification.requestPermission().then(permission => {
+      if (permission === 'granted' && typeof subscribeToPush === 'function') {
+        subscribeToPush();
+      }
+    });
+  }
 }
 
 function exibirNotificacaoNativa(tit, msg, tagId = 'geral') {
@@ -2206,8 +2246,9 @@ async function carregarMenu() {
 let isFetchingMesas = false;
 let carregarMesasTimeout = null;
 
-async function carregarMesas() {
+async function carregarMesas(forcar = false) {
   if (isFetchingMesas) return;
+  if (document.hidden && !forcar) return;
   isFetchingMesas = true;
   const container = document.getElementById('mesas-grid');
   const isPrimeiroCarregamento = container && container.children.length === 0;
@@ -2450,22 +2491,6 @@ function filtrarMesas(filtro, element) {
   exibirMesas();
 }
 
-function extrairNomeLimpoFuncionario(p) {
-  if (!p) return 'Colaborador';
-  let raw = '';
-  if (typeof p === 'string') {
-    raw = p;
-  } else {
-    raw = p.funcionario_nome || p.mesa_numero || p.numero || '';
-  }
-  let limpo = String(raw).trim();
-  while (/^((funcion[aá]rio|func|staff|f-|comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o)\s*:?\s*)/i.test(limpo)) {
-    limpo = limpo.replace(/^((funcion[aá]rio|func|staff|f-|comanda\s*mesa|comanda\s*balc[aã]o|comanda|mesa|balc[aã]o)\s*:?\s*)/i, '').trim();
-  }
-  return limpo || 'Colaborador';
-}
-window.extrairNomeLimpoFuncionario = extrairNomeLimpoFuncionario;
-
 function formatarNomeMesaGarcom(m, incluirIcone = true) {
   if (!m) return 'Mesa';
 
@@ -2473,8 +2498,9 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
   if (typeof m === 'string' || typeof m === 'number') {
     const str = String(m).trim();
     if (/^(func|staff|f-)/i.test(str)) {
-      const txt = extrairNomeLimpoFuncionario(str);
-      return `Funcionário: ${txt}`;
+      const numTrim = str.replace(/^(func|staff|f-)\s*/i, '').trim();
+      const txt = numTrim ? numTrim : 'Colaborador';
+      return `FUNC: ${txt}`;
     }
     if (/^balc[aã]o/i.test(str)) {
       const numTrim = str.replace(/^balc[aã]o\s*/i, '').trim();
@@ -2505,6 +2531,7 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
     : ((m.mesa_numero !== undefined && m.mesa_numero !== null) ? String(m.mesa_numero).trim() : '');
   const tipo = String(m.tipo || m.mesa_tipo || '').toLowerCase();
   const isFuncionario = !!m.is_funcionario || tipo === 'funcionario' || /^(func|staff|f-)/i.test(numRaw);
+  const funcionarioNome = m.funcionario_nome || (/^(func|staff|f-)/i.test(numRaw) ? numRaw.replace(/^(func|staff|f-)\s*/i, '').trim() : '');
   const isBalcao = !isFuncionario && (tipo === 'balcao' || /^balc[aã]o/i.test(numRaw) || /^comanda\s*balc[aã]o/i.test(numRaw) || (m.is_balcao == 1 || m.is_balcao === true));
   const isComanda = !isBalcao && !isFuncionario && (tipo === 'comanda' || Number(m.is_comanda) === 1 || /^comanda/i.test(numRaw));
 
@@ -2516,8 +2543,8 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
   else if (/^(func|staff|f-)\s*/i.test(limpo)) limpo = limpo.replace(/^(func|staff|f-)\s*/i, '').trim();
 
   if (isFuncionario) {
-    const txt = extrairNomeLimpoFuncionario(m);
-    return `Funcionário: ${txt}`;
+    const txt = funcionarioNome || limpo || 'Colaborador';
+    return `FUNC: ${txt}`;
   }
   if (isBalcao) {
     const txt = limpo ? `Balcão ${limpo}` : 'Balcão';
@@ -2532,6 +2559,7 @@ function formatarNomeMesaGarcom(m, incluirIcone = true) {
 }
 
 function exibirMesas() {
+  if (document.hidden) return; // Economiza CPU e bateria quando a tela estiver bloqueada ou em background
   const grid = document.getElementById('mesas-grid');
   if (!grid) return;
 
@@ -2757,7 +2785,7 @@ function exibirMesas() {
       classeBloqueada = 'caixa-fechado';
       statusTexto = 'CAIXA FECHADO';
     } else if (mesa.status === 'ocupada' || mesa.status === 'fechando') {
-      const eMeuPedido = mesa.garcom_id === garcomLogado.usuario;
+      const eMeuPedido = garcomLogado ? mesa.garcom_id === garcomLogado.usuario : false;
       
       // DESTAQUE PARA RASCUNHO PENDENTE (Alta prioridade)
       if (mesa.tem_rascunho && mesa.status !== 'fechando' && !mesa.solicitou_fechamento) {
@@ -2849,7 +2877,7 @@ function exibirMesas() {
       mesaAtual = mesaSelecionada;
       
       if (mesaSelecionada.status === 'ocupada' || mesaSelecionada.status === 'fechando') {
-        const eMeuPedido = mesaSelecionada.garcom_id === garcomLogado.usuario;
+        const eMeuPedido = garcomLogado ? mesaSelecionada.garcom_id === garcomLogado.usuario : false;
         // BLOQUEIO REFORÇADO: Se a mesa tem um garçom e não é você, bloqueia o clique (a menos que a opção de liberar para todos esteja ativa)
         if (!eMeuPedido && mesaSelecionada.garcom_id && !mesasCompartilhadasAtivas) {
           await mostrarAlerta(`🔒 MESA BLOQUEADA\nO garçom selecionado na fila (${mesaSelecionada.garcom_id}) deve atender esta mesa.`, "Acesso Negado", "🚫");
@@ -2883,8 +2911,8 @@ async function mostrarOpcoesMesa(mesa) {
   let tituloModal = nomeFormatado;
   const isFuncionarioModal = !!mesa.is_funcionario || (mesa.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesa.numero || '');
   if (isFuncionarioModal) {
-    const nomeLimpo = extrairNomeLimpoFuncionario(mesa);
-    tituloModal = `Funcionário: ${nomeLimpo}`;
+    const nomeLimpo = mesa.funcionario_nome || String(mesa.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim();
+    tituloModal = `Funcionário: ${nomeLimpo || 'Colaborador'}`;
   } else if (mesa.codigo_acesso && mesa.status !== 'livre') {
     tituloModal = `${nomeFormatado} [Código: ${mesa.codigo_acesso}]`;
   }
@@ -3063,10 +3091,10 @@ async function abrirModalCriarComandaGarcom() {
     html: `
       <div style="text-align: left; margin-top: 5px;">
         <label style="display: block; font-weight: bold; color: #334155; font-size: 0.88rem; margin-bottom: 6px;">
-          Número ou Nome da Comanda (máx 12 letras):
+          Número ou Nome da Comanda (máx 11 letras):
         </label>
-        <input type="text" id="swal-input-comanda-nome" placeholder="ex: 15, VIP, Lucas, Comanda 02..." maxlength="12"
-               oninput="if(this.value.length > 12) this.value = this.value.slice(0, 12);"
+        <input type="text" id="swal-input-comanda-nome" placeholder="ex: 15, VIP, Lucas, Comanda 02..." maxlength="11"
+               oninput="if(this.value.length > 11) this.value = this.value.slice(0, 11);"
                style="width: 100%; padding: 12px 14px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc; color: #1e293b; margin-bottom: 14px;">
 
         <label style="display: block; font-weight: bold; color: #334155; font-size: 0.88rem; margin-bottom: 6px;">
@@ -3075,7 +3103,6 @@ async function abrirModalCriarComandaGarcom() {
         <select id="swal-select-comanda-tipo" style="width: 100%; padding: 12px 14px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: 600; outline: none; box-sizing: border-box; background: #f8fafc; color: #1e293b;">
           <option value="comanda">🍽️ Comanda de Mesa</option>
           <option value="balcao">🏪 Comanda de Balcão</option>
-          <option value="funcionario">👤 Comanda de Funcionário</option>
         </select>
         <p style="font-size: 0.78rem; color: #64748b; margin: 10px 0 0 0;">
           💡 Disponível imediatamente no app do garçom e no painel admin.
@@ -3097,8 +3124,8 @@ async function abrirModalCriarComandaGarcom() {
         setTimeout(() => inp.focus(), 150);
         ['input', 'paste', 'keyup', 'change'].forEach(evt => {
           inp.addEventListener(evt, function() {
-            if (this.value && this.value.length > 12) {
-              this.value = this.value.slice(0, 12);
+            if (this.value && this.value.length > 11) {
+              this.value = this.value.slice(0, 11);
             }
           });
         });
@@ -3111,11 +3138,11 @@ async function abrirModalCriarComandaGarcom() {
         Swal.showValidationMessage('Informe o número ou nome da comanda!');
         return false;
       }
-      if (nome.length > 12) {
-        Swal.showValidationMessage('O nome da comanda não pode ter mais de 12 caracteres!');
+      if (nome.length > 11) {
+        Swal.showValidationMessage('O nome da comanda não pode ter mais de 11 caracteres!');
         return false;
       }
-      return { nome: nome.slice(0, 12), tipo, abrirDireto: true };
+      return { nome: nome.slice(0, 11), tipo, abrirDireto: true };
     },
     preDeny: () => {
       let nome = document.getElementById('swal-input-comanda-nome')?.value.trim();
@@ -3124,11 +3151,11 @@ async function abrirModalCriarComandaGarcom() {
         Swal.showValidationMessage('Informe o número ou nome da comanda!');
         return false;
       }
-      if (nome.length > 12) {
-        Swal.showValidationMessage('O nome da comanda não pode ter mais de 12 caracteres!');
+      if (nome.length > 11) {
+        Swal.showValidationMessage('O nome da comanda não pode ter mais de 11 caracteres!');
         return false;
       }
-      return { nome: nome.slice(0, 12), tipo, abrirDireto: false };
+      return { nome: nome.slice(0, 11), tipo, abrirDireto: false };
     }
   });
 
@@ -3142,16 +3169,15 @@ async function abrirModalCriarComandaGarcom() {
   try {
     showLoading(true, 'Criando comanda...');
     const isFuncionarioCriar = (dados.tipo === 'funcionario');
-    const nomeLimpoCriar = isFuncionarioCriar ? extrairNomeLimpoFuncionario(dados.nome) : dados.nome;
     const res = await fetch('/api/mesas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        numero: isFuncionarioCriar ? `FUNC: ${nomeLimpoCriar}` : dados.nome,
+        numero: dados.nome,
         tipo: isFuncionarioCriar ? 'funcionario' : dados.tipo,
         is_comanda: 1,
         is_funcionario: isFuncionarioCriar ? 1 : 0,
-        funcionario_nome: isFuncionarioCriar ? nomeLimpoCriar : undefined
+        funcionario_nome: isFuncionarioCriar ? dados.nome : undefined
       })
     });
 
@@ -3272,10 +3298,10 @@ async function abrirModalTransferirMesaGarcom() {
               Transferindo itens de <b>${nomeOrigem}</b> para uma nova comanda:
             </p>
             <label style="display: block; font-weight: bold; color: #334155; font-size: 0.85rem; margin-bottom: 5px;">
-              Número ou Nome da Nova Comanda (máx 12 letras):
+              Número ou Nome da Nova Comanda (máx 11 letras):
             </label>
-            <input type="text" id="swal-input-transf-comanda-nome" placeholder="ex: 15, Lucas, Comanda 08..." maxlength="12"
-                   oninput="if(this.value.length > 12) this.value = this.value.slice(0, 12);"
+            <input type="text" id="swal-input-transf-comanda-nome" placeholder="ex: 15, Lucas, Comanda 08..." maxlength="11"
+                   oninput="if(this.value.length > 11) this.value = this.value.slice(0, 11);"
                    style="width: 100%; padding: 12px; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 1rem; font-weight: bold; background: #f8fafc; color: #1e293b; box-sizing: border-box; margin-bottom: 14px;">
             <label style="display: block; font-weight: bold; color: #334155; font-size: 0.85rem; margin-bottom: 5px;">
               Tipo:
@@ -3298,8 +3324,8 @@ async function abrirModalTransferirMesaGarcom() {
             setTimeout(() => inp.focus(), 150);
             ['input', 'paste', 'keyup', 'change'].forEach(evt => {
               inp.addEventListener(evt, function() {
-                if (this.value && this.value.length > 12) {
-                  this.value = this.value.slice(0, 12);
+                if (this.value && this.value.length > 11) {
+                  this.value = this.value.slice(0, 11);
                 }
               });
             });
@@ -3312,11 +3338,11 @@ async function abrirModalTransferirMesaGarcom() {
             Swal.showValidationMessage('Informe o nome ou número da comanda!');
             return false;
           }
-          if (nome.length > 12) {
-            Swal.showValidationMessage('O nome da comanda não pode ter mais de 12 caracteres!');
+          if (nome.length > 11) {
+            Swal.showValidationMessage('O nome da comanda não pode ter mais de 11 caracteres!');
             return false;
           }
-          return { nome: nome.slice(0, 12), tipo };
+          return { nome: nome.slice(0, 11), tipo };
         }
       });
 
@@ -3478,7 +3504,7 @@ async function verItensDaMesa(isSilencioso = false) {
     renderizarItensMesaGarcom();
     
     const isFResumo = !!mesaAtual.is_funcionario || (mesaAtual.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesaAtual.numero || '');
-    const nomeFResumo = isFResumo ? `Funcionário: ${extrairNomeLimpoFuncionario(mesaAtual)}` : formatarNomeMesaGarcom(mesaAtual);
+    const nomeFResumo = isFResumo ? `Funcionário: ${mesaAtual.funcionario_nome || String(mesaAtual.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() || 'Colaborador'}` : formatarNomeMesaGarcom(mesaAtual);
     document.getElementById('resumo-mesa-titulo').textContent = `Resumo - ${nomeFResumo}`;
     fecharOpcoes();
     document.getElementById('modal-resumo-mesa').style.display = 'block';
@@ -4191,7 +4217,7 @@ async function finalizarEDesocupar() {
       const tituloFechar = document.getElementById('titulo-fechamento-garcom');
       if (tituloFechar && mesaAtual) {
         const isFFechar = !!mesaAtual.is_funcionario || (mesaAtual.tipo === 'funcionario') || /^(func|staff|f-)/i.test(mesaAtual.numero || '');
-        const nomeFFechar = isFFechar ? `Funcionário: ${extrairNomeLimpoFuncionario(mesaAtual)}` : formatarNomeMesaGarcom(mesaAtual, false);
+        const nomeFFechar = isFFechar ? `Funcionário: ${mesaAtual.funcionario_nome || String(mesaAtual.numero || '').replace(/^(func|staff|f-)\s*/i, '').trim() || 'Colaborador'}` : formatarNomeMesaGarcom(mesaAtual, false);
         tituloFechar.textContent = `Fechar ${nomeFFechar}`;
       }
       modalFechamento.style.display = 'flex';
@@ -4663,7 +4689,8 @@ async function alterarQuantidadeItem(index, delta) {
   if (novoValor > 0) {
     itemNoPedido.quantidade = novoValor;
     exibirResumoPedido();
-    const catAtiva = document.querySelector('.categoria.ativa').dataset.categoria;
+    const catEl = document.querySelector('.categoria.ativa');
+    const catAtiva = (catEl && catEl.dataset) ? catEl.dataset.categoria : (categoriaAtual || 'todas');
     exibirMenu(catAtiva);
   } else removerItemPedido(index);
 }
@@ -4822,8 +4849,16 @@ async function cancelarCodigoAcesso() {
 }
 
 function configurarEventos() {
-  document.getElementById('enviar-pedido').addEventListener('click', enviarPedido);
-  document.getElementById('voltar-mesas').addEventListener('click', voltarParaMesas);
+  const btnEnviar = document.getElementById('enviar-pedido');
+  if (btnEnviar && !btnEnviar._hasListener) {
+    btnEnviar._hasListener = true;
+    btnEnviar.addEventListener('click', enviarPedido);
+  }
+  const btnVoltar = document.getElementById('voltar-mesas');
+  if (btnVoltar && !btnVoltar._hasListener) {
+    btnVoltar._hasListener = true;
+    btnVoltar.addEventListener('click', voltarParaMesas);
+  }
   configurarGestoDeslizarMesas();
   const categorias = ['todas', ...new Set(menu.map(item => item.categoria))];
   const container = document.getElementById('categorias');
