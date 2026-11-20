@@ -11026,6 +11026,29 @@ function formatarNomeMesaNotificacao(numero, isComanda, pObj) {
       else if (data.cobrar_taxa !== undefined) {
         mostrarToast(`ℹ️ ${nMesa}: Taxa de 10% ${data.cobrar_taxa ? 'ativada' : 'desativada'}`);
       }
+      else if (data.status === 'ajuste_conta') {
+        const isProprioAjuste = (window.ultimoAjusteSalvoAdmin !== null && window.ultimoAjusteSalvoAdmin !== undefined) && (
+          String(data.pedido_id) === String(window.ultimoAjusteSalvoAdmin)
+        );
+
+        const formataTotal = (val) => {
+          const num = Number(val || 0);
+          return isNaN(num) ? '0,00' : num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+        const textoTotal = ` (Novo Total: R$ ${formataTotal(data.total)})`;
+        const descAjuste = data.detalhes_ajuste || 'Ajuste de conta realizado';
+        const descCompleta = `${nMesa}: ${descAjuste}${textoTotal}`;
+
+        // Registra sempre na central de notificações (Sininho)
+        adicionarNotificacao('🏷️ AJUSTE DE CONTA', descCompleta, '🏷️');
+
+        // Se NÃO foi este próprio operador/aba quem salvou agora, exibe Toast informativo na tela
+        if (!isProprioAjuste) {
+          mostrarToast(`🏷️ Ajuste: ${descCompleta}`, 'info', '🏷️ AJUSTE DE CONTA');
+        }
+
+        // Sem emissão de som (conforme aprovado: visual apenas no Toast + Sininho)
+      }
       else if (data.status === 'itens_atualizados') {
         const isPropriaEdicaoAdmin = (ultimoPedidoEditadoPeloAdmin !== null) && (
           String(data.pedido_id) === String(ultimoPedidoEditadoPeloAdmin)
@@ -12997,6 +13020,14 @@ window.salvarAjustesMesaOpcoes = async function() {
     }
 
     const data = await res.json();
+
+    // Registra ID para evitar toast redundante pelo Pusher nesta mesma aba
+    window.ultimoAjusteSalvoAdmin = pedidoId;
+    setTimeout(() => {
+      if (window.ultimoAjusteSalvoAdmin === pedidoId) {
+        window.ultimoAjusteSalvoAdmin = null;
+      }
+    }, 7000);
 
     // Atualiza o pedido local se estiver na memória
     if (typeof pedidos !== 'undefined' && Array.isArray(pedidos)) {

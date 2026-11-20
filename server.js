@@ -4706,7 +4706,7 @@ app.put('/api/pedidos/:id/ajustes', isAuthenticated, async (req, res) => {
     const acrescimoNum = Math.max(0, parseFloat(acrescimo) || 0);
     const descontoNum = Math.max(0, parseFloat(desconto) || 0);
 
-    const pedidoOriginal = (await query("SELECT p.mesa_id, p.garcom_id, p.taxa_entrega, p.cobrar_taxa, m.numero as mesa_numero FROM pedidos p LEFT JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) WHERE p.id = ?", [id])).rows[0];
+    const pedidoOriginal = (await query("SELECT p.mesa_id, p.garcom_id, p.taxa_entrega, p.cobrar_taxa, p.is_comanda, p.is_funcionario, p.funcionario_nome, p.mesa_numero as p_mesa_numero, m.numero as mesa_numero, m.is_comanda as mesa_is_comanda, m.is_funcionario as m_is_funcionario, m.funcionario_nome as m_funcionario_nome FROM pedidos p LEFT JOIN mesas m ON CAST(p.mesa_id AS TEXT) = CAST(m.id AS TEXT) WHERE p.id = ?", [id])).rows[0];
     if (!pedidoOriginal) {
       return res.status(404).json({ error: "Pedido não encontrado" });
     }
@@ -4723,12 +4723,40 @@ app.put('/api/pedidos/:id/ajustes', isAuthenticated, async (req, res) => {
 
     await query("UPDATE pedidos SET acrescimo = ?, desconto = ?, total = ? WHERE id = ?", [acrescimoNum, descontoNum, total, id]);
 
-    const mesaNum = pedidoOriginal ? (pedidoOriginal.mesa_numero || (!pedidoOriginal.mesa_id ? 'Balcão' : pedidoOriginal.mesa_id)) : 'Balcão';
+    const rawMesaNum = pedidoOriginal.mesa_numero || pedidoOriginal.p_mesa_numero;
+    const mesaNum = rawMesaNum || (!pedidoOriginal.mesa_id ? 'Balcão' : pedidoOriginal.mesa_id);
+    const isComVal = !!(pedidoOriginal.is_comanda || pedidoOriginal.mesa_is_comanda);
+    const isFuncVal = !!(pedidoOriginal.is_funcionario || pedidoOriginal.m_is_funcionario || /^(func|staff|f-)/i.test(rawMesaNum || ''));
+    const funcNomeVal = pedidoOriginal.funcionario_nome || pedidoOriginal.m_funcionario_nome || null;
+
+    const formataMoeda = (val) => Number(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    let tipoAjuste = 'ajuste';
+    let detalhesAjuste = '';
+
+    if (acrescimoNum > 0 && descontoNum > 0) {
+      tipoAjuste = 'misto';
+      detalhesAjuste = `➕ Acréscimo: R$ ${formataMoeda(acrescimoNum)} | 🏷️ Desconto: R$ ${formataMoeda(descontoNum)}`;
+    } else if (acrescimoNum > 0) {
+      tipoAjuste = 'acrescimo';
+      detalhesAjuste = `➕ Acréscimo: R$ ${formataMoeda(acrescimoNum)}`;
+    } else if (descontoNum > 0) {
+      tipoAjuste = 'desconto';
+      detalhesAjuste = `🏷️ Desconto: R$ ${formataMoeda(descontoNum)}`;
+    } else {
+      tipoAjuste = 'zerado';
+      detalhesAjuste = 'Ajustes zerados (sem acréscimo / sem desconto)';
+    }
 
     safePusherTrigger('garconnexpress', 'status-atualizado', {
+      status: 'ajuste_conta',
+      tipo_ajuste: tipoAjuste,
+      detalhes_ajuste: detalhesAjuste,
       pedido_id: id,
       mesa_id: pedidoOriginal ? pedidoOriginal.mesa_id : null,
       mesa_numero: mesaNum,
+      is_comanda: isComVal,
+      is_funcionario: isFuncVal,
+      funcionario_nome: funcNomeVal,
       garcom_id: pedidoOriginal ? pedidoOriginal.garcom_id : null,
       acrescimo: acrescimoNum,
       desconto: descontoNum,
@@ -4738,6 +4766,7 @@ app.put('/api/pedidos/:id/ajustes', isAuthenticated, async (req, res) => {
 
     if (pedidoOriginal && pedidoOriginal.mesa_id) {
       safePusherTrigger('garconnexpress', `taxa-atualizada-mesa-${pedidoOriginal.mesa_id}`, {
+        status: 'ajuste_conta',
         acrescimo: acrescimoNum,
         desconto: descontoNum,
         subtotal: subtotal,
