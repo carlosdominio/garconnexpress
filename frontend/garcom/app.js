@@ -1112,17 +1112,20 @@ async function atualizarStatusCaixa() {
         }
     }
 
-    if (!badge) return;
-    
-    badge.style.display = 'inline-block';
-    if (caixa) {
-      badge.textContent = 'CAIXA ABERTO';
-      badge.className = 'badge-caixa aberto';
-    } else {
-      badge.textContent = 'CAIXA FECHADO';
-      badge.className = 'badge-caixa fechado';
+    if (badge) {
+      badge.style.display = 'inline-block';
+      if (caixa) {
+        badge.textContent = 'CAIXA ABERTO';
+        badge.className = 'badge-caixa aberto';
+      } else {
+        badge.textContent = 'CAIXA FECHADO';
+        badge.className = 'badge-caixa fechado';
+      }
     }
     // Sempre recarrega as mesas para aplicar o visual correto (bloqueado ou liberado)
+    if (typeof carregarMesas === 'function') {
+      carregarMesas(true);
+    }
   } catch (e) { console.error('Erro status caixa:', e); }
 }
 
@@ -1771,13 +1774,14 @@ async function configurarPusher() {
       console.log('🔗 Evento recebido: status-caixa-atualizado', data);
       atualizarStatusCaixa();
       
-      if (data.status === 'fechado') {
+      const isAberto = data && (data.status === 'aberto' || data.aberto === true);
+      if (!isAberto) {
         if (deveTocarSom('status-caixa-atualizado')) tocarCampainha();
         if (typeof limparNotificacoes === 'function') limparNotificacoes();
-        dispararToastSistema('status-caixa-atualizado', { status: 'FECHADO' }, "O caixa foi fechado! Bom descanso.", "error");
-      } else if (data.status === 'aberto') {
-        tocarCampainha(true); // Som suave
-        dispararToastSistema('status-caixa-atualizado', { status: 'ABERTO' }, "O caixa foi aberto! Bom trabalho.", "success");
+        dispararToastSistema('status-caixa-atualizado', { status: 'FECHADO', mensagem: 'O caixa foi fechado! Bom descanso.' }, "🔴 O caixa foi fechado! Atendimento encerrado.", "error");
+      } else {
+        if (deveTocarSom('status-caixa-atualizado')) tocarCampainha(true);
+        dispararToastSistema('status-caixa-atualizado', { status: 'ABERTO', mensagem: 'O caixa foi aberto! Bom trabalho.' }, "🟢 O caixa foi aberto! Bom trabalho.", "success");
       }
     });
     

@@ -1451,9 +1451,11 @@ async function safePusherTrigger(channel, event, data) {
             if (sub.app_type !== targetApp) continue;
 
             // FILTRO DISPONIBILIDADE: Se o aparelho/usuário estiver pausado (de folga / fora da fila), NÃO envia push
+            // EXCETO para avisos gerais como abertura/fechamento de caixa e comunicados, que devem alertar toda a equipe!
+            const isAvisoGeral = (event === 'status-caixa-atualizado' || event === 'comunicado-geral');
             const subPausadoVal = (sub.pausado === 1 || sub.pausado === true || sub.pausado === '1');
             const garcomOfflineVal = (sub.app_type === 'garcom' && (sub.garcom_is_online === false || sub.garcom_is_online === 0 || sub.garcom_ativo === false || sub.garcom_ativo === 0));
-            if (subPausadoVal || garcomOfflineVal) {
+            if (!isAvisoGeral && (subPausadoVal || garcomOfflineVal)) {
               console.log(`⏸️ Pulando push para ${sub.app_type} (Token ID ${sub.id} / Usuário ${sub.garcom_id} está de FOLGA/PAUSADO)`);
               continue;
             }
