@@ -11033,14 +11033,23 @@ function formatarNomeMesaNotificacao(numero, isComanda, pObj) {
         const isAdicaoRecente = isRecentAdditionNotified(data.pedido_id);
         markRecentAdditionNotified(data.pedido_id);
         if (!isPropriaEdicaoAdmin && !isAdicaoRecente) {
-          if (data.detalhes_edicao && data.detalhes_edicao.includes('🔄')) {
-            const msgSub = data.detalhes_edicao.replace('🔄', '🔄 ' + nMesa + ':');
+          const det = data.detalhes_edicao || '';
+          if (det.includes('🔄')) {
+            const msgSub = det.replace('🔄', '🔄 ' + nMesa + ':');
             exibirNotificacaoNativa('🔄 ITEM SUBSTITUÍDO', msgSub, `mod-ped-${data.pedido_id}`);
             mostrarToast(msgSub);
+          } else if (det.includes('➕') && !det.includes('➖')) {
+            const msgAdd = `${nMesa} — ${det}`;
+            exibirNotificacaoNativa('➕ ITEM ADICIONADO', msgAdd, `mod-ped-${data.pedido_id}`);
+            mostrarToast(`➕ Item Adicionado: ${msgAdd}`);
+          } else if (det.includes('➖') && !det.includes('➕')) {
+            const msgRem = `${nMesa} — ${det}`;
+            exibirNotificacaoNativa('🗑️ ITEM REMOVIDO', msgRem, `mod-ped-${data.pedido_id}`);
+            mostrarToast(`🗑️ Item Removido: ${msgRem}`);
           } else {
-            const det = data.detalhes_edicao ? `: ${data.detalhes_edicao}` : '';
-            exibirNotificacaoNativa('📝 ITENS ATUALIZADOS', `${nMesa}${det}`, `mod-ped-${data.pedido_id}`);
-            mostrarToast(`📝 ${nMesa}: Itens atualizados${det}`);
+            const msgMod = det ? `${nMesa} — ${det}` : `${nMesa}: Pedido atualizado`;
+            exibirNotificacaoNativa('✏️ PEDIDO ATUALIZADO', msgMod, `mod-ped-${data.pedido_id}`);
+            mostrarToast(`✏️ ${msgMod}`);
           }
         }
       }
