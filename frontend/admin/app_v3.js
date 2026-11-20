@@ -10461,13 +10461,18 @@ const recentAdditionNotifiedMap = new Map();
 function markRecentAdditionNotified(pedidoId) {
   if (!pedidoId) return;
   recentAdditionNotifiedMap.set(String(pedidoId), Date.now());
+  if (recentAdditionNotifiedMap.size > 100) {
+    const now = Date.now();
+    for (const [k, time] of recentAdditionNotifiedMap.entries()) {
+      if (now - time > 15000) recentAdditionNotifiedMap.delete(k);
+    }
+  }
 }
 function isRecentAdditionNotified(pedidoId) {
   if (!pedidoId) return false;
   const t = recentAdditionNotifiedMap.get(String(pedidoId));
   if (!t) return false;
-  if (Date.now() - t < 5000) return true;
-  recentAdditionNotifiedMap.delete(String(pedidoId));
+  if (Date.now() - t < 7000) return true;
   return false;
 }
 
@@ -10699,38 +10704,42 @@ function formatarNomeMesaNotificacao(numero, isComanda, pObj) {
       const isAdditionOrEdit = isAddition || isRemoval || isSubstitution || isMixed;
 
       if (isAdditionOrEdit) {
-        markRecentAdditionNotified(p ? p.id : (data.pedido_id || data.id));
+        const pedId = p ? p.id : (data.pedido_id || data.id);
+        const isJaNotificado = isRecentAdditionNotified(pedId);
+        markRecentAdditionNotified(pedId);
 
-        let tituloNotif = '➕ ITEM ADICIONADO';
-        let iconeNotif = '➕';
-        let textoAcao = 'Item Adicionado';
-        let textoPadrao = `Novos itens adicionados em ${nomeExibicao}.`;
+        if (!isJaNotificado) {
+          let tituloNotif = '➕ ITEM ADICIONADO';
+          let iconeNotif = '➕';
+          let textoAcao = 'Item Adicionado';
+          let textoPadrao = `Novos itens adicionados em ${nomeExibicao}.`;
 
-        if (isRemoval) {
-          tituloNotif = '🗑️ ITEM REMOVIDO';
-          iconeNotif = '🗑️';
-          textoAcao = 'Item Removido';
-          textoPadrao = `Item removido em ${nomeExibicao}.`;
-        } else if (isSubstitution) {
-          tituloNotif = '🔄 ITEM SUBSTITUÍDO';
-          iconeNotif = '🔄';
-          textoAcao = 'Item Substituído';
-          textoPadrao = `Item substituído em ${nomeExibicao}.`;
-        } else if (isMixed) {
-          tituloNotif = '✏️ PEDIDO ATUALIZADO';
-          iconeNotif = '✏️';
-          textoAcao = 'Pedido Atualizado';
-          textoPadrao = `Itens atualizados em ${nomeExibicao}.`;
-        }
+          if (isRemoval) {
+            tituloNotif = '🗑️ ITEM REMOVIDO';
+            iconeNotif = '🗑️';
+            textoAcao = 'Item Removido';
+            textoPadrao = `Item removido em ${nomeExibicao}.`;
+          } else if (isSubstitution) {
+            tituloNotif = '🔄 ITEM SUBSTITUÍDO';
+            iconeNotif = '🔄';
+            textoAcao = 'Item Substituído';
+            textoPadrao = `Item substituído em ${nomeExibicao}.`;
+          } else if (isMixed) {
+            tituloNotif = '✏️ PEDIDO ATUALIZADO';
+            iconeNotif = '✏️';
+            textoAcao = 'Pedido Atualizado';
+            textoPadrao = `Itens atualizados em ${nomeExibicao}.`;
+          }
 
-        const descTexto = data.detalhes_edicao ? `${nomeExibicao} — ${data.detalhes_edicao}` : textoPadrao;
-        adicionarNotificacao(tituloNotif, descTexto, iconeNotif);
-        
-        if (!isPropriaEdicaoAdmin) {
-          tocarNotificacao(); 
-          iniciarPiscarTitulo();
-          exibirNotificacaoNativa(tituloNotif, descTexto, `mesa-${mesaId}`);
-          mostrarToast(`${iconeNotif} ${textoAcao}: ${data.detalhes_edicao ? `${nomeExibicao} (${data.detalhes_edicao})` : nomeExibicao}`);
+          const descTexto = data.detalhes_edicao ? `${nomeExibicao} — ${data.detalhes_edicao}` : textoPadrao;
+          adicionarNotificacao(tituloNotif, descTexto, iconeNotif);
+          
+          if (!isPropriaEdicaoAdmin) {
+            tocarNotificacao(); 
+            iniciarPiscarTitulo();
+            exibirNotificacaoNativa(tituloNotif, descTexto, `mod-ped-${pedId}`);
+            mostrarToast(`${iconeNotif} ${textoAcao}: ${data.detalhes_edicao ? `${nomeExibicao} (${data.detalhes_edicao})` : nomeExibicao}`);
+          }
         }
       } else {
         if (isFuncPedido) {
@@ -11022,14 +11031,15 @@ function formatarNomeMesaNotificacao(numero, isComanda, pObj) {
           String(data.pedido_id) === String(ultimoPedidoEditadoPeloAdmin)
         );
         const isAdicaoRecente = isRecentAdditionNotified(data.pedido_id);
+        markRecentAdditionNotified(data.pedido_id);
         if (!isPropriaEdicaoAdmin && !isAdicaoRecente) {
           if (data.detalhes_edicao && data.detalhes_edicao.includes('🔄')) {
             const msgSub = data.detalhes_edicao.replace('🔄', '🔄 ' + nMesa + ':');
-            exibirNotificacaoNativa('🔄 ITEM SUBSTITUÍDO', msgSub, `subst-${data.pedido_id}`);
+            exibirNotificacaoNativa('🔄 ITEM SUBSTITUÍDO', msgSub, `mod-ped-${data.pedido_id}`);
             mostrarToast(msgSub);
           } else {
             const det = data.detalhes_edicao ? `: ${data.detalhes_edicao}` : '';
-            exibirNotificacaoNativa('📝 ITENS ATUALIZADOS', `${nMesa}${det}`, `atualiz-${data.pedido_id}`);
+            exibirNotificacaoNativa('📝 ITENS ATUALIZADOS', `${nMesa}${det}`, `mod-ped-${data.pedido_id}`);
             mostrarToast(`📝 ${nMesa}: Itens atualizados${det}`);
           }
         }
@@ -13502,18 +13512,29 @@ function toggleDropdownNotificacoes() {
 }
 
 function adicionarNotificacao(titulo, descricao, icone = '🔔') {
-  // Deduplicação: Se uma notificação com o mesmo conteúdo ou título similar foi gravada nos últimos 5 segundos, ignora
+  // Deduplicação: Se uma notificação com o mesmo conteúdo ou do mesmo pedido foi gravada nos últimos 7 segundos, ignora
   const now = Date.now();
   if (Array.isArray(notificacoesGerais) && notificacoesGerais.length > 0) {
-    const duvidosa = notificacoesGerais.slice(0, 5).find(n => {
+    const duvidosa = notificacoesGerais.slice(0, 8).find(n => {
       const timeDiff = now - new Date(n.data).getTime();
-      if (timeDiff >= 5000) return false;
+      if (timeDiff >= 7000) return false;
       const descLimpa1 = (n.descricao || '').replace(/[\s\r\n]+/g, ' ').trim();
       const descLimpa2 = (descricao || '').replace(/[\s\r\n]+/g, ' ').trim();
-      return (descLimpa1 === descLimpa2) || (n.titulo === titulo && descLimpa1.includes(descLimpa2));
+      if (descLimpa1 === descLimpa2) return true;
+      if (n.titulo === titulo && descLimpa1.includes(descLimpa2)) return true;
+
+      // Deduplica se for o mesmo número de pedido (#1234) com evento de itens adicionados ou atualizados
+      const id1 = (descLimpa1.match(/#(\d+)/) || [])[1];
+      const id2 = (descLimpa2.match(/#(\d+)/) || [])[1];
+      if (id1 && id2 && id1 === id2) {
+        const isItem1 = (n.titulo || '').includes('ADICIONADO') || (n.titulo || '').includes('ATUALIZADO');
+        const isItem2 = (titulo || '').includes('ADICIONADO') || (titulo || '').includes('ATUALIZADO');
+        if (isItem1 && isItem2) return true;
+      }
+      return false;
     });
     if (duvidosa) {
-      console.log(`⚡ [Deduplicador Sino] Notificação duplicada ignorada: ${titulo}`);
+      console.log(`⚡ [Deduplicador Sino] Notificação duplicada ignorada: ${titulo} - ${descricao}`);
       return;
     }
   }
