@@ -7825,41 +7825,45 @@ function verificarAlertasSubTabs() {
   let atrasoBalcao = false;
   let atrasoDelivery = false;
 
-  const now = new Date();
-
   (pedidos || []).forEach(pedido => {
+    if (!pedido) return;
+
+    // 1. Ignora pedidos de funcionários/colaboradores (permanecem abertos o turno todo)
+    const isFuncionario = !!pedido.is_funcionario || (pedido.mesa_tipo === 'funcionario') || /^(func|staff|f-)/i.test(pedido.mesa_numero || '');
+    if (isFuncionario) return;
+
+    // 2. Ignora pedidos já entregues ou cancelados
+    if (pedido.status === 'entregue' || pedido.status === 'cancelado') return;
+
     const isDelivery = (pedido.garcom_id === 'DELIVERY');
     const isMesa = (pedido.mesa_id !== null && pedido.mesa_id !== undefined && pedido.mesa_id !== '') && (pedido.mesa_tipo !== 'balcao');
-    const isAguardando = (pedido.status === 'aguardando_fechamento');
-
     const group = isDelivery ? 'delivery' : (isMesa ? 'garcom' : 'balcao');
 
-    const itens = pedido.itens || [];
-    const hasPend = itens.some(i => i.status === 'pendente' || i.status === 'pronto');
-    const statusGeral = hasPend ? 'recebido' : 'servido';
+    // 3. Apenas pedidos que realmente possuem itens para preparar ou entregar (pendente ou pronto)
+    const itens = Array.isArray(pedido.itens) ? pedido.itens : [];
+    const hasPend = itens.some(i => {
+      const st = String(i.status || 'pendente').toLowerCase();
+      return st === 'pendente' || st === 'pronto';
+    });
 
-    let dataBase = pedido.created_at;
-    if (isAguardando && !isDelivery && pedido.fechamento_solicitado_em) {
-      dataBase = pedido.fechamento_solicitado_em;
-    }
+    // Se todos os itens já foram servidos, não é atraso de preparo
+    if (!hasPend) return;
 
-    if ((statusGeral === 'recebido' || (isAguardando && !isDelivery)) && dataBase) {
-      let dateStr = dataBase;
-      if (!dateStr.endsWith('Z')) dateStr = dateStr.replace(' ', 'T') + 'Z';
-      const parsedDate = new Date(dateStr);
-      const diffMinutes = (now - parsedDate) / 60000;
+    const dataBase = pedido.created_at;
+    if (!dataBase) return;
 
-      const info = calcularLimiteAtrasoPedido(pedido);
-      const isDelayed = isAguardando ? (diffMinutes >= 5) : (diffMinutes >= info.limite);
-      if (isDelayed) {
-        if (group === 'garcom') atrasoGarcom = true;
-        else if (group === 'balcao') atrasoBalcao = true;
-        else if (group === 'delivery') atrasoDelivery = true;
-      }
+    // 4. Usa a função oficial calcularMinutos() com fuso e relógio sincronizados com o servidor
+    const diffMinutes = typeof calcularMinutos === 'function' ? calcularMinutos(dataBase) : 0;
+    const info = calcularLimiteAtrasoPedido(pedido);
+
+    if (diffMinutes >= info.limite) {
+      if (group === 'garcom') atrasoGarcom = true;
+      else if (group === 'balcao') atrasoBalcao = true;
+      else if (group === 'delivery') atrasoDelivery = true;
     }
   });
 
-  // Se houver atraso na aba e ela não for a aba ativa
+  // Se houver atraso real de preparo na aba e ela não for a aba ativa
   if (atrasoGarcom && subAbaAtiva !== 'garcom') {
     const btn = document.getElementById('tab-sub-garcom');
     if (btn) btn.classList.add('tab-pisca-atrasado');
