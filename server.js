@@ -6695,6 +6695,25 @@ const transferirMesaServerHandler = async (req, res) => {
       });
     }
 
+    const isComDestino = (Number(mesaDestino.is_comanda) === 1 || mesaDestino.tipo === 'balcao' || mesaDestino.tipo === 'comanda') ? 1 : 0;
+    const nomeDestinoFmt = formatarNomeOrigem(mesaDestino.numero, isComDestino, mesaDestino.tipo);
+    const descTransferencia = merged 
+      ? `${nomeOrigemFmt} unificada com ${nomeDestinoFmt}`
+      : `${nomeOrigemFmt} transferida para ${nomeDestinoFmt}`;
+
+    await safePusherTrigger('garconnexpress', 'status-atualizado', {
+      status: 'mesa_transferida',
+      mesa_origem: nomeOrigemFmt,
+      mesa_destino: nomeDestinoFmt,
+      mesa_id: mesaDestino.id,
+      mesa_numero: mesaDestino.numero,
+      pedido_id: finalPedidoId,
+      pedido_origem_id: pedido.id,
+      merged: merged,
+      detalhes_transferencia: descTransferencia,
+      transferencia_origem: novoTextoTransf
+    }).catch(console.error);
+
     await notifyStatus(finalPedidoId, mesaDestino.id, 'transferido');
 
     res.json({

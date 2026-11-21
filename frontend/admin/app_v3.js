@@ -11049,6 +11049,37 @@ function formatarNomeMesaNotificacao(numero, isComanda, pObj) {
 
         // Sem emissão de som (conforme aprovado: visual apenas no Toast + Sininho)
       }
+      else if (data.status === 'mesa_transferida') {
+        const orig = data.mesa_origem || 'Mesa';
+        const dest = data.mesa_destino || 'Mesa';
+        const transferKey = `${data.pedido_id}_${orig}_${dest}_${data.merged ? 'merge' : 'move'}`;
+
+        window._ultimasTransferenciasNotificadas = window._ultimasTransferenciasNotificadas || new Set();
+        if (window._ultimasTransferenciasNotificadas.has(transferKey)) {
+          return; // Previne estritamente qualquer toast ou sininho duplicado
+        }
+        window._ultimasTransferenciasNotificadas.add(transferKey);
+        setTimeout(() => {
+          if (window._ultimasTransferenciasNotificadas) {
+            window._ultimasTransferenciasNotificadas.delete(transferKey);
+          }
+        }, 10000);
+
+        const isUnificacao = !!data.merged;
+        const titulo = isUnificacao ? '🔀 MESAS UNIFICADAS' : '🔄 MESA TRANSFERIDA';
+        const icone = isUnificacao ? '🔀' : '🔄';
+        const pIdStr = data.pedido_id ? ` (#${data.pedido_id})` : '';
+        const descTexto = data.detalhes_transferencia || (
+          isUnificacao ? `${orig} unificada com ${dest}` : `${orig} transferida para ${dest}`
+        );
+        const descCompleta = `${descTexto}${pIdStr}`;
+
+        // 1. Registra no Sininho (Central de Notificações)
+        adicionarNotificacao(titulo, descCompleta, icone);
+
+        // 2. Exibe o Toast visual na tela (sem som)
+        mostrarToast(descCompleta, 'info', titulo);
+      }
       else if (data.status === 'itens_atualizados') {
         const isPropriaEdicaoAdmin = (ultimoPedidoEditadoPeloAdmin !== null) && (
           String(data.pedido_id) === String(ultimoPedidoEditadoPeloAdmin)
